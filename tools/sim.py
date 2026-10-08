@@ -23,7 +23,9 @@ BUILD = ROOT / "build" / "sim"
 CONF = ROOT / "host" / "sim" / "lv_conf.h"
 # what the simulator deliberately does differently from the firmware (see lv_conf.h)
 KNOWN_DIFFERENCES = {"LV_COLOR_16_SWAP", "LV_ATTRIBUTE_FAST_MEM_USE_IRAM", "LV_MEM_CUSTOM_INCLUDE",
-                     "LV_ASSERT_HANDLER_INCLUDE", "LV_CONF_SKIP", "LV_LOG_LEVEL"}
+                     "LV_ASSERT_HANDLER_INCLUDE", "LV_CONF_SKIP", "LV_LOG_LEVEL",
+                     # the larger fonts of the JC4880P443C, not in the WT32's build
+                     "LV_FONT_MONTSERRAT_18", "LV_FONT_MONTSERRAT_26", "LV_FONT_MONTSERRAT_36"}
 
 
 def sdkconfig_values(path):
@@ -80,7 +82,7 @@ def check_config():
             print(f"sim: lv_conf.h differs from the firmware's sdkconfig: {name} is {value} there, "
                   f"{sim[name]} here")
     fonts = lambda values, on: sorted(n for n, v in values.items()
-                                      if re.fullmatch(r"LV_FONT_MONTSERRAT_\d+", n) and v == on)
+                                      if re.fullmatch(r"LV_FONT_MONTSERRAT_\d+", n) and v == on and n not in KNOWN_DIFFERENCES)
     if fonts(firmware, "y") != fonts(sim, "1"):
         print(f"sim: lv_conf.h differs from the firmware's sdkconfig: Montserrat sizes {fonts(firmware, 'y')} "
               f"there, {fonts(sim, '1')} here")

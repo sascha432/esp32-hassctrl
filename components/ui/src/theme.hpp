@@ -28,22 +28,18 @@ constexpr lv_coord_t kRowHeight = 44;
 constexpr lv_coord_t kPad = 8;
 constexpr lv_coord_t kRadius = 12;
 
-inline const lv_font_t &font_small()
-{
-    return lv_font_montserrat_12;
-}
-inline const lv_font_t &font_normal()
-{
-    return lv_font_montserrat_14;
-}
-inline const lv_font_t &font_medium()
-{
-    return lv_font_montserrat_16;
-}
-inline const lv_font_t &font_large()
-{
-    return lv_font_montserrat_20;
-}
+// Montserrat 12, 14, 16, 20 and 28 (the values of the tiles and panels); with
+// Options::large_fonts 16, 18, 20, 26 and 36, about 28 % larger. Chosen once by ui::start(),
+// before anything is built.
+void use_large_fonts(bool large);
+const lv_font_t &font_small();
+const lv_font_t &font_normal();
+const lv_font_t &font_medium();
+const lv_font_t &font_large();
+const lv_font_t &font_huge();
+// a size that holds text (a column of labels, a chip): `px` at the normal fonts, about 30 % more
+// with the large ones
+lv_coord_t scaled(lv_coord_t px);
 
 lv_color_t color(uint32_t hex);
 

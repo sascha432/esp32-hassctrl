@@ -30,6 +30,11 @@ between tiles, radius 8. Portrait uses the transposed grid and the tile spans tu
 
 An area page has the back tile (arrow) in its first cell; a tap goes to the parent page.
 
+Boards with `Info::ui_slide_pages` (the JC4880P443C, `hc::ui::Options::slide_pages`): an area page
+slides in from the right over 250 ms (ease out) and pushes the page that was shown out to the left;
+the back tile slides the parent in from the left. The leaving page takes no taps while it moves.
+Any other page change (a new layout, turning the display) has no slide.
+
 ## 2. Tiles
 
 | Tile | Content, top to bottom | Tap |
@@ -130,6 +135,13 @@ them side by side. When every item fits in one column, the list is that column, 
 control area; else it has two columns, centered when they fit (no room kept for a scrollbar). A
 longer one scrolls, and when it opens with the value that is set out of view, that item is scrolled into the
 middle (no further than the end of the list).
+
+Boards with `Info::ui_panel_dialogs` (the JC4880P443C, `hc::ui::Options::panel_dialogs`): the
+panels of a dimmer, a climate and a sensor are a dialog of 620x420 (440x600 in portrait),
+centered over the page. The page behind it is dimmed by a black veil of 50 %, the dialog is opaque,
+radius 12, 1 px border. Veil and dialog fade in when the dialog opens and out when it closes
+(200 ms). A tap on the veil closes the dialog like the back tile. The camera image stays full
+screen.
 
 ### Light panel
 

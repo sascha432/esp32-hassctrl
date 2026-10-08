@@ -22,6 +22,10 @@
 //
 // `a` is the action of the header (the power button of a light); without one the name takes its
 // place.
+//
+// With Options::panel_dialogs the frame is a dialog of 620 x 420 (440 x 600 in portrait) over the
+// dimmed page, fading in and out (not for the camera image); the parts are placed in the dialog's
+// coordinates then.
 
 #include <string>
 #include <string_view>
@@ -34,7 +38,7 @@
 namespace hc::ui::panel {
 
 struct Frame {
-    lv_obj_t *root = nullptr; // the panel; every part is a child of it, placed in screen coordinates
+    lv_obj_t *root = nullptr; // the panel or its dialog; every part is a child of it, placed in its coordinates
     lv_obj_t *name = nullptr; // the name of the entity in `header`, kept up to date by the frame
     lv_area_t back{};
     lv_area_t header{};       // the name, left of `action`
@@ -49,10 +53,12 @@ struct Frame {
 bool has_panel(const core::Tile &tile);
 
 // Builds the panel of `tile` over the page in `parent` (the dashboard's root); a panel that is open
-// goes first. Called again after the display turned.
-void build(lv_obj_t *parent, core::TileIndex tile);
+// goes first. Called again after the display turned. `appear`: a dialog fades in (opened by a tap).
+void build(lv_obj_t *parent, core::TileIndex tile, bool appear = false);
 
-// removes the panel; nothing happens when none is open
+// removes the panel: a dialog fades out first, the full screen panel goes at once
+void close();
+// removes the panel at once; nothing happens when none is open
 void destroy();
 
 // draws the panel again when it shows `entity`

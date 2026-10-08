@@ -90,6 +90,10 @@
 #define LV_FONT_MONTSERRAT_16 1
 #define LV_FONT_MONTSERRAT_20 1
 #define LV_FONT_MONTSERRAT_28 1
+/* the larger fonts of the JC4880P443C (boards/jc4880p443c/sdkconfig.defaults) */
+#define LV_FONT_MONTSERRAT_18 1
+#define LV_FONT_MONTSERRAT_26 1
+#define LV_FONT_MONTSERRAT_36 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 #define LV_USE_FONT_PLACEHOLDER 1
 #define LV_FONT_FMT_TXT_LARGE 0

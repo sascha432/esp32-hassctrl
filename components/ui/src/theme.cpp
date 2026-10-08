@@ -74,6 +74,71 @@ lv_color_t color(uint32_t hex)
     return lv_color_hex(hex);
 }
 
+namespace {
+
+struct Fonts {
+    // how much larger than the normal set, in percent
+    int scale;
+    const lv_font_t *small;
+    const lv_font_t *normal;
+    const lv_font_t *medium;
+    const lv_font_t *large;
+    const lv_font_t *huge;
+};
+
+constexpr Fonts kFonts{100, &lv_font_montserrat_12, &lv_font_montserrat_14, &lv_font_montserrat_16, &lv_font_montserrat_20,
+                       &lv_font_montserrat_28};
+// only in the builds of the boards that use them (their sdkconfig.defaults)
+#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
+constexpr Fonts kLargeFonts{130, &lv_font_montserrat_16, &lv_font_montserrat_18, &lv_font_montserrat_20,
+                            &lv_font_montserrat_26, &lv_font_montserrat_36};
+#endif
+
+const Fonts *g_fonts = &kFonts;
+
+} // namespace
+
+void use_large_fonts(bool large)
+{
+#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
+    g_fonts = large ? &kLargeFonts : &kFonts;
+#else
+    if (large) {
+        LV_LOG_WARN("large fonts are not built in (Montserrat 18, 26, 36)");
+    }
+#endif
+}
+
+const lv_font_t &font_small()
+{
+    return *g_fonts->small;
+}
+
+const lv_font_t &font_normal()
+{
+    return *g_fonts->normal;
+}
+
+const lv_font_t &font_medium()
+{
+    return *g_fonts->medium;
+}
+
+const lv_font_t &font_large()
+{
+    return *g_fonts->large;
+}
+
+const lv_font_t &font_huge()
+{
+    return *g_fonts->huge;
+}
+
+lv_coord_t scaled(lv_coord_t px)
+{
+    return static_cast<lv_coord_t>((px * g_fonts->scale + 50) / 100);
+}
+
 lv_obj_t *plain(lv_obj_t *parent)
 {
     lv_obj_t *obj = lv_obj_create(parent);

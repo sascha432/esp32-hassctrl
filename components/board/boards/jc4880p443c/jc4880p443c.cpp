@@ -52,6 +52,10 @@ constexpr Info kInfo{
     // no sensor built in
     .light_sensor_scale = 1.0f,
     .light_sensor_backlight_lux = 0.0f,
+    // the large screen: pages slide, panels are dialogs, larger fonts (user, 2026-10-08)
+    .ui_slide_pages = true,
+    .ui_panel_dialogs = true,
+    .ui_large_fonts = true,
 };
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));

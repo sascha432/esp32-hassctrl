@@ -39,6 +39,8 @@ struct Options {
     int scenario = 0;
     uint8_t rotation = 0;
     bool sensor = false;
+    // the look of the board the size belongs to
+    ui::Options ui;
     bool lux_set = false;
     float lux = 0.0f;
     // docs/dashboard-sample/hass.yaml unless --dashboard names another
@@ -436,7 +438,8 @@ void usage()
         "hassctrl simulator: the screens on the PC, with sample data (docs/architecture.md section 1)\n"
         "\n"
         "  --size WxH|name      window size at rotation 0: 480x320 (default), 320x480, 320x240, 640x480,\n"
-        "                       480x800; or wt32, jc3248, t4, vga, p4\n"
+        "                       480x800; or wt32, jc3248, t4, vga, p4 (p4 and 480x800: pages\n"
+        "                       slide, panels are dialogs, large fonts, like on the JC4880P443C)\n"
         "  --zoom N             every display pixel as N x N window pixels (default 1)\n"
         "  --dashboard FILE     the hass.yaml to show (default docs/dashboard-sample/hass.yaml); the\n"
         "                       .yaml files below its folder are its includes. `none`: no dashboard,\n"
@@ -476,15 +479,21 @@ bool parse_size(const char *text, Options &o, char *board, size_t board_size)
         const char *name;
         int w, h;
         const char *board;
+        // what board::Info says for the board (ui_slide_pages, ui_panel_dialogs)
+        ui::Options ui;
     };
     static const Preset presets[] = {
-        {"wt32", 480, 320, "WT32-SC01"}, {"jc3248", 320, 480, "JC3248W535"}, {"t4", 320, 240, "TTGO T4"},
-        {"vga", 640, 480, "640x480 panel"}, {"p4", 480, 800, "JC4880P443C"},
+        {"wt32", 480, 320, "WT32-SC01", {}},
+        {"jc3248", 320, 480, "JC3248W535", {}},
+        {"t4", 320, 240, "TTGO T4", {}},
+        {"vga", 640, 480, "640x480 panel", {}},
+        {"p4", 480, 800, "JC4880P443C", {.slide_pages = true, .panel_dialogs = true, .large_fonts = true}},
     };
     for (const Preset &p : presets) {
         if (std::strcmp(p.name, text) == 0) {
             o.width = p.w;
             o.height = p.h;
+            o.ui = p.ui;
             std::snprintf(board, board_size, "%s", p.board);
             return true;
         }
@@ -498,6 +507,7 @@ bool parse_size(const char *text, Options &o, char *board, size_t board_size)
     o.height = h;
     for (const Preset &p : presets) {
         if ((p.w == w && p.h == h) || (p.w == h && p.h == w)) {
+            o.ui = p.ui;
             std::snprintf(board, board_size, "%s", p.board);
             return true;
         }
@@ -648,7 +658,7 @@ int main(int argc, char **argv)
                                            .cycle_rotation = false,
                                            .backlight = &sim::backlight_control(),
                                            .network_text = nullptr};
-    ui::start(lv_disp_get_default(), sim::backend(), test_screen, o.sensor);
+    ui::start(lv_disp_get_default(), sim::backend(), test_screen, o.sensor, o.ui);
     // the boot: the first setup opens in the timer that follows
     pump(800);
 

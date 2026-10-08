@@ -357,7 +357,7 @@ void build_arc(lv_coord_t w, lv_coord_t h)
     lv_obj_clear_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     const bool large = size >= 180;
     g.action = column_label(col, large ? t::font_medium() : t::font_normal(), t::kActive);
-    g.setpoint = column_label(col, lv_font_montserrat_28, t::kText);
+    g.setpoint = column_label(col, t::font_huge(), t::kText);
     column_label(col, t::font_small(), t::kTextLabel);
     lv_label_set_text(lv_obj_get_child(col, 2), large ? "Current temperature" : "Current");
     g.current = column_label(col, large ? t::font_medium() : t::font_normal(), t::kTextValue);

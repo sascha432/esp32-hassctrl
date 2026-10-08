@@ -12,3 +12,11 @@
   host side) and console command `c6 version|update <url>`, which updates the C6 from the P4 over
   SDIO. The C6 of the first unit went from the vendor's 2.3.2 to 3.0.9.
 - Device name from the base MAC on chips without a radio (it was `hassctrl-0000` on the P4).
+- Large-screen look for the JC4880P443C only (`Info::ui_slide_pages`, `ui_panel_dialogs`,
+  `ui_large_fonts`, passed to the UI as `hc::ui::Options`): area pages slide in from the right and
+  back out to the right (250 ms); the dimmer, climate and sensor panels are an opaque 620x420
+  dialog (440x600 in portrait) over the page dimmed to 50 %, fading in and out (200 ms), a tap
+  beside it closes it; fonts Montserrat 16/18/20/26/36 instead of 12/14/16/20/28 (+117 KB, only
+  in this board's build). The sensor graph's label sizes grow with the fonts
+  (`theme::scaled`). The sim's `--size p4` shows the same. Design approved by the user in the
+  sim.

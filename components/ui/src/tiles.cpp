@@ -32,7 +32,7 @@ constexpr float kDefaultClimateStep = 0.5f;
 
 const lv_font_t &value_font(const View &view)
 {
-    return view.large ? lv_font_montserrat_28 : lv_font_montserrat_20;
+    return view.large ? t::font_huge() : t::font_large();
 }
 
 const lv_font_t &name_font(const View &view)
@@ -66,7 +66,7 @@ void set_value(const View &view, const std::string &text)
     if (view.value == nullptr) {
         return;
     }
-    const lv_font_t *const fonts[] = {&value_font(view), &lv_font_montserrat_20, &t::font_medium(), &t::font_normal(),
+    const lv_font_t *const fonts[] = {&value_font(view), &t::font_large(), &t::font_medium(), &t::font_normal(),
                                       &t::font_small()};
     const lv_coord_t width = view.value_width;
     const lv_font_t *chosen = fonts[std::size(fonts) - 1];

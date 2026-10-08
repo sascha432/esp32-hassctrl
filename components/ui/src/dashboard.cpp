@@ -22,12 +22,27 @@ constexpr uint32_t kLayoutCheckMs = 500;
 // docs/ui/dashboard.md: the margin around the grid and the gap between tiles
 constexpr lv_coord_t kMargin = 8;
 constexpr lv_coord_t kGap = 4;
+// Options::slide_pages: how long a page takes to slide in
+constexpr uint32_t kSlideMs = 250;
+
+// where the page that opens comes from
+enum class Slide : uint8_t {
+    None,
+    FromRight, // an area page of the current one
+    FromLeft,  // the parent of the current page
+};
 
 struct State {
     const Backend *backend = nullptr;
     lv_obj_t *screen = nullptr;
     void (*leave)() = nullptr;
+    Options options;
     lv_obj_t *root = nullptr;
+    // the tiles of the page, a child of root under the panel
+    lv_obj_t *page_obj = nullptr;
+    // the page that slides out and its views, deleted when the slide is done
+    lv_obj_t *leaving = nullptr;
+    memory::Vector<tiles::View> leaving_views;
     lv_timer_t *timer = nullptr;
     uint32_t last_layout_check = 0;
 
@@ -59,7 +74,45 @@ void clear_page()
     if (g.root != nullptr) {
         lv_obj_clean(g.root);
     }
+    g.page_obj = nullptr;
+    g.leaving = nullptr;
     g.views.clear();
+    g.leaving_views.clear();
+}
+
+// A slide that runs ends now: the page that left goes, the new one stands where it belongs.
+void finish_slide()
+{
+    if (g.leaving == nullptr) {
+        return;
+    }
+    lv_anim_del(g.page_obj, nullptr);
+    lv_obj_set_x(g.page_obj, 0);
+    lv_obj_del(g.leaving);
+    g.leaving = nullptr;
+    g.leaving_views.clear();
+}
+
+// the new page from `width` (or -width) to 0, the leaving one a screen width beside it
+void start_slide(Slide slide, lv_coord_t width)
+{
+    const lv_coord_t from = slide == Slide::FromRight ? width : static_cast<lv_coord_t>(-width);
+    lv_obj_set_x(g.page_obj, from);
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, g.page_obj);
+    lv_anim_set_values(&anim, from, 0);
+    lv_anim_set_time(&anim, kSlideMs);
+    lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&anim, [](void *obj, int32_t x) {
+        const lv_coord_t width = lv_obj_get_width(static_cast<lv_obj_t *>(obj));
+        lv_obj_set_x(static_cast<lv_obj_t *>(obj), static_cast<lv_coord_t>(x));
+        if (g.leaving != nullptr) {
+            lv_obj_set_x(g.leaving, static_cast<lv_coord_t>(x > 0 ? x - width : x + width));
+        }
+    });
+    lv_anim_set_ready_cb(&anim, [](lv_anim_t *) { finish_slide(); });
+    lv_anim_start(&anim);
 }
 
 void update_view(tiles::View &view)
@@ -68,14 +121,30 @@ void update_view(tiles::View &view)
 }
 
 // The cells of the page in the current orientation: the portrait grid is the transposed one
-// (docs/architecture.md section 5, "Orientation").
-void build_page()
+// (docs/architecture.md section 5, "Orientation"). With a slide the page that is shown stays
+// until the new one has slid over it.
+void build_page(Slide slide = Slide::None)
 {
-    clear_page();
     const core::Layout &layout = *g.layout;
     const core::Page &page = layout.pages[g.page];
     const lv_coord_t width = lv_obj_get_width(g.screen);
     const lv_coord_t height = lv_obj_get_height(g.screen);
+    if (slide != Slide::None && g.page_obj != nullptr && width == g.built_width && height == g.built_height) {
+        finish_slide();
+        panel::destroy();
+        g.leaving = g.page_obj;
+        g.leaving_views = std::move(g.views);
+        g.views.clear();
+        // a tap on the leaving page goes nowhere
+        lv_obj_t *cover = t::plain(g.leaving);
+        lv_obj_set_size(cover, width, height);
+        lv_obj_add_flag(cover, LV_OBJ_FLAG_CLICKABLE);
+    } else {
+        slide = Slide::None;
+        clear_page();
+    }
+    g.page_obj = t::plain(g.root);
+    lv_obj_set_size(g.page_obj, width, height);
     g.built_width = width;
     g.built_height = height;
     const bool portrait = height > width;
@@ -95,7 +164,7 @@ void build_page()
     g.views.reserve(page.tiles.size() + 1);
     if (page.parent != core::kNone) {
         // the first cell of an area page goes back
-        tiles::create(g.views.emplace_back(), g.root, layout, area_of({0, 0}, 1, 1));
+        tiles::create(g.views.emplace_back(), g.page_obj, layout, area_of({0, 0}, 1, 1));
     }
     for (const core::TileIndex index : page.tiles) {
         const core::Tile &tile = layout.tiles[index];
@@ -107,7 +176,7 @@ void build_page()
         const uint8_t span_rows = portrait ? tile.span.cols : tile.span.rows;
         tiles::View &view = g.views.emplace_back();
         view.tile = index;
-        tiles::create(view, g.root, layout, area_of(cell, span_cols, span_rows));
+        tiles::create(view, g.page_obj, layout, area_of(cell, span_cols, span_rows));
     }
     for (auto &view : g.views) {
         update_view(view);
@@ -115,6 +184,9 @@ void build_page()
     if (g.panel != core::kNone) {
         // the display turned under an open panel
         panel::build(g.root, g.panel);
+    }
+    if (slide != Slide::None) {
+        start_slide(slide, width);
     }
 }
 
@@ -200,9 +272,10 @@ void on_timer(lv_timer_t *)
 
 } // namespace
 
-void init(const Backend &backend, lv_obj_t *screen, void (*leave)())
+void init(const Backend &backend, lv_obj_t *screen, void (*leave)(), const Options &options)
 {
     g.backend = &backend;
+    g.options = options;
     g.screen = screen;
     g.leave = leave;
     if (backend.dashboard == nullptr) {
@@ -217,6 +290,11 @@ void init(const Backend &backend, lv_obj_t *screen, void (*leave)())
 const Backend &backend()
 {
     return *g.backend;
+}
+
+const Options &options()
+{
+    return g.options;
 }
 
 bool shown()
@@ -244,17 +322,25 @@ void open_page(core::PageIndex page)
     if (!g.layout || page >= g.layout->pages.size()) {
         return;
     }
+    Slide slide = Slide::None;
+    if (g.options.slide_pages && page != g.page) {
+        if (g.layout->pages[page].parent == g.page) {
+            slide = Slide::FromRight;
+        } else if (g.layout->pages[g.page].parent == page) {
+            slide = Slide::FromLeft;
+        }
+    }
     g.page = page;
     g.panel = core::kNone;
     // a tap on a tile opens the page: the tile is deleted after its event, not in it
     lv_async_call(
-        [](void *) {
+        [](void *slide) {
             if (g.layout) {
-                build_page();
+                build_page(static_cast<Slide>(reinterpret_cast<uintptr_t>(slide)));
                 subscribe();
             }
         },
-        nullptr);
+        reinterpret_cast<void *>(static_cast<uintptr_t>(slide)));
 }
 
 void back()
@@ -270,7 +356,7 @@ void open_panel(core::TileIndex tile)
         return;
     }
     g.panel = tile;
-    panel::build(g.root, tile);
+    panel::build(g.root, tile, true);
     // the same page with the panel's fields
     subscribe();
 }
@@ -331,7 +417,7 @@ void close_panel()
     lv_async_call(
         [](void *) {
             if (g.panel == core::kNone) {
-                panel::destroy();
+                panel::close();
                 // the cameras of the page waited while the panel covered it (and lost their image
                 // when the display turned meanwhile)
                 for (auto &view : g.views) {

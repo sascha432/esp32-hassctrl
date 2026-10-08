@@ -302,7 +302,9 @@ extern "C" void app_main()
                            .cycle_rotation = false,
                            .backlight = &backlight,
                            .network_text = nullptr},
-                          imu);
+                          imu, {.slide_pages = board.ui_slide_pages,
+                           .panel_dialogs = board.ui_panel_dialogs,
+                           .large_fonts = board.ui_large_fonts});
 #if CONFIG_HC_DEV_CONSOLE
             hc::uidebug::init(disp);
 #endif

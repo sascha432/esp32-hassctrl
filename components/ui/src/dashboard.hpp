@@ -10,6 +10,7 @@
 #include "hc/core/layout.hpp"
 #include "hc/core/pending.hpp"
 #include "hc/ui/backend.hpp"
+#include "hc/ui/ui.hpp"
 #include "tiles.hpp"
 #include "lvgl.h"
 
@@ -17,7 +18,10 @@ namespace hc::ui::dashboard {
 
 // Draws the dashboard on `screen` once the backend has one. Until then the screen shows something
 // else (the test screen); `leave` is called once, before the dashboard takes the screen.
-void init(const Backend &backend, lv_obj_t *screen, void (*leave)());
+void init(const Backend &backend, lv_obj_t *screen, void (*leave)(), const Options &options);
+
+// how the board's screens move and look (the panels ask whether they are dialogs)
+const Options &options();
 
 // true while a dashboard is shown
 bool shown();
@@ -30,6 +34,7 @@ const core::Layout &layout();
 const core::EntityState &state(core::EntityIndex entity);
 const core::Expectation *pending(core::EntityIndex entity);
 
+// With Options::slide_pages an area page slides in from the right and its parent from the left.
 void open_page(core::PageIndex page);
 // to the parent of the current page
 void back();

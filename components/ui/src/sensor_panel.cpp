@@ -28,28 +28,16 @@ constexpr uint32_t kRefreshMs = 60000;
 constexpr uint32_t kBucketSeconds = 300;
 
 // the row of "History" and the range buttons
-constexpr lv_coord_t kTitleHeight = 30;
-constexpr lv_coord_t kChipWidth = 52;
-constexpr lv_coord_t kChipHeight = 26;
 constexpr lv_coord_t kChipGap = 6;
 // between the title row and the card
 constexpr lv_coord_t kCardGap = 8;
-// inside the card: the column of the value labels left of the graph, the strip of the time labels
-// below it, the gap at the right
-constexpr lv_coord_t kLevelWidth = 40;
-constexpr lv_coord_t kLevelHeight = 14;
-constexpr lv_coord_t kGraphX = kLevelWidth + 8;
-// below the unit, so the label of the top line does not touch it
-constexpr lv_coord_t kGraphY = kLevelHeight + 8;
+// the gap at the right of the graph, above the time labels
 constexpr lv_coord_t kGraphRight = 8;
 constexpr lv_coord_t kTimeTop = 2;
-constexpr lv_coord_t kTimeHeight = 23;
 // the curve is mapped inside this inset, so a 2 px line on the top or the bottom is not cut
 constexpr lv_coord_t kGraphInset = 2;
 // LVGL's chart stores 16 bit values: the window's range is mapped to 0..kChartScale
 constexpr lv_coord_t kChartScale = 10000;
-// the time labels keep at least this distance ("00:00" in 12 px is about 32 px wide)
-constexpr lv_coord_t kTickSpacing = 44;
 constexpr uint32_t kTickHours[] = {1, 2, 3, 4, 6, 8, 12, 24};
 constexpr int kMaxTicks = 25;
 // the timeline of an on/off entity: a strip centered in the card above the time labels, the same
@@ -57,6 +45,43 @@ constexpr int kMaxTicks = 25;
 constexpr lv_coord_t kStripHeight = 40;
 constexpr lv_coord_t kStripSide = 16;
 constexpr lv_coord_t kLegendDot = 12;
+
+// The sizes that hold text grow with the fonts (theme::scaled), set by build(); the numbers are
+// those of the normal fonts.
+struct Sizes {
+    // the row of "History" and the range buttons
+    lv_coord_t title_height;
+    lv_coord_t chip_width;
+    lv_coord_t chip_height;
+    // inside the card: the column of the value labels left of the graph, the strip of the time
+    // labels below it
+    lv_coord_t level_width;
+    lv_coord_t level_height;
+    lv_coord_t graph_x;
+    // below the unit, so the label of the top line does not touch it
+    lv_coord_t graph_y;
+    lv_coord_t time_height;
+    // the time labels keep at least this distance ("00:00" in 12 px is about 32 px wide)
+    lv_coord_t tick_spacing;
+};
+
+Sizes sizes_now()
+{
+    Sizes s{};
+    s.title_height = t::scaled(30);
+    s.chip_width = t::scaled(52);
+    s.chip_height = t::scaled(26);
+    s.level_width = t::scaled(40);
+    s.level_height = t::scaled(14);
+    s.graph_x = static_cast<lv_coord_t>(s.level_width + 8);
+    s.graph_y = static_cast<lv_coord_t>(s.level_height + 8);
+    s.time_height = t::scaled(23);
+    s.tick_spacing = t::scaled(44);
+    return s;
+}
+
+Sizes sizes = sizes_now();
+
 // the colors of a tile: on is an active tile, off its border, unknown a hole in the card
 constexpr uint32_t kColorOn = t::kActive;
 constexpr uint32_t kColorOff = t::kBorder;
@@ -195,7 +220,7 @@ void draw_ticks(uint32_t start, uint32_t end, lv_coord_t top, lv_coord_t height)
     const float span = static_cast<float>(end - start);
     uint32_t every = kTickHours[std::size(kTickHours) - 1];
     for (const uint32_t candidate : kTickHours) {
-        if (g.graph_w * static_cast<float>(candidate * 3600) / span >= kTickSpacing) {
+        if (g.graph_w * static_cast<float>(candidate * 3600) / span >= sizes.tick_spacing) {
             every = candidate;
             break;
         }
@@ -284,7 +309,7 @@ void draw_statistics(const core::History &history)
     }
     lv_chart_refresh(g.chart);
     set_hidden(g.chart, false);
-    draw_ticks(history.start, history.end, kGraphY, g.graph_h);
+    draw_ticks(history.start, history.end, sizes.graph_y, g.graph_h);
     show_message("");
 }
 
@@ -341,7 +366,7 @@ void draw_states(const core::History &history)
     }
     set_hidden(g.strip, false);
     set_hidden(g.legend, false);
-    draw_ticks(history.start, history.end, g.strip_y, static_cast<lv_coord_t>(kGraphY + g.graph_h - g.strip_y));
+    draw_ticks(history.start, history.end, g.strip_y, static_cast<lv_coord_t>(sizes.graph_y + g.graph_h - g.strip_y));
     show_message("");
 }
 
@@ -384,13 +409,13 @@ void build_header()
     const lv_coord_t text_w = static_cast<lv_coord_t>(header.x2 + 1 - text_x);
     // the name above the value, both left aligned beside the icon
     const lv_coord_t name_h = lv_font_get_line_height(&t::font_medium());
-    const lv_coord_t value_h = lv_font_get_line_height(&lv_font_montserrat_28);
+    const lv_coord_t value_h = lv_font_get_line_height(&t::font_huge());
     const auto top = static_cast<lv_coord_t>(header.y1 + (height - name_h - value_h) / 2);
     lv_obj_set_style_text_font(g.frame.name, &t::font_medium(), 0);
     lv_obj_set_style_text_color(g.frame.name, t::color(t::kTextValue), 0);
     lv_obj_set_pos(g.frame.name, text_x, top);
     lv_obj_set_width(g.frame.name, text_w);
-    g.value = t::label(g.frame.root, "", lv_font_montserrat_28, t::kText);
+    g.value = t::label(g.frame.root, "", t::font_huge(), t::kText);
     lv_obj_set_pos(g.value, text_x, static_cast<lv_coord_t>(top + name_h));
     lv_obj_set_width(g.value, text_w);
     lv_label_set_long_mode(g.value, LV_LABEL_LONG_CLIP);
@@ -400,13 +425,13 @@ void build_title(const lv_area_t &area)
 {
     lv_obj_t *title = t::label(g.frame.root, "History", t::font_large(), t::kText);
     lv_obj_set_pos(title, area.x1,
-                   static_cast<lv_coord_t>(area.y1 + (kTitleHeight - lv_font_get_line_height(&t::font_large())) / 2));
-    auto x = static_cast<lv_coord_t>(area.x2 + 1 - (kRangeCount * kChipWidth + (kRangeCount - 1) * kChipGap));
-    const auto y = static_cast<lv_coord_t>(area.y1 + (kTitleHeight - kChipHeight) / 2);
+                   static_cast<lv_coord_t>(area.y1 + (sizes.title_height - lv_font_get_line_height(&t::font_large())) / 2));
+    auto x = static_cast<lv_coord_t>(area.x2 + 1 - (kRangeCount * sizes.chip_width + (kRangeCount - 1) * kChipGap));
+    const auto y = static_cast<lv_coord_t>(area.y1 + (sizes.title_height - sizes.chip_height) / 2);
     for (int i = 0; i < kRangeCount; i++) {
-        lv_obj_t *chip = panel::card(g.frame.root, {x, y, static_cast<lv_coord_t>(x + kChipWidth - 1),
-                                                    static_cast<lv_coord_t>(y + kChipHeight - 1)});
-        lv_obj_set_style_radius(chip, kChipHeight / 2, 0);
+        lv_obj_t *chip = panel::card(g.frame.root, {x, y, static_cast<lv_coord_t>(x + sizes.chip_width - 1),
+                                                    static_cast<lv_coord_t>(y + sizes.chip_height - 1)});
+        lv_obj_set_style_radius(chip, sizes.chip_height / 2, 0);
         // a small target: the touch counts a little around it
         lv_obj_set_ext_click_area(chip, kChipGap / 2);
         char text[8];
@@ -414,7 +439,7 @@ void build_title(const lv_area_t &area)
         lv_obj_center(t::label(chip, text, t::font_normal(), t::kTextLabel));
         lv_obj_add_event_cb(chip, on_chip, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
         g.chips[i] = chip;
-        x = static_cast<lv_coord_t>(x + kChipWidth + kChipGap);
+        x = static_cast<lv_coord_t>(x + sizes.chip_width + kChipGap);
     }
 }
 
@@ -427,10 +452,10 @@ void build_card(const lv_area_t &area)
     g.card_w = card_w;
     const lv_coord_t card_h = lv_area_get_height(&area);
     const bool timeline = g.kind == core::HistoryKind::States;
-    g.graph_x = timeline ? kStripSide : kGraphX;
+    g.graph_x = timeline ? kStripSide : sizes.graph_x;
     // the children sit inside the card's 1 px border
-    g.graph_w = static_cast<lv_coord_t>(timeline ? card_w - 2 - 2 * kStripSide : card_w - kGraphX - kGraphRight);
-    g.graph_h = static_cast<lv_coord_t>(card_h - kGraphY - kTimeHeight);
+    g.graph_w = static_cast<lv_coord_t>(timeline ? card_w - 2 - 2 * kStripSide : card_w - sizes.graph_x - kGraphRight);
+    g.graph_h = static_cast<lv_coord_t>(card_h - sizes.graph_y - sizes.time_height);
 
     // the grid lines first, so the curve and the strip are drawn over them
     for (lv_obj_t *&line : g.grid) {
@@ -441,7 +466,7 @@ void build_card(const lv_area_t &area)
         lv_obj_clear_flag(line, LV_OBJ_FLAG_CLICKABLE);
         set_hidden(line, true);
     }
-    const auto time_y = static_cast<lv_coord_t>(kGraphY + g.graph_h + kTimeTop);
+    const auto time_y = static_cast<lv_coord_t>(sizes.graph_y + g.graph_h + kTimeTop);
     for (lv_obj_t *&label : g.times) {
         label = t::label(g.card, "", t::font_small(), t::kTextMuted);
         lv_obj_set_y(label, time_y);
@@ -452,22 +477,22 @@ void build_card(const lv_area_t &area)
         g.unit = t::label(g.card, "", t::font_small(), t::kTextMuted);
         lv_obj_set_pos(g.unit, 4, 2);
         // the three value lines are the chart's dividers, the labels sit on them
-        const lv_coord_t line_top = kGraphY + kGraphInset;
+        const lv_coord_t line_top = sizes.graph_y + kGraphInset;
         const lv_coord_t line_h = static_cast<lv_coord_t>(g.graph_h - 2 * kGraphInset);
         const lv_coord_t ys[3] = {
-            static_cast<lv_coord_t>(line_top - kLevelHeight / 2),
-            static_cast<lv_coord_t>(line_top + line_h / 2 - kLevelHeight / 2),
-            static_cast<lv_coord_t>(line_top + line_h - kLevelHeight / 2),
+            static_cast<lv_coord_t>(line_top - sizes.level_height / 2),
+            static_cast<lv_coord_t>(line_top + line_h / 2 - sizes.level_height / 2),
+            static_cast<lv_coord_t>(line_top + line_h - sizes.level_height / 2),
         };
         for (int i = 0; i < 3; i++) {
             g.levels[i] = t::label(g.card, "", t::font_small(), t::kTextMuted);
-            lv_obj_set_width(g.levels[i], kLevelWidth - 4);
+            lv_obj_set_width(g.levels[i], sizes.level_width - 4);
             lv_obj_set_style_text_align(g.levels[i], LV_TEXT_ALIGN_RIGHT, 0);
             lv_obj_set_pos(g.levels[i], 2, std::max<lv_coord_t>(2, ys[i]));
         }
         g.chart = lv_chart_create(g.card);
         lv_obj_remove_style_all(g.chart);
-        lv_obj_set_pos(g.chart, kGraphX, kGraphY);
+        lv_obj_set_pos(g.chart, sizes.graph_x, sizes.graph_y);
         lv_obj_set_size(g.chart, g.graph_w, g.graph_h);
         lv_obj_set_style_pad_top(g.chart, kGraphInset, 0);
         lv_obj_set_style_pad_bottom(g.chart, kGraphInset, 0);
@@ -490,7 +515,7 @@ void build_card(const lv_area_t &area)
     } else {
         // the strip in the middle of the card above the time labels, the legend in the middle of
         // the space above the strip
-        const auto above_times = static_cast<lv_coord_t>(card_h - 2 - kTimeHeight);
+        const auto above_times = static_cast<lv_coord_t>(card_h - 2 - sizes.time_height);
         const lv_coord_t strip_h = std::min<lv_coord_t>(kStripHeight, static_cast<lv_coord_t>(above_times / 3));
         g.strip = t::plain(g.card);
         g.strip_y = static_cast<lv_coord_t>((above_times - strip_h) / 2);
@@ -524,7 +549,7 @@ void build_card(const lv_area_t &area)
     lv_obj_set_width(g.message, g.graph_w);
     lv_obj_set_style_text_align(g.message, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_pos(g.message, g.graph_x,
-                   static_cast<lv_coord_t>(kGraphY + (g.graph_h - lv_font_get_line_height(&t::font_medium())) / 2));
+                   static_cast<lv_coord_t>(sizes.graph_y + (g.graph_h - lv_font_get_line_height(&t::font_medium())) / 2));
 }
 
 } // namespace
@@ -532,6 +557,7 @@ void build_card(const lv_area_t &area)
 void build(const panel::Frame &frame, core::TileIndex tile)
 {
     forget();
+    sizes = sizes_now();
     g.frame = frame;
     g.tile = tile;
     const core::Layout &layout = dashboard::layout();
@@ -540,8 +566,8 @@ void build(const panel::Frame &frame, core::TileIndex tile)
 
     build_header();
     const lv_area_t &control = frame.control;
-    build_title({control.x1, control.y1, control.x2, static_cast<lv_coord_t>(control.y1 + kTitleHeight - 1)});
-    build_card({control.x1, static_cast<lv_coord_t>(control.y1 + kTitleHeight + kCardGap), control.x2, control.y2});
+    build_title({control.x1, control.y1, control.x2, static_cast<lv_coord_t>(control.y1 + sizes.title_height - 1)});
+    build_card({control.x1, static_cast<lv_coord_t>(control.y1 + sizes.title_height + kCardGap), control.x2, control.y2});
     show_message("Loading...");
     request();
     g.refresh = lv_timer_create([](lv_timer_t *) { request(); }, kRefreshMs, nullptr);

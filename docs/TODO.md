@@ -122,6 +122,13 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       hanging first connection after a reset is gone with it.
 - [x] Web UI image written over USB (parttool, storage partition), HA token entered by the user,
       HA connected (2026-10-08).
+- [ ] **Large-screen look** (2026-10-08, only this board: `Info::ui_slide_pages`,
+      `ui_panel_dialogs`, `ui_large_fonts`; sim `--size p4`): area pages slide in from the right,
+      back slides out to the right (250 ms); dimmer, climate and sensor panels are a 620x420
+      dialog (440x600 in portrait, opaque, page behind dimmed 50 %, fades in and out in 200 ms, a
+      tap beside it closes it); fonts Montserrat 16/18/20/26/36 instead of 12/14/16/20/28 (+117 KB firmware).
+      Design approved by the user in the sim (2026-10-08); open: the live check on the board
+      (slide and fade smoothness at 50 ms per full redraw).
 - [ ] **Check the start orientation** on the WT32 leaning on the desk: it should be upright
       within about a second after boot, without turning it.
 - [x] PSRAM of the WT32: the device page says 4 MB (decided 2026-10-07), whatever the boot log

@@ -286,7 +286,7 @@ void slider_events(Slider &s)
 
 lv_obj_t *slider_label(Slider &s, uint32_t color)
 {
-    s.value = t::label(s.track, "", lv_font_montserrat_28, color);
+    s.value = t::label(s.track, "", t::font_huge(), color);
     lv_obj_center(s.value);
     return s.value;
 }
@@ -346,7 +346,7 @@ void build_level(lv_coord_t w, lv_coord_t h)
 {
     if (!has_level(state())) {
         // only on and off: the power button is the control, the state is shown large
-        g.note = t::label(g.control, "", lv_font_montserrat_28, t::kText);
+        g.note = t::label(g.control, "", t::font_huge(), t::kText);
         lv_obj_center(g.note);
         return;
     }

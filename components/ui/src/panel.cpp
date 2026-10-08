@@ -37,9 +37,19 @@ constexpr lv_coord_t kItemGap = 4;
 constexpr lv_coord_t kScrollbarRoom = 10;
 // the row of the options of a portrait panel
 constexpr lv_coord_t kOptionsRow = 44;
+// Options::panel_dialogs: the opaque dialog in landscape and in portrait, the page behind it dimmed
+// by a black veil; the veil and the dialog fade in and out together
+constexpr lv_coord_t kDialogWidth = 620;
+constexpr lv_coord_t kDialogHeight = 420;
+constexpr lv_coord_t kDialogPortraitWidth = 440;
+constexpr lv_coord_t kDialogPortraitHeight = 600;
+constexpr lv_coord_t kDialogRadius = 12;
+constexpr lv_opa_t kVeilOpacity = LV_OPA_50;
+constexpr uint32_t kFadeMs = 200;
 
 struct State {
-    lv_obj_t *root = nullptr;
+    lv_obj_t *root = nullptr; // the panel, or the veil the dialog lies on
+    bool dialog = false;
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
     lv_obj_t *name = nullptr;
@@ -95,6 +105,37 @@ Frame frame_of(lv_obj_t *root, lv_coord_t width, lv_coord_t height, bool with_ac
 void on_back(lv_event_t *)
 {
     dashboard::close_panel();
+}
+
+// The opacity of `obj` and its children from `from` to `to`; at the end of a fade out the panel goes.
+void fade(lv_obj_t *obj, lv_opa_t from, lv_opa_t to)
+{
+    lv_obj_set_style_opa(obj, from, 0);
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, obj);
+    lv_anim_set_values(&anim, from, to);
+    lv_anim_set_time(&anim, kFadeMs);
+    lv_anim_set_exec_cb(&anim, [](void *target, int32_t opa) {
+        lv_obj_set_style_opa(static_cast<lv_obj_t *>(target), static_cast<lv_opa_t>(opa), 0);
+    });
+    if (to == LV_OPA_TRANSP) {
+        lv_anim_set_ready_cb(&anim, [](lv_anim_t *a) {
+            // a panel opened meanwhile has replaced this one already
+            if (a->var == g.root) {
+                destroy();
+            }
+        });
+    }
+    lv_anim_start(&anim);
+}
+
+// a tap on the veil beside the dialog closes it like the back tile
+void on_veil(lv_event_t *event)
+{
+    if (lv_event_get_target(event) == lv_event_get_current_target(event)) {
+        dashboard::close_panel();
+    }
 }
 
 void on_root_delete(lv_event_t *)
@@ -264,7 +305,7 @@ void list_reveal(lv_obj_t *list, const memory::Vector<memory::String> &values, s
     lv_obj_scroll_to_y(list, y, LV_ANIM_OFF);
 }
 
-void build(lv_obj_t *parent, core::TileIndex tile)
+void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
 {
     destroy();
     const core::Layout &layout = dashboard::layout();
@@ -277,33 +318,54 @@ void build(lv_obj_t *parent, core::TileIndex tile)
 
     // the screen's size: right after a turn the parent is not laid out again yet
     lv_obj_t *screen = lv_obj_get_screen(parent);
-    const lv_coord_t width = lv_obj_get_width(screen);
-    const lv_coord_t height = lv_obj_get_height(screen);
-    // opaque and clickable: the page under it is neither seen nor touched
+    lv_coord_t width = lv_obj_get_width(screen);
+    lv_coord_t height = lv_obj_get_height(screen);
+    const core::TileKind kind = layout.tiles[tile].kind;
+    const bool dialog = dashboard::options().panel_dialogs && kind != core::TileKind::Picture;
+    g.dialog = dialog;
+    // clickable: the page under it is not touched; opaque unless the panel is a dialog
     g.root = t::plain(parent);
     lv_obj_set_pos(g.root, 0, 0);
     lv_obj_set_size(g.root, width, height);
-    lv_obj_set_style_bg_opa(g.root, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(g.root, t::color(t::kBackground), 0);
+    lv_obj_set_style_bg_opa(g.root, dialog ? kVeilOpacity : static_cast<lv_opa_t>(LV_OPA_COVER), 0);
+    lv_obj_set_style_bg_color(g.root, dialog ? lv_color_black() : t::color(t::kBackground), 0);
     lv_obj_clear_flag(g.root, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(g.root, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g.root, on_root_delete, LV_EVENT_DELETE, nullptr);
-    if (layout.tiles[tile].kind == core::TileKind::Picture) {
+    if (kind == core::TileKind::Picture) {
         // the image full screen, without the frame
         picture_panel::build(g.root, tile, width, height);
         return;
     }
-    const core::TileKind kind = layout.tiles[tile].kind;
+    // the parts of the panel are placed in `body`: the whole screen, or the dialog
+    lv_obj_t *body = g.root;
+    if (dialog) {
+        lv_obj_add_event_cb(g.root, on_veil, LV_EVENT_CLICKED, nullptr);
+        const bool portrait = height > width;
+        width = std::min<lv_coord_t>(portrait ? kDialogPortraitWidth : kDialogWidth, width);
+        height = std::min<lv_coord_t>(portrait ? kDialogPortraitHeight : kDialogHeight, height);
+        body = t::plain(g.root);
+        lv_obj_set_size(body, width, height);
+        lv_obj_center(body);
+        lv_obj_set_style_radius(body, kDialogRadius, 0);
+        lv_obj_set_style_bg_opa(body, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(body, t::color(t::kBackground), 0);
+        lv_obj_set_style_border_width(body, 1, 0);
+        lv_obj_set_style_border_color(body, t::color(t::kBorder), 0);
+        lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLLABLE);
+        // a tap on the dialog between its parts does not close it
+        lv_obj_add_flag(body, LV_OBJ_FLAG_CLICKABLE);
+    }
     const bool light = kind == core::TileKind::Light;
-    Frame frame = frame_of(g.root, width, height, light, kind == core::TileKind::Sensor);
+    Frame frame = frame_of(body, width, height, light, kind == core::TileKind::Sensor);
 
-    lv_obj_t *back = card(g.root, frame.back);
+    lv_obj_t *back = card(body, frame.back);
     lv_obj_t *arrow = t::label(back, icons::glyph("arrow-left"),
                                lv_area_get_height(&frame.back) >= 90 ? icons::large() : icons::small(), t::kTextLabel);
     lv_obj_center(arrow);
     lv_obj_add_event_cb(back, on_back, LV_EVENT_CLICKED, nullptr);
 
-    g.name = t::label(g.root, "", t::font_large(), t::kText);
+    g.name = t::label(body, "", t::font_large(), t::kText);
     lv_obj_set_width(g.name, lv_area_get_width(&frame.header));
     lv_obj_set_pos(g.name, frame.header.x1,
                    static_cast<lv_coord_t>(frame.header.y1 +
@@ -318,6 +380,21 @@ void build(lv_obj_t *parent, core::TileIndex tile)
         sensor_panel::build(frame, tile);
     }
     update(g.entity);
+    if (dialog && appear) {
+        fade(g.root, LV_OPA_TRANSP, LV_OPA_COVER);
+    }
+}
+
+void close()
+{
+    if (g.root == nullptr || !g.dialog) {
+        destroy();
+        return;
+    }
+    // from where a fade in got to
+    const lv_opa_t opa = lv_obj_get_style_opa(g.root, LV_PART_MAIN);
+    lv_anim_del(g.root, nullptr);
+    fade(g.root, opa, LV_OPA_TRANSP);
 }
 
 void destroy()

@@ -66,6 +66,12 @@ struct Info {
     float imu_axes[6] = {};
     // What the module reads too much in every pose (found at the same time, same console command), g.
     float imu_offset[3] = {};
+    // The look of the UI on this board type (hc::ui::Options): dashboard pages slide, the panels
+    // of a dimmer, a climate and a sensor are dialogs over the page, the fonts are larger (the
+    // board's sdkconfig.defaults builds Montserrat 18, 26 and 36 in).
+    bool ui_slide_pages = false;
+    bool ui_panel_dialogs = false;
+    bool ui_large_fonts = false;
 };
 
 // The board an image was built for, at a fixed place in every firmware image: ESP-IDF's custom
