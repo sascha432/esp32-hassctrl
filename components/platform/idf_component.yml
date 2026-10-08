@@ -1,0 +1,3 @@
+## LittleFS for the "storage" partition (docs/architecture.md section 9.3)
+dependencies:
+  joltwallet/littlefs: "^1"

@@ -1,0 +1,5 @@
+dependencies:
+  lvgl/lvgl:
+    version: "~8.4.0"
+    public: true
+  espressif/esp_lvgl_port: "^2"

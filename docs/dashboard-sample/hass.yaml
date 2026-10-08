@@ -1,0 +1,101 @@
+# ----------------------------------------------------------------------------------------------
+# Sample dashboard of hassctrl, and the guide to the file format.
+#
+# Everything in this folder is made up (entity ids, names), so replace them with yours. It is
+# also a test file: tools/host_test.py imports it, so it always matches the firmware.
+#
+# This is the format of the YAML import and export of the web UI (Dashboard page); the device
+# keeps the dashboard in its own file and the web UI edits it. Import takes the whole folder at
+# once (all files together), the export writes one file with everything in it.
+#
+#   hass.yaml            this file: the settings of the dashboard and the main page
+#   rooms.yaml           an area, pulled in with `include`
+#   rooms/workshop.yaml  an area inside that area
+#
+# YAML rules: indent with spaces, any width as long as it is the same within a block (a list may
+# also start at the indent of its key). `#` starts a comment. Text with a `#` or a `:` in it
+# goes in "quotes". Not supported: tabs, anchors (&, *), tags (!), block text (| and >), maps in
+# braces ({ }). Lists in brackets only for plain values. Keys must not repeat. A typo in a key is
+# an error with the file and the line, never silently ignored.
+# ----------------------------------------------------------------------------------------------
+
+# The connection to Home Assistant. Optional: the web UI (Home Assistant page) sets it as well.
+# An import changes it only when this block is there. Better leave the token out of files you
+# keep or share, the stored one stays when the file has none.
+hass:
+  url: http://homeassistant.local:8123
+  # token: paste-a-long-lived-access-token-here
+
+# Defaults for the whole dashboard. Only the grid for now.
+defaults:
+  # columns x rows of every page, 1x1 to 8x8. Default 4x2. A cell is the unit of every size
+  # below. A 480x320 panel with 4x2 has cells of about 110x148 pixels; a portrait panel shows the
+  # grid turned (4x3 becomes 3x4), the tiles keep their order.
+  grid: 4x3
+
+# The main page. Tiles fill the grid in the order of this list, left to right and top to bottom,
+# each in the first place where it fits. There is no position: a `spacer` keeps a cell free.
+#
+# What a tile is, is decided by its entity (the domain before the dot):
+#   light.*                                         switch, or a dimmer with `dimmer: true`
+#   switch.* input_boolean.* fan.* automation.*     switch: a tap toggles
+#   button.* input_button.* scene.* script.*        button: a tap presses
+#   climate.*                                       thermostat, 1x2
+#   camera.*                                        camera picture, 2x2
+#   everything else (sensor.*, binary_sensor.*, lock.*, ...)
+#                                                   shows the state, a tap opens the history
+# Only `area` and `spacer` have a `type`. Every key except `entity` is optional.
+tiles:
+  # A light as a dimmer: level fill from the bottom, drag to set the level, double tap to switch,
+  # tap for the light panel (colors, effects). 1x2 cells unless `size` says otherwise.
+  - entity: light.aurora_ceiling
+    name: Ceiling
+    dimmer: true
+    # the +/- buttons of the light panel change the level by this many percent. 1 to 50,
+    # default 10. The slider itself is continuous.
+    step: 5
+
+  # A thermostat. The +/- bars change the target temperature by the step the thermostat
+  # reports; `step` (0.1 to 5, in degrees) is used when it reports none, else 0.5 (1 for °F).
+  - entity: climate.hearth_thermostat
+    name: Hearth
+
+  # A switch. Without `name`, Home Assistant's friendly name is shown.
+  - entity: switch.crystal_lamp
+
+  # `icon`: a Material Design Icons name (mdi.com/icons) from the list the firmware holds;
+  # `none` shows no icon. Without it the icon follows the domain and the device class like in
+  # Home Assistant (a lamp, a plug, a thermometer, ...).
+  - entity: fan.breeze_machine
+    name: Breeze
+    icon: fan
+
+  # A sensor. `unit` replaces the unit Home Assistant reports (up to 12 bytes), `decimals`
+  # (0 to 6) replaces the precision Home Assistant displays the value with.
+  - entity: sensor.moonbase_temperature
+    name: Moonbase
+    icon: thermometer
+    unit: "°C"
+    decimals: 1
+
+  # Keeps its cell free.
+  - type: spacer
+
+  # A camera: `size` columns x rows, 1x1 / 1x2 / 2x1 / 2x2 (default 2x2). `refresh` is the
+  # seconds between two images, 1 to 3600 (default 60); images are only fetched while the page is
+  # visible. A tap shows the image full screen. `stream` (optional) is an MJPEG stream of the camera
+  # (http://, for example of go2rtc): the tile takes its image from the stream instead of Home
+  # Assistant, and full screen plays it live. One stream plays at a time.
+  - entity: camera.owl_cam
+    name: Owl
+    size: 2x1
+    refresh: 30
+
+  # An area is a page of its own. The first cell of its page is the back tile. The name is
+  # required. `tiles` is the list of its page; `include` takes it from another file.
+  - include: rooms.yaml
+
+  # A button: a tap presses it (`scene` and `script` entities are activated).
+  - entity: scene.movie_night
+    name: Movie Night
+    icon: lightbulb

@@ -1,0 +1,5 @@
+## The main firmware hands the board's esp_lcd handles to esp_lvgl_port
+## (docs/architecture.md section 8). LVGL itself is pinned by components/ui.
+dependencies:
+  espressif/esp_lvgl_port: "^2"
+  lvgl/lvgl: "~8.4.0"

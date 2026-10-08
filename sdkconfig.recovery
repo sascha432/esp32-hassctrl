@@ -1,0 +1,12 @@
+# Recovery app layer (docs/architecture.md section 9.5): small, nothing fancy.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# The recovery app must start even when the PSRAM fails, otherwise a hardware fault ends in a
+# boot loop with no way to update the device.
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+
+# Size: the factory partition is 1 MB and the recovery app has Wi-Fi, the web server and the
+# HTTPS download of update images. It downloads over TLS but never serves it (the web UI's HTTPS
+# option is a main firmware feature), and it needs no IPv6.
+CONFIG_MBEDTLS_TLS_CLIENT_ONLY=y
+# CONFIG_LWIP_IPV6 is not set

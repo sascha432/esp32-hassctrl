@@ -1,0 +1,37 @@
+# Shared ESP-IDF defaults: every board, both applications (docs/architecture.md section 2).
+#
+# Layers, a later file wins:
+#   sdkconfig.defaults                 this file
+#   boards/<board>/sdkconfig.defaults  target, flash, PSRAM, partition table, board choice
+#   sdkconfig.<app>                    main or recovery, if the file exists
+#
+# tools/build.py passes the layers; the generated sdkconfig lives in the build directory.
+
+# Partition table from partitions/, chosen by the board layer
+CONFIG_PARTITION_TABLE_CUSTOM=y
+
+# A new firmware has to confirm itself after an update, otherwise the bootloader goes back to the
+# previous one or to the recovery app (docs/ui/web.md section 8)
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Wi-Fi and lwIP buffers go to the PSRAM where there is one, internal RAM stays for DMA and LVGL
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# Fast reconnect (docs/architecture.md section 9.2): no ARP probe of the offered address (it costs
+# about a second), and ask the router for the last address again instead of starting over
+CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP=y
+CONFIG_LWIP_DHCP_RESTORE_LAST_IP=y
+
+# Update images can be downloaded over HTTPS (hc::ota). The common CA bundle covers almost all
+# public sites at a fraction of the full bundle's size.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN=y
+
+# Sockets: browsers keep up to 6 connections per host open, a phone and a PC together more than
+# the default 10 sockets (httpd 2 + its sessions, the captive portal DNS). 16 sockets, 12 of them
+# web server sessions (components/webserver).
+CONFIG_LWIP_MAX_SOCKETS=16
+
+# SNTP (components/platform/src/time_sync.cpp): two servers, and the first request as soon as the
+# station has an address, without the random delay of up to 5 s
+CONFIG_LWIP_SNTP_MAX_SERVERS=2
+CONFIG_LWIP_SNTP_STARTUP_DELAY=n

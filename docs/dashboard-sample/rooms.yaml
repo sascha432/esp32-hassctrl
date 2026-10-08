@@ -1,0 +1,21 @@
+# An included file is a list of tiles that starts at the first column, however deep it is
+# included. It stands where the `include` entry stood, so the order of the page stays the order
+# of the files. Paths are relative to the file that includes, nesting up to 4 levels, no
+# absolute paths and nothing outside the uploaded files. An include entry has no other keys.
+#
+# An area written out: it can sit in the file of its parent as well (indent its `tiles`).
+- type: area
+  name: Rooms
+  # the grid of this page, 1x1 to 8x8. Without it the page uses `defaults.grid`.
+  grid: 3x3
+  tiles:
+    - entity: lock.stardust_gate
+      name: Front Gate
+      icon: lock
+    - entity: binary_sensor.owl_motion
+      name: Motion
+      icon: motion-sensor
+    - include: rooms/workshop.yaml
+    - entity: camera.owl_cam
+      name: Owl Closeup
+      size: 2x1

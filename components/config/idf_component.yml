@@ -1,0 +1,4 @@
+## cJSON reads the stored dashboard (docs/architecture.md section 5). ESP-IDF 6 no longer bundles
+## it; the same version as components/hass.
+dependencies:
+  espressif/cjson: "^1.7.19"

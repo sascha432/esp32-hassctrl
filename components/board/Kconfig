@@ -1,0 +1,22 @@
+menu "hassctrl board"
+
+    choice HC_BOARD
+        prompt "Board"
+        help
+            The board the firmware is built for. Each board's sdkconfig.defaults in boards/<name>/
+            selects it, see docs/architecture.md section 8.
+
+        config HC_BOARD_WT32_SC01
+            bool "Wireless-Tag WT32-SC01 (ESP32, 480x320 ST7796S, FT6336U touch)"
+            depends on IDF_TARGET_ESP32
+
+        config HC_BOARD_TTGO_T4
+            bool "LilyGO TTGO T4 v1.3 (ESP32, 320x240 ILI9341, no touch, test device only)"
+            depends on IDF_TARGET_ESP32
+
+        config HC_BOARD_JC3248W535
+            bool "Guition JC3248W535 (ESP32-S3, 320x480 AXS15231B over QSPI, integrated touch)"
+            depends on IDF_TARGET_ESP32S3
+    endchoice
+
+endmenu

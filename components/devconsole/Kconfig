@@ -1,0 +1,10 @@
+menu "hassctrl development console"
+
+    config HC_DEV_CONSOLE
+        bool "Serial console for development"
+        default y
+        help
+            A command line on the serial port: Wi-Fi networks, hotspot, file system, restart and
+            factory reset. For testing before the setup screens exist; removable with this option.
+
+endmenu

@@ -1,0 +1,30 @@
+# Main firmware layer (docs/architecture.md section 2).
+
+# rendering speed over size, as recommended by esp_lvgl_port's performance notes
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# LVGL 8.4 (docs/architecture.md section 7.1)
+CONFIG_LV_COLOR_DEPTH_16=y
+# LVGL allocates from PSRAM, internal RAM only when the PSRAM is full (main/lvgl/hc_lv_mem.h)
+CONFIG_LV_MEM_CUSTOM=y
+CONFIG_LV_MEM_CUSTOM_INCLUDE="hc_lv_mem.h"
+CONFIG_LV_DISP_DEF_REFR_PERIOD=10
+CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
+CONFIG_LV_FONT_MONTSERRAT_12=y
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_16=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+# the values of the dashboard tiles
+CONFIG_LV_FONT_MONTSERRAT_28=y
+# QR codes of the hotspot and the web UI address (Settings)
+CONFIG_LV_USE_QRCODE=y
+# LVGL warnings and LV_LOG_USER go to the ESP-IDF log (main.cpp)
+CONFIG_LV_USE_LOG=y
+CONFIG_LV_LOG_LEVEL_WARN=y
+# step 2 measurements (docs/architecture.md section 13)
+CONFIG_LV_USE_PERF_MONITOR=y
+
+# TLS (Home Assistant over wss://, update downloads) allocates from PSRAM: one connection costs
+# about 40 KB, more than the WT32 has free in internal RAM (docs/ui/web.md section 9)
+# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y

@@ -1,0 +1,227 @@
+#pragma once
+
+// The live state of the entities of a layout and what the UI asks of them (docs/architecture.md
+// section 5). Plain C++, host tested.
+//
+// The store belongs to the UI task: the hass task decodes the template results into
+// EntityUpdates and hands them over, the UI applies them and redraws the tiles of the entities
+// that changed. One EntityState per interned entity of the layout, so two tiles of one entity
+// share it. The states live on the large heap; the flags the UI reads on every redraw stay in
+// internal RAM.
+
+#include <cmath>
+#include <cstdint>
+#include <string_view>
+#include <variant>
+
+#include "hc/core/image.hpp"
+#include "hc/core/layout.hpp"
+#include "hc/memory/large.hpp"
+
+namespace hc::core {
+
+// The values a tile can show. Which ones are subscribed follows from the tiles of the page
+// (hass_protocol), so an entity only carries what its tiles need.
+enum class Field : uint8_t {
+    State,        // the state as Home Assistant has it ("on", "21.53", "unavailable")
+    Rounded,      // the state rounded to the display precision set in Home Assistant
+    Name,         // friendly_name
+    Icon,         // the icon attribute ("mdi:lightbulb")
+    DeviceClass,
+    Unit,         // unit_of_measurement
+    Brightness,   // 0 to 255
+    ColorModes,   // supported_color_modes
+    ColorMode,
+    Effect,
+    EffectList,
+    ColorTemp,    // kelvin
+    MinColorTemp,
+    MaxColorTemp,
+    HsColor,      // hue and saturation
+    Target,       // the target temperature
+    Current,      // the current temperature
+    HvacAction,
+    MinTemp,
+    MaxTemp,
+    TempStep,     // target_temp_step, only there when the integration sets it
+    HvacModes,
+    PresetMode,
+    PresetModes,
+    FanMode,
+    FanModes,
+    Count,
+};
+
+using FieldMask = uint32_t;
+static_assert(static_cast<int>(Field::Count) <= 32);
+
+constexpr FieldMask bit(Field field)
+{
+    return FieldMask{1} << static_cast<int>(field);
+}
+
+constexpr float kUnknown = NAN;
+
+struct EntityState {
+    FieldMask known = 0; // the fields a result has carried
+    memory::String state;
+    memory::String rounded;
+    memory::String name;
+    memory::String icon;
+    memory::String device_class;
+    memory::String unit;
+    int16_t brightness = -1; // -1: off or unknown
+    // the last brightness reported while on, kept while the light is off: HA turns it on at that
+    // level, so a pending "on" shows it (-1: none seen yet). Set by EntityStore::apply().
+    int16_t last_brightness = -1;
+    memory::Vector<memory::String> color_modes;
+    memory::String color_mode;
+    memory::String effect;
+    memory::Vector<memory::String> effect_list;
+    float color_temp = kUnknown;
+    float min_color_temp = kUnknown;
+    float max_color_temp = kUnknown;
+    float hue = kUnknown;
+    float saturation = kUnknown;
+    float target = kUnknown;
+    float current = kUnknown;
+    memory::String hvac_action;
+    float min_temp = kUnknown;
+    float max_temp = kUnknown;
+    float temp_step = kUnknown;
+    memory::Vector<memory::String> hvac_modes;
+    memory::String preset_mode;
+    memory::Vector<memory::String> preset_modes;
+    memory::String fan_mode;
+    memory::Vector<memory::String> fan_modes;
+
+    bool has(Field field) const
+    {
+        return (known & bit(field)) != 0;
+    }
+    // "unavailable" or "unknown": the entity exists but has no state, or it does not exist
+    bool unavailable() const
+    {
+        return state == "unavailable" || state == "unknown";
+    }
+    bool is_on() const
+    {
+        return state == "on";
+    }
+};
+
+// The values of `fields` for one entity, from one template result.
+struct EntityUpdate {
+    EntityIndex entity = kNone;
+    FieldMask fields = 0;
+    EntityState values;
+};
+
+// The values of the subscribed page, from one template result. `generation` is the one of the
+// subscription it belongs to; the UI drops the results of an older one (docs/architecture.md
+// section 4, "Stale results").
+struct PageValues {
+    uint32_t generation = 0;
+    memory::Vector<EntityUpdate> updates;
+};
+
+// A service call was refused or failed.
+struct ServiceFailed {
+    EntityIndex entity = kNone; // of the intent
+    memory::String message;
+};
+
+// What the history graph of a sensor panel shows (docs/ui/dashboard.md section 6).
+enum class HistoryKind : uint8_t {
+    Statistics, // the 5 minute means of the long term statistics (a sensor with a state_class)
+    States,     // the state changes of an on/off entity (a binary sensor has no statistics)
+};
+
+// Statistics: the start of a 5 minute bucket and its mean. States: the time of a change and the
+// state from then on: 1 on, 0 off, NaN unknown or unavailable.
+struct HistoryPoint {
+    uint32_t time = 0; // epoch seconds
+    float value = kUnknown;
+};
+
+// The history of one entity over [start, end), in time order. `generation` is the one of the
+// request; the UI drops the answers of an older one.
+struct History {
+    uint32_t generation = 0;
+    EntityIndex entity = kNone;
+    HistoryKind kind = HistoryKind::Statistics;
+    uint32_t start = 0; // epoch seconds
+    uint32_t end = 0;
+    memory::Vector<HistoryPoint> points;
+    memory::String error; // empty: the request worked (the points may still be empty)
+};
+
+// What the connection hands to the UI.
+using HassEvent = std::variant<PageValues, ServiceFailed, History, Image>;
+
+class EntityStore {
+public:
+    explicit EntityStore(size_t entities);
+
+    size_t size() const
+    {
+        return _states.size();
+    }
+    const EntityState &state(EntityIndex entity) const
+    {
+        return _states[entity];
+    }
+
+    // Copies the fields of `update` into its entity. True when a value differs from before, so
+    // the tiles of the entity have to be drawn again.
+    bool apply(const EntityUpdate &update);
+
+    // The connection is gone: the values stay, but the UI shows them as old.
+    void set_stale(bool stale)
+    {
+        _stale = stale;
+    }
+    bool stale() const
+    {
+        return _stale;
+    }
+
+private:
+    memory::Vector<EntityState> _states;
+    bool _stale = true;
+};
+
+// What a gesture asks for (docs/architecture.md section 5, "Intents"). The meaning of a gesture
+// is decided in ui, the service call that does it in hass_protocol.
+enum class IntentKind : uint8_t {
+    Toggle,         // switch, light, input_boolean, fan, automation
+    Press,          // button, input_button; scene and script are turned on
+    SetLevel,       // light, value = brightness in percent (0 turns it off)
+    SetTemperature, // climate, value = degrees
+    SetHvacMode,    // climate, text
+    SetPreset,      // climate, text
+    SetFanMode,     // climate, text
+    SetEffect,      // light, text
+    SetColor,       // light, value = hue (0 to 360), value2 = saturation (0 to 100)
+    SetColorTemp,   // light, value = kelvin
+};
+
+struct Intent {
+    IntentKind kind = IntentKind::Toggle;
+    EntityIndex entity = kNone;
+    float value = 0;
+    float value2 = 0;
+    memory::String text;
+};
+
+// The text a sensor tile shows for its state, without the unit: the state with the tile's
+// `decimals` when it is a number, else the value rounded by Home Assistant, else the state.
+memory::String display_value(const EntityState &state, const Tile &tile);
+
+// The unit a sensor tile shows: the tile's own, else the one Home Assistant reports.
+std::string_view display_unit(const EntityState &state, const Tile &tile);
+
+// The name a tile shows: its own, else the entity's friendly_name, else the entity id.
+std::string_view display_name(const EntityState &state, const Tile &tile, std::string_view entity_id);
+
+} // namespace hc::core

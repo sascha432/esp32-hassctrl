@@ -1,0 +1,3 @@
+## mDNS: the device answers as <device name>.local and announces its web server
+dependencies:
+  espressif/mdns: "^1.14.0"

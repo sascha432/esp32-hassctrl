@@ -1,0 +1,4 @@
+## cJSON decodes the template results (docs/architecture.md section 6); the same version as
+## components/hass.
+dependencies:
+  espressif/cjson: "^1.7.19"

@@ -1,0 +1,367 @@
+#include "panel.hpp"
+
+#include <algorithm>
+#include <string>
+
+#include "climate_panel.hpp"
+#include "dashboard.hpp"
+#include "icons.hpp"
+#include "light_panel.hpp"
+#include "picture_panel.hpp"
+#include "sensor_panel.hpp"
+#include "theme.hpp"
+
+namespace hc::ui::panel {
+
+namespace {
+
+namespace t = theme;
+
+// the margin and the gap of the dashboard's grid, so the back tile sits where the page's has it
+constexpr lv_coord_t kMargin = 8;
+constexpr lv_coord_t kGap = 4;
+constexpr lv_coord_t kRadius = 8;
+// the header row: the name, and the back tile of a portrait panel
+constexpr lv_coord_t kHeaderHeight = 48;
+// the gap between the header and the control
+constexpr lv_coord_t kControlGap = 8;
+// the name keeps this far from the back tile: the text has no card around it, so the grid's 4 px
+// looked tighter than the gaps between the cards
+constexpr lv_coord_t kNameGap = 12;
+// landscape: between the left column and the control, twice the grid's gap (the arc and the lists
+// looked glued to the buttons with 4 px)
+constexpr lv_coord_t kControlSide = 2 * kGap;
+// the items of a list and the room for its scrollbar
+constexpr lv_coord_t kItemHeight = 42;
+constexpr lv_coord_t kItemGap = 4;
+constexpr lv_coord_t kScrollbarRoom = 10;
+// the row of the options of a portrait panel
+constexpr lv_coord_t kOptionsRow = 44;
+
+struct State {
+    lv_obj_t *root = nullptr;
+    core::TileIndex tile = core::kNone;
+    core::EntityIndex entity = core::kNone;
+    lv_obj_t *name = nullptr;
+    std::string shown_name;
+};
+
+State g;
+
+lv_area_t area(lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h)
+{
+    return {x, y, static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
+}
+
+// The areas of the panel (panel.hpp). Landscape: the left column is one cell of a 4-column grid,
+// its back tile at most a third of the height; the rest of the column holds the options.
+Frame frame_of(lv_obj_t *root, lv_coord_t width, lv_coord_t height, bool with_action, bool compact)
+{
+    Frame f;
+    f.root = root;
+    f.portrait = height > width;
+    if (compact) {
+        f.back = area(kMargin, kMargin, kHeaderHeight, kHeaderHeight);
+        const lv_coord_t control_y = kMargin + kHeaderHeight + kControlGap;
+        f.control = area(kMargin, control_y, static_cast<lv_coord_t>(width - 2 * kMargin),
+                         static_cast<lv_coord_t>(height - kMargin - control_y));
+        f.options = area(kMargin, static_cast<lv_coord_t>(height - kMargin), 0, 0);
+    } else if (f.portrait) {
+        f.back = area(kMargin, kMargin, kHeaderHeight, kHeaderHeight);
+        f.options = area(kMargin, static_cast<lv_coord_t>(height - kMargin - kOptionsRow),
+                         static_cast<lv_coord_t>(width - 2 * kMargin), kOptionsRow);
+        const lv_coord_t control_y = kMargin + kHeaderHeight + kControlGap;
+        f.control = area(kMargin, control_y, static_cast<lv_coord_t>(width - 2 * kMargin),
+                         static_cast<lv_coord_t>(f.options.y1 - kControlGap - control_y));
+    } else {
+        const lv_coord_t column = (width - 2 * kMargin - 3 * kGap) / 4;
+        const lv_coord_t back = std::min<lv_coord_t>(column, (height - 2 * kMargin) / 3);
+        f.back = area(kMargin, kMargin, column, back);
+        f.options = area(kMargin, static_cast<lv_coord_t>(kMargin + back + kGap), column,
+                         static_cast<lv_coord_t>(height - 2 * kMargin - back - kGap));
+        const lv_coord_t x = kMargin + column + kControlSide;
+        const lv_coord_t control_y = kMargin + kHeaderHeight + kControlGap;
+        f.control = area(x, control_y, static_cast<lv_coord_t>(width - kMargin - x),
+                         static_cast<lv_coord_t>(height - kMargin - control_y));
+    }
+    const auto header_x = static_cast<lv_coord_t>(f.back.x2 + 1 + kNameGap);
+    f.action = area(static_cast<lv_coord_t>(width - kMargin - kHeaderHeight), kMargin, kHeaderHeight, kHeaderHeight);
+    // without an action the name has the whole header
+    const lv_coord_t header_end = with_action ? static_cast<lv_coord_t>(f.action.x1 - kGap) : static_cast<lv_coord_t>(width - kMargin);
+    f.header = area(header_x, kMargin, static_cast<lv_coord_t>(header_end - header_x), kHeaderHeight);
+    return f;
+}
+
+void on_back(lv_event_t *)
+{
+    dashboard::close_panel();
+}
+
+void on_root_delete(lv_event_t *)
+{
+    // the page was cleared under the panel (a new layout, a turn), or the panel closed
+    g.root = nullptr;
+    g.name = nullptr;
+    light_panel::forget();
+    climate_panel::forget();
+    sensor_panel::forget();
+    picture_panel::forget();
+}
+
+} // namespace
+
+bool has_panel(const core::Tile &tile)
+{
+    return (tile.kind == core::TileKind::Light && tile.dimmer) || tile.kind == core::TileKind::Climate ||
+           tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Picture;
+}
+
+lv_obj_t *card(lv_obj_t *parent, const lv_area_t &a)
+{
+    lv_obj_t *obj = t::plain(parent);
+    lv_obj_set_pos(obj, a.x1, a.y1);
+    lv_obj_set_size(obj, lv_area_get_width(&a), lv_area_get_height(&a));
+    lv_obj_set_style_radius(obj, kRadius, 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(obj, t::color(t::kCard), 0);
+    lv_obj_set_style_bg_color(obj, t::color(t::kBorder), LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(obj, 1, 0);
+    lv_obj_set_style_border_color(obj, t::color(t::kBorder), 0);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    return obj;
+}
+
+lv_obj_t *step_button(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t size, const char *glyph,
+                      lv_event_cb_t callback)
+{
+    lv_obj_t *button = card(parent, area(x, y, size, size));
+    lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(button, 2, 0);
+    lv_obj_center(t::label(button, icons::glyph(glyph), size >= 56 ? icons::large() : icons::small(), t::kText));
+    lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, nullptr);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_LONG_PRESSED_REPEAT, nullptr);
+    // a stepper held down does not start a gesture of the screen
+    lv_obj_clear_flag(button, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    return button;
+}
+
+void set_hidden(lv_obj_t *obj, bool hidden)
+{
+    if (obj == nullptr) {
+        return;
+    }
+    if (hidden) {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void set_text(lv_obj_t *label, const std::string &text)
+{
+    if (label != nullptr && text != lv_label_get_text(label)) {
+        lv_label_set_text(label, text.c_str());
+    }
+}
+
+// the height of `count` items in `columns`
+lv_coord_t list_content(size_t count, size_t columns)
+{
+    const auto rows = static_cast<lv_coord_t>((count + columns - 1) / columns);
+    return rows == 0 ? 0 : static_cast<lv_coord_t>(rows * kItemHeight + (rows - 1) * kItemGap);
+}
+
+// one column when every item fits in it, else two
+size_t list_columns(size_t count, lv_coord_t height)
+{
+    return list_content(count, 1) <= height ? 1 : 2;
+}
+
+lv_obj_t *list(lv_obj_t *parent, lv_coord_t width, lv_coord_t height)
+{
+    lv_obj_t *obj = t::plain(parent);
+    lv_obj_set_size(obj, width, height);
+    lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_row(obj, kItemGap, 0);
+    lv_obj_set_style_pad_column(obj, kItemGap, 0);
+    lv_obj_set_scroll_dir(obj, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(obj, t::color(t::kBorder), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(obj, 4, LV_PART_SCROLLBAR);
+    return obj;
+}
+
+void list_fill(lv_obj_t *list, lv_coord_t width, lv_coord_t height, const memory::Vector<memory::String> &values,
+               const char *(*glyph_of)(std::string_view), std::string (*text_of)(std::string_view), lv_event_cb_t callback)
+{
+    lv_obj_clean(list);
+    lv_obj_scroll_to_y(list, 0, LV_ANIM_OFF);
+    const size_t columns = list_columns(values.size(), height);
+    const lv_coord_t content = list_content(values.size(), columns);
+    const bool fits = content <= height;
+    // the items are as wide as two of them side by side, whether there are one or two columns
+    const auto item_width = static_cast<lv_coord_t>((width - (fits ? 0 : kScrollbarRoom) - kItemGap) / 2);
+    // a list that fits is a block centered in the area (a short one a single column), one that
+    // scrolls keeps room for its bar
+    const lv_coord_t list_width = columns == 1 ? item_width : width;
+    lv_obj_set_style_pad_right(list, fits ? 0 : kScrollbarRoom, 0);
+    lv_obj_set_size(list, list_width, fits ? content : height);
+    lv_obj_set_pos(list, static_cast<lv_coord_t>((width - list_width) / 2),
+                   fits ? static_cast<lv_coord_t>((height - content) / 2) : 0);
+    for (const auto &value : values) {
+        lv_obj_t *item = card(list, area(0, 0, item_width, kItemHeight));
+        lv_obj_set_flex_flow(item, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(item, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_hor(item, 8, 0);
+        lv_obj_set_style_pad_column(item, 6, 0);
+        // the glyph at the left, the name behind it
+        if (const char *glyph = glyph_of != nullptr ? glyph_of(value) : nullptr) {
+            t::label(item, glyph, icons::small(), t::kTextLabel);
+        }
+        lv_obj_t *label = t::label(item, "", t::font_normal(), t::kTextLabel);
+        lv_obj_set_flex_grow(label, 1);
+        const std::string text = text_of != nullptr ? text_of(value) : std::string(value);
+        t::line_text(label, text.c_str());
+        lv_obj_add_event_cb(item, callback, LV_EVENT_CLICKED, nullptr);
+    }
+}
+
+void list_mark(lv_obj_t *list, const memory::Vector<memory::String> &values, std::string_view current)
+{
+    for (size_t i = 0; i < values.size(); i++) {
+        lv_obj_t *item = lv_obj_get_child(list, static_cast<int32_t>(i));
+        const bool active = values[i] == current;
+        lv_obj_set_style_bg_color(item, t::color(active ? t::kActive : t::kCard), 0);
+        lv_obj_set_style_border_color(item, t::color(active ? t::kActive : t::kBorder), 0);
+        for (uint32_t c = 0; c < lv_obj_get_child_cnt(item); c++) {
+            lv_obj_set_style_text_color(lv_obj_get_child(item, static_cast<int32_t>(c)),
+                                        t::color(active ? t::kText : t::kTextLabel), 0);
+        }
+    }
+}
+
+void list_reveal(lv_obj_t *list, const memory::Vector<memory::String> &values, std::string_view current, lv_coord_t height)
+{
+    const auto found = std::find(values.begin(), values.end(), current);
+    const size_t columns = list_columns(values.size(), height);
+    const lv_coord_t content = list_content(values.size(), columns);
+    if (found == values.end() || content <= height) {
+        return;
+    }
+    const auto row = static_cast<lv_coord_t>(static_cast<size_t>(found - values.begin()) / columns);
+    const lv_coord_t top = static_cast<lv_coord_t>(row * (kItemHeight + kItemGap));
+    if (top + kItemHeight <= height) {
+        return; // in view from the start
+    }
+    // the item in the middle, but no further than the end of the list
+    const lv_coord_t y = std::clamp<lv_coord_t>(static_cast<lv_coord_t>(top + kItemHeight / 2 - height / 2), 0,
+                                                static_cast<lv_coord_t>(content - height));
+    lv_obj_scroll_to_y(list, y, LV_ANIM_OFF);
+}
+
+void build(lv_obj_t *parent, core::TileIndex tile)
+{
+    destroy();
+    const core::Layout &layout = dashboard::layout();
+    if (tile >= layout.tiles.size() || !has_panel(layout.tiles[tile])) {
+        return;
+    }
+    g.tile = tile;
+    g.entity = layout.tiles[tile].entity;
+    g.shown_name.clear();
+
+    // the screen's size: right after a turn the parent is not laid out again yet
+    lv_obj_t *screen = lv_obj_get_screen(parent);
+    const lv_coord_t width = lv_obj_get_width(screen);
+    const lv_coord_t height = lv_obj_get_height(screen);
+    // opaque and clickable: the page under it is neither seen nor touched
+    g.root = t::plain(parent);
+    lv_obj_set_pos(g.root, 0, 0);
+    lv_obj_set_size(g.root, width, height);
+    lv_obj_set_style_bg_opa(g.root, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(g.root, t::color(t::kBackground), 0);
+    lv_obj_clear_flag(g.root, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(g.root, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(g.root, on_root_delete, LV_EVENT_DELETE, nullptr);
+    if (layout.tiles[tile].kind == core::TileKind::Picture) {
+        // the image full screen, without the frame
+        picture_panel::build(g.root, tile, width, height);
+        return;
+    }
+    const core::TileKind kind = layout.tiles[tile].kind;
+    const bool light = kind == core::TileKind::Light;
+    Frame frame = frame_of(g.root, width, height, light, kind == core::TileKind::Sensor);
+
+    lv_obj_t *back = card(g.root, frame.back);
+    lv_obj_t *arrow = t::label(back, icons::glyph("arrow-left"),
+                               lv_area_get_height(&frame.back) >= 90 ? icons::large() : icons::small(), t::kTextLabel);
+    lv_obj_center(arrow);
+    lv_obj_add_event_cb(back, on_back, LV_EVENT_CLICKED, nullptr);
+
+    g.name = t::label(g.root, "", t::font_large(), t::kText);
+    lv_obj_set_width(g.name, lv_area_get_width(&frame.header));
+    lv_obj_set_pos(g.name, frame.header.x1,
+                   static_cast<lv_coord_t>(frame.header.y1 +
+                                           (lv_area_get_height(&frame.header) - lv_font_get_line_height(&t::font_large())) / 2));
+
+    frame.name = g.name;
+    if (light) {
+        light_panel::build(frame, tile);
+    } else if (kind == core::TileKind::Climate) {
+        climate_panel::build(frame, tile);
+    } else {
+        sensor_panel::build(frame, tile);
+    }
+    update(g.entity);
+}
+
+void destroy()
+{
+    if (g.root != nullptr) {
+        // the delete event clears the state
+        lv_obj_del(g.root);
+    }
+    g = {};
+}
+
+void update(core::EntityIndex entity)
+{
+    if (g.root == nullptr || entity != g.entity || g.name == nullptr) {
+        return;
+    }
+    const core::Layout &layout = dashboard::layout();
+    const core::Tile &tile = layout.tiles[g.tile];
+    const std::string name(core::display_name(dashboard::state(entity), tile, layout.entity_id(tile)));
+    if (name != g.shown_name) {
+        g.shown_name = name;
+        t::line_text(g.name, name.c_str());
+    }
+    if (tile.kind == core::TileKind::Light) {
+        light_panel::update();
+    } else if (tile.kind == core::TileKind::Climate) {
+        climate_panel::update();
+    } else {
+        sensor_panel::update();
+    }
+}
+
+void on_image(const core::Image &image)
+{
+    if (g.root != nullptr && image.entity == g.entity) {
+        picture_panel::on_image(image);
+    }
+}
+
+void on_history(core::History history)
+{
+    if (g.root != nullptr && history.entity == g.entity) {
+        sensor_panel::on_history(std::move(history));
+    }
+}
+
+} // namespace hc::ui::panel

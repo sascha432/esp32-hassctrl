@@ -1,0 +1,15 @@
+# LilyGO TTGO T4 v1.3, test device only (docs/devices/TTGO_T4).
+CONFIG_IDF_TARGET="esp32"
+CONFIG_HC_BOARD_TTGO_T4=y
+
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# the T4 has a Boya flash chip (boot log: "Detected boya flash chip but using generic driver")
+CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/4mb.csv"
+
+CONFIG_SPIRAM=y
+
+# SPI panel: RGB565 high byte first (hc::board::Info::swap_bytes). LVGL 8 only; with LVGL 9 this
+# becomes esp_lvgl_port's swap_bytes flag.
+CONFIG_LV_COLOR_16_SWAP=y

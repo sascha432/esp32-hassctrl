@@ -1,0 +1,9 @@
+## The WebSocket client and the JSON parser of the Home Assistant connection
+## (docs/architecture.md section 6). ESP-IDF 6 no longer bundles cJSON.
+dependencies:
+  espressif/esp_websocket_client: "^1.8.0"
+  espressif/cjson: "^1.7.19"
+  # finding Home Assistant on the network (discover())
+  espressif/mdns: "^1.14.0"
+  # the JPEG decoder of the camera images (TJpgDec, from the ROM of the ESP32)
+  espressif/esp_jpeg: "^1.3.0"

@@ -1,0 +1,6 @@
+## LVGL for the screens (docs/architecture.md section 7.1: LVGL 8.4 first). Public, because the
+## headers of this component use LVGL types.
+dependencies:
+  lvgl/lvgl:
+    version: "~8.4.0"
+    public: true

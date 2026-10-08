@@ -1,0 +1,23 @@
+# Relative to rooms.yaml, which includes this file as rooms/workshop.yaml; its own includes
+# would be relative to this folder. A page can be at most 5 areas deep.
+- type: area
+  name: Workshop
+  tiles:
+    # a small dimmer: `size: 1x1` keeps the level fill in one cell
+    - entity: light.forge_lamp
+      name: Forge
+      dimmer: true
+      size: 1x1
+    - entity: sensor.forge_power
+      name: Forge Power
+      icon: flash
+      unit: W
+      decimals: 0
+    - entity: script.close_shutters
+      name: Shutters
+    - entity: switch.anvil_fan
+      name: "Anvil #2"
+      icon: none
+    - entity: sensor.forge_humidity
+      name: Humidity
+      icon: water-percent

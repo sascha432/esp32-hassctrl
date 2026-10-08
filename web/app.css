@@ -1,0 +1,34 @@
+/* The web UI's own styles on top of Bootstrap 5.3 (docs/ui/design-system.md section 7). A custom
+   theme overrides Bootstrap's CSS variables in a file like this one. */
+
+.app-header { max-width: 100%; }
+.app-body { display: flex; min-height: calc(100vh - 57px); }
+/* phone first: one column, at most 480 px, centered */
+.app-page { max-width: 480px; margin: 0 auto; }
+.app-page h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+
+/* the menu: over the page on phones, a sidebar from 800 px */
+.app-menu { position: fixed; top: 57px; left: 0; right: 0; bottom: 0; z-index: 1020; overflow-y: auto; }
+@media (min-width: 800px) {
+  .app-menu { position: sticky; top: 57px; width: 220px; height: calc(100vh - 57px); flex-shrink: 0; }
+  .app-menu[hidden] { display: block !important; }
+  #menu-button { display: none; }
+}
+/* not logged in: no menu, also not as a sidebar (same specificity as the rule above, later wins) */
+.app-menu.d-none { display: none !important; }
+
+.state-icon { display: inline-flex; align-items: center; color: var(--bs-secondary-color); }
+.state-icon.ok { color: var(--bs-success); }
+.state-icon.warn { color: var(--bs-warning); }
+.state-icon.error { color: var(--bs-danger); }
+
+.card { margin-bottom: 1rem; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: 0; }
+dl.facts dt { font-weight: normal; color: var(--bs-secondary-color); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+
+.bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+.bars i { width: 4px; background: var(--bs-border-color); border-radius: 1px; }
+.bars i.on { background: var(--bs-body-color); }
+
+.app-toast { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 1100; max-width: 90vw; }
