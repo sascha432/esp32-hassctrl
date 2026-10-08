@@ -109,8 +109,7 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       (screenshot 480x800), hotspot `hassctrl-7e7d`, Wi-Fi scan through the C6 (2026-10-08).
 - [x] Picture on the panel (camera, 2026-10-08): the setup screen, turned because the board
       stands in landscape and rotation 0 is the panel's portrait.
-- [ ] Colors, borders, tearing (adding-a-board step 4; partial refresh into the scanned frame
-      buffer may tear). Rotation is checked (user, 2026-10-08).
+- [x] Colors correct, no tearing, rotation works (user, 2026-10-08).
 - [x] Rotation and touch work (user, 2026-10-08).
 - [x] Backlight: minimum duty 9 of 1023 (user, 2026-10-08), now `Info::backlight_min_duty`;
       25 kHz kept.
