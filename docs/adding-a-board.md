@@ -19,6 +19,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | color order (RGB or BGR), inversion, mounting (which way is up) | board source file, `Info` |
 | touch controller, bus, address, INT and RST pins (and whether INT is usable) | board source file |
 | backlight pin and polarity | board source file |
+| Wi-Fi in the chip, or on a companion chip (ESP32-P4 + C6: esp_hosted, its bus and pins, and the companion's firmware version, which has to match the host side) | `boards/<name>/sdkconfig.defaults`, `components/network/idf_component.yml` |
 | shared I2C bus and the sensors on it (MPU6050 address) | board source file, `Info::imu_address` |
 
 ## 2. Create the files
@@ -40,6 +41,7 @@ The `Info` fields:
 | `swap_bytes` | `true` for SPI panels; must match `CONFIG_LV_COLOR_16_SWAP` (checked at boot) |
 | `draw_buffer_lines` | 40 to start with; the SPI bus's largest transfer is sized from it |
 | `full_frames` | `true` for a panel that cannot take a window, only whole frames from the top (AXS15231B over QSPI); LVGL then renders full frames into PSRAM |
+| `mipi_dsi` | `true` for a MIPI-DSI video panel (ESP32-P4): esp_lvgl_port's DSI display, LVGL rotates in software |
 | `imu_address` | 0x68 for an MPU6050 with AD0 low, 0 without a sensor |
 | `backlight_hz` | step 6, "frequency" (25000 to start with) |
 | `backlight_min_duty` | step 6, "minimum brightness" (0 to start with) |
@@ -61,6 +63,9 @@ Check in the boot log:
       main firmware; the recovery app keeps running)
 - [ ] the recovery app runs from `factory`, the main firmware from `ota_0`
 - [ ] no warnings about the flash chip; add the option the log names to the board's defaults
+- [ ] the bootloader fits before the partition table at 0x8000: on the ESP32-P4 it starts at
+      0x2000 and has only 24 KB (the JC4880P443C needs bootloader log level "warning")
+- [ ] with a Wi-Fi companion chip: the log shows matching esp_hosted versions on both chips
 
 ## 4. Display (tab "Display")
 

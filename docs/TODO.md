@@ -101,6 +101,28 @@ in software while copied into two internal DMA buffers (40 KB). Dead ends: esp_l
       line, GPIO 38, stays unused).
 - [x] Backlight: minimum duty 3 of 1023 (user, 2026-10-08), now `Info::backlight_min_duty`;
       25 kHz kept.
+JC4880P443C (COM11) since 2026-10-08: ESP32-P4 rev v3.2, 16 MB Boya flash, 32 MB PSRAM, ST7701S
+over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rotation), GT911 at
+0x5D, Wi-Fi through the ESP32-C6 (esp_hosted + esp_wifi_remote). Details on the device page.
+
+- [x] Boots from erased flash: recovery app, main firmware in ota_0, first setup screen
+      (screenshot 480x800), hotspot `hassctrl-7e7d`, Wi-Fi scan through the C6 (2026-10-08).
+- [x] Picture on the panel (camera, 2026-10-08): the setup screen, turned because the board
+      stands in landscape and rotation 0 is the panel's portrait.
+- [ ] Colors, borders, tearing (adding-a-board step 4; partial refresh into the scanned frame
+      buffer may tear). Rotation is checked (user, 2026-10-08).
+- [x] Rotation and touch work (user, 2026-10-08).
+- [x] Backlight: minimum duty 9 of 1023 (user, 2026-10-08), now `Info::backlight_min_duty`;
+      25 kHz kept.
+- [x] Redraw times (test screen at 90 degrees, 2026-10-08): full screen 50-55 ms for 384000 px,
+      small partial refreshes under 1 ms.
+- [x] Station mode: joined the user's Wi-Fi through the hotspot setup, web UI login created
+      (user, 2026-10-08).
+- [x] esp_hosted version mismatch: the C6 now runs our esp_hosted 3.0.9 build, updated from the
+      P4 over SDIO with console `c6 update <url>` (2026-10-08, device page "C6 firmware"); the
+      hanging first connection after a reset is gone with it.
+- [x] Web UI image written over USB (parttool, storage partition), HA token entered by the user,
+      HA connected (2026-10-08).
 - [ ] **Check the start orientation** on the WT32 leaning on the desk: it should be upright
       within about a second after boot, without turning it.
 - [x] PSRAM of the WT32: the device page says 4 MB (decided 2026-10-07), whatever the boot log

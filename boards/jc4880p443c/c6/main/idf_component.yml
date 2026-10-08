@@ -1,0 +1,6 @@
+## The coprocessor side of esp_hosted: pinned to the version of the host side
+## (components/network/idf_component.yml resolves it, see dependencies.lock), because a different
+## major version on the two chips is a mismatch.
+dependencies:
+  idf: ">=6.1"
+  espressif/esp_hosted: "==3.0.9"

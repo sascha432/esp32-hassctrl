@@ -36,6 +36,11 @@ struct Info {
     // hc::frame_display instead of esp_lvgl_port's display: a frame in PSRAM, rotated in software.
     // swap_xy and mirror_* must be false.
     bool full_frames = false;
+    // A MIPI-DSI video panel (ST7701S on the ESP32-P4): the DPI controller scans a frame buffer in
+    // PSRAM and the panel cannot rotate. main then uses esp_lvgl_port's DSI display, which copies
+    // LVGL's bands into the frame buffer, and LVGL rotates in software. swap_xy and mirror_* must
+    // be false.
+    bool mipi_dsi = false;
     // I2C address of an MPU6050 on the board's I2C bus, 0 without one (docs/architecture.md
     // section 8.1)
     uint8_t imu_address;

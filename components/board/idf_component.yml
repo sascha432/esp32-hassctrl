@@ -5,6 +5,14 @@ dependencies:
   espressif/esp_lcd_st7796: "^1"           # WT32-SC01
   espressif/esp_lcd_touch_ft5x06: "^1"     # WT32-SC01, FT6336U
   espressif/esp_lcd_axs15231b: "^2"        # JC3248W535, panel and touch
+  espressif/esp_lcd_st7701:                # JC4880P443C, MIPI-DSI
+    version: "^2"
+    rules:
+      - if: "target == esp32p4"
+  espressif/esp_lcd_touch_gt911:           # JC4880P443C
+    version: "^1"
+    rules:
+      - if: "target == esp32p4"
   # public: hc/board/board.hpp hands out an esp_lcd_touch handle
   espressif/esp_lcd_touch:
     version: "^1"

@@ -25,6 +25,7 @@
 #include "hc/light_sensor/ldr.hpp"
 #include "hc/orientation/orientation.hpp"
 #include "hc/light_sensor/light_sensor.hpp"
+#include "hc/network/coprocessor.hpp"
 #include "hc/network/network.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/storage.hpp"
@@ -183,6 +184,42 @@ int cmd_wifi(int argc, char **argv)
         return check(net::reconnect());
     }
     return usage("wifi [status|list|add|connect|remove|up|down|policy|scan|results|reconnect]");
+}
+
+// The Wi-Fi coprocessor (ESP32-C6 of the JC4880P443C): its firmware version, and an update from
+// a URL. After a successful update this chip restarts, which resets the coprocessor into the new
+// firmware.
+int cmd_c6(int argc, char **argv)
+{
+    if (!net::has_coprocessor()) {
+        std::printf("this board has no Wi-Fi coprocessor\n");
+        return 1;
+    }
+    if (argc < 2 || std::strcmp(argv[1], "version") == 0) {
+        char version[16] = {};
+        if (net::coprocessor_version(version, sizeof(version)) != ESP_OK) {
+            std::printf("coprocessor does not answer\n");
+            return 1;
+        }
+        std::printf("coprocessor esp_hosted %s, this side %s\n", version, net::host_hosted_version());
+        return 0;
+    }
+    if (std::strcmp(argv[1], "update") == 0 && argc == 3) {
+        std::printf("downloading %s\n", argv[2]);
+        const esp_err_t err = net::update_coprocessor(argv[2], [](size_t done, size_t total) {
+            std::printf("  %u of %u KB\n", static_cast<unsigned>(done / 1024), static_cast<unsigned>(total / 1024));
+        });
+        if (err != ESP_OK) {
+            std::printf("update failed: %s, the coprocessor keeps its firmware\n", esp_err_to_name(err));
+            return 1;
+        }
+        std::printf("done, restarting\n");
+        fflush(stdout);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        esp_restart();
+        return 0;
+    }
+    return usage("c6 [version|update <http url>]");
 }
 
 int cmd_hotspot(int argc, char **argv)
@@ -889,6 +926,7 @@ void register_commands()
     add("wifi", "Wi-Fi: status, saved networks, scan, reconnect", "[status|list|add|connect|remove|up|down|policy|scan|results|reconnect]",
         cmd_wifi);
     add("hotspot", "turn the hotspot on or off, or give it a new password", "on|off|password", cmd_hotspot);
+    add("c6", "Wi-Fi coprocessor: firmware version, update from a URL", "[version|update <http url>]", cmd_c6);
     add("fs", "file system status", nullptr, cmd_fs);
     add("restart", "restart the device", nullptr, cmd_restart);
     add("reboot", "restart the device", nullptr, cmd_restart);

@@ -1,0 +1,9 @@
+# The partition table already on the C6, read from the vendor's flash image
+# (JC-C6-slave_v2.3.2.bin at 0x8000). An update over the air cannot change it, so the image has to
+# fit one OTA slot: 1.5 MB.
+# Name,    Type, SubType, Offset,   Size
+nvs,       data, nvs,     0x9000,   0x4000
+otadata,   data, ota,     0xd000,   0x2000
+phy_init,  data, phy,     0xf000,   0x1000
+ota_0,     app,  ota_0,   0x10000,  0x180000
+ota_1,     app,  ota_1,   0x190000, 0x180000

@@ -18,6 +18,19 @@ python tools/build.py wt32_sc01 --app recovery       # build the recovery app
 python tools/build.py wt32_sc01 menuconfig           # configure one board and app
 ```
 
+## Boards
+
+| Board | `tools/build.py` name | Notes |
+| --- | --- | --- |
+| Wireless-Tag WT32-SC01 | `wt32_sc01` | ESP32, 480x320, the first target |
+| Guition JC3248W535 | `jc3248w535` | ESP32-S3, 320x480 QSPI panel (whole frames only) |
+| Guition JC4880P443C-I-W | `jc4880p443c` | ESP32-P4, 480x800 MIPI-DSI, Wi-Fi through an ESP32-C6 |
+| LilyGO TTGO T4 | `ttgo_t4` | test device only, no touch |
+
+Pins, verified settings and quirks: [docs/devices/](docs/devices/). The ESP32-C6 of the
+JC4880P443C has firmware of its own (`boards/jc4880p443c/c6`), updated from the P4 with the
+console command `c6 update <url>`, see its device page.
+
 ## Tests on the PC
 
 The pure components (`memory`, `formats`, `core`, `config`, `hass_protocol`, the URL code of

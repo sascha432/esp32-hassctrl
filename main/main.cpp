@@ -27,6 +27,7 @@
 #include "hc/ui/ui.hpp"
 #include "hc/uidebug/uidebug.hpp"
 #include "hc/webserver/webserver.hpp"
+#include "soc/soc_caps.h"
 #include "ui_backend.hpp"
 
 namespace {
@@ -75,6 +76,22 @@ lv_disp_t *start_lvgl(const hc::board::Handles &handles)
             disp = hc::frame_display::add(frame_config);
             lvgl_port_unlock();
         }
+#if SOC_MIPI_DSI_SUPPORTED
+    } else if (info.mipi_dsi) {
+        // the panel scans its frame buffer: two partial buffers in internal RAM, which the DMA2D
+        // copies into it; no rotation in the panel, so LVGL rotates the bands in software
+        lvgl_port_display_cfg_t display_config{};
+        display_config.io_handle = handles.io;
+        display_config.panel_handle = handles.panel;
+        display_config.hres = info.width;
+        display_config.vres = info.height;
+        display_config.buffer_size = static_cast<uint32_t>(info.width) * info.draw_buffer_lines;
+        display_config.double_buffer = true;
+        display_config.flags.buff_dma = true;
+        display_config.flags.sw_rotate = true;
+        const lvgl_port_display_dsi_cfg_t dsi_config{};
+        disp = lvgl_port_add_disp_dsi(&display_config, &dsi_config);
+#endif
     } else {
         lvgl_port_display_cfg_t display_config{};
         display_config.io_handle = handles.io;

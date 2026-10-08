@@ -516,7 +516,7 @@ const Info &info();                    // name, resolution, has_touch, psram
 | --- | --- | --- | --- | --- |
 | WT32-SC01 (first target) | ESP32, 4 MB flash, 4 MB PSRAM | 480x320 ST7796S, SPI, write only | FT6336U | `esp_lcd_st7796`, `esp_lcd_touch_ft5x06` |
 | JC3248W535 | ESP32-S3, 16 MB, 8 MB PSRAM | 320x480 AXS15231B, QSPI, whole frames only | integrated | `esp_lcd_axs15231b` |
-| JC4880P443C | ESP32-P4 + C6, 16 MB, 32 MB PSRAM | 480x800 ST7701S, MIPI-DSI | GT911 | `esp_lcd_st7701`, `esp_lcd_touch_gt911`, `esp_wifi_remote` |
+| JC4880P443C | ESP32-P4 + C6, 16 MB, 32 MB PSRAM | 480x800 ST7701S, MIPI-DSI | GT911 | `esp_lcd_st7701`, `esp_lcd_touch_gt911`, `esp_wifi_remote` + `esp_hosted` |
 | TTGO T4 (test device, not fully supported) | ESP32, 4 MB, PSRAM | 240x320 ILI9341, SPI | none | `esp_lcd_ili9341` |
 
 Display flushing on the WT32-SC01: the old firmware rendered into two full-screen buffers in
@@ -532,6 +532,16 @@ renders in direct mode into one frame in PSRAM, and after each refresh the frame
 top down to the lowest changed row, in bands that are turned to the panel's orientation while
 they are copied into two internal DMA buffers (copying one overlaps sending the other). Rotation
 is software for this board; touch still comes from esp_lvgl_port.
+
+The ST7701S of the JC4880P443C is a MIPI-DSI video panel: the DPI controller scans a frame buffer
+in PSRAM and nothing can rotate it. The board sets `Info::mipi_dsi`, and `main` uses
+esp_lvgl_port's DSI display with two 50-line draw buffers in internal RAM, which the DMA2D copies
+into the frame buffer; LVGL rotates in software. The ESP32-P4 has no radio: Wi-Fi runs on the
+ESP32-C6 of the board, and `network` gets the `esp_wifi` API from `esp_wifi_remote` over
+`esp_hosted` (SDIO) without code changes. The device name comes from the P4's base MAC.
+The C6 runs an esp_hosted coprocessor firmware of the same version as the host side, built
+from `boards/jc4880p443c/c6` and sent to it over SDIO (`hc::network::update_coprocessor`,
+console `c6 update <url>`); a different major version on the two chips is a mismatch.
 
 ---
 
@@ -710,6 +720,7 @@ esp32-hassctrl/
   sdkconfig.defaults             shared Kconfig defaults
   partitions/                    4mb.csv, 16mb.csv
   boards/<name>/sdkconfig.defaults   target, flash, PSRAM, board choice
+  boards/jc4880p443c/c6/         ESP-IDF project of the board's ESP32-C6 (esp_hosted coprocessor)
   main/                          app_main, wiring only
   recovery/                      the recovery app (section 9.5): its own app_main, same components
   components/

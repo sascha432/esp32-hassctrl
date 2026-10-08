@@ -1,3 +1,13 @@
 ## mDNS: the device answers as <device name>.local and announces its web server
 dependencies:
   espressif/mdns: "^1.14.0"
+  # Targets without a radio (ESP32-P4): Wi-Fi runs on a companion chip (ESP32-C6 over SDIO).
+  # esp_wifi_remote provides the esp_wifi API and forwards it to the companion with esp_hosted.
+  espressif/esp_wifi_remote:
+    version: "*"
+    rules:
+      - if: "target in [esp32p4]"
+  espressif/esp_hosted:
+    version: "*"
+    rules:
+      - if: "target in [esp32p4]"

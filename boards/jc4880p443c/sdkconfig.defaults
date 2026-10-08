@@ -1,0 +1,27 @@
+# Guition JC4880P443C-I-W: ESP32-P4 (rev v3.2 on the first unit), 16 MB flash, 32 MB PSRAM in the
+# chip, ESP32-C6 as the Wi-Fi radio over SDIO, USB-Serial/JTAG console (docs/devices/JC4880P443C).
+CONFIG_IDF_TARGET="esp32p4"
+CONFIG_HC_BOARD_JC4880P443C=y
+
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+# esptool flash-id: manufacturer 0x68 (Boya), device 0x4018
+CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/16mb.csv"
+# The ESP32-P4 bootloader starts at 0x2000, so it has 24 KB before the partition table at 0x8000;
+# with info logs it was 25 KB. Warnings only (the app logs chip, flash and PSRAM itself).
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+
+# hex PSRAM at 200 MHz, as the vendor demo
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_200M=y
+
+# The USB port labelled "USB2" is the chip's USB-Serial/JTAG (COM11)
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Wi-Fi through the ESP32-C6 (esp_hosted + esp_wifi_remote, components/network): SDIO slot 1,
+# 4 bit, the pins of Espressif's ESP32-P4 Function EV board, which this board copies (vendor demo
+# sdkconfig: CMD 19, CLK 18, D0..D3 14..17, C6 reset on GPIO 54)
+CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD=y
+CONFIG_SLAVE_IDF_TARGET_ESP32C6=y

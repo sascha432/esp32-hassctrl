@@ -1,7 +1,8 @@
 # Wi-Fi and hotspot (docs/architecture.md sections 9.1, 9.2, 9.4).
-idf_component_register(SRCS "src/network.cpp"
+idf_component_register(SRCS "src/coprocessor.cpp"
+                            "src/network.cpp"
                             "src/reasons.cpp"
                             "src/selection.cpp"
                             "src/store.cpp"
                        INCLUDE_DIRS "include"
-                       PRIV_REQUIRES esp_event esp_netif esp_wifi platform)
+                       PRIV_REQUIRES esp_event esp_http_client esp_netif esp_wifi platform)
