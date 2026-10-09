@@ -205,6 +205,7 @@ A board that restarts with the reset reason "power on" or "brownout" (boot log `
 reason`) has lost its supply, it did not crash. Before anything is changed in the firmware to
 avoid it (a lower volume, a slower clock), discuss with the developer whether the power supply is
 the cause: a USB port of a PC gives 0.5 A (USB 2.0), a hub shares its power, and a worn cable drops
-voltage. The JC4880P443C recommends 5 V at 2 to 3 A; its speaker restarted it on USB (2026-10-09),
+voltage. The JC4880P443C recommends 5 V at 2 to 3 A (an AI summary on Reddit says at least 1.5 to
+2 A for loud audio or a camera); its speaker restarted it on USB (2026-10-09),
 and both boards restarted at random until their USB cables were replaced. Test with a proper
 5 V supply and a short cable first.
