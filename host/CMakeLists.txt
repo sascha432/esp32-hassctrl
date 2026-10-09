@@ -51,6 +51,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/hass_protocol/src/messages.cpp
     ${HC_ROOT}/components/hass_protocol/src/page.cpp
     ${HC_ROOT}/components/hass_protocol/src/history.cpp
+    ${HC_ROOT}/components/hass_protocol/src/picker.cpp
     ${HC_ROOT}/components/memory/src/large.cpp
 )
 target_include_directories(hc_tests PRIVATE

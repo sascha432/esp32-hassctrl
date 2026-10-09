@@ -569,8 +569,16 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         own screen, `GET /api/dashboard/editor`); no live values in the preview (decided).
         All three boards updated with firmware and web image (`build_fs.py -p` keeps the
         dashboard).
-  - [ ] `web/icons.svg` (the editor's icons are stand-ins), the entity picker
-        (`/api/hass/entities`, `/api/hass/entity`; the editor takes typed entity ids meanwhile).
+  - [x] Entity picker (2026-10-09): `GET /api/hass/entities?domain=&q=` and
+        `GET /api/hass/entity?id=` (one-shot `render_template` over the hass connection, variables
+        instead of escaping, host tests); the Add dialog searches Home Assistant (domain filter,
+        every word in id or name, at most 100 rows, a typed id still works, the dashboard's
+        entities without a connection), the inspector has Pick. Tried on the WT32 against your
+        Home Assistant (read only, 200 to 370 ms an answer) and headless in Edge. Tested by
+        you (2026-10-09). With it: "+ Area" opens the new area's page, the screen stays on its
+        page after a save from the web UI (by the area tile's id), the editor no longer names
+        the screen, the Import & export tab counts pages and tiles of every level.
+  - [ ] `web/icons.svg` (the editor's icons are stand-ins).
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,

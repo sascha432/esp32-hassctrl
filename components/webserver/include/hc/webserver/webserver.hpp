@@ -45,6 +45,13 @@ struct HassAccess {
     void (*reconnect)();
     // searches the network (mDNS) for about 2 s, blocking
     size_t (*discover)(HassFound *out, size_t max);
+    // The entity picker of the editor (docs/ui/web-dashboard.md section 2.3), blocking for a few
+    // seconds at most: Home Assistant's answer as JSON in a buffer of the large heap
+    // (memory::allocate_large, the web server frees it), null with `error` set. `entities`: the
+    // entities of `domain` (empty: all) whose id or name contains `query`; `entity`: the details of
+    // one, `entity_id` is valid.
+    char *(*entities)(const char *domain, const char *query, size_t &length, char *error, size_t error_size);
+    char *(*entity)(const char *entity_id, size_t &length, char *error, size_t error_size);
 };
 
 // One uploaded file of a dashboard import: its path inside the folder and its text.

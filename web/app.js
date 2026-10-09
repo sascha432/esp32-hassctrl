@@ -368,7 +368,11 @@ async function dashboardFiles(box) {
     let rows;
     try {
       const d = await api("/api/dashboard");
-      rows = facts([["Revision", d.revision], ["Tiles", (d.tiles || []).length]]) +
+      // every level, as the device counts an import: the tiles with areas and spacers, the main
+      // page and one page per area
+      let pages = 1, tiles = 0;
+      (function count(list) { for (const t of list || []) { tiles++; if (t.type === "area") { pages++; count(t.tiles); } } })(d.tiles);
+      rows = facts([["Revision", d.revision], ["Pages", pages], ["Tiles", tiles]]) +
         '<div class="d-flex justify-content-end"><a class="btn btn-outline-secondary" href="/api/dashboard.yaml">Download (.yaml)</a></div>';
     } catch (e) {
       if (e.status !== 404) throw e;

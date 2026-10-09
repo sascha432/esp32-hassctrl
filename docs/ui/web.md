@@ -180,8 +180,9 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
   token, so a typo cannot replace a working token ([TODO](../TODO.md)).
 * The header's `HA` is green while connected, red for a rejected token, yellow otherwise.
 * API: `GET /api/hass`, `POST /api/hass` (`url`, `token`; an empty token keeps the stored one,
-  an empty url removes both), `POST /api/hass/reconnect`, `GET /api/hass/discover`. The token
-  is write-only. The recovery app has none of them (404).
+  an empty url removes both), `POST /api/hass/reconnect`, `GET /api/hass/discover`, and for the
+  dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`
+  ([web-dashboard.md](web-dashboard.md) section 2.3). The token is write-only. The recovery app has none of them (404).
 
 ```
 +--------------------------------------------+

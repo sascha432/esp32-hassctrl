@@ -153,6 +153,23 @@ const char *hass_state_key(hc::hass::State state)
     return "?";
 }
 
+// the picker's answer into a buffer of the large heap, which the web server frees
+char *hass_answer(bool ok, const hc::memory::String &json, const hc::memory::String &problem, size_t &length,
+                  char *error, size_t error_size)
+{
+    if (!ok) {
+        snprintf(error, error_size, "%s", problem.c_str());
+        return nullptr;
+    }
+    auto *text = static_cast<char *>(hc::memory::allocate_large(json.size() + 1));
+    memcpy(text, json.c_str(), json.size() + 1);
+    length = json.size();
+    return text;
+}
+
+// the editor's search waits on the web server's task, a few seconds at most
+constexpr uint32_t kHassQueryTimeoutMs = 6000;
+
 const hc::webserver::HassAccess kHassAccess{
     .status =
         [](hc::webserver::HassStatus &out) {
@@ -181,6 +198,18 @@ const hc::webserver::HassAccess kHassAccess{
                          static_cast<int>(sizeof(out[i].version) - 1), found[i].version);
             }
             return count;
+        },
+    .entities =
+        [](const char *domain, const char *query, size_t &length, char *error, size_t error_size) {
+            hc::memory::String json, problem;
+            const bool ok = hc::hass::list_entities(domain, query, kHassQueryTimeoutMs, json, problem);
+            return hass_answer(ok, json, problem, length, error, error_size);
+        },
+    .entity =
+        [](const char *entity_id, size_t &length, char *error, size_t error_size) {
+            hc::memory::String json, problem;
+            const bool ok = hc::hass::entity_details(entity_id, kHassQueryTimeoutMs, json, problem);
+            return hass_answer(ok, json, problem, length, error, error_size);
         },
 };
 

@@ -114,6 +114,15 @@ void stop_stream();
 // smallest that covers the box.
 void set_stream_scale(int shift);
 
+// The entity picker of the web editor (docs/ui/web-dashboard.md section 2.3): a one-shot template
+// over the connection, its result as JSON text (hass_protocol::entity_list_message and
+// entity_details_message say what it holds). Both block the calling task until Home Assistant
+// answered, at most `timeout_ms`; false with `error` set without a connection, on a template error
+// or a timeout. One at a time: a second request replaces the first, which fails.
+bool list_entities(std::string_view domain, std::string_view query, uint32_t timeout_ms, memory::String &json,
+                   memory::String &error);
+bool entity_details(std::string_view entity_id, uint32_t timeout_ms, memory::String &json, memory::String &error);
+
 // A Home Assistant instance found on the network.
 struct Found {
     char name[48]; // its location name ("Home")

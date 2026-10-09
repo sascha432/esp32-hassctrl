@@ -2,8 +2,8 @@
 
 Status: **decided** (2026-10-08; push aside is judged on the device, section 1). Built
 (2026-10-08/09): the format (section 1), the edit mode of the screen (section 3, approved), the
-API (section 2.2) and the web editor (`web/dashboard.js`, typed entity ids); the icon file and
-the entity picker are not. The look can be tried in a browser:
+API (section 2.2), the web editor (`web/dashboard.js`) and the entity picker (section 2.3,
+2026-10-09); the icon file is not. The look can be tried in a browser:
 [dashboard-editor-demo.html](dashboard-editor-demo.html) (open the file directly, no device
 needed; mock data, nothing is saved). The screen's edit mode is not in it: it is tested on the
 device.
@@ -62,8 +62,9 @@ dashboard as one file is on the System page (web.md section 2), not here (decide
 
 ### 2.1 What it does
 
-* **Pages.** A tree of the main page and its areas (up to `core::kMaxAreaDepth` deep). Add an area,
-  rename, delete (with its tiles, after a confirm that names the count), move a tile to another
+* **Pages.** A tree of the main page and its areas (up to `core::kMaxAreaDepth` deep). Add an area
+  (its page opens at once, 2026-10-09: an empty area is an error, and a "+ Tile" after "+ Area"
+  meant the new area, not the page it is on), rename, delete (with its tiles, after a confirm that names the count), move a tile to another
   page by dragging it onto the tree.
 * **Grid.** `defaults.grid`, and per area page its own grid or the default. 1x1 to 8x8.
 * **Tiles.** Add from a Home Assistant entity, add an area or a spacer, remove, duplicate, move to
@@ -76,7 +77,9 @@ dashboard as one file is on the System page (web.md section 2), not here (decide
   arranged page it moves the tile to the cell and pushes the tiles there aside (section 1). A drag in an automatic page onto an empty cell
   arranges the page (the rule of section 1). Up/Down buttons do the same without dragging, for
   phones.
-* **Save** of the whole document with its revision. Unsaved changes are marked, Undo within the
+* **Save** of the whole document with its revision. The screen stays on the page it shows (the
+  page of the same area tile, else its nearest parent that is left; 2026-10-09, also for an
+  import and the screen's Done). Unsaved changes are marked, Undo within the
   session, a warning before leaving the page.
 
 ### 2.2 Data flow
@@ -110,7 +113,8 @@ GET /api/dashboard ---> editor model (the JSON as it is) ---> edits in the brows
   id the editor could match. `GET /api/dashboard/editor` gives the device's screen in landscape
   (name, width, height, the gap between tiles) and the icon names.
 * **The preview is the device's own screen** (2026-10-09, your review): no choice of board; the
-  screen comes from `GET /api/dashboard/editor`.
+  screen comes from `GET /api/dashboard/editor`. Its name and size are not shown (2026-10-09,
+  your request).
 * **No live values in the preview** (decided 2026-10-09): it shows the icons and names.
 * **Conflicts.** The screen's edit mode changes the dashboard too. A `409` shows "The dashboard
   was changed on the device" with Reload (drops the local changes) and Overwrite.
@@ -122,13 +126,31 @@ its WebSocket session.
 
 * **Not `get_states`.** A large house sends 1 MB and more; the ESP32 boards have about 55 KB of
   internal RAM free. The list comes from a `render_template` that filters on Home Assistant's side:
-  `[["light.kitchen","Kitchen","light",null,"%"], ...]` (id, friendly name, domain, device class,
-  unit), filtered by domain and search text, at most 200 rows, on the large heap.
-* **Details of one entity** for a new tile: icon, device class, unit, display precision, whether
-  a light dims (`supported_color_modes` other than `onoff`), a climate's `target_temp_step`. The
-  editor sets `dimmer: true` for a dimmable light; keys equal to the automatic value are left out
-  so the tile follows Home Assistant (no `name` when it is the friendly name).
-* Without Home Assistant the picker takes a typed entity id (`core::valid_entity_id`).
+  `GET /api/hass/entities?domain=&q=` answers
+  `{"more": false, "rows": [["light.kitchen","Kitchen","light",null,"%"], ...]}` (id, friendly
+  name up to 40 characters, domain, device class, unit), in order of the id. Every word of `q` has
+  to be in the id or the name (case-insensitive). At most 100 rows and about 10 KB (built: 200 rows
+  would not fit the 16 KB a message of the connection may have); `more` says rows were left out.
+* **One-shot templates** (built): the hass task subscribes the template, takes the first result
+  and ends the subscription; the web server's task waits for it, 6 s at most (503 with the reason
+  otherwise: no connection, template error, timeout). One at a time, a newer one replaces it. The
+  search text and the entity id go in as `variables` of `render_template`, so nothing is escaped
+  into the template. Template and result handling are in `hass_protocol/picker.cpp` (host tests).
+* **Details of one entity** for a new tile: `GET /api/hass/entity?id=` answers `{"id", "name",
+  "domain", "state", "icon", "device_class", "unit", "color_modes", "temp_step"}` or
+  `{"id", "missing": true}`. The editor sets `dimmer: true` for a light whose
+  `supported_color_modes` has more than `onoff`, and nothing else: icon, device class, unit,
+  rounding (`states(e, rounded=True)`, the display precision) and a climate's step already follow
+  Home Assistant at run time, so keys equal to the automatic value are left out (no `name` when it
+  is the friendly name). Not built from the proposal: the display precision (it is in the entity
+  registry, not in the state; the screen rounds with it already).
+* **The picker** (built): the Add dialog and the Pick button of a tile's Entity field. A domain
+  filter, the search (300 ms after the last key), the rows with friendly name, id, device class,
+  unit, the kind and whether the entity is on the dashboard already. A typed valid entity id is
+  offered as a row of its own, also when Home Assistant does not have it (the tile is added with a
+  warning). Without a connection the list holds the entities of the dashboard, with the reason.
+  The friendly names of the answers name the tiles in the preview and the inspector while the page
+  is open (they are not stored).
 
 ### 2.4 Page layout
 
@@ -141,7 +163,7 @@ Phone first like the rest of the web UI, but the editor uses the full width from
 | Status    | Dashboard   [Editor] [Import & export]   rev 12 · unsaved [Undo][Save]  |
 | Home Ass. +--------------+------------------------------------+----------------------+
 | Wi-Fi     | Pages        | Main page   grid [4]x[3]           | Tile                 |
-| Hotspot   | > Main       | [Landscape|Portrait] [WT32 480x320]| Ceiling      light   |
+| Hotspot   | > Main       | [Landscape|Portrait]               | Ceiling      light   |
 | Dashboard |   > Rooms    | Automatic order   [Reset]          | Entity [light.aur..] |
 | Logs      |     Workshop | +------+------+------+------+      | Name   [Ceiling    ] |
 | System    | [+ Area]     | |      |Hearth| (o)  | (o)  |      | Icon   [(o) auto   ] |
@@ -236,7 +258,7 @@ copy. Same behavior, one data path fewer.
 | `dashboard` | `save_layout()` (built) |
 | `ui` | edit mode (section 3, built) |
 | `api_dashboard.cpp` | `POST /api/dashboard?check=1`; answers `{"checked", "revision", "dashboard"}` with cells per tile, on 400 `{"error", "path"}` (built) |
-| `api_hass.cpp` | `GET /api/hass/entities?domain=&q=`, `GET /api/hass/entity?id=` |
+| `api_hass.cpp` | `GET /api/hass/entities?domain=&q=`, `GET /api/hass/entity?id=` (built) |
 | `api_dashboard.cpp` | `GET /api/dashboard/editor`: the screen of the device and `core::icon_names()` (built) |
 | `tools/build_icons.py` | also writes `web/icons.svg`, one `<symbol>` per icon name (about 6 KB gzipped) |
 | `web/` | `dashboard.js`, loaded only by the Dashboard page, so the setup on a phone stays small |
@@ -250,7 +272,7 @@ copy. Same behavior, one data path fewer.
 3. **API**: check=1, cells, structured problem, icons list.
 4. **Web editor without Home Assistant**: pages, grid, tiles with a typed entity id, preview with
    both orientations, save, 409, undo; the Import & export tab moves in.
-5. **Icons** (`web/icons.svg`) and the **entity picker**.
+5. **Icons** (`web/icons.svg`) and the **entity picker** (built 2026-10-09).
 6. Later: adding tiles and sizes on the screen. Not planned: live values in the web preview
    (decided 2026-10-09).
 

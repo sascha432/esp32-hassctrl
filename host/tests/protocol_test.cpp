@@ -281,6 +281,40 @@ TEST(protocol_messages)
     CHECK(out.find(R"("color_temp_kelvin":2700)") != std::string::npos);
 }
 
+TEST(protocol_picker_messages)
+{
+    // the search text goes in as a variable: quotes and Jinja need no escaping
+    Json list(cJSON_Parse(entity_list_message(3, "light", "K\"üche {{x}}").c_str()));
+    REQUIRE(list != nullptr);
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(list.get(), "type")), "render_template");
+    CHECK(cJSON_GetObjectItem(list.get(), "id")->valueint == 3);
+    const cJSON *variables = cJSON_GetObjectItem(list.get(), "variables");
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(variables, "d")), "light");
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(variables, "q")), "K\"üche {{x}}");
+    CHECK(cJSON_GetObjectItem(variables, "n")->valueint == static_cast<int>(kEntityListMax));
+    const std::string list_template = cJSON_GetStringValue(cJSON_GetObjectItem(list.get(), "template"));
+    CHECK(list_template.find("{{%") == std::string::npos);
+    CHECK(list_template.find("|tojson}}") != std::string::npos);
+
+    Json details(cJSON_Parse(entity_details_message(4, "light.aurora").c_str()));
+    REQUIRE(details != nullptr);
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(cJSON_GetObjectItem(details.get(), "variables"), "e")),
+              "light.aurora");
+
+    // the result as an object, or as its text (older Home Assistant)
+    hc::memory::String out;
+    Json object(cJSON_Parse(R"({"more":false,"rows":[["light.a","A","light",null,null]]})"));
+    REQUIRE(template_result_json(object.get(), out));
+    CHECK_STR(out.c_str(), R"({"more":false,"rows":[["light.a","A","light",null,null]]})");
+    Json text(cJSON_CreateString(R"({"id":"x.y","missing":true})"));
+    REQUIRE(template_result_json(text.get(), out));
+    CHECK_STR(out.c_str(), R"({"id":"x.y","missing":true})");
+    Json plain(cJSON_CreateString("not json"));
+    CHECK(!template_result_json(plain.get(), out));
+    Json number(cJSON_CreateNumber(4));
+    CHECK(!template_result_json(number.get(), out));
+}
+
 TEST(protocol_pending_actions)
 {
     PendingTracker pending;

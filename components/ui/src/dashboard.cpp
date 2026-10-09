@@ -52,8 +52,6 @@ struct State {
     // while editing: the layout the edit started from (`layout` is the edited copy); null otherwise
     std::shared_ptr<const core::Layout> base;
     bool edited = false;
-    // the page the next layout opens on (Done keeps the page), kNone: the main page
-    core::PageIndex keep_page = core::kNone;
     Grid grid;
     std::unique_ptr<core::EntityStore> store;
     core::PendingTracker pending;
@@ -222,6 +220,26 @@ void build_page(Slide slide = Slide::None)
     }
 }
 
+// The page of `layout` that shows what `page` of `old` showed: the page of the same area tile (by
+// its id), else of the nearest parent that is still there, else the main page. A new layout (a
+// save in the web UI, an import, Done) keeps the page that is open.
+core::PageIndex same_page(const core::Layout &old, core::PageIndex page, const core::Layout &layout)
+{
+    for (; page != core::kNone && page < old.pages.size(); page = old.pages[page].parent) {
+        const core::TileIndex area = old.pages[page].area;
+        if (area == core::kNone || old.tiles[area].id == 0) {
+            break;
+        }
+        for (core::PageIndex p = 1; p < layout.pages.size(); p++) {
+            const core::TileIndex other = layout.pages[p].area;
+            if (other != core::kNone && layout.tiles[other].id == old.tiles[area].id) {
+                return p;
+            }
+        }
+    }
+    return 0;
+}
+
 void show_layout(std::shared_ptr<const core::Layout> layout)
 {
     if (!g.root) {
@@ -238,11 +256,11 @@ void show_layout(std::shared_ptr<const core::Layout> layout)
         lv_obj_move_background(g.root);
     }
     clear_page();
+    const core::PageIndex page = g.layout ? same_page(*g.layout, g.page, *layout) : 0;
     g.layout = std::move(layout);
     g.store = std::make_unique<core::EntityStore>(g.layout->entities.size());
     g.pending.clear();
-    g.page = g.keep_page < g.layout->pages.size() ? g.keep_page : 0;
-    g.keep_page = core::kNone;
+    g.page = page;
     g.panel = core::kNone;
     build_page();
     subscribe();
@@ -559,7 +577,6 @@ bool save_editing(char *error, size_t size)
         }
         return false;
     }
-    g.keep_page = g.page;
     g.base.reset();
     edit::close();
     overlay::update();

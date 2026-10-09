@@ -61,6 +61,25 @@ memory::String unsubscribe_message(uint32_t id, uint32_t subscription);
 bool call_service_message(uint32_t id, const core::Intent &intent, std::string_view entity_id, memory::String &out,
                           memory::String &error);
 
+// ------------------------------------------------------------------------- the entity picker
+
+// the most rows of one entity list (docs/ui/web-dashboard.md section 2.3)
+constexpr size_t kEntityListMax = 100;
+
+// A render_template whose result is {"more": bool, "rows": [[id, name, domain, device_class,
+// unit], ...]}: the entities of `domain` (empty: all) whose id or friendly name contains `query`
+// (case-insensitive, empty: all), in order of the id, at most kEntityListMax and about 10 KB.
+memory::String entity_list_message(uint32_t id, std::string_view domain, std::string_view query);
+
+// A render_template whose result is {"id", "name", "domain", "state", "icon", "device_class",
+// "unit", "color_modes", "temp_step"} of `entity_id`, or {"id", "missing": true}. The id has to
+// be a valid entity id (core::valid_entity_id).
+memory::String entity_details_message(uint32_t id, std::string_view entity_id);
+
+// The `result` of a render_template event as JSON text: an object or a list, or the same as a
+// JSON string. False when it is neither.
+bool template_result_json(const cJSON *result, memory::String &out);
+
 // ------------------------------------------------------------------------------- history
 
 // The history of a sensor panel is read in windows this long, one after the other: a 5 minute

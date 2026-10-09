@@ -126,6 +126,33 @@ Dashboard editing (docs/ui/web-dashboard.md, approved by the user after trying i
   `docs/ui/dashboard-editor-demo.html` (the reviewed mock-up), architecture.md and screen.md on
   cells per orientation.
 
+Entity picker (docs/ui/web-dashboard.md section 2.3, tested by the user on the WT32):
+
+- `GET /api/hass/entities?domain=&q=` answers `{"more", "rows": [[id, name, domain,
+  device_class, unit], ...]}` in order of the id; every word of `q` has to be in the id or the
+  friendly name. At most 100 rows and about 10 KB (200 rows of the plan would not fit the 16 KB
+  a message may have). `GET /api/hass/entity?id=` answers name, domain, state, icon, device
+  class, unit, color modes and climate step, or `"missing": true`.
+- Both are one-shot `render_template`s over the hass connection (`hass::list_entities`,
+  `hass::entity_details`): the task subscribes, takes the first result and unsubscribes; the
+  web server's task waits 6 s at most (503 with the reason). The search text and the entity id
+  are `variables` of the template, nothing is escaped into it (`hass_protocol/picker.cpp`, a
+  host test, 69 in all).
+- Editor: the Add dialog searches Home Assistant (domain filter, 300 ms after the last key,
+  Enter takes the first row; rows with name, id, device class, unit, kind and whether the entity
+  is on the dashboard); a typed entity id is a row of its own, also one Home Assistant does not
+  have (added with a warning); without a connection the dashboard's entities with the reason.
+  A tile's Entity field has Pick. A light whose color modes are more than `onoff` gets
+  `dimmer: true`; nothing else is copied, the tile follows Home Assistant. The friendly names
+  name new tiles in the preview and the inspector while the page is open.
+- Editor: "+ Area" opens the new area's page (a "+ Tile" after it landed on the parent page and
+  the area stayed empty). The screen's name and size are not shown any more.
+- Import & export tab: Pages and Tiles count every level, as an import does (it said 8 tiles,
+  the main page's, for 141).
+- Screen: a new dashboard (a save in the web UI, an import, Done) keeps the open page, found by
+  its area tile's id, else its nearest parent that is left (it went to the main page; Done kept
+  the page by its index).
+
 Screen:
 
 - JC4880P443C: 8 px between the dashboard tiles (`board::Info::ui_tile_gap`,

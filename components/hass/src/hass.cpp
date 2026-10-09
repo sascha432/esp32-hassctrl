@@ -21,6 +21,7 @@
 #include "esp_websocket_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "hc/hass_protocol/protocol.hpp"
 #include "hc/platform/settings.hpp"
@@ -89,7 +90,30 @@ struct FetchHistory {
     uint32_t generation = 0;
 };
 
-using Command = std::variant<Subscribe, Call, FetchHistory>;
+// A one-shot template of the entity picker; the web server's task waits for `wait`.
+struct QueryWait {
+    SemaphoreHandle_t done = xSemaphoreCreateBinary();
+    memory::String json;
+    memory::String error;
+
+    ~QueryWait()
+    {
+        if (done != nullptr) {
+            vSemaphoreDelete(done);
+        }
+    }
+};
+
+struct Query {
+    // a render_template message without its id: entity_list_message or entity_details_message
+    bool details = false;
+    memory::String domain;
+    memory::String text; // the search text, or the entity id of the details
+    uint32_t timeout_ms = 0;
+    std::shared_ptr<QueryWait> wait;
+};
+
+using Command = std::variant<Subscribe, Call, FetchHistory, Query>;
 
 struct Event {
     EventType type = EventType::Reconnect;
@@ -342,6 +366,13 @@ struct HistoryState {
     History result;
 };
 
+// The picker's query on its way: one at a time, a new one replaces it. Owned by the hass task.
+struct QueryState {
+    std::shared_ptr<QueryWait> wait;
+    uint32_t id = 0;
+    int64_t deadline = 0;
+};
+
 struct PendingCall {
     uint32_t id = 0;
     core::EntityIndex entity = core::kNone;
@@ -367,6 +398,7 @@ struct Session {
     char token[kTokenSize] = {};
     PageState page;
     HistoryState history;
+    QueryState query;
     // the get_config request after the authentication (the time zone)
     uint32_t config_id = 0;
     PendingCall calls[kMaxCalls] = {};
@@ -395,6 +427,47 @@ bool configured()
 
 bool send_text(const memory::String &text);
 void send_history_chunk();
+
+// the answer of the picker's query to the waiting task; its subscription ends after the first
+// result
+void query_done(const char *error, memory::String json = {})
+{
+    QueryState &q = s.query;
+    if (!q.wait) {
+        return;
+    }
+    if (q.id != 0 && s.authenticated) {
+        send_text(hass_protocol::unsubscribe_message(s.next_id++, q.id));
+    }
+    if (error != nullptr) {
+        ESP_LOGW(kTag, "entity query: %s", error);
+        q.wait->error = error;
+    } else {
+        q.wait->json = std::move(json);
+    }
+    xSemaphoreGive(q.wait->done);
+    q = {};
+}
+
+void start_query(Query query)
+{
+    query_done("replaced by a newer request");
+    if (!s.authenticated) {
+        s.query.wait = std::move(query.wait);
+        query_done("not connected to Home Assistant");
+        return;
+    }
+    QueryState &q = s.query;
+    q.wait = std::move(query.wait);
+    q.id = s.next_id++;
+    q.deadline = now_ms() + query.timeout_ms;
+    const memory::String message = query.details ? hass_protocol::entity_details_message(q.id, query.text)
+                                                 : hass_protocol::entity_list_message(q.id, query.domain, query.text);
+    if (!send_text(message)) {
+        q.id = 0;
+        query_done("the request could not be sent");
+    }
+}
 
 // the answer (or its error) to the UI; the request is over
 void history_done(const char *error = nullptr)
@@ -513,6 +586,8 @@ void close_connection()
     if (s.history.active) {
         history_done("the connection to Home Assistant broke");
     }
+    s.query.id = 0;
+    query_done("the connection to Home Assistant broke");
 }
 
 // the state while no connection is open and none is planned at once
@@ -681,6 +756,10 @@ void on_command(Command &command)
         start_history(std::move(*history));
         return;
     }
+    if (auto *query = std::get_if<Query>(&command)) {
+        start_query(std::move(*query));
+        return;
+    }
     auto &call = std::get<Call>(command);
     if (!s.authenticated) {
         report_failed(call.intent.entity, "not connected to Home Assistant");
@@ -724,6 +803,27 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         deliver(std::move(values));
         return;
     }
+    QueryState &q = s.query;
+    if (std::strcmp(type, "event") == 0 && id == q.id && q.id != 0) {
+        const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
+        if (const char *error = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "error"))) {
+            // a warning is followed by the result
+            const char *level = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "level"));
+            if (level != nullptr && std::strcmp(level, "ERROR") == 0) {
+                query_done(error);
+            } else {
+                ESP_LOGW(kTag, "entity query: %s", error);
+            }
+            return;
+        }
+        memory::String json;
+        if (!hass_protocol::template_result_json(cJSON_GetObjectItemCaseSensitive(event, "result"), json)) {
+            query_done("the template result is not JSON");
+            return;
+        }
+        query_done(nullptr, std::move(json));
+        return;
+    }
     if (std::strcmp(type, "result") != 0) {
         return;
     }
@@ -737,6 +837,14 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
     const char *message = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(error, "message"));
     if (id == s.history.id && s.history.id != 0) {
         on_history(root, success, message);
+        return;
+    }
+    if (id == q.id && q.id != 0) {
+        if (!success) {
+            // no subscription to end
+            q.id = 0;
+            query_done(message != nullptr ? message : "Home Assistant refused the template");
+        }
         return;
     }
     if (id == p.id && p.id != 0) {
@@ -870,6 +978,9 @@ void on_timers()
         render_page();
     } else if (s.history.id != 0 && now >= s.history.deadline) {
         history_done("Home Assistant did not answer the history request");
+    }
+    if (s.query.wait && now >= s.query.deadline) {
+        query_done("Home Assistant did not answer in time");
     }
 
     std::lock_guard lock(g_mutex);
@@ -1053,6 +1164,50 @@ void fetch_history(std::string_view entity_id, core::EntityIndex entity, core::H
 {
     post_command(FetchHistory{.entity_id = memory::String(entity_id), .entity = entity, .kind = kind, .hours = hours,
                               .generation = generation});
+}
+
+namespace {
+
+bool run_query(Query query, uint32_t timeout_ms, memory::String &json, memory::String &error)
+{
+    auto wait = std::make_shared<QueryWait>();
+    if (wait->done == nullptr) {
+        error = "no memory";
+        return false;
+    }
+    query.timeout_ms = timeout_ms;
+    query.wait = wait;
+    post_command(std::move(query));
+    // the task answers at its deadline at the latest; the margin covers its tick
+    if (xSemaphoreTake(wait->done, pdMS_TO_TICKS(timeout_ms) + kTick * 2) != pdTRUE) {
+        error = "Home Assistant did not answer in time";
+        return false;
+    }
+    if (!wait->error.empty()) {
+        error = std::move(wait->error);
+        return false;
+    }
+    json = std::move(wait->json);
+    return true;
+}
+
+} // namespace
+
+bool list_entities(std::string_view domain, std::string_view query, uint32_t timeout_ms, memory::String &json,
+                   memory::String &error)
+{
+    Query q;
+    q.domain = memory::String(domain);
+    q.text = memory::String(query);
+    return run_query(std::move(q), timeout_ms, json, error);
+}
+
+bool entity_details(std::string_view entity_id, uint32_t timeout_ms, memory::String &json, memory::String &error)
+{
+    Query q;
+    q.details = true;
+    q.text = memory::String(entity_id);
+    return run_query(std::move(q), timeout_ms, json, error);
 }
 
 namespace detail {

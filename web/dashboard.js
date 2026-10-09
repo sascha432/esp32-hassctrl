@@ -124,6 +124,10 @@ window.hcEditor = (() => {
   let icons = Object.keys(ICON_SHAPE).filter((n) => n !== "arrow-left");
   let check = { state: "ok", text: "", k: null }, checkTimer = null, checkSeq = 0;
   let addCell = null, drag = null;
+  // the entity picker: the tile whose entity it replaces (null: a new tile), the newest search,
+  // the friendly names Home Assistant answered (the Name field's placeholder)
+  let pickFor = null, pickSeq = 0, pickTimer = null;
+  const haNames = new Map();
 
   const $ = (s) => root.querySelector(s);
 
@@ -213,7 +217,7 @@ window.hcEditor = (() => {
     if (t.name) return t.name;
     if (t.type === "spacer") return "Spacer";
     if (t.type === "area") return "(no name)";
-    return (t.entity || "?").split(".")[1] || t.entity;
+    return haNames.get(t.entity) || (t.entity || "?").split(".")[1] || t.entity;
   }
   function isInside(key, areaK) {
     for (let p = pageByKey(key); p; p = p.parent === null ? null : pageByKey(p.parent)) {
@@ -542,7 +546,6 @@ window.hcEditor = (() => {
               <button class="btn btn-outline-secondary ${orient === "l" ? "active" : ""}" data-act="orient" data-o="l">Landscape</button>
               <button class="btn btn-outline-secondary ${orient === "p" ? "active" : ""}" data-act="orient" data-o="p">Portrait</button>
             </div>
-            <span class="small text-body-secondary">${esc(screen.name)} ${orient === "p" ? `${screen.h}x${screen.w}` : `${screen.w}x${screen.h}`}</span>
           </div>
           <div class="ed-row small">
             ${pl.arranged
@@ -608,11 +611,13 @@ window.hcEditor = (() => {
     const known = [...entitiesInUse()].sort();
     let body = "";
     if (k !== "area" && k !== "spacer") {
-      body += field("Entity", `<input class="form-control form-control-sm" list="ed-ents" data-field="entity" value="${esc(t.entity)}" spellcheck="false">
+      body += field("Entity", `<div class="input-group input-group-sm">
+          <input class="form-control" list="ed-ents" data-field="entity" value="${esc(t.entity)}" spellcheck="false">
+          <button class="btn btn-outline-secondary" data-act="pick-entity">Pick</button></div>
         <datalist id="ed-ents">${known.map((x) => `<option value="${x}">`).join("")}</datalist>`, `${k} tile`);
     }
     if (k !== "spacer") {
-      body += field("Name", `<input class="form-control form-control-sm" data-field="name" maxlength="32" value="${esc(t.name || "")}" placeholder="${k === "area" ? "required" : "the friendly name of Home Assistant"}">`);
+      body += field("Name", `<input class="form-control form-control-sm" data-field="name" maxlength="32" value="${esc(t.name || "")}" placeholder="${k === "area" ? "required" : esc(haNames.get(t.entity) || "the friendly name of Home Assistant")}">`);
       body += field("Icon", `<button class="btn btn-sm btn-outline-secondary icon-chip" data-act="icon">
         ${t.icon === "none" ? "none" : svg(iconOf(t), 20) + " " + esc(t.icon || "automatic")}</button>`);
     }
@@ -738,36 +743,106 @@ window.hcEditor = (() => {
       </div></div></div><div class="modal-backdrop show"></div>`;
     root.appendChild(box);
   }
-  function closeModal() { root.querySelector("#ed-modal")?.remove(); }
+  function closeModal() { clearTimeout(pickTimer); root.querySelector("#ed-modal")?.remove(); }
 
-  function openAdd(cell) {
+  // ------------------------------------------------------------- entity picker (section 2.3)
+  // The device searches Home Assistant (GET /api/hass/entities); without a connection the list
+  // falls back to the entities on the dashboard, and a typed entity id works always.
+  const PICK_DOMAINS = ["light", "switch", "sensor", "binary_sensor", "climate", "camera", "fan", "input_boolean",
+    "button", "input_button", "scene", "script", "automation", "lock", "cover", "media_player", "weather"];
+
+  function openPicker(cell, replaceK = null) {
     addCell = cell;
-    modal("Add a tile", `
-      <label class="form-label small" for="ed-ent">Entity id</label>
-      <div class="input-group input-group-sm mb-2">
-        <input class="form-control" id="ed-ent" placeholder="sensor.attic_temperature" spellcheck="false" autocomplete="off">
-        <button class="btn btn-primary" data-act="add-typed">Add</button>
+    pickFor = replaceK;
+    const current = replaceK ? locate(replaceK).tile.entity || "" : "";
+    modal(replaceK ? "Entity of the tile" : "Add a tile", `
+      <div class="d-flex gap-2 mb-2">
+        <select class="form-select form-select-sm w-auto" id="ed-dom"><option value="">all domains</option>
+          ${PICK_DOMAINS.map((d) => `<option ${current.startsWith(d + ".") ? "selected" : ""}>${d}</option>`).join("")}</select>
+        <input class="form-control form-control-sm" id="ed-ent" placeholder="Search a name or an entity id" spellcheck="false" autocomplete="off">
       </div>
-      <p class="small text-body-secondary">The kind of the tile follows from the domain (light, switch, climate, camera, ...).
-        Picking entities from Home Assistant comes with the next step; below are the ones already on the dashboard.</p>
+      <div class="small text-body-secondary mb-2" id="ed-ent-note">Searching Home Assistant ...</div>
       <div class="list-group ent-list mb-3" id="ed-ent-list"></div>
-      <div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" data-act="add-area">+ Area</button>
-        <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button></div>`, "modal-lg");
-    const drawList = () => {
-      const q = root.querySelector("#ed-ent").value.trim().toLowerCase();
-      const rows = [...entitiesInUse()].sort().filter((id) => !q || id.includes(q)).slice(0, 200);
-      root.querySelector("#ed-ent-list").innerHTML = rows.map((id) => `
-        <div class="list-group-item list-group-item-action d-flex align-items-center gap-2" data-act="add-ent" data-id="${esc(id)}">
-          <span class="icon-chip">${svg(autoIcon({ entity: id }), 20)}</span><span class="flex-grow-1 text-truncate">${esc(id)}</span>
-          <span class="badge text-bg-secondary">${kindOf({ entity: id })}</span></div>`).join("") ||
-        '<div class="list-group-item text-body-secondary small">No match.</div>';
-    };
-    drawList();
+      ${replaceK ? "" : `<div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" data-act="add-area">+ Area</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button></div>`}`, "modal-lg");
     const input = root.querySelector("#ed-ent");
-    input.addEventListener("input", drawList);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") actions["add-typed"](); });
+    input.addEventListener("input", () => { clearTimeout(pickTimer); pickTimer = setTimeout(search, 300); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      clearTimeout(pickTimer);
+      // Enter takes the first row once the list shows this search
+      search().then(() => { const first = root.querySelector("#ed-ent-list [data-act=pick]"); if (first) actions.pick(first); });
+    });
+    root.querySelector("#ed-dom").addEventListener("change", search);
     input.focus();
+    search();
   }
+
+  async function search() {
+    const seq = ++pickSeq;
+    const input = root.querySelector("#ed-ent"), dom = root.querySelector("#ed-dom")?.value || "";
+    if (!input) return;
+    const q = input.value.trim();
+    let rows = null, more = false, problem = "";
+    try {
+      const { status, answer } = await request("GET", `/api/hass/entities?domain=${encodeURIComponent(dom)}&q=${encodeURIComponent(q)}`);
+      if (status === 200 && Array.isArray(answer.rows)) { rows = answer.rows; more = !!answer.more; } else problem = answer.error || `error ${status}`;
+    } catch (e) {
+      problem = e.message;
+    }
+    if (seq !== pickSeq || !root.querySelector("#ed-ent-list")) return; // a newer search, or closed
+    const used = entitiesInUse();
+    if (rows) {
+      for (const [id, name] of rows) if (name) haNames.set(id, name);
+    } else {
+      // without Home Assistant: the entities of the dashboard
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      rows = [...used].sort().filter((id) => (!dom || id.startsWith(dom + ".")) && words.every((w) => id.includes(w))).map((id) => [id, haNames.get(id) || ""]);
+    }
+    // a typed entity id that is not in the list can be taken as it is
+    const typed = q.toLowerCase();
+    const extra = validEntity(typed) && !rows.some((r) => r[0] === typed) ? [[typed, "", null, null, null, true]] : [];
+    root.querySelector("#ed-ent-note").innerHTML = problem
+      ? `<span class="text-warning-emphasis">Home Assistant: ${esc(problem)}.</span> The list shows the entities of the dashboard; a typed entity id works too.`
+      : more ? `The first ${rows.length} matches. Type more to narrow the search.` : `${rows.length} ${rows.length === 1 ? "entity" : "entities"} in Home Assistant.`;
+    root.querySelector("#ed-ent-list").innerHTML = [...extra, ...rows].map(([id, name, , dc, unit, isTyped]) => `
+      <div class="list-group-item list-group-item-action d-flex align-items-center gap-2" data-act="pick" data-id="${esc(id)}">
+        <span class="icon-chip">${svg(autoIcon({ entity: id }), 20)}</span>
+        <span class="flex-grow-1 text-truncate">${isTyped ? `<span class="text-body-secondary">Use</span> ${esc(id)}`
+          : `${esc(name || id)}<br><span class="small text-body-secondary">${esc(id)}${dc ? " · " + esc(dc) : ""}${unit ? " · " + esc(unit) : ""}</span>`}</span>
+        ${used.has(id) ? '<span class="badge text-bg-info">on the dashboard</span>' : ""}
+        <span class="badge text-bg-secondary">${kindOf({ entity: id })}</span></div>`).join("") ||
+      '<div class="list-group-item text-body-secondary small">No match.</div>';
+  }
+
+  // what a tile takes over from its entity: a light dims unless it only knows on and off (keys
+  // equal to the automatic value are left out, the tile follows Home Assistant)
+  async function pick(id) {
+    let info = null;
+    try {
+      const { status, answer } = await request("GET", `/api/hass/entity?id=${encodeURIComponent(id)}`);
+      if (status === 200) info = answer;
+    } catch (e) { /* taken without the details */ }
+    if (info && info.missing) ctx.toast(`Home Assistant has no ${id}; the tile shows it as unavailable until it does.`, "warning");
+    if (info && info.name) haNames.set(id, info.name);
+    const known = info && !info.missing;
+    const dimmable = known && Array.isArray(info.color_modes) && info.color_modes.some((m) => m !== "onoff");
+    const apply = (t) => {
+      t.entity = id;
+      if (kindOf(t) === "light" && known) { if (dimmable) t.dimmer = true; else delete t.dimmer; }
+      stripForKind(t);
+    };
+    if (pickFor) {
+      const k = pickFor;
+      closeModal();
+      change(() => apply(locate(k).tile));
+      return;
+    }
+    const t = { _k: K++ };
+    apply(t);
+    addTile(t);
+  }
+
   function addTile(t) {
     const p = pageByKey(pageKey);
     change(() => { insertTile(p, t, addCell); sel = t._k; });
@@ -808,17 +883,22 @@ window.hcEditor = (() => {
     reload: async () => { await load(); ctx.toast("Loaded the dashboard of the device.", "info"); draw(); },
     overwrite: () => save(true).catch((e) => ctx.toast(e.message, "danger")),
     "goto-problem": () => { if (check.k) actions.select({ dataset: { k: check.k } }); },
-    add: (el) => openAdd(el.dataset.c !== undefined ? { c: +el.dataset.c, r: +el.dataset.r } : null),
-    "add-ent": (el) => addTile({ _k: K++, entity: el.dataset.id }),
-    "add-typed": () => {
-      const id = root.querySelector("#ed-ent").value.trim();
-      if (!validEntity(id)) { ctx.toast("Not an entity id: lowercase letters, digits and _ on both sides of one dot.", "warning"); return; }
-      addTile({ _k: K++, entity: id });
+    add: (el) => openPicker(el.dataset.c !== undefined ? { c: +el.dataset.c, r: +el.dataset.r } : null),
+    "pick-entity": () => openPicker(null, sel),
+    pick: (el) => {
+      if (el.classList.contains("disabled")) return;
+      root.querySelectorAll("#ed-ent-list [data-act=pick]").forEach((x) => x.classList.add("disabled"));
+      pick(el.dataset.id).catch((e) => ctx.toast(e.message, "danger"));
     },
     "add-area": () => {
       if (!root.querySelector("#ed-modal")) addCell = null;
-      addTile({ _k: K++, type: "area", name: "New area", tiles: [] });
-      ctx.toast("An area needs at least one tile before it can be saved.", "info");
+      // its page opens: an area needs a tile, and the next "+ Tile" belongs there
+      const t = { _k: K++, type: "area", name: "New area", tiles: [] };
+      addTile(t);
+      pageKey = t._k;
+      sel = null;
+      draw();
+      ctx.toast("The new area's page is open: add its tiles here (an area needs at least one before it can be saved).", "info");
     },
     "add-spacer": () => { if (!root.querySelector("#ed-modal")) addCell = null; addTile({ _k: K++, type: "spacer" }); },
     "reset-arr": () => change(() => resetArrangement(pageByKey(pageKey), orient)),
