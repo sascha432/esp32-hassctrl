@@ -16,15 +16,7 @@ constexpr float kTailGap = 3.5f;
 // the head: a light core in two rings of glow
 constexpr lv_coord_t kCore = 2;
 constexpr lv_coord_t kGlow = 6;
-// a frame redraws the dot's stretch of the border and this much behind it, where the last frame
-// drew it (a slow frame moves it further, the stretch still covers 100 ms)
-constexpr float kRedrawBehind = kSpeed / 10.0f + 4;
 constexpr float kPi = 3.14159265f;
-
-struct Point {
-    float x;
-    float y;
-};
 
 // The path of the dot: the middle of the border, a rounded rectangle; clockwise from the top
 // left, where the top edge starts.
@@ -95,6 +87,74 @@ Path path_of(lv_obj_t *obj)
     return p;
 }
 
+// Where the dot runs: the border of the object, or an outline in the object's coordinates.
+struct Track {
+    Path border{};
+    const Outline *outline = nullptr;
+    // the object's top left on the screen
+    float left = 0;
+    float top = 0;
+
+    float length() const { return outline != nullptr ? outline->count * outline->step : border.length(); }
+
+    Point at(float d) const
+    {
+        if (outline == nullptr) {
+            return border.at(d);
+        }
+        const float total = length();
+        d = std::fmod(d, total);
+        if (d < 0) {
+            d += total;
+        }
+        // the points are equally far apart: the segment follows from the distance
+        const float position = d / outline->step;
+        const auto index = std::min<uint16_t>(static_cast<uint16_t>(position), outline->count - 1);
+        const float t = position - static_cast<float>(index);
+        const Point &a = outline->points[index];
+        const Point &b = outline->points[(index + 1) % outline->count];
+        return {left + a.x + t * (b.x - a.x), top + a.y + t * (b.y - a.y)};
+    }
+};
+
+void on_anim(void *var, int32_t);
+
+// One running dot, the user data of its animation (freed with it, also when the object goes)
+struct Run {
+    // nullptr: round the border
+    const Outline *outline;
+    // where the head was at the last step, below 0 before the first
+    float last;
+};
+
+Run *run_of(lv_obj_t *obj)
+{
+    lv_anim_t *anim = lv_anim_get(obj, on_anim);
+    return anim != nullptr ? static_cast<Run *>(lv_anim_get_user_data(anim)) : nullptr;
+}
+
+// the outline the running animation of `obj` follows, nullptr for its border
+const Outline *outline_of(lv_obj_t *obj)
+{
+    const Run *run = run_of(obj);
+    return run != nullptr ? run->outline : nullptr;
+}
+
+Track track_of(lv_obj_t *obj, const Outline *outline)
+{
+    Track track;
+    track.outline = outline;
+    if (outline != nullptr) {
+        lv_area_t c;
+        lv_obj_get_coords(obj, &c);
+        track.left = static_cast<float>(c.x1);
+        track.top = static_cast<float>(c.y1);
+    } else {
+        track.border = path_of(obj);
+    }
+    return track;
+}
+
 lv_area_t around(Point p, lv_coord_t radius)
 {
     const auto x = static_cast<lv_coord_t>(std::lround(p.x));
@@ -102,8 +162,6 @@ lv_area_t around(Point p, lv_coord_t radius)
     return {static_cast<lv_coord_t>(x - radius), static_cast<lv_coord_t>(y - radius), static_cast<lv_coord_t>(x + radius),
             static_cast<lv_coord_t>(y + radius)};
 }
-
-void on_anim(void *var, int32_t);
 
 // where the head is: the value of the running animation
 bool head_of(lv_obj_t *obj, float &d)
@@ -119,12 +177,27 @@ bool head_of(lv_obj_t *obj, float &d)
 void on_anim(void *var, int32_t value)
 {
     auto *obj = static_cast<lv_obj_t *>(var);
-    const Path path = path_of(obj);
-    // the stretch from behind where the last frame drew the tail to the head
+    Run *run = run_of(obj);
+    if (run == nullptr) {
+        return;
+    }
+    const Track path = track_of(obj, run->outline);
+    const float length = path.length();
+    // The stretch from the end of the tail at the last step to the head: what is invalidated is
+    // drawn again before the next frame, so nothing of the dot stays behind, however far it
+    // moved in between (the first frames after the start take long).
     const float head = static_cast<float>(value);
-    const float back = kTailDots * kTailGap + kRedrawBehind;
+    float from = run->last < 0 ? head : run->last;
+    run->last = head;
+    if (from > head) {
+        from -= length; // the lap began again
+    }
+    if (head - from >= length) {
+        lv_obj_invalidate(obj);
+        return;
+    }
     lv_area_t box = around(path.at(head), kGlow);
-    for (float d = head - back; d < head; d += kGlow) {
+    for (float d = from - kTailDots * kTailGap - 2; d < head; d += kGlow) {
         const lv_area_t a = around(path.at(d), kGlow);
         box.x1 = std::min(box.x1, a.x1);
         box.y1 = std::min(box.y1, a.y1);
@@ -153,7 +226,7 @@ void on_draw(lv_event_t *event)
         return;
     }
     lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(event);
-    const Path path = path_of(obj);
+    const Track path = track_of(obj, outline_of(obj));
     const lv_color_t color = lv_color_hex(kColor);
     // the tail from its end, so the dots nearer the head lie over the others
     for (int i = kTailDots; i >= 1; i--) {
@@ -175,7 +248,7 @@ void on_ext_size(lv_event_t *event)
 
 } // namespace
 
-void set(lv_obj_t *obj, bool on)
+void set(lv_obj_t *obj, bool on, const Outline *outline)
 {
     if (obj == nullptr) {
         return;
@@ -198,10 +271,12 @@ void set(lv_obj_t *obj, bool on)
     lv_obj_refresh_ext_draw_size(obj);
     // the size is known once LVGL laid the card out: a card made in this frame has none yet
     lv_obj_update_layout(obj);
-    const auto length = static_cast<int32_t>(path_of(obj).length());
+    const auto length = static_cast<int32_t>(track_of(obj, outline).length());
     lv_anim_t anim;
     lv_anim_init(&anim);
     lv_anim_set_var(&anim, obj);
+    lv_anim_set_user_data(&anim, new Run{outline, -1.0f});
+    lv_anim_set_deleted_cb(&anim, [](lv_anim_t *a) { delete static_cast<Run *>(lv_anim_get_user_data(a)); });
     lv_anim_set_values(&anim, 0, std::max<int32_t>(length, 1));
     lv_anim_set_time(&anim, static_cast<uint32_t>(std::max<int32_t>(length, 1) * 1000 / kSpeed));
     lv_anim_set_exec_cb(&anim, on_anim);

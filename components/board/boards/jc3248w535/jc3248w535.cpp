@@ -242,6 +242,7 @@ esp_err_t init(Handles &out)
     out = {};
     ESP_RETURN_ON_ERROR(detail::backlight_init(kPinBacklight, kInfo.backlight_hz, kInfo.backlight_min_duty), kTag, "backlight");
     ESP_RETURN_ON_ERROR(init_panel(out), kTag, "panel");
+    detail::set_restart_panel(out.panel);
     ESP_LOGI(kTag, "%s: AXS15231B %ux%u, QSPI %d MHz", kInfo.name, kNativeWidth, kNativeHeight, kPixelClockHz / 1000000);
 
     if (init_i2c(out) != ESP_OK) {

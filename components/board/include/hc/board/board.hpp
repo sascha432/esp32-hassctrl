@@ -105,8 +105,8 @@ enum class BacklightCurve : uint8_t {
 
 const Info &info();
 
-// Initializes the display bus, the panel, the touch controller and the backlight (off). Call
-// once. A touch controller that does not answer is logged and left out, the display still works.
+// Initializes the display bus, the panel, the touch controller and the backlight (off; it also
+// turns off before every esp_restart()). Call once. A touch controller that does not answer is logged and left out, the display still works.
 esp_err_t init(Handles &out);
 
 // 0 turns the backlight off. 1..100 are spread from the calibrated minimum to full brightness,

@@ -3,11 +3,11 @@
 // The screens of the panel (docs/ui/screen.md). Plain LVGL, no ESP-IDF drivers; everything else
 // comes through the Backend.
 //
-// The dashboard shows the pages of the layout (the test screen while there is none); the pull-down
-// at the top center opens Settings, and the alert strip shows problems and the one-time hint.
+// The start screen shows the Home Assistant logo until Home Assistant has sent the values of the
+// dashboard's first page; the dashboard shows the pages of the layout; the pull-down at the top
+// center opens Settings, and the alert strip shows problems and the one-time hint.
 
 #include "hc/ui/backend.hpp"
-#include "hc/ui/test_screen.hpp"
 #include "lvgl.h"
 
 namespace hc::ui {
@@ -28,11 +28,13 @@ struct Options {
     uint8_t tile_gap = 4;
 };
 
-// Builds the dashboard, the pull-down and the alert strip. Call with the LVGL lock held. The
-// backend has to outlive the UI. `orientation_sensor`: the board turns the screen by a sensor
-// (sensor_rotation()), else the rotation is set in Settings.
-void start(lv_disp_t *disp, const Backend &backend, const TestScreenConfig &test_screen, bool orientation_sensor,
-           const Options &options = {});
+// Builds the start screen, the dashboard, the pull-down and the alert strip. Call with the LVGL
+// lock held. The backend has to outlive the UI. `orientation_sensor`: the board turns the screen
+// by a sensor (sensor_rotation()), else the rotation is set in Settings. `before_dashboard` (may be
+// nullptr) is called once, right before a dashboard is drawn: a board in bring-up removes its test
+// screen then (hc/ui/test_screen.hpp). The backlight stays off until the first frame is drawn.
+void start(lv_disp_t *disp, const Backend &backend, bool orientation_sensor, const Options &options = {},
+           void (*before_dashboard)() = nullptr);
 
 // Shows the first setup (it also comes by itself while no network is saved). From any task; it
 // opens in the LVGL task within half a second. For the development console.

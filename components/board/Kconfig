@@ -23,4 +23,14 @@ menu "hassctrl board"
             depends on IDF_TARGET_ESP32P4
     endchoice
 
+    config HC_BOARD_BRING_UP
+        bool "Board bring-up: start with the test screen"
+        default n
+        help
+            Only while a board is added (docs/adding-a-board.md): the main firmware starts with the
+            display test screen (color bars, refresh times, touch, backlight calibration) over the
+            start screen, until a dashboard is drawn. Set it in boards/<name>/sdkconfig.defaults
+            and remove it again once the board's constants are in its board::Info; without it the
+            test screen is not in the firmware.
+
 endmenu

@@ -10,6 +10,9 @@
 //
 // Like the old firmware, dimming and turning off fade over 3 s, waking fades up in 0.5 s.
 //
+// The backlight stays off from the start until the first frame is on the panel, then fades up in
+// 0.5 s; before it the panel would show what it held before the start.
+//
 // Automatic brightness (with a light sensor): the active brightness follows the ambient light on
 // a linear curve, from 1 % in the dark to the user's brightness at kFullBrightnessLux,
 // smoothed over about two seconds. Later: Home Assistant events may wake the screen.

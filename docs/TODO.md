@@ -133,7 +133,20 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       within about a second after boot, without turning it.
 - [x] PSRAM of the WT32: the device page says 4 MB (decided 2026-10-07), whatever the boot log
       reports.
-- [ ] Remove the test screen once the first real screen exists.
+- [x] Test screen out of the firmware (2026-10-09): only with `CONFIG_HC_BOARD_BRING_UP=y` in the
+      board's sdkconfig.defaults (docs/adding-a-board.md), none of the four boards sets it; the
+      map files have no `show_test_screen`. The start screen (Home Assistant logo, docs/ui/screen.md
+      section 1.2) took its place.
+- [x] **Start screen and backlight on the P4** (2026-10-09, confirmed working by the user on the
+      JC4880P443C; built for all four boards): the logo with the runner after boot until the dashboard's values are in,
+      alert strip and pull-down over it, "No dashboard yet" without one; backlight off until the
+      first frame (fades up in 0.5 s); backlight off before a restart. The cyan screen came back on
+      the P4 (user, 2026-10-09): the pin hold does not survive its reset and the pin is undriven
+      for 1.3 s until `backlight_init` (0.85 s of it the PSRAM test). Now the restart also switches
+      the panel off and to sleep: the cyan is gone. The runner left a dot at the top for the first
+      second (a slow first frame moved it further than the redrawn stretch); it now redraws from
+      where it was at the last step, the dot is gone.
+- [ ] Start screen and restart on the WT32-SC01 and the JC3248W535 (same code, not flashed yet).
 
 ## Step 3: platform and network
 

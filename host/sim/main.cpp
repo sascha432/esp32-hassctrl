@@ -18,7 +18,6 @@
 #include "dashboard.hpp"
 #include "dashboard_file.hpp"
 #include "hc/core/layout.hpp"
-#include "hc/ui/test_screen.hpp"
 #include "hc/ui/ui.hpp"
 #include "lvgl.h"
 #include "png.hpp"
@@ -56,7 +55,6 @@ struct Runtime {
     Options options;
     // no window on the screen and a clock that only moves when the script says so
     bool headless = false;
-    lv_obj_t *dashboard = nullptr;
     bool quit = false;
     int exit_code = 0;
     int shot_number = 0;
@@ -116,15 +114,6 @@ void close_settings()
     ui::settings::close();
 }
 
-void show_dashboard_tab(uint32_t index)
-{
-    close_settings();
-    lv_obj_t *tabs = lv_obj_get_child(g.dashboard, 0);
-    if (tabs != nullptr && lv_obj_check_type(tabs, &lv_tabview_class)) {
-        lv_tabview_set_act(tabs, index, LV_ANIM_OFF);
-    }
-}
-
 // Settings with the pages below each other, so `<` leads back like it does on the device.
 void open_chain(std::initializer_list<ui::settings::Page> pages)
 {
@@ -136,13 +125,11 @@ void open_chain(std::initializer_list<ui::settings::Page> pages)
 }
 
 const Page kPages[] = {
-    {"dashboard", "the main page of the dashboard (the test screen with --dashboard none)",
+    {"dashboard", "the main page of the dashboard (the start screen with --dashboard none)",
      [] {
          close_settings();
          ui::dashboard::open_page(0);
-         show_dashboard_tab(0);
      }},
-    {"backlight", "the test screen, Backlight tab (with --dashboard none)", [] { show_dashboard_tab(1); }},
     {"setup", "the first setup, welcome view", [] { ui::show_setup(); }},
     {"quick", "Settings, quick settings", [] { ui::settings::open(ui::settings::Page::Quick); }},
     {"wifi", "Settings, Wi-Fi", [] { ui::settings::open(ui::settings::Page::Wifi); }},
@@ -443,7 +430,7 @@ void usage()
         "  --zoom N             every display pixel as N x N window pixels (default 1)\n"
         "  --dashboard FILE     the hass.yaml to show (default docs/dashboard-sample/hass.yaml); the\n"
         "                       .yaml files below its folder are its includes. `none`: no dashboard,\n"
-        "                       the test screen\n"
+        "                       the start screen stays\n"
         "  --scenario NAME      the sample state to start in (--list)\n"
         "  --page NAME          open this page after the start (--list)\n"
         "  --rotation 0-3       start in this rotation (LVGL's steps, counterclockwise)\n"
@@ -604,10 +591,6 @@ bool parse(int argc, char **argv, Options &o)
 
 void log_to_console(const char *text)
 {
-    // the test screen's refresh report every two seconds, which the dashboard replaces
-    if (std::strstr(text, "(in test_screen.cpp") != nullptr && std::strstr(text, "touch ") == nullptr) {
-        return;
-    }
     std::fputs(text, stderr);
     std::fflush(stderr);
 }
@@ -659,12 +642,7 @@ int main(int argc, char **argv)
     }
     sim::start_scenario(static_cast<size_t>(o.scenario));
 
-    g.dashboard = lv_scr_act();
-    const ui::TestScreenConfig test_screen{.board_name = g.board,
-                                           .cycle_rotation = false,
-                                           .backlight = &sim::backlight_control(),
-                                           .network_text = nullptr};
-    ui::start(lv_disp_get_default(), sim::backend(), test_screen, o.sensor, o.ui);
+    ui::start(lv_disp_get_default(), sim::backend(), o.sensor, o.ui);
     // the boot: the first setup opens in the timer that follows
     pump(800);
 

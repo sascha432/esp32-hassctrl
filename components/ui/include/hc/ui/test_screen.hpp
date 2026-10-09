@@ -1,6 +1,9 @@
 #pragma once
 
-// Display bring-up test (step 2 of docs/architecture.md section 13). Plain LVGL.
+// Display bring-up test (step 2 of docs/architecture.md section 13). Plain LVGL. Only a board in
+// bring-up shows it (CONFIG_HC_BOARD_BRING_UP, docs/adding-a-board.md); main shows it after
+// hc::ui::start() and hands hide_test_screen() to the dashboard, so it lies over the start screen
+// until a dashboard is drawn. Without the option nothing calls it and it is not linked.
 //
 // "Display" tab: color bars (checks the color order and the byte swap), a spinner and a bar that
 // redraw small areas continuously, and the measured refresh times. Every two seconds the whole
@@ -42,7 +45,7 @@ struct TestScreenConfig {
     void (*network_text)(char *out, size_t size);
 };
 
-// Call with the LVGL lock held.
+// Call with the LVGL lock held, after hc::ui::start().
 void show_test_screen(lv_disp_t *disp, const TestScreenConfig &config);
 
 // Removes the test screen, its timers and its refresh measurement (the dashboard takes the screen).

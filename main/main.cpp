@@ -28,6 +28,9 @@
 #include "hc/platform/system_info.hpp"
 #include "hc/platform/time_sync.hpp"
 #include "hc/ui/ui.hpp"
+#if CONFIG_HC_BOARD_BRING_UP
+#include "hc/ui/test_screen.hpp"
+#endif
 #include "hc/uidebug/uidebug.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "soc/soc_caps.h"
@@ -329,6 +332,13 @@ extern "C" void app_main()
             ESP_LOGI(kTag, "no light sensor");
         }
         if (disp != nullptr && lvgl_port_lock(0)) {
+            const hc::ui::Options ui_options{.slide_pages = board.ui_slide_pages,
+                                             .panel_dialogs = board.ui_panel_dialogs,
+                                             .large_fonts = board.ui_large_fonts,
+                                             .tile_gap = board.ui_tile_gap};
+#if CONFIG_HC_BOARD_BRING_UP
+            // a board in bring-up (docs/adding-a-board.md): the test screen lies over the start
+            // screen until a dashboard is drawn; the rotation comes from the sensor or Settings
             static const hc::ui::BacklightControl backlight{
                 .set =
                     [](uint8_t percent, bool perceptual) {
@@ -342,16 +352,14 @@ extern "C" void app_main()
                 .max_duty = hc::board::backlight_max_duty(),
                 .frequency_hz = board.backlight_hz,
             };
-            // the rotation comes from the sensor or from Settings, not from the test screen
-            hc::ui::start(disp, ui_backend(),
-                          {.board_name = board.name,
-                           .cycle_rotation = false,
-                           .backlight = &backlight,
-                           .network_text = nullptr},
-                          imu, {.slide_pages = board.ui_slide_pages,
-                           .panel_dialogs = board.ui_panel_dialogs,
-                           .large_fonts = board.ui_large_fonts,
-                           .tile_gap = board.ui_tile_gap});
+            hc::ui::start(disp, ui_backend(), imu, ui_options, hc::ui::hide_test_screen);
+            hc::ui::show_test_screen(disp, {.board_name = board.name,
+                                            .cycle_rotation = false,
+                                            .backlight = &backlight,
+                                            .network_text = nullptr});
+#else
+            hc::ui::start(disp, ui_backend(), imu, ui_options);
+#endif
 #if CONFIG_HC_DEV_CONSOLE
             hc::uidebug::init(disp);
 #endif

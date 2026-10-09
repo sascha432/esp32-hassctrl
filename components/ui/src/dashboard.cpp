@@ -63,6 +63,8 @@ struct State {
     memory::Vector<tiles::View> views;
     lv_coord_t built_width = 0;
     lv_coord_t built_height = 0;
+    // the values of a page came from Home Assistant (the start screen waits for them)
+    bool loaded = false;
 };
 
 State g;
@@ -277,6 +279,7 @@ void take_events()
             if (values->generation != g.generation) {
                 continue; // a page that is not shown any more
             }
+            g.loaded = true;
             for (const core::EntityUpdate &update : values->updates) {
                 const bool changed = g.store->apply(update);
                 const bool resolved = g.pending.resolve(update.entity, g.store->state(update.entity));
@@ -356,6 +359,11 @@ const Options &options()
 bool shown()
 {
     return g.root != nullptr && g.layout != nullptr;
+}
+
+bool loaded()
+{
+    return g.loaded;
 }
 
 const core::Layout &layout()

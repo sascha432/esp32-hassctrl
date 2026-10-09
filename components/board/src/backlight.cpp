@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <cmath>
 
+#include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
+#include "esp_system.h"
 
 namespace hc::board::detail {
 
@@ -19,6 +22,9 @@ constexpr ledc_timer_bit_t kResolution = LEDC_TIMER_10_BIT;
 constexpr uint16_t kMaxDuty = (1u << 10) - 1;
 
 bool g_ready = false;
+gpio_num_t g_pin = GPIO_NUM_NC;
+// the panel that is switched off before a restart, nullptr until set_restart_panel()
+esp_lcd_panel_handle_t g_panel = nullptr;
 // lowest readable duty (calibration), 1..100 % are spread from here to full brightness
 uint16_t g_min_duty = 0;
 
@@ -44,11 +50,30 @@ void write_duty(uint16_t duty)
     ledc_update_duty(kMode, kChannel);
 }
 
+// esp_restart() (Settings, an update, the console): the backlight goes dark before the chip
+// resets, and where the chip keeps a pad's hold through a software reset, the pin stays low until
+// backlight_init() of the next start. The ESP32-P4 does not keep it: its pin is undriven for the
+// 1.3 s until then and the backlight lights the ST7701S, which shows cyan without a signal. So the
+// panel is switched off and put to sleep as well: black, whatever the backlight does, until the
+// next start resets it.
+void off_before_restart()
+{
+    ledc_stop(kMode, kChannel, 0);
+    gpio_hold_en(g_pin);
+    if (g_panel != nullptr) {
+        esp_lcd_panel_disp_on_off(g_panel, false);
+        esp_lcd_panel_disp_sleep(g_panel, true);
+    }
+}
+
 } // namespace
 
 esp_err_t backlight_init(gpio_num_t pin, uint32_t hz, uint16_t min_duty)
 {
     g_min_duty = std::min(min_duty, kMaxDuty);
+    g_pin = pin;
+    // held low by off_before_restart() of the last run
+    gpio_hold_dis(pin);
     ledc_timer_config_t timer{};
     timer.speed_mode = kMode;
     timer.duty_resolution = kResolution;
@@ -66,6 +91,7 @@ esp_err_t backlight_init(gpio_num_t pin, uint32_t hz, uint16_t min_duty)
     ESP_RETURN_ON_ERROR(ledc_channel_config(&channel), kTag, "channel");
 
     g_ready = true;
+    ESP_RETURN_ON_ERROR(esp_register_shutdown_handler(off_before_restart), kTag, "shutdown handler");
     return ESP_OK;
 }
 
@@ -113,6 +139,11 @@ uint16_t backlight_max_duty()
 float backlight_level()
 {
     return static_cast<float>(g_duty) / static_cast<float>(kMaxDuty);
+}
+
+void set_restart_panel(esp_lcd_panel_handle_t panel)
+{
+    g_panel = panel;
 }
 
 esp_err_t backlight_set_frequency(uint32_t hz)

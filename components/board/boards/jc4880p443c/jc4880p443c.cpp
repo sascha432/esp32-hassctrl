@@ -292,6 +292,7 @@ esp_err_t init(Handles &out)
     out = {};
     ESP_RETURN_ON_ERROR(detail::backlight_init(kPinBacklight, kInfo.backlight_hz, kInfo.backlight_min_duty), kTag, "backlight");
     ESP_RETURN_ON_ERROR(init_panel(out), kTag, "panel");
+    detail::set_restart_panel(out.panel);
     ESP_LOGI(kTag, "%s: ST7701S %ux%u, MIPI-DSI %d lanes at %d Mbps, pixel clock %d MHz", kInfo.name, kNativeWidth,
              kNativeHeight, kDsiLanes, kDsiLaneMbps, kDpiClockMhz);
 

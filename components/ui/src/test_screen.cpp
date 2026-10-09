@@ -58,14 +58,19 @@ struct State {
     lv_obj_t *tabs = nullptr;
     lv_timer_t *report_timer = nullptr;
     lv_timer_t *network_timer = nullptr;
+    // the display's refresh monitor before this one, which on_refresh() hands on to
+    void (*monitor)(lv_disp_drv_t *, uint32_t, uint32_t) = nullptr;
 };
 
 State g;
 
 // ------------------------------------------------------------------------------- display tab
 
-void on_refresh(lv_disp_drv_t *, uint32_t time_ms, uint32_t pixels)
+void on_refresh(lv_disp_drv_t *driver, uint32_t time_ms, uint32_t pixels)
 {
+    if (g.monitor != nullptr) {
+        g.monitor(driver, time_ms, pixels);
+    }
     if (g.measure_full) {
         g.measure_full = false;
         g.full_ms = time_ms;
@@ -497,6 +502,7 @@ void show_test_screen(lv_disp_t *disp, const TestScreenConfig &config)
     g = {};
     g.disp = disp;
     g.config = config;
+    g.monitor = disp->driver->monitor_cb;
     disp->driver->monitor_cb = on_refresh;
 
     lv_obj_t *screen = lv_scr_act();
@@ -536,7 +542,9 @@ void hide_test_screen()
             lv_timer_del(timer);
         }
     }
-    g.disp->driver->monitor_cb = nullptr;
+    if (g.disp->driver->monitor_cb == on_refresh) {
+        g.disp->driver->monitor_cb = g.monitor;
+    }
     lv_obj_del(g.touch_dot);
     lv_obj_del(g.tabs);
     g = {};

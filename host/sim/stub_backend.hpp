@@ -10,7 +10,6 @@
 #include <cstdint>
 
 #include "hc/ui/backend.hpp"
-#include "hc/ui/test_screen.hpp"
 
 namespace sim {
 
@@ -38,7 +37,6 @@ void set_ambient_light(bool present, float lux);
 
 // the backlight the UI asked for, in percent (the window title shows it)
 uint8_t backlight_percent();
-const hc::ui::BacklightControl &backlight_control();
 
 const hc::ui::Backend &backend();
 

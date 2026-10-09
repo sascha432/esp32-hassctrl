@@ -3,7 +3,9 @@
 The procedure for bringing up a new board, with every check and calibration that was done for the
 TTGO T4 and the WT32-SC01. Work through it in order: each step relies on the one before. The test
 screen of the main firmware (`components/ui`, tabs "Display" and "Backlight") is the tool for
-steps 4 to 7.
+steps 4 to 7. It is only in the firmware while the board is in bring-up:
+`CONFIG_HC_BOARD_BRING_UP=y` in `boards/<name>/sdkconfig.defaults` (step 2) shows it over the
+start screen until a dashboard is drawn; step 9 removes the line again.
 
 ## 1. Collect the facts
 
@@ -26,7 +28,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 
 | File | Content |
 | --- | --- |
-| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
+| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 9), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
 | `components/board/Kconfig` | a `HC_BOARD_<NAME>` entry in the board choice, `depends on IDF_TARGET_...` |
 | `components/board/CMakeLists.txt` | `if(CONFIG_HC_BOARD_<NAME>)` adds `boards/<name>/<name>.cpp` |
 | `components/board/boards/<name>/<name>.cpp` | `Info`, `init()` and the backlight functions, like the existing boards |
@@ -172,6 +174,9 @@ Steps:
 
 ## 9. Record the results
 
+- [ ] Every constant found above is in the board's `Info`; remove `CONFIG_HC_BOARD_BRING_UP=y`
+      from `boards/<name>/sdkconfig.defaults`, rebuild: the firmware starts with the start screen
+      and the test screen is no longer in it (the map file has no `show_test_screen`).
 - [ ] Device page: verified settings, where they came from, the measurements of steps 4 and 6.
 - [ ] `docs/architecture.md` section 8: the board in the board table.
 - [ ] `docs/TODO.md`: what is still open for the board.

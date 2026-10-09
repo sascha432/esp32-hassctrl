@@ -58,6 +58,31 @@ left and right screen edges, so the rounded corners and the transparency stay vi
 Proposals: a long message wraps to at most 3 lines; one message at a time, errors before warnings
 before hints.
 
+### 1.2 Start screen
+
+Running on the JC4880P443C (user, 2026-10-09). From the start until Home Assistant has sent the values of the dashboard's first page, the
+dashboard is covered by the Home Assistant logo (160 x 160, at the center, on the dashboard
+background). The runner of an action on its way (docs/ui/dashboard.md section 3) goes round the
+house, 5 px outside its edge, clockwise from the top. The dashboard is built under the logo, so it
+is complete when the logo goes. The alert strip and the pull-down work as usual (both lie above
+it); the first setup opens over it as before. A touch on the logo does nothing.
+
+* The logo goes when Home Assistant is connected and the values of the page came, or 10 s after
+  the connection when they do not come (a page without entities).
+* Without a dashboard nothing more comes: once Home Assistant is connected the runner stops and a
+  line below the logo says "No dashboard yet. Create one in the web UI at http://...". The logo
+  goes once a dashboard is saved and its values came.
+* It is shown once per start: a lost connection later shows the alert strip over the dashboard.
+
+The backlight stays off from the start until LVGL has drawn the first frame, then fades up in
+0.5 s (power.hpp); before it the panel would show what it held before the start. Before every
+restart (board, `esp_restart()` shutdown handler) the backlight turns off and the panel is
+switched off and put to sleep: on the JC4880P443C the backlight pin is undriven for about 1.3 s
+until the next start takes it, and the ST7701S showed cyan without a signal.
+
+The logo comes from the icon of dashboardicons.com, rendered by `tools/build_logo.py` into two
+4-bit alpha masks (the white tree, the blue face; 25 KB) and the runner's track.
+
 ## 2. Settings frame and status bar
 
 Settings and the first setup have the status bar (36 px) and the content area below it

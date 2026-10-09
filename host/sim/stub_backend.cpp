@@ -604,18 +604,6 @@ const hc::ui::Backend kBackend{
     .set_hint_seen = set_hint_seen,
 };
 
-// The backlight tab of the test screen: the sim has no PWM, it remembers what was asked for.
-uint16_t g_minimum_duty = 8;
-const hc::ui::BacklightControl kBacklight{
-    .set = [](uint8_t percent, bool) { g_backlight = percent; },
-    .set_duty = [](uint16_t duty) { g_backlight = static_cast<uint8_t>(duty * 100 / 1023); },
-    .set_minimum = [](uint16_t duty) { g_minimum_duty = duty; },
-    .minimum = [] { return g_minimum_duty; },
-    .set_frequency = [](uint32_t) { return true; },
-    .max_duty = 1023,
-    .frequency_hz = 25000,
-};
-
 } // namespace
 
 bool hass_connected()
@@ -681,11 +669,6 @@ void set_ambient_light(bool present, float lux)
 uint8_t backlight_percent()
 {
     return g_backlight;
-}
-
-const hc::ui::BacklightControl &backlight_control()
-{
-    return kBacklight;
 }
 
 const hc::ui::Backend &backend()

@@ -60,7 +60,7 @@ python tools/sim.py                          # build and open the window (480x32
 python tools/sim.py --size 320x480 --zoom 2  # a board's size (wt32, jc3248, t4, vga, p4), 2x pixels
 python tools/sim.py --scenario hotspot --page hotspot
 python tools/sim.py --dashboard my/hass.yaml   # the dashboard file (default docs/dashboard-sample/hass.yaml)
-python tools/sim.py --dashboard none           # no dashboard: the test screen
+python tools/sim.py --dashboard none           # no dashboard: the start screen stays
 python tools/sim.py --list                   # scenarios, pages, keys
 ```
 

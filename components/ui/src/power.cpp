@@ -15,6 +15,8 @@ constexpr uint32_t kFadeStepMs = 20;
 // the automatic brightness moves a tenth of the way per check: about two seconds to settle, so a
 // shadow or a hand over the sensor does not flicker the screen
 constexpr float kAutoSmoothing = 0.1f;
+// the backlight comes on with the first frame on the panel, at the latest after this long
+constexpr uint32_t kFirstFrameTimeoutMs = 1000;
 
 enum class State : uint8_t {
     Active,
@@ -40,6 +42,11 @@ struct Context {
     float auto_level = -1.0f;
     // a brightness slider is dragged: preview() owns the backlight
     bool previewing = false;
+    // the backlight stays off until the first frame is on the panel: before it the panel shows
+    // what it held before the start (on_first_frame)
+    bool lit = false;
+    uint32_t started = 0;
+    void (*monitor)(lv_disp_drv_t *, uint32_t, uint32_t) = nullptr;
 };
 
 Context g;
@@ -83,7 +90,9 @@ uint8_t backlight_for(State state, const DisplaySettings &s)
 void show(float level)
 {
     g.shown = level;
-    g.backend->set_backlight(static_cast<uint8_t>(std::lround(level)));
+    if (g.lit) {
+        g.backend->set_backlight(static_cast<uint8_t>(std::lround(level)));
+    }
 }
 
 void on_fade(lv_timer_t *timer)
@@ -140,6 +149,32 @@ void apply(State state, bool force = false)
     }
 }
 
+// The first frame is on the panel (or it took too long): the backlight fades up to its level.
+void light()
+{
+    if (g.lit) {
+        return;
+    }
+    g.lit = true;
+    g.shown = 0.0f;
+    set_level(static_cast<uint8_t>(std::max<int16_t>(g.applied, 0)), kFadeUpMs, true);
+}
+
+// The display's refresh monitor: called after every refresh that drew something. It hands on to
+// the monitor that was there before (and the test screen of a bring-up hands on to this one).
+void on_first_frame(lv_disp_drv_t *driver, uint32_t time_ms, uint32_t pixels)
+{
+    if (g.monitor != nullptr) {
+        g.monitor(driver, time_ms, pixels);
+    }
+    if (!g.lit) {
+        light();
+        if (driver->monitor_cb == on_first_frame) {
+            driver->monitor_cb = g.monitor;
+        }
+    }
+}
+
 // What the idle time asks for. 0 means never; an off time shorter than the dim time skips dimming.
 State wanted(uint32_t idle_ms, const DisplaySettings &s)
 {
@@ -154,6 +189,10 @@ State wanted(uint32_t idle_ms, const DisplaySettings &s)
 
 void on_check(lv_timer_t *)
 {
+    if (!g.lit && lv_tick_elaps(g.started) >= kFirstFrameTimeoutMs) {
+        LV_LOG_WARN("no frame after %lu ms, backlight on", static_cast<unsigned long>(kFirstFrameTimeoutMs));
+        light();
+    }
     if (g.state == State::Off) {
         return; // only the blocker wakes it
     }
@@ -198,6 +237,10 @@ void init(lv_disp_t *disp, const Backend &backend)
 
     g.fade_timer = lv_timer_create(on_fade, kFadeStepMs, nullptr);
     lv_timer_pause(g.fade_timer);
+    g.started = lv_tick_get();
+    g.monitor = disp->driver->monitor_cb;
+    disp->driver->monitor_cb = on_first_frame;
+    // the level is known from here on, the backlight comes with the first frame
     apply(State::Active, true);
     lv_timer_create(on_check, kCheckMs, nullptr);
 }

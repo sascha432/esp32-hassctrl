@@ -126,6 +126,7 @@ esp_err_t init(Handles &out)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_mirror(out.panel, kInfo.mirror_x, kInfo.mirror_y), kTag, "mirror");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(out.panel, false), kTag, "invert");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(out.panel, true), kTag, "display on");
+    detail::set_restart_panel(out.panel);
 
     ESP_LOGI(kTag, "%s: ILI9341 %ux%u, SPI %d MHz", kInfo.name, kInfo.width, kInfo.height, kPixelClockHz / 1000000);
 

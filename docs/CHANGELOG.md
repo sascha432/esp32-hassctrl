@@ -177,3 +177,22 @@ Screen:
 Devices: WT32-SC01 (COM9), JC3248W535 (COM10) and JC4880P443C (COM11) have this firmware and
 its web image, their dashboards kept. The WT32's firmware write failed twice at 921600 baud
 (checksum) and went through at 460800.
+
+Start screen and backlight (docs/ui/screen.md section 1.2, confirmed by the user on the
+JC4880P443C):
+
+- The test screen is only in the firmware of a board in bring-up (`CONFIG_HC_BOARD_BRING_UP`,
+  new, off on all four boards); `main` shows it and hands `hide_test_screen` to `hc::ui::start`.
+  `hc::ui::start` no longer takes a `TestScreenConfig`; the sim lost its test screen pages.
+- Start screen: the Home Assistant logo, 160 x 160, with the runner going round the house until
+  Home Assistant is connected and the first page's values are in (`dashboard::loaded()`), at most
+  10 s after the connection; without a dashboard a line names the web UI. Alert strip and
+  pull-down work over it. `tools/build_logo.py` renders the logo (two 4-bit alpha masks) and the
+  track; `runner::set` takes an optional outline.
+- The backlight stays off until the first frame is drawn (refresh monitor of the display, at the
+  latest after 1 s), then fades up in 0.5 s, and turns off before every `esp_restart()` (shutdown
+  handler in board, pin held low through the reset where the chip allows it).
+- The restart also switches the panel off and puts it to sleep (`detail::set_restart_panel`): the
+  P4's backlight pin is undriven until the next start and lit the ST7701S, which shows cyan
+  without a signal. The runner redraws from where its head was at the last step, so a slow frame
+  no longer leaves a dot behind (seen at the top of the logo during the first second).

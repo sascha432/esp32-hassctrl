@@ -17,8 +17,9 @@
 
 namespace hc::ui::dashboard {
 
-// Draws the dashboard on `screen` once the backend has one. Until then the screen shows something
-// else (the test screen); `leave` is called once, before the dashboard takes the screen.
+// Draws the dashboard on `screen` once the backend has one, under what lies on the screen already
+// (the start screen). `leave` (may be nullptr) is called once, before the dashboard takes the
+// screen: the test screen of a board in bring-up goes then.
 void init(const Backend &backend, lv_obj_t *screen, void (*leave)(), const Options &options);
 
 // how the board's screens move and look (the panels ask whether they are dialogs)
@@ -26,6 +27,9 @@ const Options &options();
 
 // true while a dashboard is shown
 bool shown();
+
+// true once the values of a page came from Home Assistant, the first time since the start
+bool loaded();
 
 // the backend the dashboard was started with (the panels ask it for history and the clock)
 const Backend &backend();
