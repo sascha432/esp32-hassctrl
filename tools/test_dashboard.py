@@ -121,6 +121,49 @@ def main() -> None:
     status, stored, _ = c.request("GET", "/api/dashboard")
     check(stored.get("revision") == revision + 1 and stored["tiles"][2]["name"] == "Crystal Lamp", "the edit is stored")
 
+    # the editor of the web UI (docs/ui/web-dashboard.md section 2): check=1, new tiles, cells, paths
+    revision = stored["revision"]
+    workshop = stored["tiles"][7]["tiles"][2]
+    check(workshop.get("name") == "Workshop" and workshop["tiles"][0].get("landscape") == [3, 0],
+          "the cells of an arranged page are stored", f"{workshop}")
+    added = json.loads(json.dumps(stored))
+    added["tiles"].append({"entity": "switch.new_tile"})
+    added["tiles"].remove(added["tiles"][5])  # the spacer: room for the new tile
+    status, answer, _ = c.request("POST", f"/api/dashboard?revision={revision}&check=1", body=json.dumps(added).encode(),
+                                  headers={"Content-Type": "application/json"})
+    dashboard = answer.get("dashboard", {}) if isinstance(answer, dict) else {}
+    new = dashboard.get("tiles", [{}])[-1]
+    check(status == 200 and answer.get("checked") is True and answer.get("revision") == revision
+          and new.get("entity") == "switch.new_tile" and new.get("id", 0) > 0 and len(new.get("cells", [])) == 5,
+          "check=1: a new tile gets an id and its cells", f"{status} {answer if status != 200 else new}")
+    status, after, _ = c.request("GET", "/api/dashboard")
+    check(after.get("revision") == revision and len(after.get("tiles", [])) == 9, "check=1 stores nothing")
+
+    wrong = json.loads(json.dumps(stored))
+    wrong["tiles"][7]["tiles"].append({"entity": "sensor.new_tile", "dimmer": True})
+    status, answer, _ = c.request("POST", f"/api/dashboard?revision={revision}&check=1", body=json.dumps(wrong).encode(),
+                                  headers={"Content-Type": "application/json"})
+    check(status == 400 and "dimmer is only for lights" in answer.get("error", "")
+          and answer.get("path") == [7, len(wrong["tiles"][7]["tiles"]) - 1],
+          "a problem names the path of the tile, also of a new one", f"{status} {answer}")
+
+    status, answer, _ = c.request("POST", f"/api/dashboard?revision={revision}&check=1", body=json.dumps(stored).encode(),
+                                  headers={"Content-Type": "application/json"})
+    with_cells = answer.get("dashboard") if isinstance(answer, dict) else None
+    status, answer, _ = c.request("POST", f"/api/dashboard?revision={revision}", body=json.dumps(with_cells).encode(),
+                                  headers={"Content-Type": "application/json"})
+    check(status == 200 and answer.get("revision") == revision + 1, "an answer with cells can be saved as it is",
+          f"{status} {answer if status != 200 else ''}")
+    status, stored, _ = c.request("GET", "/api/dashboard")
+    check("cells" not in json.dumps(stored), "the stored file has no cells")
+
+    status, answer, _ = c.request("GET", "/api/dashboard/editor")
+    icons = answer.get("icons", []) if isinstance(answer, dict) else []
+    screen = answer.get("screen", {}) if isinstance(answer, dict) else {}
+    check(status == 200 and "lightbulb" in icons and "none" not in icons and len(icons) >= 40, "the icon names", f"{status} {len(icons)}")
+    check(screen.get("width", 0) >= screen.get("height", 1) > 0 and screen.get("gap", 0) > 0 and screen.get("name"),
+          "the screen of the device, in landscape", f"{screen}")
+
     # the YAML export imports again to the same dashboard
     status, text, headers = c.request("GET", "/api/dashboard.yaml")
     check(status == 200 and "attachment" in headers.get("Content-Disposition", "") and isinstance(text, str)

@@ -9,7 +9,7 @@ store, actions), `tiles.cpp` (one view per tile), `icons.cpp` (glyphs).
 
 The dashboard uses the whole screen; the pull-down at the top center opens Settings
 ([screen.md](screen.md) section 1). A page is its grid of tiles, 8 px from the screen edges, 4 px
-between tiles, radius 8. Portrait uses the transposed grid and the tile spans turned with it
+between tiles (8 px on the JC4880P443C's 800x480, `Options::tile_gap`, 2026-10-09), radius 8. Portrait uses the transposed grid and the tile spans turned with it
 (docs/architecture.md section 5, "Orientation"). Turning the display builds the page again.
 
 ```
@@ -177,6 +177,10 @@ Carried over from `behavior.md` section 6 of the old firmware (the Lyric thermos
 | steppers | `+` above `-` right of the arc in landscape, `-` left of `+` under it in portrait | step the setpoint by `target_temp_step`, the tile's `step` or 0.5; sent 0.7 s after the last step |
 | option list | the values in two columns, scrolling; the mode with its glyph; the value that is set orange | sets it and goes back to the arc |
 
+While the mode is `off` the panel opens on the mode list instead of the arc (the arc does nothing
+then), and the power button leads to it as well; once per opening, a tap on the mode pill goes to
+the arc (2026-10-08, your request).
+
 The range is `min_temp`..`max_temp` of the entity (7..35 until they arrived); the arc is built
 again when the range or the step arrives with the panel's fields.
 
@@ -247,7 +251,8 @@ one before (it takes it within 10 to 15 ms); the frames in between are read and 
 picture never falls behind. A stream frame is shown as the decoder made it, centered, without a
 copy (the copy of 480x320 through PSRAM cost 166 ms); its scale is the largest that still shows
 3/4 of the frame (`core::stream_shift`: 704x576 on 800x480 loses a strip, 1280x960 is shown at
-1:2). A spinner turns until the first frame; any tap or swipe goes back (on the release); turning
+1:2). A spinner turns until the first frame (its track at 50 % opacity, so the image shows
+through); any tap or swipe goes back (on the release); turning
 the display builds the view again in the new size and restarts the stream in it. `hass
 streamscale auto|0..3` on the console forces the decoder's scale. The decoder gets a work area of
 8 KB per image (esp_jpeg's 3100 bytes were too small for the snapshots of Home Assistant's

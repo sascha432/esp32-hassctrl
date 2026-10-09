@@ -4,6 +4,7 @@
 // never talks to the network itself). `main` fills this table with the functions of the network,
 // board and web server components. Every function is called from the LVGL task and returns at
 // once; actions that take time (scans, connecting) report their progress through wifi_info().
+// The one exception is save_dashboard, which writes a file of a few KB.
 
 #include <cstddef>
 #include <cstdint>
@@ -114,6 +115,10 @@ struct Backend {
     // The dashboard (docs/architecture.md section 4): the current layout, null without one. A
     // new pointer is a new dashboard (an import or an edit); the screen builds itself again.
     std::shared_ptr<const core::Layout> (*dashboard)();
+    // Stores `layout` (the edit mode of the screen) as the dashboard if the stored one is still
+    // `revision`; false with the problem in `error` (the web UI saved in between). dashboard()
+    // returns the stored one afterwards.
+    bool (*save_dashboard)(const core::Layout &layout, uint32_t revision, char *error, size_t error_size);
     // the values of the tiles of `page` (and the panel of the tile `panel`) are wanted from now
     // on, stamped with `generation`
     void (*subscribe_page)(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::TileIndex panel,

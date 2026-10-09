@@ -2,12 +2,15 @@
 //
 //   {"format": "hassctrl-dashboard", "version": 1, "revision": 12, "next_id": 131,
 //    "defaults": {"grid": [4, 2]},
-//    "tiles": [{"id": 1, "entity": "light.kitchen", "name": "Kitchen", "dimmer": true},
+//    "tiles": [{"id": 1, "entity": "light.kitchen", "name": "Kitchen", "dimmer": true,
+//               "landscape": [0, 0], "portrait": [1, 0]},
 //              {"id": 2, "type": "area", "name": "Rooms", "grid": [4, 3], "tiles": [...]},
 //              {"id": 3, "type": "spacer"}]}
 //
 // Only values that differ from the default are written. The file is written by the device, so
-// the reader is strict: an unknown key is an error.
+// the reader is strict: an unknown key is an error ("cells", which the web API adds to its answers,
+// is skipped). A tile without "id" is new (the web UI adds
+// tiles without one); finish() gives it the next id.
 
 #include <cstdarg>
 #include <cstdio>
@@ -49,19 +52,22 @@ struct JsonDeleter {
 
 class Reader {
 public:
-    std::expected<core::Layout, memory::String> run(std::string_view text)
+    std::expected<core::Layout, JsonProblem> run(std::string_view text)
     {
+        const auto failed = [this](memory::String message) {
+            return std::unexpected(JsonProblem{std::move(message), _problem_path});
+        };
         std::unique_ptr<cJSON, JsonDeleter> root(cJSON_ParseWithLength(text.data(), text.size()));
         if (root == nullptr || !cJSON_IsObject(root.get())) {
-            return std::unexpected(memory::String("the stored dashboard is not valid JSON"));
+            return failed(memory::String("the stored dashboard is not valid JSON"));
         }
         const cJSON *format_name = cJSON_GetObjectItemCaseSensitive(root.get(), "format");
         const cJSON *version = cJSON_GetObjectItemCaseSensitive(root.get(), "version");
         if (!cJSON_IsString(format_name) || std::strcmp(format_name->valuestring, kFormat) != 0) {
-            return std::unexpected(memory::String("the stored file is not a dashboard"));
+            return failed(memory::String("the stored file is not a dashboard"));
         }
         if (!cJSON_IsNumber(version) || version->valueint != kVersion) {
-            return std::unexpected(memory::String("the stored dashboard has a version this firmware does not read"));
+            return failed(memory::String("the stored dashboard has a version this firmware does not read"));
         }
         core::Layout layout;
         const cJSON *tiles = nullptr;
@@ -77,32 +83,34 @@ public:
             } else if (key == "defaults" && cJSON_IsObject(item)) {
                 for (const cJSON *value = item->child; value != nullptr; value = value->next) {
                     if (std::strcmp(value->string, "grid") != 0 || !span(value, layout.grid)) {
-                        return std::unexpected(format("defaults: bad key or value '%s'", value->string));
+                        return failed(format("defaults: bad key or value '%s'", value->string));
                     }
                 }
             } else if (key == "tiles" && cJSON_IsArray(item)) {
                 tiles = item;
             } else {
-                return std::unexpected(format("bad key or value '%s'", item->string));
+                return failed(format("bad key or value '%s'", item->string));
             }
         }
         if (tiles == nullptr) {
-            return std::unexpected(memory::String("the stored dashboard has no tiles"));
+            return failed(memory::String("the stored dashboard has no tiles"));
         }
         if (!list(tiles, 0, layout)) {
-            return std::unexpected(_error);
+            return failed(_error);
         }
         if (auto finished = core::finish(layout); !finished) {
             const core::Problem &problem = finished.error();
             if (problem.tile != core::kNone) {
-                return std::unexpected(format("tile %u: %s", static_cast<unsigned>(layout.tiles[problem.tile].id),
-                                              problem.message.c_str()));
+                _problem_path = tile_path(layout, problem.tile);
+                return failed(format("tile %u: %s", static_cast<unsigned>(layout.tiles[problem.tile].id),
+                                     problem.message.c_str()));
             }
             if (problem.page != core::kNone && problem.page != 0) {
-                const Tile &area = layout.tiles[layout.pages[problem.page].area];
-                return std::unexpected(format("area %u: %s", static_cast<unsigned>(area.id), problem.message.c_str()));
+                const core::TileIndex area = layout.pages[problem.page].area;
+                _problem_path = tile_path(layout, area);
+                return failed(format("area %u: %s", static_cast<unsigned>(layout.tiles[area].id), problem.message.c_str()));
             }
-            return std::unexpected(problem.message);
+            return failed(problem.message);
         }
         return layout;
     }
@@ -123,23 +131,45 @@ private:
         return true;
     }
 
+    // [column, row], 0 to 7 each
+    static bool cell(const cJSON *value, core::Cell &out)
+    {
+        if (!cJSON_IsArray(value) || cJSON_GetArraySize(value) != 2) {
+            return false;
+        }
+        const cJSON *col = cJSON_GetArrayItem(value, 0);
+        const cJSON *row = cJSON_GetArrayItem(value, 1);
+        if (!cJSON_IsNumber(col) || !cJSON_IsNumber(row) || col->valueint < 0 || col->valueint >= core::kMaxGrid ||
+            row->valueint < 0 || row->valueint >= core::kMaxGrid) {
+            return false;
+        }
+        out = {static_cast<uint8_t>(col->valueint), static_cast<uint8_t>(row->valueint)};
+        return true;
+    }
+
     bool fail(uint32_t id, const char *key)
     {
-        _error = format("tile %u: bad key or value '%s'", static_cast<unsigned>(id), key);
+        _error = id == 0 ? format("a new tile: bad key or value '%s'", key)
+                         : format("tile %u: bad key or value '%s'", static_cast<unsigned>(id), key);
+        _problem_path = _path;
         return false;
     }
 
     bool list(const cJSON *array, PageIndex page, core::Layout &layout)
     {
+        _path.push_back(0);
         for (const cJSON *object = array->child; object != nullptr; object = object->next) {
             if (!cJSON_IsObject(object)) {
                 _error = "a tile is not an object";
+                _problem_path = _path;
                 return false;
             }
             if (!tile(object, page, layout)) {
                 return false;
             }
+            _path.back()++;
         }
+        _path.pop_back();
         return true;
     }
 
@@ -147,11 +177,12 @@ private:
     {
         Tile tile;
         const cJSON *id = cJSON_GetObjectItemCaseSensitive(object, "id");
-        if (!cJSON_IsNumber(id) || id->valuedouble < 1) {
-            _error = "a tile has no id";
+        if (id != nullptr && (!cJSON_IsNumber(id) || id->valuedouble < 1)) {
+            _error = "a tile has a bad id";
+            _problem_path = _path;
             return false;
         }
-        tile.id = static_cast<uint32_t>(id->valuedouble);
+        tile.id = id != nullptr ? static_cast<uint32_t>(id->valuedouble) : 0;
         const cJSON *type = cJSON_GetObjectItemCaseSensitive(object, "type");
         const cJSON *entity = cJSON_GetObjectItemCaseSensitive(object, "entity");
         if (cJSON_IsString(type) && std::strcmp(type->valuestring, "area") == 0) {
@@ -172,7 +203,7 @@ private:
         for (const cJSON *item = object->child; item != nullptr; item = item->next) {
             const std::string_view key = item->string;
             bool ok = true;
-            if (key == "id" || key == "type") {
+            if (key == "id" || key == "type" || key == "cells") {
                 continue;
             } else if (key == "entity") {
                 ok = cJSON_IsString(item);
@@ -190,6 +221,12 @@ private:
             } else if (key == "size") {
                 ok = span(item, tile.span);
                 tile.has_size = true;
+            } else if (key == "landscape") {
+                ok = cell(item, tile.landscape);
+                tile.has_landscape = true;
+            } else if (key == "portrait") {
+                ok = cell(item, tile.portrait);
+                tile.has_portrait = true;
             } else if (key == "step") {
                 ok = cJSON_IsNumber(item) && item->valuedouble > 0;
                 tile.step = static_cast<float>(item->valuedouble);
@@ -232,9 +269,11 @@ private:
     }
 
     memory::String _error;
+    memory::Vector<uint16_t> _path;         // where the reader is: an index per level of tile lists
+    memory::Vector<uint16_t> _problem_path; // where the problem is
 };
 
-void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Tile &tile)
+void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Tile &tile, bool with_cells)
 {
     json.begin_object();
     json.number("id", tile.id);
@@ -256,6 +295,12 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
     if (tile.has_size) {
         json.begin_array("size").number(nullptr, tile.span.cols).number(nullptr, tile.span.rows).end_array();
     }
+    if (tile.has_landscape) {
+        json.begin_array("landscape").number(nullptr, tile.landscape.col).number(nullptr, tile.landscape.row).end_array();
+    }
+    if (tile.has_portrait) {
+        json.begin_array("portrait").number(nullptr, tile.portrait.col).number(nullptr, tile.portrait.row).end_array();
+    }
     if (tile.step != 0) {
         json.decimal("step", tile.step);
     }
@@ -271,6 +316,15 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
     if (!tile.stream.empty()) {
         json.string("stream", tile.stream.c_str());
     }
+    if (with_cells) {
+        json.begin_array("cells")
+            .number(nullptr, tile.landscape.col)
+            .number(nullptr, tile.landscape.row)
+            .number(nullptr, tile.portrait.col)
+            .number(nullptr, tile.portrait.row)
+            .number(nullptr, tile.portrait_fallback ? 1 : 0)
+            .end_array();
+    }
     if (tile.kind == TileKind::Area) {
         const core::Page &page = layout.pages[tile.opens];
         if (page.has_grid) {
@@ -278,14 +332,14 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
         }
         json.begin_array("tiles");
         for (const TileIndex child : page.tiles) {
-            write_tile(json, layout, layout.tiles[child]);
+            write_tile(json, layout, layout.tiles[child], with_cells);
         }
         json.end_array();
     }
     json.end_object();
 }
 
-void write_layout(formats::JsonWriter &json, const core::Layout &layout)
+void write_layout(formats::JsonWriter &json, const core::Layout &layout, bool with_cells)
 {
     json.begin_object();
     json.string("format", kFormat);
@@ -297,7 +351,7 @@ void write_layout(formats::JsonWriter &json, const core::Layout &layout)
     json.end_object();
     json.begin_array("tiles");
     for (const TileIndex index : layout.pages[0].tiles) {
-        write_tile(json, layout, layout.tiles[index]);
+        write_tile(json, layout, layout.tiles[index], with_cells);
     }
     json.end_array();
     json.end_object();
@@ -305,20 +359,44 @@ void write_layout(formats::JsonWriter &json, const core::Layout &layout)
 
 } // namespace
 
-std::expected<core::Layout, memory::String> read_json(std::string_view text)
+std::expected<core::Layout, JsonProblem> read_json_at(std::string_view text)
 {
     return Reader().run(text);
 }
 
-memory::String write_json(const core::Layout &layout)
+std::expected<core::Layout, memory::String> read_json(std::string_view text)
+{
+    auto layout = read_json_at(text);
+    if (!layout) {
+        return std::unexpected(std::move(layout.error().message));
+    }
+    return std::move(*layout);
+}
+
+memory::String write_json(const core::Layout &layout, bool with_cells)
 {
     // once to measure, once into a buffer of that size
     formats::JsonWriter measure(nullptr, 0);
-    write_layout(measure, layout);
+    write_layout(measure, layout, with_cells);
     memory::String out(measure.needed(), '\0');
     formats::JsonWriter json(out.data(), out.size() + 1);
-    write_layout(json, layout);
+    write_layout(json, layout, with_cells);
     return out;
+}
+
+memory::Vector<uint16_t> tile_path(const core::Layout &layout, core::TileIndex tile)
+{
+    memory::Vector<uint16_t> path;
+    for (core::TileIndex at = tile; at != core::kNone;) {
+        const core::Page &page = layout.pages[layout.tiles[at].page];
+        uint16_t position = 0;
+        while (position < page.tiles.size() && page.tiles[position] != at) {
+            position++;
+        }
+        path.insert(path.begin(), position);
+        at = page.area; // kNone on the main page
+    }
+    return path;
 }
 
 } // namespace hc::config

@@ -8,7 +8,7 @@
 //     one-time hint "Swipe down from the top for Settings". Tapping it opens Settings at the
 //     matching page; the hint stays until Settings was opened by the swipe.
 //
-// Both are hidden while Settings is open.
+// Both are hidden while Settings is open and while the dashboard is edited.
 
 #include "hc/ui/backend.hpp"
 #include "lvgl.h"
@@ -16,5 +16,9 @@
 namespace hc::ui::overlay {
 
 void init(const Backend &backend);
+
+// hides or shows the zone and the strip at once (the edit mode of the dashboard starts or ends),
+// not only on the next check
+void update();
 
 } // namespace hc::ui::overlay

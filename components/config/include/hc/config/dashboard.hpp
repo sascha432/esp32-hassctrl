@@ -37,9 +37,25 @@ struct Imported {
 // names, `grid:` with `cols:` and `rows:`.
 std::expected<Imported, memory::String> import_yaml(std::span<const File> files, std::string_view entry);
 
-// The stored dashboard (/fs/dashboard.json).
+// The stored dashboard (/fs/dashboard.json), and the dashboard the web UI sends (tiles it added
+// have no "id"; finish() gives them one).
 std::expected<core::Layout, memory::String> read_json(std::string_view text);
-memory::String write_json(const core::Layout &layout);
+
+// A problem of a dashboard in JSON: the text, and where the tile it is about stands (tile_path).
+struct JsonProblem {
+    memory::String message;
+    memory::Vector<uint16_t> path; // empty: not about one tile
+};
+std::expected<core::Layout, JsonProblem> read_json_at(std::string_view text);
+
+// `with_cells`: every tile also gets "cells": [landscape column, row, portrait column, row,
+// 1 when portrait falls back to the first cell] (the answers of the web API, whose editor draws
+// its preview from them). The reader skips "cells".
+memory::String write_json(const core::Layout &layout, bool with_cells = false);
+
+// Where a tile stands in the JSON: its index in the tile list of the main page, then in the list
+// of that area, and so on down to the tile.
+memory::Vector<uint16_t> tile_path(const core::Layout &layout, core::TileIndex tile);
 
 // `defaults:` and `tiles:` as YAML, all in one file: the dashboard part of the backup export.
 memory::String write_yaml(const core::Layout &layout);

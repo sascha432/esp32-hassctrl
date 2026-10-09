@@ -5,7 +5,11 @@
 //
 // A reader (the stored JSON, the YAML import) adds pages and tiles and then calls finish(), which
 // checks every rule and places the tiles. Both readers use the same finish(), so a layout passes
-// the same checks however it arrived. A finished layout does not change; an edit builds a new one.
+// the same checks however it arrived. A finished layout does not change; an edit builds a new one
+// (the edit functions at the end work on a copy).
+//
+// Placement (docs/ui/web-dashboard.md section 1): per orientation, the tiles with a cell of their
+// own take it first, then the others fill the first free block in list order.
 
 #include <cstdint>
 #include <expected>
@@ -63,6 +67,8 @@ struct Cell {
     bool operator==(const Cell &) const = default;
 };
 
+enum class Orientation : uint8_t { Landscape, Portrait };
+
 using TileIndex = uint16_t;
 using PageIndex = uint16_t;
 using EntityIndex = uint16_t;
@@ -87,8 +93,25 @@ struct Tile {
     memory::String icon;         // empty: automatic; "none": no icon
     memory::String unit;         // Sensor; empty: the unit Home Assistant reports
     memory::String stream;       // Picture: an MJPEG stream (http://... or kHassStream); empty: none
-    Cell landscape;              // set by finish()
-    Cell portrait;
+    bool has_landscape = false;  // `landscape` was set by the configuration (the page is arranged)
+    bool has_portrait = false;
+    Cell landscape;              // set by finish() unless has_landscape
+    Cell portrait;               // set by finish() unless has_portrait
+    bool portrait_fallback = false; // set by finish(): no free block in portrait, drawn at the first cell
+
+    bool has_cell(Orientation o) const
+    {
+        return o == Orientation::Landscape ? has_landscape : has_portrait;
+    }
+    Cell cell(Orientation o) const
+    {
+        return o == Orientation::Landscape ? landscape : portrait;
+    }
+    // the span in that orientation: portrait turns it
+    Span span_in(Orientation o) const
+    {
+        return o == Orientation::Landscape ? span : Span{span.rows, span.cols};
+    }
 };
 
 struct Page {
@@ -133,5 +156,27 @@ struct Problem {
 // Checks every rule, sets the default sizes and grids, gives tiles without an id one, and places
 // the tiles of every page for landscape and for portrait.
 std::expected<void, Problem> finish(Layout &layout);
+
+// The grid of a page in that orientation (portrait is the landscape grid turned).
+Span grid_in(const Page &page, Orientation o);
+
+// ---- edits of a finished layout (the edit mode of the screen, docs/ui/web-dashboard.md section 3)
+
+// Moves `tile` to `cell` in orientation `o`. Every tile of its page gets its current cell (the page
+// becomes arranged in `o`), and the tiles the moved tile covers are pushed aside: each takes the
+// first free block in reading order from `cell` on, wrapping to the start, in their old order.
+// False when the tile does not fit there or a pushed tile finds no block; the layout is unchanged
+// then. The layout stays finished.
+bool move_tile(Layout &layout, TileIndex tile, Orientation o, Cell cell);
+
+// The tiles of `page` lose their cells in `o`: automatic order again. A problem when the tiles do
+// not fit in automatic order (an arrangement can use the room better); the layout is unchanged
+// then. The layout stays finished.
+std::expected<void, Problem> reset_arrangement(Layout &layout, PageIndex page, Orientation o);
+
+// The layout without `tile` (an area takes its pages and their tiles with it), finished. The
+// entity table stays as it is, so entity indices stay valid. A page left without tiles is a
+// problem, as in finish().
+std::expected<Layout, Problem> remove_tile(const Layout &layout, TileIndex tile);
 
 } // namespace hc::core

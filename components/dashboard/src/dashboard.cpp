@@ -1,7 +1,9 @@
 #include "hc/dashboard/dashboard.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <mutex>
 
 #include "esp_log.h"
@@ -179,24 +181,49 @@ char *export_yaml(size_t &length)
 
 void release(char *text)
 {
-    memory::release_large(text);
+    if (text != nullptr) {
+        memory::release_large(text);
+    }
 }
 
-Result save_json(std::string_view json, uint32_t expected_revision, uint32_t &revision, char *error,
-                 size_t error_size)
+Result save_json(std::string_view json, uint32_t expected_revision, bool check_only, SaveReport &report)
 {
-    auto layout = config::read_json(json);
+    auto layout = config::read_json_at(json);
     if (!layout) {
-        set_text(error, error_size, layout.error().c_str());
+        set_text(report.error, sizeof(report.error), layout.error().message.c_str());
+        const auto &path = layout.error().path;
+        report.path_length = static_cast<uint8_t>(std::min(path.size(), std::size(report.path)));
+        std::copy_n(path.begin(), report.path_length, report.path);
         return Result::Invalid;
     }
     std::lock_guard lock(g_mutex);
-    if (expected_revision != revision_locked()) {
-        set_text(error, error_size, "the dashboard was changed in the meantime, load it again");
-        return Result::Conflict;
+    if (check_only) {
+        report.revision = revision_locked();
+        layout->revision = report.revision;
+    } else {
+        if (expected_revision != revision_locked()) {
+            set_text(report.error, sizeof(report.error), "the dashboard was changed in the meantime, load it again");
+            return Result::Conflict;
+        }
+        report.revision = expected_revision + 1;
+        if (const Result stored = store(std::move(*layout), report.revision, report.error, sizeof(report.error));
+            stored != Result::Ok) {
+            return stored;
+        }
     }
-    revision = expected_revision + 1;
-    return store(std::move(*layout), revision, error, error_size);
+    report.json = copy_to_heap(config::write_json(check_only ? *layout : *g_layout, true), report.json_length);
+    return Result::Ok;
+}
+
+Result save_layout(const core::Layout &layout, uint32_t expected_revision, uint32_t &revision, char *error,
+                   size_t error_size)
+{
+    SaveReport report;
+    const Result result = save_json(config::write_json(layout), expected_revision, false, report);
+    release(report.json);
+    revision = report.revision;
+    set_text(error, error_size, report.error);
+    return result;
 }
 
 Result import_yaml(std::span<const config::File> files, bool check_only, ImportReport &report, char *error,

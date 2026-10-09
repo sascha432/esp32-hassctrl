@@ -311,8 +311,7 @@ private:
                 continue;
             }
             if (key == "position") {
-                return fail(frame, entry.line,
-                            "position: is gone: tiles fill the grid in list order, a spacer keeps a cell free");
+                return fail(frame, entry.line, "position: is gone: landscape: and portrait: take column,row, for example 2,1");
             }
             if (value.kind != yaml::Kind::Scalar) {
                 return fail(frame, entry.line, format("%.*s takes a single value", static_cast<int>(key.size()), key.data()).c_str());
@@ -338,6 +337,13 @@ private:
                     return fail(frame, entry.line, "size is columns x rows, for example 1x2");
                 }
                 tile.has_size = true;
+            } else if (key == "landscape" || key == "portrait") {
+                const bool landscape = key == "landscape";
+                if (!detail::parse_cell(text, landscape ? tile.landscape : tile.portrait)) {
+                    return fail(frame, entry.line,
+                                format("%s is column,row from 0, for example 2,1", landscape ? "landscape" : "portrait").c_str());
+                }
+                (landscape ? tile.has_landscape : tile.has_portrait) = true;
             } else if (key == "dimmer") {
                 if (text != "true" && text != "false") {
                     return fail(frame, entry.line, "dimmer is true or false");

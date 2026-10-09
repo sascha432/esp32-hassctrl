@@ -6,6 +6,9 @@
 /* phone first: one column, at most 480 px, centered */
 .app-page { max-width: 480px; margin: 0 auto; }
 .app-page h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+/* the dashboard editor uses the whole width; its import tab keeps the one column */
+.app-page.app-wide { max-width: none; }
+.app-column { max-width: 480px; }
 
 /* the menu: over the page on phones, a sidebar from 800 px */
 .app-menu { position: fixed; top: 57px; left: 0; right: 0; bottom: 0; z-index: 1020; overflow-y: auto; }

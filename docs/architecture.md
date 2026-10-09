@@ -243,8 +243,16 @@ Decided (2026-10-07):
   2026-10-07): the project is in development, so one format only. `docs/dashboard-sample/` is the
   guide to it and a test file.
 * The device does not have to keep the configuration as YAML. The web UI is the editor for areas
-  and tiles. The screen allows only a few settings; moving tiles comes later. YAML is the import and
-  export format for advanced users, and the import accepts includes.
+  and tiles. The screen has an edit mode that moves and removes tiles (2026-10-08,
+  [ui/web-dashboard.md](ui/web-dashboard.md) section 3). YAML is the import and export format for
+  advanced users, and the import accepts includes.
+* **The web UI goes with the firmware** (rule, 2026-10-09). The web editor (`web/dashboard.js`)
+  copies rules of `core` and `config`: the placement (`place()` in `layout.cpp`), the sizes a kind
+  allows (`check_tile()`), the kinds of the domains (`kind_of_entity()`), the default sizes, the
+  keys of the format. Any change to the dashboard (format, rules, placement, API) changes the
+  editor in the same commit, and the web image goes onto the devices together with the firmware
+  (README, "Flash"). The device's check stays the truth: a forgotten copy shows as a problem in
+  the editor, not as a broken dashboard.
 * No reload by file size. A change made in the web UI, on the screen or by an import posts
   `ReloadConfig` to the UI mailbox.
 * The full resync of the visible page is a fixed 60 seconds. After an error or a reconnect the
@@ -316,7 +324,8 @@ Tile format, decided (2026-10-07):
 * Icons: one name per glyph, no duplicates. The names are the MDI names (`lightbulb`,
   `power-plug`).
 * One notation for sizes: `cols x rows` as a string, `grid: 4x3` and `size: 1x2` (stored as
-  `[4, 3]` in JSON). `position:` is dropped together with moving tiles.
+  `[4, 3]` in JSON). `position:` is dropped; cells per orientation replace it (`landscape: 2,1`,
+  `portrait: 0,3`, `[2, 1]` in JSON; "Orientation" below).
 * `decimals` defaults to the display precision of the entity in Home Assistant
   (`states(entity, rounded=True)`), the key overrides it.
 * The web UI reads the entity from Home Assistant when a tile is created and fills in everything
@@ -356,11 +365,15 @@ Orientation (decided 2026-10-07):
 * As in the old firmware: the tiles fill the grid first-fit in list order in both orientations,
   and the portrait grid is the transposed one. The 180 degree turned orientations use the same
   layout as their base orientation.
-* No moving of tiles for now, and no cells per orientation. A grid of its own for portrait is
-  postponed as well.
-* Discussed and postponed: a fixed cell per tile and orientation (`landscape:` / `portrait:`),
-  placed before the tiles of the automatic order, and a move on the screen that asks "both
-  orientations" or "only this orientation".
+* Cells per orientation (decided 2026-10-08, replaces "no moving of tiles for now"): a tile may
+  have a cell of its own in landscape and in portrait (`landscape:` / `portrait:`, in the
+  transposed grid for portrait). Per orientation the tiles with a cell take it first, the others
+  fill the free blocks first-fit in list order; a page without cells is placed as before. A cell
+  outside the grid, on the back tile or over another tile is an error. Moving a tile (the edit
+  mode of the screen, the web editor) gives every tile of its page its current cell in that
+  orientation only, and pushes the tiles in its way aside (`core::move_tile`). Details:
+  [ui/web-dashboard.md](ui/web-dashboard.md) section 1. A grid of its own for portrait stays
+  postponed.
 
 ---
 

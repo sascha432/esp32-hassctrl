@@ -1,8 +1,17 @@
 // The dashboard (docs/architecture.md section 5), login required after the setup:
 //
 //   GET  /api/dashboard                 the stored dashboard as JSON; 404 without one
-//   POST /api/dashboard?revision=N      body: the dashboard as JSON, based on revision N (0 when
-//                                       there is none); 409 when the stored one is newer
+//   POST /api/dashboard?revision=N[&check=1]
+//                                       body: the dashboard as JSON, based on revision N (0 when
+//                                       there is none; new tiles without "id"); 409 when the
+//                                       stored one is newer. check=1 only validates. Answer:
+//                                       {"checked", "revision", "dashboard"}, the dashboard with
+//                                       the ids and the "cells" of every tile (the editor's
+//                                       preview); 400: {"error", "path"}, the tile's index in each
+//                                       level of tile lists
+//   GET  /api/dashboard/editor          what the web editor needs of the device: {"screen": {"name",
+//                                       "width", "height", "gap"} in landscape, "icons": [...] the
+//                                       names a tile may use besides none}
 //   GET  /api/dashboard.yaml            the dashboard as one YAML file, for the backup
 //   POST /api/dashboard/import[?check=1]  multipart/form-data with the files of a dashboard
 //                                       folder (the filename of every part is its path inside
@@ -128,6 +137,20 @@ esp_err_t get_dashboard_yaml(httpd_req_t *req)
     return send_text(req, text, length, "text/yaml; charset=utf-8", "hassctrl-dashboard.yaml");
 }
 
+// {"error": message, "path": [...]}: the path names the tile, also one that has no id yet
+esp_err_t send_problem(httpd_req_t *req, const char *status, const char *message, const DashboardSaved &saved)
+{
+    char buffer[256];
+    JsonWriter json(buffer, sizeof(buffer));
+    json.begin_object().string("error", message).begin_array("path");
+    for (uint8_t i = 0; i < saved.path_length; i++) {
+        json.number(nullptr, saved.path[i]);
+    }
+    json.end_array().end_object();
+    httpd_resp_set_status(req, status);
+    return send_json(req, json);
+}
+
 esp_err_t post_dashboard(httpd_req_t *req)
 {
     if (!require_login(req)) {
@@ -142,23 +165,70 @@ esp_err_t post_dashboard(httpd_req_t *req)
     if (end == revision_text || *end != 0) {
         return send_error(req, "400 Bad Request", "revision is a number");
     }
+    char check[8] = {};
+    const bool check_only = query_value(req, "check", check, sizeof(check)) && std::strcmp(check, "1") == 0;
     size_t length = 0;
     char *body = read_large_body(req, kMaxJsonBody, length);
     if (body == nullptr) {
         return send_error(req, "400 Bad Request", "the request is empty or too large");
     }
-    DashboardInfo info{};
+    DashboardSaved saved{};
     char error[160] = {};
     const DashboardResult result =
-        g_dashboard->save_json(body, length, static_cast<uint32_t>(expected), info, error, sizeof(error));
+        g_dashboard->save_json(body, length, static_cast<uint32_t>(expected), check_only, saved, error, sizeof(error));
     memory::release_large(body);
     if (result != DashboardResult::Ok) {
-        return send_error(req, status_line(result), error);
+        return send_problem(req, status_line(result), error, saved);
     }
-    char buffer[48];
-    JsonWriter json(buffer, sizeof(buffer));
-    json.begin_object().number("revision", info.revision).end_object();
-    return send_json(req, json);
+    // the dashboard goes out as it is, between the head and the closing brace
+    char head[64];
+    std::snprintf(head, sizeof(head), "{\"checked\":%s,\"revision\":%u,\"dashboard\":", check_only ? "true" : "false",
+                  static_cast<unsigned>(saved.revision));
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    esp_err_t err = httpd_resp_send_chunk(req, head, HTTPD_RESP_USE_STRLEN);
+    if (err == ESP_OK) {
+        err = httpd_resp_send_chunk(req, saved.json, static_cast<ssize_t>(saved.json_length));
+    }
+    if (err == ESP_OK) {
+        err = httpd_resp_send_chunk(req, "}", 1);
+    }
+    g_dashboard->release(saved.json);
+    return err == ESP_OK ? httpd_resp_send_chunk(req, nullptr, 0) : err;
+}
+
+esp_err_t get_editor(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    const char *name = "";
+    uint16_t width = 0;
+    uint16_t height = 0;
+    uint8_t gap = 0;
+    g_dashboard->screen(name, width, height, gap);
+    JsonWriter measure(nullptr, 0);
+    const auto write = [&](JsonWriter &json) {
+        json.begin_object()
+            .begin_object("screen")
+            .string("name", name)
+            .number("width", width)
+            .number("height", height)
+            .number("gap", gap)
+            .end_object()
+            .begin_array("icons");
+        for (size_t i = 0; const char *name = g_dashboard->icon_name(i); i++) {
+            json.string(nullptr, name);
+        }
+        json.end_array().end_object();
+    };
+    write(measure);
+    auto *buffer = static_cast<char *>(memory::allocate_large(measure.needed() + 1));
+    JsonWriter json(buffer, measure.needed() + 1);
+    write(json);
+    const esp_err_t err = send_json(req, json);
+    memory::release_large(buffer);
+    return err;
 }
 
 esp_err_t post_import(httpd_req_t *req)
@@ -220,6 +290,7 @@ void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *das
         {.uri = "/api/dashboard", .method = HTTP_POST, .handler = post_dashboard, .user_ctx = nullptr},
         {.uri = "/api/dashboard.yaml", .method = HTTP_GET, .handler = get_dashboard_yaml, .user_ctx = nullptr},
         {.uri = "/api/dashboard/import", .method = HTTP_POST, .handler = post_import, .user_ctx = nullptr},
+        {.uri = "/api/dashboard/editor", .method = HTTP_GET, .handler = get_editor, .user_ctx = nullptr},
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

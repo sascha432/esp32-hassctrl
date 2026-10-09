@@ -34,7 +34,9 @@ defaults:
   grid: 4x3
 
 # The main page. Tiles fill the grid in the order of this list, left to right and top to bottom,
-# each in the first place where it fits. There is no position: a `spacer` keeps a cell free.
+# each in the first place where it fits; a `spacer` keeps a cell free. A page can also be arranged
+# with a cell per tile (`landscape:`, `portrait:`; see rooms/workshop.yaml), which the edit mode
+# of the screen writes when you move a tile.
 #
 # What a tile is, is decided by its entity (the domain before the dot):
 #   light.*                                         switch, or a dimmer with `dimmer: true`

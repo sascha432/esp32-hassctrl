@@ -1,8 +1,10 @@
 // The panel firmware: composition root. It creates and wires the components and contains no
 // logic of its own (docs/architecture.md section 3).
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 #include "esp_event.h"
 #include "esp_heap_caps.h"
@@ -11,6 +13,7 @@
 #include "esp_ota_ops.h"
 #include "hc/board/board.hpp"
 #include "hc/config/dashboard.hpp"
+#include "hc/core/icons.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/devconsole/devconsole.hpp"
 #include "hc/frame_display/frame_display.hpp"
@@ -219,16 +222,18 @@ const hc::webserver::DashboardAccess kDashboardAccess{
     .export_yaml = hc::dashboard::export_yaml,
     .release = hc::dashboard::release,
     .save_json =
-        [](const char *text, size_t length, uint32_t expected_revision, hc::webserver::DashboardInfo &out,
-           char *error, size_t error_size) {
-            uint32_t revision = 0;
-            const auto result = hc::dashboard::save_json(std::string_view(text, length), expected_revision,
-                                                         revision, error, error_size);
-            const auto status = hc::dashboard::status();
+        [](const char *text, size_t length, uint32_t expected_revision, bool check_only,
+           hc::webserver::DashboardSaved &out, char *error, size_t error_size) {
+            hc::dashboard::SaveReport report;
+            const auto result =
+                hc::dashboard::save_json(std::string_view(text, length), expected_revision, check_only, report);
+            std::snprintf(error, error_size, "%s", report.error);
             out = {};
-            out.revision = revision;
-            out.pages = status.pages;
-            out.tiles = status.tiles;
+            out.revision = report.revision;
+            out.path_length = static_cast<uint8_t>(std::min<size_t>(report.path_length, std::size(out.path)));
+            std::copy_n(report.path, out.path_length, out.path);
+            out.json = report.json;
+            out.json_length = report.json_length;
             return to_web(result);
         },
     .import_yaml =
@@ -244,6 +249,18 @@ const hc::webserver::DashboardAccess kDashboardAccess{
             out = {};
             to_info(report, out);
             return to_web(result);
+        },
+    .icon_name = [](size_t index) -> const char * {
+        const auto names = hc::core::icon_names();
+        return index < names.size() ? names[index].data() : nullptr; // literals, terminated
+    },
+    .screen =
+        [](const char *&name, uint16_t &width, uint16_t &height, uint8_t &tile_gap) {
+            const auto &board = hc::board::info();
+            name = board.name;
+            width = std::max(board.width, board.height); // the dashboard's grid is written for landscape
+            height = std::min(board.width, board.height);
+            tile_gap = board.ui_tile_gap;
         },
 };
 
@@ -304,7 +321,8 @@ extern "C" void app_main()
                            .network_text = nullptr},
                           imu, {.slide_pages = board.ui_slide_pages,
                            .panel_dialogs = board.ui_panel_dialogs,
-                           .large_fonts = board.ui_large_fonts});
+                           .large_fonts = board.ui_large_fonts,
+                           .tile_gap = board.ui_tile_gap});
 #if CONFIG_HC_DEV_CONSOLE
             hc::uidebug::init(disp);
 #endif

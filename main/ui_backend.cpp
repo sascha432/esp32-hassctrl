@@ -299,6 +299,11 @@ const hc::ui::Backend g_backend{
     .hass_info = hass_info,
     .hass_reconnect = [] { hc::hass::reconnect(); },
     .dashboard = hc::dashboard::current,
+    .save_dashboard =
+        [](const hc::core::Layout &layout, uint32_t revision, char *error, size_t error_size) {
+            uint32_t stored = 0;
+            return hc::dashboard::save_layout(layout, revision, stored, error, error_size) == hc::dashboard::Result::Ok;
+        },
     .subscribe_page = hc::hass::subscribe_page,
     .call_service = hc::hass::call_service,
     .take_event = hc::hass::take_event,

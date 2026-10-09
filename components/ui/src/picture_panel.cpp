@@ -109,6 +109,7 @@ void build(lv_obj_t *root, core::TileIndex tile, lv_coord_t width, lv_coord_t he
     lv_obj_center(g.spinner);
     lv_obj_set_style_arc_color(g.spinner, t::color(t::kActive), LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(g.spinner, t::color(t::kCard), LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(g.spinner, LV_OPA_50, LV_PART_MAIN); // the image shows through the track
     lv_obj_clear_flag(g.spinner, LV_OBJ_FLAG_CLICKABLE);
     const core::Tile &config = dashboard::layout().tiles[tile];
     if (!config.stream.empty()) {

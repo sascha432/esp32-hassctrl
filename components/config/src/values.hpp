@@ -24,6 +24,21 @@ inline void format_span(core::Span span, char (&out)[8])
     std::snprintf(out, sizeof(out), "%ux%u", static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows));
 }
 
+// "2,1" -> column 2, row 1; false when it is not column,row of 0 to 7
+inline bool parse_cell(std::string_view text, core::Cell &out)
+{
+    if (text.size() != 3 || text[1] != ',' || text[0] < '0' || text[0] > '7' || text[2] < '0' || text[2] > '7') {
+        return false;
+    }
+    out = {static_cast<uint8_t>(text[0] - '0'), static_cast<uint8_t>(text[2] - '0')};
+    return true;
+}
+
+inline void format_cell(core::Cell cell, char (&out)[8])
+{
+    std::snprintf(out, sizeof(out), "%u,%u", static_cast<unsigned>(cell.col), static_cast<unsigned>(cell.row));
+}
+
 // a whole number without sign, at most `max`; false otherwise
 inline bool parse_whole(std::string_view text, long max, long &out)
 {

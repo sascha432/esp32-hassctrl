@@ -584,6 +584,7 @@ const hc::ui::Backend kBackend{
     .hass_info = hass_info,
     .hass_reconnect = hass_reconnect,
     .dashboard = sim::dashboard,
+    .save_dashboard = sim::save_dashboard,
     .subscribe_page = sim::subscribe_page,
     .call_service = sim::call_service,
     .take_event = sim::take_event,

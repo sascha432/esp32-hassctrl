@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "dashboard.hpp"
 #include "settings.hpp"
 #include "setup.hpp"
 #include "theme.hpp"
@@ -158,8 +159,11 @@ void update_strip()
 
 void on_update(lv_timer_t *)
 {
-    // Settings and the first setup have their own frame: no pull-down, no strip
-    const bool open = settings::is_open() || setup::active();
+    if (g.zone == nullptr) {
+        return;
+    }
+    // Settings and the first setup have their own frame, the edit mode its bar: no pull-down, no strip
+    const bool open = settings::is_open() || setup::active() || dashboard::editing();
     set_hidden(g.zone, open);
     if (open) {
         set_hidden(g.strip, true);
@@ -178,6 +182,11 @@ void add_drag(lv_obj_t *obj)
 }
 
 } // namespace
+
+void update()
+{
+    on_update(nullptr);
+}
 
 void init(const Backend &backend)
 {

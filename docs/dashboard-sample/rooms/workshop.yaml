@@ -1,5 +1,12 @@
 # Relative to rooms.yaml, which includes this file as rooms/workshop.yaml; its own includes
 # would be relative to this folder. A page can be at most 5 areas deep.
+#
+# This page is arranged in landscape: `landscape` is the cell of a tile, column,row from 0 (the
+# first cell of an area page is its back tile). Moving tiles in the edit mode of the screen (hold
+# the screen for a second) writes these for every tile of the page; they can be written by hand
+# too. `portrait` is the same for the turned screen, in the turned grid (4x3 becomes 3x4). Without
+# them a page fills its grid in list order. Tiles without a cell on an arranged page take the
+# first free place. A cell must be inside the grid and must not overlap another tile.
 - type: area
   name: Workshop
   tiles:
@@ -8,16 +15,21 @@
       name: Forge
       dimmer: true
       size: 1x1
+      landscape: 3,0
     - entity: sensor.forge_power
       name: Forge Power
       icon: flash
       unit: W
       decimals: 0
+      landscape: 1,0
     - entity: script.close_shutters
       name: Shutters
+      landscape: 0,2
     - entity: switch.anvil_fan
       name: "Anvil #2"
       icon: none
+      landscape: 2,0
     - entity: sensor.forge_humidity
       name: Humidity
       icon: water-percent
+      landscape: 1,1

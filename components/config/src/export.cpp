@@ -74,6 +74,17 @@ private:
             detail::format_span(tile.span, span);
             put("size", span);
         }
+        if (tile.has_landscape || tile.has_portrait) {
+            char cell[8];
+            if (tile.has_landscape) {
+                detail::format_cell(tile.landscape, cell);
+                put("landscape", cell);
+            }
+            if (tile.has_portrait) {
+                detail::format_cell(tile.portrait, cell);
+                put("portrait", cell);
+            }
+        }
         if (tile.step != 0) {
             detail::format_decimal(tile.step, text);
             put("step", text);

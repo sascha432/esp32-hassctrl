@@ -127,6 +127,9 @@ TEST(config_imports_the_documented_sample)
     REQUIRE(anvil != nullptr);
     CHECK(anvil->icon == "none" && layout.pages[anvil->page].depth == 2);
     CHECK(layout.pages[anvil->page].grid == (Span{4, 3})); // the default grid
+    // the Workshop page is arranged in landscape, portrait is automatic
+    CHECK(anvil->has_landscape && anvil->landscape == (Cell{2, 0}) && !anvil->has_portrait);
+    CHECK(named(layout, "Shutters")->landscape == (Cell{0, 2}));
     CHECK(layout.entities.size() == 14);
     for (size_t i = 0; i < layout.tiles.size(); i++) {
         CHECK(layout.tiles[i].id == i + 1);
@@ -246,7 +249,11 @@ TEST(config_checks_tile_keys)
         return import_error(files);
     };
     CHECK_STR(error("entity: switch.a\n    position: [2, 1]\n"),
-              "hass.yaml:3: position: is gone: tiles fill the grid in list order, a spacer keeps a cell free");
+              "hass.yaml:3: position: is gone: landscape: and portrait: take column,row, for example 2,1");
+    CHECK_STR(error("entity: switch.a\n    landscape: 2x1\n"), "hass.yaml:3: landscape is column,row from 0, for example 2,1");
+    CHECK_STR(error("entity: switch.a\n    portrait: 8,0\n"), "hass.yaml:3: portrait is column,row from 0, for example 2,1");
+    CHECK_STR(error("entity: switch.a\n    landscape: 4,0\n"),
+              "hass.yaml:2: the landscape cell 4,0 of a 1x1 tile lies outside the 4x2 grid of its page");
     CHECK_STR(error("type: sensor\n    entity: switch.a\n"),
               "hass.yaml:2: type: is only for area and spacer, the entity decides what the tile is");
     CHECK_STR(error("name: X\n"), "hass.yaml:2: a tile needs an entity, or type: area or spacer");
@@ -318,8 +325,82 @@ TEST(config_json_is_strict)
     if (read) {
         hc::test::fail(__FILE__, __LINE__, "an id of 0 was accepted");
     }
+    CHECK_STR(std::string(hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":1,"
+                                                "\"tiles\":[{\"entity\":\"switch.a\",\"nmae\":\"x\"}]}")
+                              .error()),
+              "a new tile: bad key or value 'nmae'");
     const auto ok = hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":1,\"revision\":7,"
                                           "\"next_id\":20,\"tiles\":[{\"id\":5,\"entity\":\"switch.a\"}]}");
     REQUIRE(ok.has_value());
     CHECK(ok->revision == 7 && ok->next_id == 20 && ok->tiles[0].id == 5);
+}
+
+TEST(config_reads_new_tiles_without_an_id)
+{
+    // the web UI sends the tiles it added without an id
+    const auto read = hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":1,\"next_id\":9,"
+                                            "\"tiles\":[{\"id\":5,\"entity\":\"switch.a\"},{\"entity\":\"switch.b\"}]}");
+    REQUIRE(read.has_value());
+    CHECK(read->tiles[0].id == 5 && read->tiles[1].id == 9 && read->next_id == 10);
+}
+
+TEST(config_keeps_the_cells_of_both_orientations)
+{
+    FileSet files;
+    files.add("hass.yaml", "tiles:\n"
+                           "  - entity: switch.a\n"
+                           "    landscape: 3,1\n"
+                           "    portrait: 0,3\n"
+                           "  - entity: switch.b\n"
+                           "    landscape: 0,0\n"
+                           "  - entity: switch.c\n");
+    const auto imported = hc::config::import_yaml(files.view(), "hass.yaml");
+    REQUIRE(imported.has_value());
+    const Layout &layout = imported->layout;
+    CHECK(layout.tiles[0].has_landscape && layout.tiles[0].landscape == (Cell{3, 1}));
+    CHECK(layout.tiles[0].has_portrait && layout.tiles[0].portrait == (Cell{0, 3}));
+    CHECK(layout.tiles[1].has_landscape && !layout.tiles[1].has_portrait);
+    CHECK(!layout.tiles[2].has_landscape && layout.tiles[2].landscape == (Cell{1, 0})); // first free after b
+    const auto json = hc::config::write_json(layout);
+    CHECK(json.find("\"landscape\":[3,1],\"portrait\":[0,3]") != std::string::npos);
+    CHECK(hc::config::write_yaml(layout).find("    landscape: 3,1\n    portrait: 0,3\n") != std::string::npos);
+    check_round_trips(layout);
+}
+
+TEST(config_names_the_path_of_a_problem)
+{
+    // the web UI finds the tile by its place in the lists, also a new one without an id
+    const auto problem = [](const char *tiles) {
+        const std::string text = std::string("{\"format\":\"hassctrl-dashboard\",\"version\":1,\"tiles\":") + tiles + "}";
+        const auto read = hc::config::read_json_at(text);
+        if (read) {
+            return std::string("ok");
+        }
+        std::string out = std::string(read.error().message) + " @";
+        for (const auto index : read.error().path) {
+            out += " " + std::to_string(index);
+        }
+        return out;
+    };
+    CHECK_STR(problem("[{\"id\":1,\"entity\":\"switch.a\"},{\"id\":2,\"type\":\"area\",\"name\":\"A\",\"tiles\":["
+                      "{\"id\":3,\"entity\":\"switch.b\"},{\"entity\":\"sensor.c\",\"dimmer\":true}]}]"),
+              "tile 4: dimmer is only for lights @ 1 1");
+    CHECK_STR(problem("[{\"id\":1,\"entity\":\"switch.a\"},{\"entity\":\"switch.b\",\"nmae\":\"x\"}]"),
+              "a new tile: bad key or value 'nmae' @ 1");
+    CHECK_STR(problem("[{\"id\":1,\"type\":\"area\",\"name\":\"A\",\"tiles\":[]}]"), "area 1: the area has no tiles @ 0");
+    CHECK_STR(problem("[]"), "the dashboard has no tiles @");
+}
+
+TEST(config_writes_the_cells_for_the_web_ui)
+{
+    const auto read = hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":1,\"defaults\":{\"grid\":[2,1]},"
+                                            "\"tiles\":[{\"id\":1,\"entity\":\"camera.a\",\"size\":[2,1]}]}");
+    REQUIRE(read.has_value());
+    const auto json = hc::config::write_json(*read, true);
+    // landscape (0,0); the portrait grid is 1x2, the turned picture is 1x2 as well: (0,0), no fallback
+    CHECK(json.find("\"cells\":[0,0,0,0,0]") != std::string::npos);
+    // an answer of the API can be sent back as it is: the reader skips "cells"
+    const auto again = hc::config::read_json(json);
+    REQUIRE(again.has_value());
+    CHECK(hc::config::write_json(*again) == hc::config::write_json(*read));
 }

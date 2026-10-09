@@ -334,8 +334,8 @@ added later.
   rotates with the device (decided), see [architecture.md](../architecture.md) section 8.1.
 * **Portrait**: two-column pages (welcome, done, hotspot) stack their columns, QR code on top.
   Lists and forms stay one column. The keyboard is full width. The dashboard uses the transposed
-  grid of the old firmware, no moving of tiles for now ([architecture.md](../architecture.md)
-  section 5, "Dashboard configuration").
+  grid of the old firmware; tiles moved in edit mode keep a cell of their own per orientation
+  ([architecture.md](../architecture.md) section 5, "Orientation").
 * **Higher DPI**, such as 480 x 800 at 4.3 inch: sizes scale with the DPI (see
   [design-system.md](design-system.md) section 6).
 * **240 x 320 without touch (TTGO T4, test device only)**: everything is shown as on the other

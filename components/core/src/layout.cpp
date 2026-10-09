@@ -214,44 +214,110 @@ private:
     uint8_t _used[kMaxGrid] = {};
 };
 
-// Places the tiles of a page in the order of the page, in both orientations. Portrait shows the
-// grid transposed (4x3 becomes 3x4) and swaps the span of every tile with it, so a cell keeps its
-// shape, and the page reads in the same order (transposing the positions instead would turn the
-// first row into the left column). The configuration is written for landscape: there a tile that
-// does not fit is an error, in portrait it falls back to the first cell.
-std::expected<void, Problem> place(Layout &layout, PageIndex index)
+const char *orientation_name(Orientation o)
+{
+    return o == Orientation::Landscape ? "landscape" : "portrait";
+}
+
+Cell &cell_of(Tile &tile, Orientation o)
+{
+    return o == Orientation::Landscape ? tile.landscape : tile.portrait;
+}
+
+// the tile keeps `cell` in `o` as its own
+void pin(Tile &tile, Orientation o, Cell cell)
+{
+    cell_of(tile, o) = cell;
+    (o == Orientation::Landscape ? tile.has_landscape : tile.has_portrait) = true;
+}
+
+// web/dashboard.js copies this placement, kind_of_entity(), default_span() and the sizes of
+// check_tile() for its preview: a change here is a change there too (docs/architecture.md section 5).
+//
+// Places the tiles of a page for one orientation. Portrait shows the grid transposed (4x3 becomes
+// 3x4) and swaps the span of every tile with it, so a cell keeps its shape, and the page reads in
+// the same order (transposing the positions instead would turn the first row into the left
+// column). The tiles with a cell of their own take it first; the others fill the first free block
+// in the order of the page. The configuration is written for landscape: there a tile that finds no
+// block is an error, in portrait it falls back to the first cell.
+std::expected<void, Problem> place(Layout &layout, PageIndex index, Orientation o)
 {
     const Page &page = layout.pages[index];
-    Grid landscape(page.grid);
-    Grid portrait({page.grid.rows, page.grid.cols});
+    const Span size = grid_in(page, o);
+    const char *name = orientation_name(o);
+    Grid grid(size);
     if (index != 0) {
         // the first cell of an area page is its back tile
-        landscape.take({0, 0}, {1, 1});
-        portrait.take({0, 0}, {1, 1});
+        grid.take({0, 0}, {1, 1});
     }
     for (const TileIndex t : page.tiles) {
         Tile &tile = layout.tiles[t];
-        const Span span = tile.span;
-        if (span.cols > page.grid.cols || span.rows > page.grid.rows) {
+        if (!tile.has_cell(o)) {
+            continue;
+        }
+        const Span span = tile.span_in(o);
+        const Cell at = tile.cell(o);
+        if (at.col + span.cols > size.cols || at.row + span.rows > size.rows) {
+            return tile_problem(t, format("the %s cell %u,%u of a %ux%u tile lies outside the %ux%u grid of its page", name,
+                                          static_cast<unsigned>(at.col), static_cast<unsigned>(at.row),
+                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows),
+                                          static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
+        }
+        if (index != 0 && at == Cell{0, 0}) {
+            return tile_problem(t, format("the %s cell 0,0 of an area page is its back tile", name));
+        }
+        if (!grid.free(at, span)) {
+            return tile_problem(t, format("the %s cell %u,%u overlaps another tile", name, static_cast<unsigned>(at.col),
+                                          static_cast<unsigned>(at.row)));
+        }
+        grid.take(at, span);
+    }
+    for (const TileIndex t : page.tiles) {
+        Tile &tile = layout.tiles[t];
+        if (tile.has_cell(o)) {
+            continue;
+        }
+        const Span span = tile.span_in(o);
+        Cell &at = cell_of(tile, o);
+        if (o == Orientation::Portrait) {
+            tile.portrait_fallback = !grid.first_fit(span, at);
+            if (tile.portrait_fallback) {
+                at = {0, 0};
+                continue;
+            }
+        } else if (span.cols > size.cols || span.rows > size.rows) {
             return tile_problem(t, format("a %ux%u tile does not fit into the %ux%u grid of its page",
                                           static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows),
-                                          static_cast<unsigned>(page.grid.cols), static_cast<unsigned>(page.grid.rows)));
-        }
-        if (!landscape.first_fit(span, tile.landscape)) {
+                                          static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
+        } else if (!grid.first_fit(span, at)) {
             return tile_problem(t, format("no free %ux%u block left in the %ux%u grid of its page",
                                           static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows),
-                                          static_cast<unsigned>(page.grid.cols), static_cast<unsigned>(page.grid.rows)));
+                                          static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
         }
-        landscape.take(tile.landscape, span);
-
-        const Span turned{span.rows, span.cols};
-        if (portrait.first_fit(turned, tile.portrait)) {
-            portrait.take(tile.portrait, turned);
-        } else {
-            tile.portrait = {0, 0};
-        }
+        grid.take(at, span);
     }
     return {};
+}
+
+// the tiles of page `from` (without `removed`, an area with its pages) appended to page `to`
+void copy_page(const Layout &source, PageIndex from, Layout &target, PageIndex to, TileIndex removed)
+{
+    for (const TileIndex t : source.pages[from].tiles) {
+        if (t == removed) {
+            continue;
+        }
+        const Tile &original = source.tiles[t];
+        Tile tile = original;
+        tile.opens = kNone;
+        const TileIndex index = target.add_tile(to, std::move(tile));
+        if (original.kind == TileKind::Area) {
+            const Page &page = source.pages[original.opens];
+            const PageIndex inner = target.add_page(to, index);
+            target.pages[inner].has_grid = page.has_grid;
+            target.pages[inner].grid = page.grid;
+            copy_page(source, original.opens, target, inner, removed);
+        }
+    }
 }
 
 } // namespace
@@ -417,11 +483,114 @@ std::expected<void, Problem> finish(Layout &layout)
     }
 
     for (PageIndex p = 0; p < layout.pages.size(); p++) {
-        if (auto placed = place(layout, p); !placed) {
-            return placed;
+        for (const Orientation o : {Orientation::Landscape, Orientation::Portrait}) {
+            if (auto placed = place(layout, p, o); !placed) {
+                return placed;
+            }
         }
     }
     return {};
+}
+
+Span grid_in(const Page &page, Orientation o)
+{
+    return o == Orientation::Landscape ? page.grid : Span{page.grid.rows, page.grid.cols};
+}
+
+bool move_tile(Layout &layout, TileIndex index, Orientation o, Cell cell)
+{
+    const Page &page = layout.pages[layout.tiles[index].page];
+    const bool area_page = layout.tiles[index].page != 0;
+    const Span size = grid_in(page, o);
+    const Span span = layout.tiles[index].span_in(o);
+    if (cell.col + span.cols > size.cols || cell.row + span.rows > size.rows || (area_page && cell == Cell{0, 0})) {
+        return false;
+    }
+    const auto covered = [&](Cell at, Span other) {
+        return at.col < cell.col + span.cols && at.col + other.cols > cell.col && at.row < cell.row + span.rows &&
+               at.row + other.rows > cell.row;
+    };
+    // the page without the moved tile and the tiles it covers, then the moved tile in its place
+    Grid grid(size);
+    if (area_page) {
+        grid.take({0, 0}, {1, 1});
+    }
+    memory::Vector<TileIndex> pushed;
+    for (const TileIndex t : page.tiles) {
+        const Tile &tile = layout.tiles[t];
+        if (t == index || (o == Orientation::Portrait && tile.portrait_fallback)) {
+            continue;
+        }
+        if (covered(tile.cell(o), tile.span_in(o))) {
+            pushed.push_back(t);
+        } else {
+            grid.take(tile.cell(o), tile.span_in(o));
+        }
+    }
+    grid.take(cell, span);
+    // every pushed tile: the first free block from `cell` on in reading order, wrapping
+    const unsigned count = size.cols * size.rows;
+    const unsigned start = cell.row * size.cols + cell.col;
+    memory::Vector<Cell> targets;
+    for (const TileIndex t : pushed) {
+        const Span other = layout.tiles[t].span_in(o);
+        bool found = false;
+        for (unsigned i = 0; i < count && !found; i++) {
+            const unsigned at = (start + i) % count;
+            const Cell candidate{static_cast<uint8_t>(at % size.cols), static_cast<uint8_t>(at / size.cols)};
+            if (grid.free(candidate, other)) {
+                grid.take(candidate, other);
+                targets.push_back(candidate);
+                found = true;
+            }
+        }
+        if (!found) {
+            return false;
+        }
+    }
+    // the page is arranged in `o` from now on: every tile keeps its cell
+    for (const TileIndex t : page.tiles) {
+        Tile &tile = layout.tiles[t];
+        if (!(o == Orientation::Portrait && tile.portrait_fallback)) {
+            pin(tile, o, tile.cell(o));
+        }
+    }
+    for (size_t i = 0; i < pushed.size(); i++) {
+        pin(layout.tiles[pushed[i]], o, targets[i]);
+    }
+    pin(layout.tiles[index], o, cell);
+    // cannot fail: the cells of this page do not overlap, the other pages did not change
+    return finish(layout).has_value();
+}
+
+std::expected<void, Problem> reset_arrangement(Layout &layout, PageIndex page, Orientation o)
+{
+    // automatic order may need more room than the arrangement, so it is tried on a copy
+    Layout copy = layout;
+    for (const TileIndex t : copy.pages[page].tiles) {
+        (o == Orientation::Landscape ? copy.tiles[t].has_landscape : copy.tiles[t].has_portrait) = false;
+    }
+    if (auto finished = finish(copy); !finished) {
+        return finished;
+    }
+    layout = std::move(copy);
+    return {};
+}
+
+std::expected<Layout, Problem> remove_tile(const Layout &layout, TileIndex tile)
+{
+    Layout out;
+    out.grid = layout.grid;
+    out.revision = layout.revision;
+    out.next_id = layout.next_id;
+    // the same entity table: the entity store of the screen stays valid while editing; the next
+    // read of the stored file leaves the unused ones out
+    out.entities = layout.entities;
+    copy_page(layout, 0, out, 0, tile);
+    if (auto finished = finish(out); !finished) {
+        return std::unexpected(std::move(finished.error()));
+    }
+    return out;
 }
 
 } // namespace hc::core

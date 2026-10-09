@@ -4,7 +4,8 @@
 // layout as grids of tiles. It owns the entity store and the pending actions, both only touched in
 // the LVGL task. The values come from the backend (take_event, drained every 20 ms), the tiles'
 // gestures go out as intents (call_service). A new layout (an import, an edit in the web UI)
-// rebuilds the screen from the main page; turning the display rebuilds the page.
+// rebuilds the screen from the main page; turning the display rebuilds the page. A long press
+// starts the edit mode (edit_mode.hpp), which draws an edited copy of the layout.
 
 #include "hc/core/entity.hpp"
 #include "hc/core/layout.hpp"
@@ -63,5 +64,41 @@ void act(const core::Intent &intent, core::Expectation expected);
 void expect(core::EntityIndex entity, core::Expectation expected);
 // draws the tiles of `entity` again (a drag in progress), and its panel when one is open
 void redraw(core::EntityIndex entity);
+
+// the tile's own name, else the entity's friendly name, else the entity id
+memory::String tile_name(core::TileIndex tile);
+
+// ------------------------------------------------- edit mode (edit_mode.hpp, web-dashboard.md section 3)
+
+// true while the page is edited: a copy of the layout is drawn, the edit layer takes the touches
+bool editing();
+// edits a copy of the layout from now on, on the page that is shown
+void start_editing();
+// the edited copy after a move, a removal or a reset (same entities); the page is built again
+void set_edited(core::Layout layout);
+// builds the page again from the edited copy (a drag that did not fit goes back)
+void redraw_page();
+// Done: stores the copy when it changed and shows the stored dashboard on the same page; false
+// with the problem in `error` (the copy stays, stop_editing() drops it)
+bool save_editing(char *error, size_t size);
+// Cancel: the copy is dropped, the page is drawn from the layout it started from
+void stop_editing();
+
+core::PageIndex current_page();
+// the views of the page that is shown
+const memory::Vector<tiles::View> &views();
+
+// the grid of the page as it is drawn, in screen coordinates
+struct Grid {
+    lv_coord_t left = 0;
+    lv_coord_t top = 0;
+    lv_coord_t cell_w = 0;
+    lv_coord_t cell_h = 0;
+    lv_coord_t gap = 0;
+    uint8_t cols = 1;
+    uint8_t rows = 1;
+    core::Orientation orientation = core::Orientation::Landscape;
+};
+const Grid &grid();
 
 } // namespace hc::ui::dashboard

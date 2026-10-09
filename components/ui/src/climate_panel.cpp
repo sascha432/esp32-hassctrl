@@ -51,6 +51,9 @@ struct State {
     lv_obj_t *pill_values[kOptions] = {};
     uint8_t offered = 0;     // the options the pills are laid out for
     int list_option = -1;    // the option whose list is shown, -1: the arc
+    // while the climate is off the arc does nothing: the panel shows the modes first, once per
+    // opening and after the power button (a tap on the pill goes to the arc)
+    bool modes_first = true;
     lv_obj_t *control = nullptr;
 
     // arc
@@ -465,6 +468,7 @@ void on_power(lv_event_t *)
     send_steps();
     core::Expectation expected;
     expected.state = "off";
+    g.modes_first = true;
     send(core::IntentKind::SetHvacMode, 0, "off", std::move(expected));
 }
 
@@ -641,6 +645,14 @@ void update()
         ((!std::isnan(s.min_temp) && s.min_temp != g.min) || (!std::isnan(s.max_temp) && s.max_temp != g.max) ||
          tiles::climate_step(dashboard::layout().tiles[g.tile], s) != g.step)) {
         show_control(-1);
+    }
+    // decided as soon as the mode and the modes are known (the panel's fields come after it opens)
+    const std::string_view mode = shown_value(s, pending, Option::Mode);
+    if (g.modes_first && avail && !mode.empty() && (offered & (1u << static_cast<int>(Option::Mode))) != 0) {
+        g.modes_first = false;
+        if (mode == "off" && g.list_option < 0 && !g.dragging && std::isnan(g.step_target)) {
+            show_control(static_cast<int>(Option::Mode));
+        }
     }
     update_power(s, pending, avail);
     update_pills(s, pending, avail);

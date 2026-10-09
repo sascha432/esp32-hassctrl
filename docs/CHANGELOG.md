@@ -74,3 +74,67 @@
 - Fix: the JC4880P443C showed "Wi-Fi is not set up" during the start: the strip read the network
   status before its first report (the P4 waits for the C6 in `esp_wifi_init`). The strip stays
   hidden until the status is ready, like the first setup. Checked by the user.
+
+## 2026-10-09
+
+Dashboard editing (docs/ui/web-dashboard.md, approved by the user after trying it on the boards):
+
+- Format: a tile may have a cell of its own per orientation, `landscape: 2,1` / `portrait: 0,3`
+  (`[2, 1]` in JSON, `core::Tile::has_landscape`/`has_portrait`). Per orientation the tiles with
+  a cell take it first, the others fill the free blocks first-fit in list order; a page without
+  cells is placed as before. A cell outside the grid, on the back tile or over another tile is an
+  error. Replaces "position: is dropped, no moving of tiles" of 2026-10-07. The sample's
+  Workshop page is arranged and documents the keys.
+- `core`: `move_tile` (every tile of the page keeps its current cell in that orientation, the
+  tiles in the way are pushed aside: the first free block in reading order from the drop cell,
+  wrapping), `reset_arrangement`, `remove_tile` (an area with its pages; the entity table stays,
+  so the screen's entity store stays valid while editing). 12 new host tests (68 in all).
+- Edit mode on the screen (`ui/edit_mode.cpp`): a long press of 1 s anywhere on a page starts it
+  (the tile under the finger does not act; holding on goes straight into a drag). A bar with
+  Reset, Cancel and Done takes the top, the grid shrinks below it, the tiles get an outline and
+  a transparent layer takes every touch. Drag moves a tile (green or red outline of the target
+  block), a long press on a tile asks to remove it, areas and the back tile still change the
+  page, turning the display keeps editing. Only Done or Cancel end it, no timeout; a reset drops
+  the edit, a save from the web UI meanwhile drops it with a message. Done stores the edited copy
+  (`Backend::save_dashboard`, `dashboard::save_layout`, written in the LVGL task) and stays on the
+  page. The pull-down is off while editing (`overlay::update`).
+- API: `POST /api/dashboard?revision=N&check=1` validates without storing; save and check answer
+  `{"checked", "revision", "dashboard"}` with the ids of new tiles and the computed `cells` of
+  every tile (the reader skips them); a problem answers `{"error", "path"}`, the tile's index in
+  each level of tile lists (`config::tile_path`, `read_json_at`), because new tiles have no id.
+  A tile without `id` is new, `finish()` numbers it. `GET /api/dashboard/editor`: the device's
+  screen in landscape (name, size, tile gap) and the icon names. `tools/test_dashboard.py` checks
+  them.
+- Web UI: the Dashboard page has the tabs Editor and Import & export (the YAML import and export
+  as before; the backup of settings and dashboard belongs to the System page). The editor
+  (`web/dashboard.js`, 15 KB gzipped, loaded only on this page, full width): the page tree, the
+  grid of the page or the default, the preview on the device's own screen in landscape and
+  portrait, drag to reorder or arrange (push aside as on the screen), add from a typed entity id
+  (suggestions from the dashboard; the Home Assistant picker comes later), area and spacer,
+  every key of the tile format, Up/Down/Duplicate/Move to/Remove, Undo, Discard, Save with 409
+  (Reload or Overwrite), the device's check a second after each change with the problem marked
+  on its tile, a question before leaving with unsaved changes. No live values in the preview
+  (decided). Icons are stand-ins until `web/icons.svg` exists.
+- Rule: the web UI goes with the firmware. The editor copies rules of `core` (placement, sizes
+  of a kind, kinds of the domains); a change to the dashboard changes `web/dashboard.js` in the
+  same commit, and the web image goes onto the devices with the firmware (architecture.md
+  section 5, README "Flash", comments in `layout.cpp` and `dashboard.js`).
+- `tools/build_fs.py <board> -p PORT` reads the board's storage partition first and keeps every
+  file outside `/www` (the dashboard) in the new image; `--fresh` keeps nothing.
+- Docs: `docs/ui/web-dashboard.md` (plan, decisions, what was built differently: an edited copy
+  of the layout instead of a list of operations, the save in the LVGL task),
+  `docs/ui/dashboard-editor-demo.html` (the reviewed mock-up), architecture.md and screen.md on
+  cells per orientation.
+
+Screen:
+
+- JC4880P443C: 8 px between the dashboard tiles (`board::Info::ui_tile_gap`,
+  `ui::Options::tile_gap`; 4 px on the other boards). Approved by the user.
+- Climate panel: while the mode is off it opens on the mode list instead of the arc (once per
+  opening; the power button leads there too). Approved by the user.
+- Camera full screen: the spinner's track is at 50 % opacity, so the image shows through.
+  Approved by the user.
+
+Devices: WT32-SC01 (COM9), JC3248W535 (COM10) and JC4880P443C (COM11) have this firmware and
+its web image, their dashboards kept. The WT32's firmware write failed twice at 921600 baud
+(checksum) and went through at 460800.

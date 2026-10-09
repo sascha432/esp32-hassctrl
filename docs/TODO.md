@@ -546,6 +546,33 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
   (was 56), about 30 KB PSRAM for your dashboard; the stored JSON is 10.8 KB.
 - Not done: the web UI page for it (the Dashboard page still says "comes later"), the combined
   backup file with the settings sections, and `hass:` of an import is only reported as ignored.
+- [ ] **Dashboard editing** (planned 2026-10-08, [ui/web-dashboard.md](ui/web-dashboard.md), demo
+      `docs/ui/dashboard-editor-demo.html` reviewed by you): tile positions per orientation in the
+      format, edit mode on the screen (1000 ms long press, drag with push aside, long press on a
+      tile removes it, Done/Cancel), web UI editor with an Import & export tab; the backup goes
+      to the System page. Steps in section 5 of the plan.
+  - [x] Format (2026-10-08): `landscape`/`portrait` cells in `core` and `config`, `move_tile`
+        (push aside), `reset_arrangement`, `remove_tile`; 68 host tests; the sample's Workshop page
+        is arranged.
+  - [x] Screen edit mode (2026-10-08, `ui/edit_mode.cpp`): tried in the Windows version (long
+        press, drag with push aside, remove, Cancel, Done, an area page, turning the display).
+        Tested and approved by you on the WT32 (2026-10-09). Still open: measure how long the
+        save blocks the LVGL task.
+  - [x] API (2026-10-08): `POST /api/dashboard?check=1`, answers with the stored dashboard and
+        the cells of every tile, problems with the tile's path, `GET /api/dashboard/icons`.
+        `tools/test_dashboard.py` has checks for them; not run against a device yet. T4 main and
+        recovery build (recovery partition 4 % free).
+  - [x] Web editor (2026-10-09, `web/dashboard.js`, loaded by the Dashboard page; tabs Editor
+        and Import & export): tried headless in Edge with your dashboard as data, the API calls
+        tried on the P4 (check=1, problem path, icons). Approved by you (2026-10-09): moving,
+        adding, removing and saving work. The board choice is gone (the preview is the device's
+        own screen, `GET /api/dashboard/editor`); no live values in the preview (decided).
+        All three boards updated with firmware and web image (`build_fs.py -p` keeps the
+        dashboard).
+  - [ ] `web/icons.svg` (the editor's icons are stand-ins), the entity picker
+        (`/api/hass/entities`, `/api/hass/entity`; the editor takes typed entity ids meanwhile).
+- [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
+      spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 
 Home Assistant values (2026-10-07, running on the T4 against your Home Assistant):
 

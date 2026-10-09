@@ -24,6 +24,8 @@ struct Options {
     // every text about 28 % larger (Montserrat 16 to 36 instead of 12 to 28); the board's
     // sdkconfig.defaults has to build the sizes 18, 26 and 36 in
     bool large_fonts = false;
+    // the gap between the tiles of the dashboard in pixels (the JC4880P443C's 800x480 has 8)
+    uint8_t tile_gap = 4;
 };
 
 // Builds the dashboard, the pull-down and the alert strip. Call with the LVGL lock held. The

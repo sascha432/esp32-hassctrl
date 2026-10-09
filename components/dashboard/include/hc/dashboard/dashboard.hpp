@@ -54,10 +54,27 @@ enum class Result : uint8_t {
     Failed,   // the file system or the memory failed
 };
 
-// Replaces the dashboard with the one in `json` (the format of export_json) if the stored
-// revision is `expected_revision` (0 when there is none). `revision` is the new one.
-Result save_json(std::string_view json, uint32_t expected_revision, uint32_t &revision, char *error,
-                 size_t error_size);
+// What a save or a check of a dashboard in JSON reports.
+struct SaveReport {
+    uint32_t revision = 0; // the new revision; with `check_only` the stored one
+    char error[160] = {};
+    // where the tile of the problem stands (config::tile_path), path_length 0: not about one tile
+    uint16_t path[core::kMaxAreaDepth + 2] = {};
+    uint8_t path_length = 0;
+    // Ok: the dashboard as it is stored (or would be): with the ids of new tiles and the cells of
+    // every tile (config::write_json with cells); large heap, free it with release()
+    char *json = nullptr;
+    size_t json_length = 0;
+};
+
+// Replaces the dashboard with the one in `json` (the format of export_json; new tiles without an
+// id) if the stored revision is `expected_revision` (0 when there is none), or only checks it.
+Result save_json(std::string_view json, uint32_t expected_revision, bool check_only, SaveReport &report);
+
+// The same for a layout (the edit mode of the screen): it is written as JSON and read again, so
+// the stored dashboard is what the file holds.
+Result save_layout(const core::Layout &layout, uint32_t expected_revision, uint32_t &revision, char *error,
+                   size_t error_size);
 
 struct ImportReport {
     uint32_t revision; // the new revision, 0 for "check only"

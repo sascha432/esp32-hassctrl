@@ -62,6 +62,18 @@ enum class DashboardResult : uint8_t {
     Failed,   // 500: the file system or the memory failed
 };
 
+// What a save or a check of the dashboard in JSON answers.
+struct DashboardSaved {
+    uint32_t revision;
+    // where the tile of a problem stands: its index in each level of tile lists; 0 entries: none
+    uint16_t path[8];
+    uint8_t path_length;
+    // Ok: the dashboard as stored (or checked), with the ids of new tiles and the cells of every
+    // tile; free it with `release`
+    char *json;
+    size_t json_length;
+};
+
 struct DashboardInfo {
     uint32_t revision;
     uint32_t pages;
@@ -78,12 +90,18 @@ struct DashboardAccess {
     char *(*export_json)(size_t &length, char *error, size_t error_size);
     char *(*export_yaml)(size_t &length);
     void (*release)(char *text);
-    // replaces the dashboard if the stored revision is `expected_revision` (0 without one)
-    DashboardResult (*save_json)(const char *text, size_t length, uint32_t expected_revision, DashboardInfo &out,
-                                 char *error, size_t error_size);
+    // replaces the dashboard if the stored revision is `expected_revision` (0 without one), or
+    // only checks it
+    DashboardResult (*save_json)(const char *text, size_t length, uint32_t expected_revision, bool check_only,
+                                 DashboardSaved &out, char *error, size_t error_size);
     // replaces the dashboard with the import of the files, or only checks them
     DashboardResult (*import_yaml)(const DashboardFile *files, size_t count, bool check_only, DashboardInfo &out,
                                    char *error, size_t error_size);
+    // the icon names a tile may use (besides "none"), nullptr after the last
+    const char *(*icon_name)(size_t index);
+    // the screen the dashboard is drawn on, in landscape, and the gap between its tiles (the
+    // editor's preview is this screen)
+    void (*screen)(const char *&name, uint16_t &width, uint16_t &height, uint8_t &tile_gap);
 };
 
 struct Config {

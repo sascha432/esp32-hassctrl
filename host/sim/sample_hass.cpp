@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "hc/config/dashboard.hpp"
 #include "lvgl.h"
 #include "stub_backend.hpp"
 
@@ -39,6 +40,8 @@ struct Delivery {
 struct State {
     std::shared_ptr<const hc::core::Layout> layout;
     std::vector<EntityState> samples;
+    // the layout of the subscription: the dashboard, or the copy of the edit mode (same entities)
+    std::shared_ptr<const hc::core::Layout> shown;
     hc::core::PageIndex page = hc::core::kNone;
     uint32_t generation = 0;
     bool was_connected = false;
@@ -205,12 +208,12 @@ void queue_values(const std::vector<EntityIndex> &entities, uint32_t delay)
 
 void queue_page()
 {
-    if (!g.layout || g.page >= g.layout->pages.size()) {
+    if (!g.shown || g.page >= g.shown->pages.size()) {
         return;
     }
     std::vector<EntityIndex> entities;
-    for (const auto index : g.layout->pages[g.page].tiles) {
-        const EntityIndex entity = g.layout->tiles[index].entity;
+    for (const auto index : g.shown->pages[g.page].tiles) {
+        const EntityIndex entity = g.shown->tiles[index].entity;
         if (entity != hc::core::kNone && std::find(entities.begin(), entities.end(), entity) == entities.end()) {
             entities.push_back(entity);
         }
@@ -242,10 +245,30 @@ std::shared_ptr<const hc::core::Layout> dashboard()
     return g.layout;
 }
 
+bool save_dashboard(const hc::core::Layout &layout, uint32_t revision, char *error, size_t error_size)
+{
+    if (!g.layout || g.layout->revision != revision) {
+        std::snprintf(error, error_size, "the dashboard was changed in the meantime");
+        return false;
+    }
+    // through JSON like the device, so the stored layout is what a file would hold
+    auto stored = hc::config::read_json(hc::config::write_json(layout));
+    if (!stored) {
+        std::snprintf(error, error_size, "%s", stored.error().c_str());
+        return false;
+    }
+    stored->revision = revision + 1;
+    std::printf("dashboard saved: revision %u\n", static_cast<unsigned>(stored->revision));
+    set_dashboard(std::make_shared<const hc::core::Layout>(std::move(*stored)));
+    return true;
+}
+
 void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::PageIndex page, hc::core::TileIndex,
                     uint32_t generation)
 {
-    g.page = layout == g.layout ? page : hc::core::kNone;
+    const bool known = layout && g.layout && layout->entities.size() == g.layout->entities.size();
+    g.shown = known ? std::move(layout) : nullptr;
+    g.page = known ? page : hc::core::kNone;
     g.generation = generation;
     // the values of the page that was shown go; a history answer stays (the panel that just
     // opened subscribes after it asked for it)

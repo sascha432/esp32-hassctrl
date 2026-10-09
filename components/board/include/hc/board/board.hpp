@@ -72,6 +72,8 @@ struct Info {
     bool ui_slide_pages = false;
     bool ui_panel_dialogs = false;
     bool ui_large_fonts = false;
+    // the gap between the tiles of the dashboard in pixels
+    uint8_t ui_tile_gap = 4;
 };
 
 // The board an image was built for, at a fixed place in every firmware image: ESP-IDF's custom

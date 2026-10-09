@@ -92,6 +92,18 @@ python tools/build.py wt32_sc01 -p COM9 flash monitor
 Flashing the recovery app also resets the boot selection: the device starts the recovery app
 until a main firmware is flashed or uploaded.
 
+**Firmware and web UI go together.** The dashboard editor of the web UI (`web/dashboard.js`)
+copies rules of the firmware (the placement of the tiles, the sizes of a kind, the kinds of the
+domains) and uses its API. A firmware with any change to the dashboard (its format, its rules, its
+API) is flashed together with the web image built from the same commit:
+
+```powershell
+python tools/build.py wt32_sc01 -p COM9 flash
+python tools/build_fs.py wt32_sc01 -p COM9
+```
+
+The ports of the developer's boards: WT32-SC01 COM9, JC3248W535 COM10, JC4880P443C COM11.
+
 ## Web UI
 
 The web pages are in `web/` (plain HTML, CSS and JavaScript, Bootstrap 5.3 CSS in
@@ -100,6 +112,11 @@ The web pages are in `web/` (plain HTML, CSS and JavaScript, Bootstrap 5.3 CSS i
 the board's "storage" partition). Upload it on the System page, with `tools/update.py`, or over
 serial with `python tools/build_fs.py <board> -p COM9`. Without the image the device serves its
 built-in page; `/recovery` always serves that page.
+
+The image replaces the whole partition, where the dashboard (`/fs/dashboard.json`) lives too.
+Over serial, `build_fs.py` reads the board's partition first and keeps every file outside `/www`
+(`--fresh` keeps nothing). An upload on the System page or with `update.py` does not: export the
+dashboard first (Dashboard, Import & export) and import it afterwards.
 
 ## Update over the network
 

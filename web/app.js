@@ -130,9 +130,26 @@ async function updateHeader() {
 
 // ------------------------------------------------------------------------------------- router
 
+// the hash goes back to the dashboard after a refused leave: no new route for that
+let stayOnDashboard = false;
+
 async function route() {
-  clearInterval(refreshTimer);
   const name = location.hash.replace(/^#\/?/, "") || "status";
+  if (stayOnDashboard) {
+    stayOnDashboard = false;
+    return;
+  }
+  if (window.hcEditor && name !== "dashboard") {
+    if (window.hcEditor.dirty() && !confirm("Leave the dashboard editor? Your changes are not saved.")) {
+      stayOnDashboard = true;
+      location.hash = "#/dashboard";
+      return;
+    }
+    window.hcEditor.unmount();
+  }
+  clearInterval(refreshTimer);
+  // the dashboard editor uses the whole width, every other page one column
+  $("#page").classList.toggle("app-wide", name === "dashboard");
   try {
     session = await api("/api/session");
   } catch (e) {
@@ -316,6 +333,84 @@ function loginPage() {
 const facts = (rows) => `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
 const card = (title, body) => `<div class="card"><div class="card-body"><h2 class="h6 card-title">${esc(title)}</h2>${body}</div></div>`;
 const later = (title, text) => () => render(`<h1>${esc(title)}</h1>${card(title, `<p class="text-body-secondary mb-0">${esc(text)}</p>`)}`);
+
+// The editor (web/dashboard.js, docs/ui/web-dashboard.md) is loaded on the first visit of the page.
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`${src} could not be loaded`));
+    document.head.appendChild(script);
+  });
+}
+
+async function dashboardEditor(box) {
+  if (!window.hcEditor) await loadScript("dashboard.js");
+  await window.hcEditor.mount(box, { toast, login: () => go("login") });
+}
+
+// The YAML import (a folder with includes, or one file) and the export.
+async function dashboardFiles(box) {
+  box.innerHTML = `<div class="app-column"><div id="dash-stored">Loading ...</div>` +
+    card("Import", `
+      <label class="form-label" for="dash-folder">Dashboard folder (<code>hass.yaml</code> and its includes)</label>
+      <input id="dash-folder" type="file" class="form-control mb-2" webkitdirectory multiple>
+      <label class="form-label" for="dash-file">or one YAML file (an export)</label>
+      <input id="dash-file" type="file" class="form-control mb-3" accept=".yaml,.yml">
+      <div class="d-flex gap-2 justify-content-end">
+        <button id="dash-check" class="btn btn-outline-secondary" type="button">Check</button>
+        <button id="dash-import" class="btn btn-primary" type="button">Import</button>
+      </div>
+      <p class="mt-2 mb-0" id="dash-message"></p>`) +
+    `<p class="small text-body-secondary">The backup of the settings and the dashboard in one file is on the System page.</p></div>`;
+  const drawStored = async () => {
+    let rows;
+    try {
+      const d = await api("/api/dashboard");
+      rows = facts([["Revision", d.revision], ["Tiles", (d.tiles || []).length]]) +
+        '<div class="d-flex justify-content-end"><a class="btn btn-outline-secondary" href="/api/dashboard.yaml">Download (.yaml)</a></div>';
+    } catch (e) {
+      if (e.status !== 404) throw e;
+      rows = '<p class="text-body-secondary mb-0">No dashboard stored. Import one below.</p>';
+    }
+    $("#dash-stored").innerHTML = card("Stored", rows);
+  };
+  // the files of the folder by their path inside it (the folder's own name cut off), or the
+  // one file as hass.yaml
+  const chosen = () => {
+    const single = $("#dash-file").files[0];
+    if (single) return [[single, "hass.yaml"]];
+    return [...$("#dash-folder").files]
+      .map((f) => [f, (f.webkitRelativePath || f.name).split("/").slice(1).join("/") || f.name])
+      .filter(([, path]) => /\.ya?ml$/i.test(path));
+  };
+  const run = (button, checkOnly) => busy(button, async () => {
+    const files = chosen();
+    if (!files.length) throw new Error("choose a folder with hass.yaml or one YAML file");
+    if (!files.some(([, path]) => path === "hass.yaml")) throw new Error("the folder has no hass.yaml at its top");
+    const form = new FormData();
+    for (const [file, path] of files) form.append("files", file, path);
+    $("#dash-message").textContent = checkOnly ? "checking ..." : "importing ...";
+    try {
+      const r = await api("/api/dashboard/import" + (checkOnly ? "?check=1" : ""), form);
+      $("#dash-message").textContent = (checkOnly ? "valid: " : `imported as revision ${r.revision}: `) +
+        `${r.pages} pages, ${r.tiles} tiles` + (r.ignored ? ` (ignored: ${r.ignored})` : "");
+    } catch (e) {
+      $("#dash-message").textContent = "";
+      throw e;
+    }
+    if (!checkOnly) {
+      toast("dashboard imported", "success");
+      await drawStored();
+    }
+  });
+  $("#dash-folder").onchange = () => { $("#dash-file").value = ""; };
+  $("#dash-file").onchange = () => { $("#dash-folder").value = ""; };
+  $("#dash-check").onclick = (e) => run(e.target, true);
+  $("#dash-import").onclick = (e) => run(e.target, false);
+  await drawStored();
+}
 
 // the states of /api/hass in words, with a Bootstrap color
 const hassStates = {
@@ -546,63 +641,27 @@ const views = {
       render(`<h1>Dashboard</h1>${card("Dashboard", '<p class="text-body-secondary mb-0">The recovery app has no dashboard. Start the firmware (System).</p>')}`);
       return;
     }
-    render(`<h1>Dashboard</h1><div id="dash-stored">Loading ...</div>` +
-      card("Import", `
-        <label class="form-label" for="dash-folder">Dashboard folder (<code>hass.yaml</code> and its includes)</label>
-        <input id="dash-folder" type="file" class="form-control mb-2" webkitdirectory multiple>
-        <label class="form-label" for="dash-file">or one YAML file (an export)</label>
-        <input id="dash-file" type="file" class="form-control mb-3" accept=".yaml,.yml">
-        <div class="d-flex gap-2 justify-content-end">
-          <button id="dash-check" class="btn btn-outline-secondary" type="button">Check</button>
-          <button id="dash-import" class="btn btn-primary" type="button">Import</button>
-        </div>
-        <p class="mt-2 mb-0" id="dash-message"></p>`));
-    const drawStored = async () => {
-      let rows;
-      try {
-        const d = await api("/api/dashboard");
-        rows = facts([["Revision", d.revision], ["Tiles", (d.tiles || []).length]]) +
-          '<div class="d-flex justify-content-end"><a class="btn btn-outline-secondary" href="/api/dashboard.yaml">Download (.yaml)</a></div>';
-      } catch (e) {
-        if (e.status !== 404) throw e;
-        rows = '<p class="text-body-secondary mb-0">No dashboard stored. Import one below.</p>';
-      }
-      $("#dash-stored").innerHTML = card("Stored", rows);
+    let tab = "editor";
+    try { tab = sessionStorage.getItem("dashboard-tab") || tab; } catch (e) {}
+    render(`<div class="d-flex flex-wrap align-items-center gap-3 mb-3"><h1 class="mb-0">Dashboard</h1>
+      <ul class="nav nav-pills">
+        <li class="nav-item"><a class="nav-link" href="#/dashboard" data-tab="editor">Editor</a></li>
+        <li class="nav-item"><a class="nav-link" href="#/dashboard" data-tab="io">Import &amp; export</a></li>
+      </ul></div><div id="dash-tab"></div>`);
+    const show = async (name) => {
+      if (name !== tab && window.hcEditor && window.hcEditor.dirty() &&
+          !confirm("Leave the editor? Your changes are not saved.")) return;
+      tab = name;
+      try { sessionStorage.setItem("dashboard-tab", tab); } catch (e) {}
+      for (const link of document.querySelectorAll("[data-tab]")) link.classList.toggle("active", link.dataset.tab === tab);
+      if (window.hcEditor) window.hcEditor.unmount();
+      if (tab === "editor") await dashboardEditor($("#dash-tab"));
+      else await dashboardFiles($("#dash-tab"));
     };
-    // the files of the folder by their path inside it (the folder's own name cut off), or the
-    // one file as hass.yaml
-    const chosen = () => {
-      const single = $("#dash-file").files[0];
-      if (single) return [[single, "hass.yaml"]];
-      return [...$("#dash-folder").files]
-        .map((f) => [f, (f.webkitRelativePath || f.name).split("/").slice(1).join("/") || f.name])
-        .filter(([, path]) => /\.ya?ml$/i.test(path));
-    };
-    const run = (button, checkOnly) => busy(button, async () => {
-      const files = chosen();
-      if (!files.length) throw new Error("choose a folder with hass.yaml or one YAML file");
-      if (!files.some(([, path]) => path === "hass.yaml")) throw new Error("the folder has no hass.yaml at its top");
-      const form = new FormData();
-      for (const [file, path] of files) form.append("files", file, path);
-      $("#dash-message").textContent = checkOnly ? "checking ..." : "importing ...";
-      try {
-        const r = await api("/api/dashboard/import" + (checkOnly ? "?check=1" : ""), form);
-        $("#dash-message").textContent = (checkOnly ? "valid: " : `imported as revision ${r.revision}: `) +
-          `${r.pages} pages, ${r.tiles} tiles` + (r.ignored ? ` (ignored: ${r.ignored})` : "");
-      } catch (e) {
-        $("#dash-message").textContent = "";
-        throw e;
-      }
-      if (!checkOnly) {
-        toast("dashboard imported", "success");
-        await drawStored();
-      }
-    });
-    $("#dash-folder").onchange = () => { $("#dash-file").value = ""; };
-    $("#dash-file").onchange = () => { $("#dash-folder").value = ""; };
-    $("#dash-check").onclick = (e) => run(e.target, true);
-    $("#dash-import").onclick = (e) => run(e.target, false);
-    await drawStored();
+    for (const link of document.querySelectorAll("[data-tab]")) {
+      link.onclick = (e) => { e.preventDefault(); show(link.dataset.tab); };
+    }
+    await show(tab);
   },
   logs: later("Logs", "The log view comes later."),
 

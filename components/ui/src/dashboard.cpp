@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <vector>
 
+#include "edit_mode.hpp"
+#include "overlay.hpp"
 #include "panel.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
@@ -19,9 +22,8 @@ namespace t = theme;
 constexpr uint32_t kPollMs = 20;
 // a new layout is looked for this often
 constexpr uint32_t kLayoutCheckMs = 500;
-// docs/ui/dashboard.md: the margin around the grid and the gap between tiles
+// docs/ui/dashboard.md: the margin around the grid (the gap between tiles is Options::tile_gap)
 constexpr lv_coord_t kMargin = 8;
-constexpr lv_coord_t kGap = 4;
 // Options::slide_pages: how long a page takes to slide in
 constexpr uint32_t kSlideMs = 250;
 
@@ -47,6 +49,12 @@ struct State {
     uint32_t last_layout_check = 0;
 
     std::shared_ptr<const core::Layout> layout;
+    // while editing: the layout the edit started from (`layout` is the edited copy); null otherwise
+    std::shared_ptr<const core::Layout> base;
+    bool edited = false;
+    // the page the next layout opens on (Done keeps the page), kNone: the main page
+    core::PageIndex keep_page = core::kNone;
+    Grid grid;
     std::unique_ptr<core::EntityStore> store;
     core::PendingTracker pending;
     core::PageIndex page = 0;
@@ -148,16 +156,21 @@ void build_page(Slide slide = Slide::None)
     g.built_width = width;
     g.built_height = height;
     const bool portrait = height > width;
+    // while editing the bar takes the top and the grid shrinks below it
+    const lv_coord_t top = editing() ? edit::kBarHeight : 0;
     const uint8_t cols = portrait ? page.grid.rows : page.grid.cols;
     const uint8_t rows = portrait ? page.grid.cols : page.grid.rows;
-    const lv_coord_t cell_w = (width - 2 * kMargin - (cols - 1) * kGap) / cols;
-    const lv_coord_t cell_h = (height - 2 * kMargin - (rows - 1) * kGap) / rows;
+    const lv_coord_t gap = g.options.tile_gap;
+    const lv_coord_t cell_w = (width - 2 * kMargin - (cols - 1) * gap) / cols;
+    const lv_coord_t cell_h = (height - top - 2 * kMargin - (rows - 1) * gap) / rows;
+    g.grid = {kMargin, static_cast<lv_coord_t>(top + kMargin), cell_w, cell_h, gap, cols, rows,
+              portrait ? core::Orientation::Portrait : core::Orientation::Landscape};
     const auto area_of = [&](core::Cell cell, uint8_t span_cols, uint8_t span_rows) {
         lv_area_t area;
-        area.x1 = static_cast<lv_coord_t>(kMargin + cell.col * (cell_w + kGap));
-        area.y1 = static_cast<lv_coord_t>(kMargin + cell.row * (cell_h + kGap));
-        area.x2 = static_cast<lv_coord_t>(area.x1 + span_cols * cell_w + (span_cols - 1) * kGap - 1);
-        area.y2 = static_cast<lv_coord_t>(area.y1 + span_rows * cell_h + (span_rows - 1) * kGap - 1);
+        area.x1 = static_cast<lv_coord_t>(kMargin + cell.col * (cell_w + gap));
+        area.y1 = static_cast<lv_coord_t>(top + kMargin + cell.row * (cell_h + gap));
+        area.x2 = static_cast<lv_coord_t>(area.x1 + span_cols * cell_w + (span_cols - 1) * gap - 1);
+        area.y2 = static_cast<lv_coord_t>(area.y1 + span_rows * cell_h + (span_rows - 1) * gap - 1);
         return area;
     };
 
@@ -180,6 +193,25 @@ void build_page(Slide slide = Slide::None)
     }
     for (auto &view : g.views) {
         update_view(view);
+    }
+    if (editing()) {
+        // the tiles take no touches (the edit layer lies over them), an outline shows that they move
+        for (auto &view : g.views) {
+            lv_obj_set_style_outline_width(view.card, 2, 0);
+            lv_obj_set_style_outline_color(view.card, t::color(view.tile == core::kNone ? t::kBorder : t::kTextLabel), 0);
+        }
+        edit::refresh();
+    } else {
+        // a long press anywhere on the page starts edit mode
+        lv_obj_add_flag(g.page_obj, LV_OBJ_FLAG_CLICKABLE);
+        edit::watch(g.page_obj);
+        for (auto &view : g.views) {
+            for (lv_obj_t *obj : {view.card, view.plus, view.minus}) {
+                if (obj != nullptr) {
+                    edit::watch(obj);
+                }
+            }
+        }
     }
     if (g.panel != core::kNone) {
         // the display turned under an open panel
@@ -209,7 +241,8 @@ void show_layout(std::shared_ptr<const core::Layout> layout)
     g.layout = std::move(layout);
     g.store = std::make_unique<core::EntityStore>(g.layout->entities.size());
     g.pending.clear();
-    g.page = 0;
+    g.page = g.keep_page < g.layout->pages.size() ? g.keep_page : 0;
+    g.keep_page = core::kNone;
     g.panel = core::kNone;
     build_page();
     subscribe();
@@ -259,7 +292,12 @@ void on_timer(lv_timer_t *)
     if (now - g.last_layout_check >= kLayoutCheckMs) {
         g.last_layout_check = now;
         auto current = g.backend->dashboard();
-        if (current && current != g.layout) {
+        if (current && current != (g.base ? g.base : g.layout)) {
+            if (editing()) {
+                // an import or a save in the web UI while editing: the edit would conflict
+                stop_editing();
+                edit::dropped();
+            }
             show_layout(std::move(current));
         }
     }
@@ -445,6 +483,121 @@ void expect(core::EntityIndex entity, core::Expectation expected)
 {
     g.pending.start(entity, std::move(expected), lv_tick_get());
     redraw(entity);
+}
+
+memory::String tile_name(core::TileIndex tile)
+{
+    const core::Tile &t = g.layout->tiles[tile];
+    if (!t.name.empty()) {
+        return t.name;
+    }
+    const core::EntityState &entity = state(t.entity);
+    if (!entity.name.empty()) {
+        return entity.name;
+    }
+    const std::string_view id = g.layout->entity_id(t);
+    return memory::String(id.data(), id.size());
+}
+
+bool editing()
+{
+    return g.base != nullptr;
+}
+
+void start_editing()
+{
+    if (!g.layout || editing()) {
+        return;
+    }
+    finish_slide();
+    panel::destroy();
+    g.panel = core::kNone;
+    g.base = g.layout;
+    g.layout = std::make_shared<const core::Layout>(*g.base);
+    g.edited = false;
+    edit::open(g.screen);
+    overlay::update(); // no pull-down while editing
+    build_page();
+    subscribe();
+}
+
+void set_edited(core::Layout layout)
+{
+    if (!editing()) {
+        return;
+    }
+    g.layout = std::make_shared<const core::Layout>(std::move(layout));
+    g.edited = true;
+    // a removal only takes pages below the shown one: its index stays
+    if (g.page >= g.layout->pages.size()) {
+        g.page = 0;
+    }
+    build_page();
+    subscribe();
+}
+
+void redraw_page()
+{
+    if (g.layout) {
+        build_page();
+    }
+}
+
+bool save_editing(char *error, size_t size)
+{
+    if (!editing()) {
+        return true;
+    }
+    if (!g.edited) {
+        stop_editing();
+        return true;
+    }
+    if (g.backend->save_dashboard == nullptr ||
+        !g.backend->save_dashboard(*g.layout, g.base->revision, error, size)) {
+        if (g.backend->save_dashboard == nullptr) {
+            std::snprintf(error, size, "this device cannot store the dashboard");
+        }
+        return false;
+    }
+    g.keep_page = g.page;
+    g.base.reset();
+    edit::close();
+    overlay::update();
+    if (auto stored = g.backend->dashboard()) {
+        show_layout(std::move(stored));
+    }
+    return true;
+}
+
+void stop_editing()
+{
+    if (!editing()) {
+        return;
+    }
+    g.layout = std::move(g.base);
+    g.base.reset();
+    edit::close();
+    overlay::update();
+    if (g.page >= g.layout->pages.size()) {
+        g.page = 0;
+    }
+    build_page();
+    subscribe();
+}
+
+core::PageIndex current_page()
+{
+    return g.page;
+}
+
+const memory::Vector<tiles::View> &views()
+{
+    return g.views;
+}
+
+const Grid &grid()
+{
+    return g.grid;
 }
 
 void redraw(core::EntityIndex entity)
