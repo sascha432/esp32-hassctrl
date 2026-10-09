@@ -52,6 +52,19 @@ inline void image_forget(const ImageDsc &dsc)
     lv_img_cache_invalidate_src(&dsc);
 }
 
+// Calls `callback` with the code of every event a touch on `indev` sends (LVGL 9: an event
+// callback on the input device). Leaves a device that has one alone; false then.
+inline bool set_touch_feedback(lv_indev_t *indev, void (*callback)(uint8_t code))
+{
+    static void (*s_callback)(uint8_t) = nullptr;
+    if (indev->driver->feedback_cb != nullptr) {
+        return false;
+    }
+    s_callback = callback;
+    indev->driver->feedback_cb = [](lv_indev_drv_t *, uint8_t code) { s_callback(code); };
+    return true;
+}
+
 #endif
 
 } // namespace hc::ui::compat

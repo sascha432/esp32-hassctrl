@@ -8,9 +8,11 @@
 #include <cstdio>
 #include <cstring>
 
+#include "alarm.hpp"
 #include "keyboard.hpp"
 #include "power.hpp"
 #include "rotation.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::settings::pages {
@@ -34,21 +36,6 @@ int from_data(lv_event_t *event)
     return static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
 }
 
-lv_obj_t *text_block(lv_obj_t *parent, const char *text, uint32_t color = t::kTextValue)
-{
-    lv_obj_t *obj = t::label(parent, text, t::font_normal(), color);
-    lv_obj_set_width(obj, lv_pct(100));
-    lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
-    return obj;
-}
-
-lv_obj_t *section(lv_obj_t *parent, const char *text)
-{
-    lv_obj_t *obj = t::label(parent, text, t::font_small(), t::kTextLabel);
-    lv_obj_set_style_pad_top(obj, 6, 0);
-    return obj;
-}
-
 lv_obj_t *button_row(lv_obj_t *parent)
 {
     lv_obj_t *obj = t::plain(parent);
@@ -61,49 +48,6 @@ lv_obj_t *button_row(lv_obj_t *parent)
 }
 
 // ------------------------------------------------------------------- display settings
-
-// A card: the name and the value in the first line, the slider over the full width below, so the
-// slider stays usable on narrow screens. `on_change` gets the slider; the value label is updated
-// here.
-lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t max, int32_t value,
-                      lv_event_cb_t on_change)
-{
-    lv_obj_t *card = t::plain(parent);
-    lv_obj_set_size(card, lv_pct(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(card, t::color(t::kCard), 0);
-    lv_obj_set_style_radius(card, t::kRadius, 0);
-    lv_obj_set_style_pad_hor(card, 12, 0);
-    lv_obj_set_style_pad_top(card, 10, 0);
-    lv_obj_set_style_pad_bottom(card, 16, 0);
-    lv_obj_set_style_pad_row(card, 12, 0);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-
-    lv_obj_t *head = t::plain(card);
-    lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(head, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    t::label(head, name, t::font_medium(), t::kText);
-    lv_obj_t *value_label = t::label(head, "", t::font_normal(), t::kTextValue);
-    lv_label_set_text_fmt(value_label, "%d %%", static_cast<int>(value));
-
-    // the knob reaches past the ends of the track by half its height plus its padding (theme)
-    lv_obj_t *track = t::plain(card);
-    lv_obj_set_size(track, lv_pct(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(track, 16, 0);
-    lv_obj_set_style_pad_ver(track, 6, 0);
-    lv_obj_t *slider = t::slider(track, min, max, value);
-    lv_obj_set_width(slider, lv_pct(100));
-    lv_obj_add_event_cb(
-        slider,
-        [](lv_event_t *event) {
-            lv_label_set_text_fmt(static_cast<lv_obj_t *>(lv_event_get_user_data(event)), "%d %%",
-                                  static_cast<int>(lv_slider_get_value(lv_event_get_target(event))));
-        },
-        LV_EVENT_VALUE_CHANGED, value_label);
-    lv_obj_add_event_cb(slider, on_change, LV_EVENT_VALUE_CHANGED, nullptr);
-    return slider;
-}
 
 DisplaySettings display_settings()
 {
@@ -228,6 +172,7 @@ lv_obj_t *g_quick_wifi = nullptr;
 lv_obj_t *g_quick_hotspot = nullptr;
 lv_obj_t *g_quick_hotspot_switch = nullptr;
 lv_obj_t *g_quick_ha = nullptr;
+lv_obj_t *g_quick_alarm = nullptr;
 
 void wifi_summary(const WifiInfo &w, char *out, size_t size)
 {
@@ -254,6 +199,10 @@ void quick_refresh()
     be().hass_info(h);
     t::line_text(t::row_value(g_quick_ha), h.state);
     lv_obj_set_style_text_color(t::row_value(g_quick_ha), t::color(h.failed ? t::kAlert : t::kTextValue), 0);
+    if (g_quick_alarm != nullptr) {
+        alarm::summary(text, sizeof(text));
+        t::line_text(t::row_value(g_quick_alarm), text);
+    }
     if (w.hotspot_on != lv_obj_has_state(g_quick_hotspot_switch, LV_STATE_CHECKED)) {
         if (w.hotspot_on) {
             lv_obj_add_state(g_quick_hotspot_switch, LV_STATE_CHECKED);
@@ -272,11 +221,21 @@ Built quick(lv_obj_t *content)
 {
     lv_obj_t *col = t::column(content);
     brightness_card(col);
+    if (sound::available()) {
+        volume_card(col);
+    }
     g_quick_wifi = t::row(col, "Wi-Fi", "", true, [](lv_event_t *) { push(Page::Wifi); });
     g_quick_hotspot = t::row(col, "Hotspot", "", false, [](lv_event_t *) { push(Page::Hotspot); });
     g_quick_hotspot_switch = t::toggle(g_quick_hotspot, false, on_hotspot_switch);
     g_quick_ha = t::row(col, "Home Assistant", "", true, [](lv_event_t *) { push(Page::HomeAssistant); });
     t::row(col, "Display", "", true, [](lv_event_t *) { push(Page::Display); });
+    if (sound::available()) {
+        t::row(col, "Sound", "", true, [](lv_event_t *) { push(Page::Sound); });
+    }
+    g_quick_alarm = nullptr;
+    if (alarm::available()) {
+        g_quick_alarm = t::row(col, "Alarm", "", true, [](lv_event_t *) { push(Page::Alarm); });
+    }
     t::row(col, "System", "", true, [](lv_event_t *) { push(Page::System); });
     quick_refresh();
     return {"Settings", quick_refresh};
@@ -865,6 +824,72 @@ Built system(lv_obj_t *content)
 
 } // namespace
 
+lv_obj_t *text_block(lv_obj_t *parent, const char *text, uint32_t color)
+{
+    lv_obj_t *obj = t::label(parent, text, t::font_normal(), color);
+    lv_obj_set_width(obj, lv_pct(100));
+    lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
+    return obj;
+}
+
+lv_obj_t *section(lv_obj_t *parent, const char *text)
+{
+    lv_obj_t *obj = t::label(parent, text, t::font_small(), t::kTextLabel);
+    lv_obj_set_style_pad_top(obj, 6, 0);
+    return obj;
+}
+
+// past the slider in every direction: more than the card around it, which limits it
+constexpr lv_coord_t kCardTouchReach = 200;
+
+lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t max, int32_t value,
+                      lv_event_cb_t on_change)
+{
+    lv_obj_t *card = t::plain(parent);
+    lv_obj_set_size(card, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(card, t::color(t::kCard), 0);
+    lv_obj_set_style_radius(card, t::kRadius, 0);
+    lv_obj_set_style_pad_hor(card, 12, 0);
+    lv_obj_set_style_pad_top(card, 10, 0);
+    lv_obj_set_style_pad_bottom(card, 6, 0);
+    lv_obj_set_style_pad_row(card, 2, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
+    lv_obj_t *head = t::plain(card);
+    lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(head, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    t::label(head, name, t::font_medium(), t::kText);
+    lv_obj_t *value_label = t::label(head, "", t::font_normal(), t::kTextValue);
+    lv_label_set_text_fmt(value_label, "%d %%", static_cast<int>(value));
+
+    // The knob reaches past the ends of the track by half its height plus its padding (theme).
+    // The whole card is the slider's touch area: a strip around the slider was too thin for a
+    // finger, also at 42 px on the P4's dense screen (2026-10-09). LVGL looks for a child only
+    // inside its parent unless the parent lets it overflow, so the track does, and the slider's
+    // touch area reaches past the card; the card's own edges cut it off (the card does not
+    // overflow), so the rows next to it keep their touches.
+    lv_obj_t *track = t::plain(card);
+    lv_obj_set_size(track, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_hor(track, 16, 0);
+    lv_obj_set_style_pad_ver(track, 16, 0);
+    lv_obj_clear_flag(track, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(track, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_t *slider = t::slider(track, min, max, value);
+    lv_obj_set_width(slider, lv_pct(100));
+    lv_obj_set_ext_click_area(slider, kCardTouchReach);
+    lv_obj_add_event_cb(
+        slider,
+        [](lv_event_t *event) {
+            lv_label_set_text_fmt(static_cast<lv_obj_t *>(lv_event_get_user_data(event)), "%d %%",
+                                  static_cast<int>(lv_slider_get_value(lv_event_get_target(event))));
+        },
+        LV_EVENT_VALUE_CHANGED, value_label);
+    lv_obj_add_event_cb(slider, on_change, LV_EVENT_VALUE_CHANGED, nullptr);
+    return slider;
+}
+
 Built build(Page page, lv_obj_t *content, const char *text, int index)
 {
     // a page that is left forgets its list state
@@ -889,6 +914,10 @@ Built build(Page page, lv_obj_t *content, const char *text, int index)
         return home_assistant(content);
     case Page::Display:
         return display(content);
+    case Page::Sound:
+        return sound_page(content);
+    case Page::Alarm:
+        return alarm_page(content);
     case Page::System:
         return system(content);
     }

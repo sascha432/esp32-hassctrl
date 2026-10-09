@@ -36,6 +36,9 @@ struct Info {
     // hc::frame_display instead of esp_lvgl_port's display: a frame in PSRAM, rotated in software.
     // swap_xy and mirror_* must be false.
     bool full_frames = false;
+    // The touch controller is part of the panel controller (the AXS15231B): main keeps
+    // esp_lvgl_port's reader in the LVGL task for it, hc::touch_input's task did not work with it.
+    bool touch_in_panel = false;
     // A MIPI-DSI video panel (ST7701S on the ESP32-P4): the DPI controller scans a frame buffer in
     // PSRAM and the panel cannot rotate. main then uses esp_lvgl_port's DSI display, which copies
     // LVGL's bands into the frame buffer, and LVGL rotates in software. swap_xy and mirror_* must
@@ -59,6 +62,19 @@ struct Info {
     // An LDR on this ADC1 GPIO (LDR to 3V3, 10 kOhm to GND) as the light source when no BH1750
     // answers; -1 without one. Calibrated with console `light` (hc::light_sensor::ldr).
     int8_t light_ldr_gpio = -1;
+    // The I2S input of a speaker amplifier on the board (the NS4168 of the JC3248W535), -1 without
+    // one. The board's Kconfig option selects HC_BOARD_HAS_AUDIO when it has one (hc::audio).
+    int8_t audio_bclk_gpio = -1;
+    int8_t audio_ws_gpio = -1;
+    int8_t audio_dout_gpio = -1;
+    // the master clock of a codec, 256 x the sample rate; -1 when nothing needs it
+    int8_t audio_mclk_gpio = -1;
+    // The I2S data goes through a codec that has to be set up (the ES8311 of the JC4880P443C):
+    // without audio_codec() there is no sound.
+    bool audio_codec = false;
+    // The speaker channel runs all the time instead of stopping a second after a sound: the
+    // amplifier's wake-up changed how loud a click was (hc::audio::Config::keep_running).
+    bool audio_always_on = false;
     // How the MPU6050 sits on this board type, measured by the developer when the board is added
     // (docs/adding-a-board.md, console `orient`): gravity in the module's axes with the panel upright
     // in the base orientation (3 floats), then turned 90 degrees clockwise (3 floats). All zero = the
@@ -85,6 +101,16 @@ struct ImageTag {
 };
 constexpr uint32_t kImageTagMagic = 0x54424348; // "HCBT" in the image
 
+// A codec between the I2S output and the amplifier, set up over the board's I2C bus by init().
+// The audio output calls it (wired in main): start() whenever its I2S channel starts or changes
+// the sample rate, with the master clock already running; stop() before the channel stops.
+struct AudioCodec {
+    // the codec for 16 bit samples at `sample_rate`, its output and the amplifier on
+    esp_err_t (*start)(uint32_t sample_rate);
+    // output and amplifier off
+    void (*stop)();
+};
+
 struct Handles {
     esp_lcd_panel_io_handle_t io;
     esp_lcd_panel_handle_t panel;
@@ -108,6 +134,10 @@ const Info &info();
 // Initializes the display bus, the panel, the touch controller and the backlight (off; it also
 // turns off before every esp_restart()). Call once. A touch controller that does not answer is logged and left out, the display still works.
 esp_err_t init(Handles &out);
+
+// The board's audio codec (Info::audio_codec), nullptr without one or when it did not answer.
+// After init().
+const AudioCodec *audio_codec();
 
 // 0 turns the backlight off. 1..100 are spread from the calibrated minimum to full brightness,
 // so no brightness setting makes the screen unreadable.

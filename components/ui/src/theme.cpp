@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "sound.hpp"
+
 namespace hc::ui::theme {
 
 namespace {
@@ -215,7 +217,11 @@ lv_obj_t *row(lv_obj_t *parent, const char *text, const char *value, bool opens_
     }
     if (callback != nullptr) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+        sound::tappable(obj);
         lv_obj_add_event_cb(obj, callback, LV_EVENT_CLICKED, user_data);
+    } else {
+        // a row without an action takes no touches: they go to the page below (it scrolls)
+        lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
     }
     return obj;
 }
@@ -257,8 +263,29 @@ lv_obj_t *toggle(lv_obj_t *parent, bool on, lv_event_cb_t callback, void *user_d
     if (callback != nullptr) {
         lv_obj_add_event_cb(obj, callback, LV_EVENT_VALUE_CHANGED, user_data);
     }
+    // A row without an action of its own flips the switch with a tap anywhere on it: the switch
+    // alone was hard to hit, the row took the taps beside it.
+    if (!lv_obj_has_flag(parent, LV_OBJ_FLAG_CLICKABLE)) {
+        lv_obj_add_flag(parent, LV_OBJ_FLAG_CLICKABLE);
+        sound::tappable(parent);
+        lv_obj_add_event_cb(
+            parent,
+            [](lv_event_t *event) {
+                auto *sw = static_cast<lv_obj_t *>(lv_event_get_user_data(event));
+                if (lv_obj_has_state(sw, LV_STATE_CHECKED)) {
+                    lv_obj_clear_state(sw, LV_STATE_CHECKED);
+                } else {
+                    lv_obj_add_state(sw, LV_STATE_CHECKED);
+                }
+                lv_event_send(sw, LV_EVENT_VALUE_CHANGED, nullptr);
+            },
+            LV_EVENT_CLICKED, obj);
+    }
     return obj;
 }
+
+// past the slider's ends: the knob's overhang plus a margin for a finger
+constexpr lv_coord_t kSliderTouchMargin = 16;
 
 lv_obj_t *slider(lv_obj_t *parent, int32_t min, int32_t max, int32_t value)
 {
@@ -270,6 +297,10 @@ lv_obj_t *slider(lv_obj_t *parent, int32_t min, int32_t max, int32_t value)
     lv_obj_set_style_bg_color(obj, color(kText), LV_PART_KNOB);
     // the knob covers the end of the track, so the slider keeps a gap to the edges
     lv_obj_set_style_pad_all(obj, 4, LV_PART_KNOB);
+    // At 0 and 100 % half of the knob lies outside the slider, where its container took the
+    // touches: a drag that started there did nothing. The slider takes touches as far as the knob
+    // reaches (and a little more for a finger).
+    lv_obj_set_ext_click_area(obj, kSliderTouchMargin);
     return obj;
 }
 

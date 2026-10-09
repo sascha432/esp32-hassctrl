@@ -61,6 +61,7 @@ add_library(hc_dashboard STATIC
     ${HC_ROOT}/components/config/src/export.cpp
     ${HC_ROOT}/components/config/src/import.cpp
     ${HC_ROOT}/components/config/src/json.cpp
+    ${HC_ROOT}/components/core/src/alarm.cpp
     ${HC_ROOT}/components/core/src/entity.cpp
     ${HC_ROOT}/components/core/src/icons.cpp
     ${HC_ROOT}/components/core/src/image.cpp

@@ -1,11 +1,13 @@
 #include "hc/ui/ui.hpp"
 
+#include "alarm.hpp"
 #include "dashboard.hpp"
 #include "overlay.hpp"
 #include "power.hpp"
 #include "rotation.hpp"
 #include "settings.hpp"
 #include "setup.hpp"
+#include "sound.hpp"
 #include "splash.hpp"
 #include "theme.hpp"
 
@@ -23,6 +25,8 @@ void start(lv_disp_t *disp, const Backend &backend, bool orientation_sensor, con
     rotation::init(disp, backend, orientation_sensor);
     settings::init(disp, backend, screen);
     power::init(disp, backend);
+    sound::init(backend);
+    alarm::init(backend);
     setup::init(backend, screen);
     overlay::init(backend);
 }
@@ -30,6 +34,11 @@ void start(lv_disp_t *disp, const Backend &backend, bool orientation_sensor, con
 void show_setup()
 {
     setup::request();
+}
+
+void ring_alarm()
+{
+    alarm::request_ring();
 }
 
 void sensor_rotation(uint8_t rotation)

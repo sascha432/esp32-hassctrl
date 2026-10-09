@@ -481,6 +481,17 @@ const Info &info();                    // name, resolution, has_touch, psram
   tab of the test screen and later with the calibration in Settings, System; the screen returns
   to the normal brightness after 10 seconds without a touch while the test runs. Stored in NVS
   with the other calibration values (step 3).
+* A speaker amplifier on I2S is part of the board too: its pins are in `Info` (`audio_*`), and the
+  board's Kconfig option selects `HC_BOARD_HAS_AUDIO`, which offers the `audio` component
+  (section 9.6).
+* **Touch input** (`touch_input`, since 2026-10-09): a task samples the touch controller every
+  10 ms (priority 5) and queues every change; LVGL's read takes them in order, all waiting ones in
+  one read (`continue_reading`). esp_lvgl_port read the controller in the LVGL task every 30 ms
+  and not while LVGL rendered, so quick taps during a long render were lost. Points outside the
+  panel are dropped. Not where touch and panel are one chip (`Info::touch_in_panel`, the
+  AXS15231B of the JC3248W535): read by the task the touch reported points all over the screen,
+  and with the reads kept between frames none at all; that board keeps esp_lvgl_port's reader in
+  the LVGL task (open: why, see docs/TODO.md). Console `touch log` prints the samples.
 * `board` also owns the shared buses, such as the I2C bus of the touch controller, and hands out
   their handles, so a sensor on the same bus does not open it a second time.
 
@@ -682,6 +693,8 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `hass` | yes | the Home Assistant connection of section 6 (running, step 5 first part): URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 16 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. URL parsing (`url.cpp`) is plain C++ for host tests |
 | `ota` | yes | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web.md](ui/web.md) section 8), restart into the recovery app and back, partition layout of section 9.5 (running) |
 | `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset. Used until the setup screens exist |
+| `audio` | yes, per board, removable | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
+| `touch_input` | yes | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
 | `uidebug` | yes, removable | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Over the network later |
 
 ### 9.5 Partition layout and the recovery app (proposal)
@@ -723,6 +736,109 @@ in the main firmware.
 * **Alternative**: compressed or delta OTA updates exist for ESP-IDF, but they need a custom
   bootloader or a patch component. The recovery app is simpler and also covers the recovery case.
 
+### 9.6 Audio
+
+Sound through an I2S amplifier and a speaker, on the boards that have one: the JC3248W535 has an
+NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amplifier (since
+2026-10-09); the WT32-SC01 and the T4 have none and build without audio.
+Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files and the alarm clock.
+
+* **Features that can be left out** (menu "hassctrl audio"), each on by default where the board
+  offers audio:
+  * `CONFIG_HC_AUDIO`: the component `audio`. A board offers it by `select HC_BOARD_HAS_AUDIO` in
+    its Kconfig choice entry and by the pins in its `board::Info` (`audio_bclk_gpio`,
+    `audio_ws_gpio`, `audio_dout_gpio`; pins stay in the board source, section 8). Without it the
+    component has no sources and `main` and `devconsole` leave their calls out (`#if`).
+  * `CONFIG_HC_AUDIO_TOUCH_SOUND`: the click and the slider tick.
+  * `CONFIG_HC_AUDIO_MP3`: MP3 files (the alarm sounds), with the decoder below.
+  * `CONFIG_HC_AUDIO_ALARM`: the alarm clock of Settings.
+
+  The UI, which is shared with the Windows version, has no `#if`: the Backend entries of a
+  missing feature are nullptr (`main/ui_sound.cpp`), and Settings leave its page or switch out.
+* **A codec belongs to the board**, like the panel and touch drivers: `board::Info::audio_codec`
+  says the sound goes through one, `board::audio_codec()` hands out `start(sample_rate)` and
+  `stop()` (nullptr when it did not answer: then main starts no audio). `main` passes them with
+  the MCLK pin to `audio::Config`; the audio task calls `start()` whenever its channel starts or
+  changes the rate (the clock is running then) and `stop()` before it stops it. The JC4880P443C's
+  ES8311 (`boards/jc4880p443c/es8311.cpp`) uses `espressif/esp_codec_dev` (Apache 2.0) for its
+  control part only: I2S slave, MCLK 256 x the rate from the ESP32-P4, DAC at 0 dB, the volume in
+  software as everywhere; the driver switches the amplifier (GPIO 11) with the output. The DAC's
+  level is a board constant (`kDacDb`, -12 dB): louder sounds restarted the board through its
+  supply.
+* **One task owns the I2S channel** (priority 5, above LVGL; 5 KB internal stack with MP3, of
+  which decoding used 2.1 KB, 3 KB without): sounds are posted to a queue of four; the task takes
+  the newest, which replaces the one that plays (quick taps do not queue up clicks). The task
+  reads 128 samples at a time from a `Source` (memory, tone, the built-in beeps, an MP3 file)
+  and looks for a newer sound between them. On both boards the channel runs all the time
+  (`Info::audio_always_on`); between sounds the DMA sends zeros (`auto_clear`). Stopping it a
+  second after the last sound made the amplifier's wake-up audible: the P4's first click after a
+  pause was lost, the JC3248W535's click about a second after the last one was quieter. A board
+  without the flag still stops it after a second, with 20 ms of silence before the first sound.
+  Every sound is padded to whole DMA buffers, and the first one after a pause gets a buffer of
+  silence before it: after a pause the I2S driver hands out the buffer the DMA is sending at that
+  moment, and a sound written there lost its start. 16 bit mono, written to both slots, so the amplifier
+  plays it whichever channel its CTRL pin selects. Three DMA buffers of 128 frames (768 bytes):
+  a click starts within about 16 ms.
+* **Sample rate**: the built-in sounds are 16 kHz; a file plays at its own rate, the I2S clock
+  follows it (`i2s_channel_reconfig_std_clock()` with the channel stopped). Stereo is mixed to
+  mono.
+* **Volume** in software, 0 to 100 % on a square curve (the NS4168 has no volume control); 0 is
+  silent. On quick settings and on Settings, Sound. Stored in the settings NVS (`ui` / `sounds`)
+  by `main`, which sets the audio volume at start and on every change.
+* **An alarm sound comes first**: it plays at full volume whatever the volume is, and only
+  another alarm sound or `stop_alarm()` replaces it; other sounds are dropped while it plays.
+* **Touch sounds** (decided by the UI, played by `audio`), each with its own switch, both on by
+  default; they play at the volume and are silent at 0 %:
+  * the click, a 6 ms tick at 3 kHz, once per tap on a *tap target*: LVGL's input widgets
+    (button, switch, slider, arc, button matrix, keyboard) and the plain objects marked with
+    `sound::tappable()` (tiles, tile bars, rows with an action, the panel buttons, the light
+    panel's bar and wheel). A tap on a container, a backdrop, the dashboard between tiles or on the
+    waking touch, and the end of a drag (more than 10 px) make none;
+  * the slider tick, 3 ms at 4.5 kHz and softer: a slider or arc ticks at every 1/25 of its range,
+    a plain drag control marked with `sound::draggable()` (the light panel's bar) every 14 px, never
+    two within 25 ms. The faster it moves, the more ticks (sim: 9 per second for a slow drag,
+    33 for a fast one).
+
+  The UI hooks LVGL's input device feedback (`compat::set_touch_feedback`), which reports every
+  event a touch sends; the sounds are decided there, not in each widget.
+* **MP3** (`CONFIG_HC_AUDIO_MP3`): `espressif/esp_audio_codec` 2.6.2, its simple decoder with only
+  the MP3 decoder registered. Chosen over `minimp3`: optimized for the ESP32-S3 and P4, and
+  minimp3 decodes with its scratch (`mp3dec_scratch_t`, size not measured) on the stack, which
+  has to be internal RAM here (the task reads files, and the flash cache is off while LittleFS
+  reads). License: "Espressif Modified
+  MIT", prebuilt libraries, allowed only on Espressif chips, which this firmware is. The ESP32-P4
+  has no audio decoder in hardware (its codecs are JPEG and H.264); this library has optimized
+  builds for it.
+  * The file is read 2 KB at a time with `open`/`read` (a `FILE` would add stdio's buffer in
+    internal RAM) into a PSRAM buffer; the decoder and the buffers exist only while a file is
+    open. The code and tables are in flash, except 1.1 KB of Espressif's assembly hot loops in
+    IRAM on the ESP32-S3.
+  * Memory: the library allocates through weak `media_lib_module_malloc/calloc/realloc` and
+    `media_lib_free`, which call `malloc`; every block under 16 KB went to internal RAM
+    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`), 25 KB of the 33 KB left. `file_source.cpp` defines
+    them and prefers PSRAM: while a file plays the internal RAM stays where it was (39 KB on the
+    JC3248W535).
+  * The dependency is fetched for the targets of the boards with audio (`target in [esp32s3,
+    esp32p4]`), not by the option: the component manager fails on a `$CONFIG{...}` that a board
+    without audio does not have. Without the option nothing of it is linked. It needs an ESP32-P4
+    of revision 3.0 or later (the JC4880P443C is 3.01).
+* **Sounds in the file system image**: `sounds/` of the repository goes to `/fs/sounds/` of
+  boards built with `CONFIG_HC_AUDIO_MP3` (`tools/build_fs.py`; a device's own files outside
+  `/www` and `/sounds` are kept). The alarm sounds `sounds/alarms/*.mp3` are six alarm sounds of
+  the Android Open Source Project (Apache License 2.0, `sounds/NOTICE`), converted by
+  `tools/build_sounds.py` to mono 22.05 kHz 48 kbit/s MP3, 206 KB together.
+* **Alarm clock** (`CONFIG_HC_AUDIO_ALARM`): the time, the days (none: once, then it turns itself
+  off), the snooze time and the sound are stored in the settings NVS (`ui` / `alarm`) at once.
+  When its minute comes (`core::alarm_due`, plain C++ with host tests), the UI wakes the screen,
+  shows the alarm screen over everything and plays the sound in a loop at full volume until Stop
+  or Snooze, at most 10 minutes. It needs the clock (SNTP); the time zone comes from Home
+  Assistant. A snooze lives in RAM only: a restart while snoozed forgets it.
+
+**Later**: sounds from HTTP URLs (a Home Assistant TTS or media URL) through a reader task and a
+ring buffer in PSRAM, so the audio task never waits on the network; WAV (the codec has a WAV
+parser); what plays them (a doorbell or notification event, a dashboard action). The ES8311's
+microphone input is not used.
+
 ---
 
 ## 10. Repository layout
@@ -753,6 +869,7 @@ esp32-hassctrl/
     tests/       unit tests for formats, core, config, hass_protocol; data/ holds sample files
     sim/         the Windows version of the UI (section 1): its own CMake project (build/sim), the
                  stub Backend with the scenarios, lv_conf.h, the Windows driver; python tools/sim.py
+  sounds/                        the alarm sounds (MP3, AOSP, Apache 2.0, NOTICE), tools/build_sounds.py
   tools/build.py, host_test.py, sim.py, msvc.py (finds MSVC, cmake, ninja for the last two)
   docs/
     architecture.md              this file

@@ -86,6 +86,29 @@ struct DisplaySettings {
     bool rotation_locked;
 };
 
+// Settings, Sound. The UI plays the touch sounds; the backend stores the settings and sets the
+// volume of the audio output. The touch sounds have switches of their own: they play whenever
+// they are on and the volume is above 0. The alarm ignores all of it.
+struct SoundSettings {
+    uint8_t volume;    // percent, 0 (silent) to 100
+    bool tap_sound;    // a click for every tap on something that reacts to it
+    bool slider_sound; // ticks while a slider moves, more of them the faster it moves
+};
+
+constexpr size_t kSoundNameSize = 32;
+
+// Settings, Alarm (docs/ui/screen.md section 5): rings at full volume until Stop or Snooze.
+struct AlarmSettings {
+    bool on;
+    uint8_t hour;
+    uint8_t minute;
+    // bit n: weekday n of std::tm (0 = Sunday); none: once, then the alarm turns itself off
+    uint8_t days;
+    uint8_t snooze_min;
+    // a name of alarm_sounds(), empty: the built-in beeps
+    char sound[kSoundNameSize];
+};
+
 struct Backend {
     void (*wifi_info)(WifiInfo &out);
     size_t (*saved_networks)(char (*ssids)[kSsidSize], size_t max);
@@ -107,6 +130,26 @@ struct Backend {
     // the light of the room in lux (calibrated, without the screen's own light); false without a
     // light sensor
     bool (*ambient_lux)(float &lux);
+
+    // Sound: nullptr when the firmware has no audio (CONFIG_HC_AUDIO); false when the audio output
+    // did not start. Settings leave the Sound page out then.
+    bool (*sound_settings)(SoundSettings &out);
+    // applies the volume at once, stores the settings a few seconds after the last change
+    void (*set_sound_settings)(const SoundSettings &settings);
+    // play the touch sounds, whatever the settings say; nullptr when the firmware has none
+    // (CONFIG_HC_AUDIO_TOUCH_SOUND)
+    void (*play_touch_sound)();
+    void (*play_slider_tick)();
+
+    // The alarm: nullptr without it (CONFIG_HC_AUDIO_ALARM), and then Settings have no Alarm page.
+    void (*alarm_settings)(AlarmSettings &out);
+    // stores at once: the alarm has to survive a restart right after it was set
+    void (*set_alarm_settings)(const AlarmSettings &settings);
+    // the names of the alarm sounds besides the built-in beeps (the MP3 files), sorted
+    size_t (*alarm_sounds)(char (*names)[kSoundNameSize], size_t max);
+    // `sound` at full volume ("" = the beeps); `loop` until stop_alarm(), else once (the preview)
+    void (*play_alarm)(const char *sound, bool loop);
+    void (*stop_alarm)();
 
     void (*hass_info)(HassInfo &out);
     // tries at once, also after a rejected token

@@ -11,6 +11,9 @@
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
 #include "esp_ota_ops.h"
+#if CONFIG_HC_AUDIO
+#include "hc/audio/audio.hpp"
+#endif
 #include "hc/board/board.hpp"
 #include "hc/config/dashboard.hpp"
 #include "hc/core/icons.hpp"
@@ -27,6 +30,7 @@
 #include "hc/platform/storage.hpp"
 #include "hc/platform/system_info.hpp"
 #include "hc/platform/time_sync.hpp"
+#include "hc/touch_input/touch_input.hpp"
 #include "hc/ui/ui.hpp"
 #if CONFIG_HC_BOARD_BRING_UP
 #include "hc/ui/test_screen.hpp"
@@ -35,6 +39,7 @@
 #include "hc/webserver/webserver.hpp"
 #include "soc/soc_caps.h"
 #include "ui_backend.hpp"
+#include "ui_sound.hpp"
 
 namespace {
 
@@ -113,16 +118,57 @@ lv_disp_t *start_lvgl(const hc::board::Handles &handles)
         display_config.flags.buff_dma = true;
         disp = lvgl_port_add_disp(&display_config);
     }
-    if (disp != nullptr && handles.touch != nullptr) {
+    if (disp != nullptr && handles.touch != nullptr && info.touch_in_panel) {
+        // touch and panel in one chip: esp_lvgl_port's reader in the LVGL task, the one that
+        // works with it (hc::touch_input did not)
         lvgl_port_touch_cfg_t touch_config{};
         touch_config.disp = disp;
         touch_config.handle = handles.touch;
         if (lvgl_port_add_touch(&touch_config) == nullptr) {
             ESP_LOGW(kTag, "touch could not be added to LVGL");
         }
+    } else if (disp != nullptr && handles.touch != nullptr && lvgl_port_lock(0)) {
+        // the touch is sampled by a task of its own, so quick taps survive a long render; the
+        // controller reports the panel's own coordinates (Info::width x height at rotation 0)
+        const hc::touch_input::Config touch_config{.disp = disp,
+                                                   .touch = handles.touch,
+                                                   .max_x = static_cast<uint16_t>(info.width - 1),
+                                                   .max_y = static_cast<uint16_t>(info.height - 1)};
+        if (hc::touch_input::add(touch_config) == nullptr) {
+            ESP_LOGW(kTag, "touch could not be added to LVGL");
+        }
+        lvgl_port_unlock();
     }
     return disp;
 }
+
+#if CONFIG_HC_AUDIO
+// The speaker, when the board has an amplifier; before the UI, which asks whether it runs
+void start_audio(const hc::board::Info &board)
+{
+    if (board.audio_dout_gpio < 0) {
+        return;
+    }
+    // a board whose sound goes through a codec has none when the codec did not answer
+    const hc::board::AudioCodec *codec = hc::board::audio_codec();
+    if (board.audio_codec && codec == nullptr) {
+        ESP_LOGW(kTag, "no audio codec, no sound");
+        return;
+    }
+    const hc::audio::Config config{.bclk = board.audio_bclk_gpio,
+                                   .ws = board.audio_ws_gpio,
+                                   .dout = board.audio_dout_gpio,
+                                   .mclk = board.audio_mclk_gpio,
+                                   .codec_start = codec != nullptr ? codec->start : nullptr,
+                                   .codec_stop = codec != nullptr ? codec->stop : nullptr,
+                                   .keep_running = board.audio_always_on};
+    if (hc::audio::start(config) != ESP_OK) {
+        ESP_LOGW(kTag, "audio output did not start");
+        return;
+    }
+    ui_sound::apply_stored_volume();
+}
+#endif
 
 // The orientation sensor turns the display unless the rotation is locked in Settings. Until the
 // UI has its mailbox (docs/architecture.md section 4) the UI is called under the LVGL lock
@@ -331,6 +377,9 @@ extern "C" void app_main()
         if (!bh1750 && (board.light_ldr_gpio < 0 || hc::light_sensor::ldr::start(board.light_ldr_gpio) != ESP_OK)) {
             ESP_LOGI(kTag, "no light sensor");
         }
+#if CONFIG_HC_AUDIO
+        start_audio(board);
+#endif
         if (disp != nullptr && lvgl_port_lock(0)) {
             const hc::ui::Options ui_options{.slide_pages = board.ui_slide_pages,
                                              .panel_dialogs = board.ui_panel_dialogs,

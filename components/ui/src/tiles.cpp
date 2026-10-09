@@ -10,6 +10,7 @@
 #include "dashboard.hpp"
 #include "icons.hpp"
 #include "runner.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::tiles {
@@ -116,6 +117,7 @@ lv_obj_t *card(lv_obj_t *parent, lv_area_t area)
     lv_obj_set_style_pad_all(obj, 6, 0);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(obj);
     // a pressed tile is a shade lighter
     lv_obj_set_style_bg_color(obj, t::color(t::kBorder), LV_STATE_PRESSED);
     return obj;
@@ -168,6 +170,7 @@ lv_obj_t *bar(lv_obj_t *parent, const char *glyph, lv_coord_t height, lv_align_t
     lv_obj_set_style_radius(obj, kTileRadius - 2, 0);
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(obj);
     lv_obj_t *label = t::label(obj, glyph != nullptr ? glyph : "", icons::small(), t::kBackground);
     lv_obj_center(label);
     return obj;

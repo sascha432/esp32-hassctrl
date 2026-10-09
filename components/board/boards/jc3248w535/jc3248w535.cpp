@@ -1,6 +1,7 @@
 // Guition JC3248W535 (Shenzhen Jingcai Intelligent): ESP32-S3, 16 MB flash, 8 MB octal PSRAM,
 // 3.5" 320x480 IPS panel with an AXS15231B over QSPI (write only, no reset line), the touch
-// controller of the same chip on I2C. No orientation or light sensor.
+// controller of the same chip on I2C, an NS4168 I2S amplifier for a speaker. No orientation or
+// light sensor.
 // Pins: docs/devices/JC3248W535/JC3248W535.md (from ESPHome, Arduino_GFX and the vendor demo).
 
 #include "hc/board/board.hpp"
@@ -40,6 +41,8 @@ constexpr Info kInfo{
     // the frame is sent in bands of this many lines, two band buffers of 20 KB in internal RAM
     .draw_buffer_lines = 32,
     .full_frames = true,
+    // read by hc::touch_input's task the touch went wrong (2026-10-09): esp_lvgl_port's reader
+    .touch_in_panel = true,
     .imu_address = 0,
     // the default, no difference reported
     .backlight_hz = 25000,
@@ -48,6 +51,13 @@ constexpr Info kInfo{
     // no sensor built in
     .light_sensor_scale = 1.0f,
     .light_sensor_backlight_lux = 0.0f,
+    // the NS4168 amplifier of the speaker connector (docs/devices/JC3248W535)
+    .audio_bclk_gpio = 42,
+    .audio_ws_gpio = 2,
+    .audio_dout_gpio = 41,
+    // a tap about a second after the last sound caught the NS4168 waking or going to sleep: that
+    // click was quieter (2026-10-09)
+    .audio_always_on = true,
 };
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));
@@ -235,6 +245,11 @@ esp_err_t init_touch(Handles &out)
 const Info &info()
 {
     return kInfo;
+}
+
+const AudioCodec *audio_codec()
+{
+    return nullptr; // the amplifier takes the I2S data as it is
 }
 
 esp_err_t init(Handles &out)

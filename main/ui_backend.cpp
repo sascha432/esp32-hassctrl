@@ -19,6 +19,7 @@
 #include "hc/platform/time_sync.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "lvgl.h"
+#include "ui_sound.hpp"
 
 namespace {
 
@@ -296,6 +297,16 @@ const hc::ui::Backend g_backend{
     .set_display_settings = set_display_settings,
     .set_backlight = [](uint8_t percent) { hc::board::set_backlight(percent); },
     .ambient_lux = ambient_lux,
+    // nullptr without the options (ui_sound.cpp)
+    .sound_settings = ui_sound::sound_settings,
+    .set_sound_settings = ui_sound::set_sound_settings,
+    .play_touch_sound = ui_sound::play_touch_sound,
+    .play_slider_tick = ui_sound::play_slider_tick,
+    .alarm_settings = ui_sound::alarm_settings,
+    .set_alarm_settings = ui_sound::set_alarm_settings,
+    .alarm_sounds = ui_sound::alarm_sounds,
+    .play_alarm = ui_sound::play_alarm,
+    .stop_alarm = ui_sound::stop_alarm,
     .hass_info = hass_info,
     .hass_reconnect = [] { hc::hass::reconnect(); },
     .dashboard = hc::dashboard::current,

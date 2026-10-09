@@ -34,6 +34,10 @@ void settings_changed();
 // shows `percent` while a brightness slider is dragged, until settings_changed()
 void preview(uint8_t percent);
 
+// The screen at the user's brightness now, as after a touch; the touch after it is not only a
+// wake-up touch (the alarm).
+void wake();
+
 // the backlight level set now, in percent
 uint8_t backlight();
 

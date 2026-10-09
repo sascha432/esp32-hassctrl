@@ -17,11 +17,19 @@ menu "hassctrl board"
         config HC_BOARD_JC3248W535
             bool "Guition JC3248W535 (ESP32-S3, 320x480 AXS15231B over QSPI, integrated touch)"
             depends on IDF_TARGET_ESP32S3
+            select HC_BOARD_HAS_AUDIO
 
         config HC_BOARD_JC4880P443C
             bool "Guition JC4880P443C (ESP32-P4 + C6, 480x800 ST7701S over MIPI-DSI, GT911 touch)"
             depends on IDF_TARGET_ESP32P4
+            select HC_BOARD_HAS_AUDIO
     endchoice
+
+    config HC_BOARD_HAS_AUDIO
+        bool
+        help
+            The board has an I2S amplifier for a speaker (hc::board::Info::audio_*); it makes
+            the audio component's options available (CONFIG_HC_AUDIO).
 
     config HC_BOARD_BRING_UP
         bool "Board bring-up: start with the test screen"

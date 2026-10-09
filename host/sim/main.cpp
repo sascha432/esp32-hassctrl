@@ -157,6 +157,9 @@ const Page kPages[] = {
     {"hotspot", "Settings, Hotspot", [] { ui::settings::open(ui::settings::Page::Hotspot); }},
     {"home-assistant", "Settings, Home Assistant", [] { ui::settings::open(ui::settings::Page::HomeAssistant); }},
     {"display", "Settings, Display", [] { ui::settings::open(ui::settings::Page::Display); }},
+    {"sound", "Settings, Sound", [] { ui::settings::open(ui::settings::Page::Sound); }},
+    {"alarm", "Settings, Alarm", [] { ui::settings::open(ui::settings::Page::Alarm); }},
+    {"ringing", "the alarm screen (the alarm rings now)", [] { ui::ring_alarm(); }},
     {"system", "Settings, System", [] { ui::settings::open(ui::settings::Page::System); }},
 };
 

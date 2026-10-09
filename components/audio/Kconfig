@@ -1,0 +1,36 @@
+menu "hassctrl audio"
+
+    config HC_AUDIO
+        bool "Audio output"
+        depends on HC_BOARD_HAS_AUDIO
+        default y
+        help
+            Sound through the board's I2S amplifier and speaker (hc::board::Info::audio_*): the
+            audio task, the Sound page of Settings and the `sound` console command. Only boards
+            with an amplifier offer it; without it none of the audio code is in the firmware.
+
+    config HC_AUDIO_TOUCH_SOUND
+        bool "Touch sounds"
+        depends on HC_AUDIO
+        default y
+        help
+            A short click for every tap on a button, a tile or a row, switched on and off in
+            Settings, Sound. Without it the click and its switch are not in the firmware.
+
+    config HC_AUDIO_MP3
+        bool "MP3 files"
+        depends on HC_AUDIO
+        default y
+        help
+            Plays MP3 files from the file system (/fs/sounds), such as the alarm sounds, with
+            Espressif's esp_audio_codec. Without it only the built-in sounds play.
+
+    config HC_AUDIO_ALARM
+        bool "Alarm clock"
+        depends on HC_AUDIO
+        default y
+        help
+            An alarm in Settings that rings at a time and on chosen days, at full volume, with
+            snooze. The sounds are the built-in beeps and, with HC_AUDIO_MP3, the MP3 files.
+
+endmenu

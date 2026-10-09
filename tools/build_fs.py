@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Builds the file system image (LittleFS) of a board from web/ (docs/ui/web.md section 7).
+"""Builds the file system image (LittleFS) of a board from web/ (docs/ui/web.md section 7) and, for a
+board built with CONFIG_HC_AUDIO_MP3, the sounds of sounds/ (docs/architecture.md section 9.6).
 
     python tools/build_fs.py <board>                 build/<board>/fs/storage.bin
     python tools/build_fs.py <board> -p COM9         and write it to the board over serial, keeping
                                                      the board's own files (the dashboard)
     python tools/build_fs.py <board> -p COM9 --fresh the same without keeping anything
 
-Every file of web/ goes gzipped to /www (the web server sends file.gz with gzip encoding). The
+Every file of web/ goes gzipped to /www (the web server sends file.gz with gzip encoding), the MP3
+files of sounds/ as they are to /sounds (the board's build/<board>/main/sdkconfig tells). The
 image has the size of the "storage" partition of the board's partition table. Upload it on the
 System page of the web UI, or with tools/update.py <device> filesystem <image>.
 
 The image replaces the whole partition. With -p the partition of the board is read first and
-every file outside /www (dashboard.json) goes into the new image, so a web UI update keeps the
+every file outside /www and /sounds (dashboard.json) goes into the new image, so a web UI update keeps the
 dashboard. An upload through the web UI or update.py does not: export the dashboard first.
 The web UI belongs to the firmware: the dashboard editor copies rules of the firmware, so a
 firmware with a change to the dashboard goes onto a device together with its web image.
@@ -34,6 +36,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
+SOUNDS = ROOT / "sounds"
+# the directories of the image that come from the firmware's sources, not from the device
+FIRMWARE_DIRS = ("www", "sounds")
 LITTLEFS_PYTHON = "littlefs-python==0.15.0"
 # CONFIG_LITTLEFS_OBJ_NAME_LEN and the flash sector size
 NAME_MAX = 64
@@ -94,6 +99,26 @@ def stage(root: Path) -> list[tuple[str, int, int]]:
     return files
 
 
+def has_mp3(board: str) -> bool:
+    sdkconfig = ROOT / "build" / board / "main" / "sdkconfig"
+    if not sdkconfig.is_file():
+        fail(f"{sdkconfig.relative_to(ROOT)} is missing: build the firmware first (the sounds depend on it)")
+    return re.search(r"^CONFIG_HC_AUDIO_MP3=y$", sdkconfig.read_text(encoding="utf-8"), re.M) is not None
+
+
+def stage_sounds(root: Path) -> list[tuple[str, int, int]]:
+    """Copies the MP3 files of sounds/ to root/sounds (MP3 does not compress)."""
+    files = []
+    for source in sorted(SOUNDS.rglob("*.mp3")):
+        relative = source.relative_to(SOUNDS)
+        target = root / "sounds" / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        size = source.stat().st_size
+        files.append(("sounds/" + relative.as_posix(), size, size))
+    return files
+
+
 def parttool(port: str, *arguments: str) -> None:
     idf = os.environ.get("IDF_PATH")
     if not idf:
@@ -120,7 +145,7 @@ def keep_device_files(port: str, out_dir: Path, root: Path) -> list[str]:
     kept = []
     for source in sorted(p for p in device_root.rglob("*") if p.is_file()):
         relative = source.relative_to(device_root)
-        if relative.parts[0] == "www":
+        if relative.parts[0] in FIRMWARE_DIRS:
             continue
         target = root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -142,6 +167,8 @@ def main() -> None:
     image = out_dir / "storage.bin"
     out_dir.mkdir(parents=True, exist_ok=True)
     files = stage(root)
+    if has_mp3(args.board):
+        files += stage_sounds(root)
     if args.port and not args.fresh:
         for name in keep_device_files(args.port, out_dir, root):
             print(f"  kept from the board: {name}")

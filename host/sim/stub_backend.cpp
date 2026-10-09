@@ -15,12 +15,14 @@ namespace sim {
 
 namespace {
 
+using hc::ui::AlarmSettings;
 using hc::ui::DeviceInfo;
 using hc::ui::DisplaySettings;
 using hc::ui::HassInfo;
 using hc::ui::kMaxSavedNetworks;
 using hc::ui::kSsidSize;
 using hc::ui::ScanItem;
+using hc::ui::SoundSettings;
 using hc::ui::WifiInfo;
 
 constexpr uint32_t kConnectMs = 2000;
@@ -91,6 +93,9 @@ struct State {
     uint32_t hass_connecting_until = 0;
     // other
     DisplaySettings display = kDisplayDefaults;
+    // the Sound and Alarm pages as on a board with a speaker; the sounds are printed
+    SoundSettings sound{.volume = 50, .tap_sound = true, .slider_sound = true};
+    AlarmSettings alarm{.on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = "Argon"};
     bool hint_seen = true;
     bool clock_set = true;
     uint32_t boot_tick = 0;
@@ -443,6 +448,45 @@ void set_display_settings(const DisplaySettings &settings)
     g.display = settings;
 }
 
+bool sound_settings(SoundSettings &out)
+{
+    out = g.sound;
+    return true;
+}
+
+void set_sound_settings(const SoundSettings &settings)
+{
+    g.sound = settings;
+}
+
+void alarm_settings(AlarmSettings &out)
+{
+    out = g.alarm;
+}
+
+void set_alarm_settings(const AlarmSettings &settings)
+{
+    g.alarm = settings;
+}
+
+// the names of sounds/alarms/*.mp3
+size_t alarm_sounds(char (*names)[hc::ui::kSoundNameSize], size_t max)
+{
+    static constexpr const char *kNames[] = {"Argon", "Carbon", "Helium", "Oxygen", "Platinum", "Timing"};
+    size_t count = 0;
+    for (const char *name : kNames) {
+        if (count < max) {
+            std::snprintf(names[count++], hc::ui::kSoundNameSize, "%s", name);
+        }
+    }
+    return count;
+}
+
+void play_alarm(const char *sound, bool loop)
+{
+    print(loop ? "alarm rings:" : "alarm preview:", sound[0] != 0 ? sound : "Beeps");
+}
+
 void set_backlight(uint8_t percent)
 {
     g_backlight = percent;
@@ -581,6 +625,15 @@ const hc::ui::Backend kBackend{
     .set_display_settings = set_display_settings,
     .set_backlight = set_backlight,
     .ambient_lux = ambient_lux,
+    .sound_settings = sound_settings,
+    .set_sound_settings = set_sound_settings,
+    .play_touch_sound = [] { print("touch sound"); },
+    .play_slider_tick = [] { print("slider tick"); },
+    .alarm_settings = alarm_settings,
+    .set_alarm_settings = set_alarm_settings,
+    .alarm_sounds = alarm_sounds,
+    .play_alarm = play_alarm,
+    .stop_alarm = [] { print("alarm stops"); },
     .hass_info = hass_info,
     .hass_reconnect = hass_reconnect,
     .dashboard = sim::dashboard,

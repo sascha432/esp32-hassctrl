@@ -1,0 +1,10 @@
+## The MP3 decoder of the audio output (docs/architecture.md section 9.6): Espressif's codec
+## library, optimized for the ESP32-S3 and the ESP32-P4. Fetched for the targets of the boards
+## with audio, used only with CONFIG_HC_AUDIO_MP3 (src/file_source.cpp); without it nothing of it
+## is linked. A "$CONFIG{HC_AUDIO_MP3}" rule fails on boards without audio: the component manager
+## needs the option in their sdkconfig, and Kconfig leaves it out there.
+dependencies:
+  espressif/esp_audio_codec:
+    version: "^2.6.2"
+    rules:
+      - if: "target in [esp32s3, esp32p4]"

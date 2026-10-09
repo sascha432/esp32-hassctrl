@@ -19,6 +19,9 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#if CONFIG_HC_AUDIO
+#include "hc/audio/audio.hpp"
+#endif
 #include "hc/board/board.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/hass/hass.hpp"
@@ -29,6 +32,7 @@
 #include "hc/network/network.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/storage.hpp"
+#include "hc/touch_input/touch_input.hpp"
 #include "hc/ui/ui.hpp"
 #include "hc/uidebug/uidebug.hpp"
 #include "freertos/FreeRTOS.h"
@@ -756,6 +760,78 @@ void print_update(const hc::core::EntityUpdate &update)
     std::printf("\n");
 }
 
+#if CONFIG_HC_AUDIO
+// The speaker without the screen: a tone or the click at a volume (the stored one comes back
+// with the next change in Settings, Sound)
+int cmd_sound(int argc, char **argv)
+{
+    if (!hc::audio::running()) {
+        std::printf("no audio output\n");
+        return 1;
+    }
+    if (argc == 1) {
+        std::printf("volume %u %%, alarm %s, audio task stack: %u bytes never used, internal RAM free %u KB\n",
+                    hc::audio::volume(), hc::audio::alarm_playing() ? "playing" : "off",
+                    static_cast<unsigned>(hc::audio::stack_unused()),
+                    static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
+        return 0;
+    }
+    if (std::strcmp(argv[1], "alarm") == 0) {
+        hc::audio::play_alarm(argc > 2 ? argv[2] : nullptr, true);
+        return 0;
+    }
+    if (std::strcmp(argv[1], "stop") == 0) {
+        hc::audio::stop_alarm();
+        return 0;
+    }
+#if CONFIG_HC_AUDIO_ALARM
+    if (std::strcmp(argv[1], "ring") == 0) {
+        // the alarm of Settings with its screen, as if its time had come
+        hc::ui::ring_alarm();
+        return 0;
+    }
+#endif
+#if CONFIG_HC_AUDIO_MP3
+    if (std::strcmp(argv[1], "play") == 0 && argc == 3) {
+        hc::audio::play_file(argv[2]);
+        return 0;
+    }
+#endif
+    if (std::strcmp(argv[1], "volume") == 0 && argc == 3) {
+        hc::audio::set_volume(static_cast<uint8_t>(std::atoi(argv[2])));
+        return 0;
+    }
+    if (std::strcmp(argv[1], "tone") == 0) {
+        const int hz = argc > 2 ? std::atoi(argv[2]) : 1000;
+        const int ms = argc > 3 ? std::atoi(argv[3]) : 500;
+        hc::audio::play_tone(static_cast<uint16_t>(hz), static_cast<uint16_t>(ms));
+        return 0;
+    }
+#if CONFIG_HC_AUDIO_TOUCH_SOUND
+    if (std::strcmp(argv[1], "click") == 0) {
+        hc::audio::play_click();
+        return 0;
+    }
+    if (std::strcmp(argv[1], "tick") == 0) {
+        hc::audio::play_tick();
+        return 0;
+    }
+#endif
+    return usage("sound [volume <percent>|tone [hz] [ms]|click|tick|play <file>|alarm [file]|stop|ring]");
+}
+#endif
+
+// the samples of the touch controller (hc::touch_input), for a board whose touch misbehaves
+int cmd_touch(int argc, char **argv)
+{
+    if (argc == 2 && std::strcmp(argv[1], "log") == 0) {
+        hc::touch_input::set_trace(!hc::touch_input::trace());
+        std::printf("touch samples %s\n", hc::touch_input::trace() ? "on" : "off");
+        return 0;
+    }
+    return usage("touch log   (toggles printing the controller's samples)");
+}
+
 int print_hass_events()
 {
     hc::hass::HassEvent event;
@@ -943,8 +1019,12 @@ void register_commands()
     add("setup", "show the first setup screens (they come by themselves while no network is saved)", nullptr,
         cmd_setup);
     add("orient", "orientation sensor: gravity, board measurement (developer)", "[raw|capture 0|90|180|270|flat|clear]", cmd_orient);
+    add("touch", "touch controller: print its samples", "log", cmd_touch);
     add("light", "light sensor: values, calibration while adding a board", "[calibrate <lux>|reset|backlight|watch [s]|points]",
         cmd_light);
+#if CONFIG_HC_AUDIO
+    add("sound", "speaker: volume, test tone, touch sound", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|alarm [file]|stop|ring]", cmd_sound);
+#endif
 }
 
 // The console's own task: created at the start, so its stack is taken while the internal RAM is

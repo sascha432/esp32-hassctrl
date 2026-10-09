@@ -816,6 +816,106 @@ Next:
 - [x] The fades: marked done after your report. The recovery screen was **not** built; its item
       says so now.
 
+## Audio (2026-10-09)
+
+Speaker on the JC3248W535 (NS4168 on BCLK 42 / WS 2 / DOUT 41), docs/architecture.md section 9.6.
+The WT32-SC01 and the T4 build without audio (no amplifier; checked: no audio objects).
+
+Your report of the first version (2026-10-09):
+
+- [x] Sound is clear, no pop when the channel starts or stops.
+- [x] Switches were hard to toggle, the row behind them took the taps: a row with a switch and no
+      action now flips the switch with a tap anywhere on it; a row without an action takes no
+      touches (they scroll the page). Checked in the sim (tapping the row labels flips both
+      switches of the Sound page).
+- [x] The master "Sound" switch overrode the touch sound: removed. The volume (0 = silent) is the
+      only common setting, on quick settings and on the Sound page; the touch sounds have a switch
+      each under "Touch sounds" ("Click on taps", "Tick on sliders"); the alarm ignores the volume.
+- [x] Volume slider on quick settings when audio is built in.
+- [x] Slider ticks: one per 1/25 of a slider's range (14 px on the light panel's bar), at most one
+      per 25 ms, so the rate follows the speed (sim: 9/s slow, 33/s fast).
+- [x] MP3: esp_audio_codec (Espressif-only license, prebuilt). Played on the board from the
+      console: `sound play /fs/sounds/alarms/Helium.mp3` and `sound alarm <file>`. The ESP32-P4
+      has no hardware audio decoder (only JPEG and H.264); the library has optimized P4 builds.
+- [x] Alarm in Settings with time, days, snooze, sound; full volume, cannot be muted by the
+      volume; six AOSP alarm sounds (Apache 2.0) with a preview on selection.
+
+Checks for you (the second version is on the board):
+
+- [x] COM10 dropped out during a flash: you were restarting the board then; flashed afterwards.
+Your report of the second version (2026-10-09):
+
+- [x] Alarm with snooze works (`sound ring`, you snoozed it); the sounds are not too loud.
+- [x] Switch rows: fixed.
+- [x] Slider ticks ("drag noise") are good.
+- [x] CPU load is low while an MP3 plays; scrolling is as smooth as without.
+- [x] A slider at 100 % (or 0 %) was hard to drag. First fix (touch area 16 px past the slider's
+      ends) did not help on the P4 (your report). Reproduced there with the console's virtual
+      pointer: a drag starting 14 px above or below the knob did nothing. LVGL looks for the
+      slider only inside its parent, and the parent (the track) was 22 px tall. The track is now
+      the touch area, 16 px above and below the slider (the card's gaps are smaller by as much, so
+      it looks the same) and takes no touches itself. On the P4 every start point now drags:
+      the knob's center and outer edge, and 14 to 20 px above or below it. Flashed on both boards.
+- [x] Better, but still hard on the P4 (your report: its screen is denser, 42 px is about 5 mm):
+      the whole slider card is now the touch area (the track lets the slider's touch area overflow,
+      the card's edges cut it off). Sim: drags starting on the card's title move the slider, the
+      row below still opens its page.
+- [ ] Check on both boards: drag a slider from anywhere on its card, at 100 % and 0 %.
+- [x] Audio on the P4 did not work (your report): two causes.
+      1. The driver's stop (`es8311_suspend`) writes 0 to the DAC volume and its start leaves it
+         there: only the first sound after a restart played. The volume is set on every start now.
+      2. Loud sounds restarted the board ("power on" reset, seen with the console's `sound tone`
+         at 70 %; 50 % played): the amplifier pulled the supply down. Also with the hub at 10 W
+         and the DAC at 0 dB it reset at 70 %, so it is the board's side (regulator or cable). The
+         DAC is at -12 dB now (`kDacDb` in es8311.cpp); the driver's hidden +3.6 dB (5 V
+         amplifier vs. 3.3 V DAC) is gone. Checked: a 500 Hz tone at 100 %, all six alarm MP3s and
+         the beeps at full volume, no restart.
+- [x] Quick taps were lost, and the click got louder when tapping fast (your report): the touch
+      was read by LVGL every 30 ms and not while it rendered, so a quick tap during a long render
+      never arrived. Now `touch_input` samples every 10 ms in a task of its own and queues every
+      change. The click's start was swallowed by the amplifier waking up when the channel had
+      stopped: 20 ms of silence come first now. The click sound no longer checks the finger's
+      distance except on sliders (the sparse samples during a render made taps look like drags).
+- [x] With that the JC3248W535's touch went mad (touch and panel are one chip, AXS15231B). Reading
+      only between frames (a lock with frame_display) did not help: you reported it still broken,
+      and a 3-minute trace (`touch log`) had about 16 000 good reads and not one point (whether you were tapping then is not known). The
+      JC3248W535 is back on esp_lvgl_port's reader in the LVGL task, as it was when it worked
+      (`Info::touch_in_panel`); the lock is removed again. The P4 and the WT32 keep the new reader.
+- [ ] Open: why the AXS15231B's touch does not work from a task of its own. Ideas: it may need its
+      reads paced (30 ms worked, 10 ms not), or the reads collide with the panel's QSPI traffic in
+      a way a lock around whole frames does not cover. Until then quick taps during a long render
+      can still be lost on the JC3248W535.
+- [x] The JC3248W535's touch works again, all clicks play (your report).
+- [x] A click about a second after the last sound (800 to 1200 ms) was quieter: the channel
+      stopped 1 s after a sound and the NS4168 was caught going to sleep or waking. The channel
+      now runs all the time on both boards (`Info::audio_always_on`).
+- [x] The P4 still had clicks of different loudness (your report). Cause in the audio task: after
+      a pause all DMA buffers are back with the I2S driver, and the first one it hands out is the
+      one being sent at that moment (i2s_common.c, "queue almost full"); the click written there
+      lost the part the DMA had already passed, depending on the moment of the tap. Now the first
+      sound after a pause gets a buffer of silence first (it lands in the buffer being sent), every
+      sound is padded to whole buffers, and the wake-up silence is whole buffers (+8 ms on the
+      first sound after a pause). Flashed on both boards.
+- [x] The JC3248W535 restarted at random ("power on" resets): gone with a new USB cable (you
+      replaced it; 3 minutes without a restart after that).
+- [x] P4 flashed with the fix after you put in a new cable; clicks, a tone and an MP3 at 97 %
+      volume play without a restart.
+- [x] Every click as loud as the others, at any pace, on both boards: confirmed by you
+      (2026-10-09).
+- [ ] P4 on a proper supply (5 V, 2 to 3 A, as the board recommends; USB from a PC gives 0.5 A):
+      then try a higher DAC level (`kDacDb` in es8311.cpp) if the alarm is too quiet. Restarts
+      with "power on" or "brownout" are discussed with the developer first (docs/adding-a-board.md,
+      "Power").
+- [ ] P4: loud enough at 100 % and for the alarm? If not, a stronger supply (a 5 V power supply
+      instead of USB from the hub) would allow a higher `kDacDb`; test with `sound tone 500 1500`
+      at 100 % and watch for a restart.
+- [x] MP3 memory (your question): the decoder's state, the read buffer and the PCM frame are in
+      PSRAM. Its code and tables are in flash (S3: 40 KB code, 13 KB tables; 1.1 KB of hand-written
+      assembly in IRAM, by Espressif, for speed), 12 bytes in internal RAM. The 5 KB of internal
+      RAM a playing file still took on the S3 were stdio's FILE buffer and its cache: the file is
+      read with open/read now, internal RAM stays at 39 KB while it plays.
+- [ ] Later: sounds from HTTP (Home Assistant TTS), what plays them.
+
 ## Known issues
 
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the

@@ -40,6 +40,10 @@ void start(lv_disp_t *disp, const Backend &backend, bool orientation_sensor, con
 // opens in the LVGL task within half a second. For the development console.
 void show_setup();
 
+// Rings the alarm now, as if its time had come (Settings, Alarm; without an alarm nothing). From
+// any task; it rings in the LVGL task within a second. For the development console and the sim.
+void ring_alarm();
+
 // The orientation sensor's rotation in LVGL steps, also before start(); taken over unless the
 // rotation is locked in Settings. Call with the LVGL lock held.
 void sensor_rotation(uint8_t rotation);

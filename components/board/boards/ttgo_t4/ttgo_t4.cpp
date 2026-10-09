@@ -88,6 +88,11 @@ const Info &info()
     return kInfo;
 }
 
+const AudioCodec *audio_codec()
+{
+    return nullptr; // no audio
+}
+
 esp_err_t init(Handles &out)
 {
     out = {};

@@ -1,7 +1,7 @@
 # The panel firmware: composition root only (docs/architecture.md section 3).
 # esp_lvgl_port and LVGL come from idf_component.yml.
-idf_component_register(SRCS "main.cpp" "ui_backend.cpp"
-                       PRIV_REQUIRES app_update config dashboard esp_app_format esp_timer board hass heap memory light_sensor devconsole esp_event frame_display network orientation platform ui uidebug webserver)
+idf_component_register(SRCS "main.cpp" "ui_backend.cpp" "ui_sound.cpp"
+                       PRIV_REQUIRES app_update audio config dashboard esp_app_format esp_timer board hass heap memory light_sensor devconsole esp_event frame_display network orientation platform touch_input ui uidebug webserver)
 
 # LVGL allocates from PSRAM (main/lvgl/hc_lv_mem.h). Its Kconfig only names the header, so the
 # functions are set here, on the LVGL library alone.

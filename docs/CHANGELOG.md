@@ -77,6 +77,79 @@
 
 ## 2026-10-09
 
+Audio (docs/architecture.md section 9.6):
+
+- New component `audio` (`CONFIG_HC_AUDIO`, menu "hassctrl audio"): I2S output to the board's
+  amplifier, 16 bit mono at 16 kHz in both slots, one task (priority 5) that plays one sound at a
+  time (a newer one replaces it), the channel stops a second after the last sound. Volume in
+  software on a square curve. Only on boards that `select HC_BOARD_HAS_AUDIO`; without the option
+  none of it is compiled (the UI's Backend entries are nullptr, Settings leave the Sound page
+  out). The WT32-SC01 build has no audio objects.
+- JC3248W535: NS4168 amplifier on BCLK 42 / WS 2 / DOUT 41 (`Info::audio_*`), found in two
+  working configurations of the module (the datasheet lists no audio).
+- Touch sounds (`CONFIG_HC_AUDIO_TOUCH_SOUND`): a 6 ms tick for every tap on a tap target (LVGL
+  input widgets and plain objects marked `sound::tappable()`), through LVGL's input device
+  feedback (`compat::set_touch_feedback`); none between tiles, on backdrops or after a drag.
+- Settings, Sound: on/off, volume (the touch sound plays when the slider is let go), touch sounds
+  on/off; stored in NVS `ui`/`sound`. The sim shows the page (`--page sound`) and prints
+  `[stub] touch sound`. `slider_card` is shared between the page files now.
+- Console `sound [volume <percent>|tone [hz] [ms]|click]`.
+- Planned, not built: WAV and MP3 playback (architecture.md section 9.6).
+
+Audio, second version (after the user's test: clear sound, no pop):
+
+- MP3 (`CONFIG_HC_AUDIO_MP3`): `espressif/esp_audio_codec` 2.6.2 (simple decoder, MP3 only),
+  file read in 2 KB pieces, the I2S clock follows the file's rate, stereo mixed to mono. Its
+  weak allocators are overridden to prefer PSRAM: internal RAM while playing 35 KB free instead
+  of 8 KB. Task stack 5 KB (2.1 KB used). Fetched for esp32s3/esp32p4 targets only.
+- Audio task: sources (memory, tone, beeps, file), a queue of four, the newest wins; an alarm
+  sound plays at full volume and is not replaced by other sounds.
+- Alarm clock (`CONFIG_HC_AUDIO_ALARM`): Settings, Alarm (time on rollers, days, snooze,
+  sound with preview), the alarm screen with Snooze and Stop, wakes the screen, at most 10 min;
+  `core::alarm_due`/`minutes_until`/`days_text` with host tests (72 pass). Six AOSP alarm sounds
+  (Apache 2.0, `sounds/`, `tools/build_sounds.py`) in the file system image of boards with MP3
+  (`tools/build_fs.py`).
+- Sound settings: the master switch is gone; volume 0 to 100 % (0 silent) also on quick settings;
+  "Click on taps" and "Tick on sliders" each on their own (NVS `ui`/`sounds`, the first layout
+  under `sound` is converted). Slider ticks follow the speed.
+- Switch rows: a tap anywhere on a row with a switch flips it; rows without an action take no
+  touches. `power::wake()`, `hc::ui::ring_alarm()`, console `sound [tick|play|alarm|stop|ring]`
+  and the audio task's stack and the free internal RAM in `sound`.
+- Sliders: the touch area reaches 16 px past the ends (`theme::slider`): at 0 and 100 % half of the
+  knob lay outside the slider and a drag starting there did nothing (reported by the user).
+- Slider cards: the track around the slider is its touch area, 16 px above and below (it was
+  22 px tall in all; LVGL only finds a child inside its parent), checked on the P4 with `swipe`.
+  Then the whole card (the track lets the slider's touch area overflow): still hard on the P4.
+- Audio on the JC4880P443C: the ES8311 codec on the touch bus with `espressif/esp_codec_dev`
+  (control only, I2S slave, MCLK 256 x rate on GPIO 13, amplifier GPIO 11), `board::AudioCodec`
+  and `Info::audio_codec`/`audio_mclk_gpio`; `audio::Pins` became `audio::Config` with the MCLK
+  pin and the codec's start/stop. The P4 gets the alarm sounds in its file system image.
+- P4 audio fixes: the DAC volume is set on every start (the driver's stop zeroes it, so only the
+  first sound played); the DAC at -12 dB (`kDacDb`), loud sounds restarted the board through its
+  supply ("power on" reset, also on a 10 W hub); the driver's +3.6 dB hardware-gain offset removed.
+- MP3 file read with open/read instead of a FILE: no stdio buffer in internal RAM (S3: 39 KB free
+  while playing, was 35 KB).
+- New component `touch_input`: the touch sampled every 10 ms by a task, changes queued for LVGL
+  (quick taps during a render were lost); replaces esp_lvgl_port's touch on the P4 and the WT32.
+  Points outside the panel are dropped. Console `touch log`. The JC3248W535 (touch inside the
+  panel controller, `Info::touch_in_panel`) keeps esp_lvgl_port's reader: from the task its touch
+  went wrong, also with the reads kept between frames.
+- Audio: the first sound after a pause gets a DMA buffer of silence before it, every sound is
+  padded to whole DMA buffers: the I2S driver hands out the buffer being sent after a pause, and a
+  click written there lost its start at random (clicks of different loudness).
+- The speaker channel, codec and amplifier run all the time on both boards
+  (`Info::audio_always_on`, `audio::Config::keep_running`): on the P4 the amplifier woke too
+  slowly and the first click after a pause was not heard; on the JC3248W535 a click about a second
+  after the last sound caught the NS4168 waking and was quieter.
+- Audio: 20 ms of silence when the channel starts (the amplifier's wake-up swallowed the start of
+  a click); the click's distance check only on sliders and drag controls.
+- Power: the random "power on" restarts of both boards were their USB cables (gone with new
+  ones). docs/adding-a-board.md, "Power": restarts with "power on" or "brownout" are discussed
+  with the developer before the firmware works around them; the JC4880P443C recommends 5 V at
+  2 to 3 A, a PC's USB port gives 0.5 A.
+- Confirmed by the user on both boards: clear sound, no pop; every click equally loud at any pace;
+  slider ticks; switch rows; MP3 and the alarm with snooze; the JC3248W535's touch.
+
 Dashboard editing (docs/ui/web-dashboard.md, approved by the user after trying it on the boards):
 
 - Format: a tile may have a cell of its own per orientation, `landscape: 2,1` / `portrait: 0,3`

@@ -29,6 +29,7 @@ add_library(cjson STATIC ${HC_CJSON}/cJSON.c)
 target_include_directories(cjson PUBLIC ${HC_CJSON})
 
 add_executable(hc_tests
+    tests/alarm_test.cpp
     tests/check.cpp
     tests/config_test.cpp
     tests/layout_test.cpp
@@ -39,6 +40,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/config/src/export.cpp
     ${HC_ROOT}/components/config/src/import.cpp
     ${HC_ROOT}/components/config/src/json.cpp
+    ${HC_ROOT}/components/core/src/alarm.cpp
     ${HC_ROOT}/components/core/src/entity.cpp
     ${HC_ROOT}/components/core/src/icons.cpp
     ${HC_ROOT}/components/core/src/image.cpp

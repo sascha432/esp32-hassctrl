@@ -67,7 +67,8 @@ lv_obj_t *row_value(lv_obj_t *row);
 lv_obj_t *button(lv_obj_t *parent, const char *text, lv_event_cb_t callback, void *user_data = nullptr,
                  bool danger = false);
 
-// a switch styled like the theme
+// A switch styled like the theme. In a row without an action (row() with no callback) a tap
+// anywhere on the row flips it.
 lv_obj_t *toggle(lv_obj_t *parent, bool on, lv_event_cb_t callback, void *user_data = nullptr);
 
 // a slider styled like the theme

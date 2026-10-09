@@ -9,6 +9,7 @@
 #include "light_panel.hpp"
 #include "picture_panel.hpp"
 #include "sensor_panel.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::panel {
@@ -199,6 +200,7 @@ lv_obj_t *card(lv_obj_t *parent, const lv_area_t &a)
     lv_obj_set_style_border_color(obj, t::color(t::kBorder), 0);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(obj);
     return obj;
 }
 

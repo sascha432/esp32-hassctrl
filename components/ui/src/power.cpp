@@ -256,6 +256,15 @@ void settings_changed()
     apply(g.state == State::Off ? State::Active : g.state, true);
 }
 
+void wake()
+{
+    lv_disp_trig_activity(g.disp);
+    lv_obj_add_flag(g.blocker, LV_OBJ_FLAG_HIDDEN);
+    if (g.state != State::Active) {
+        apply(State::Active);
+    }
+}
+
 uint8_t backlight()
 {
     return g.applied < 0 ? 0 : static_cast<uint8_t>(g.applied);

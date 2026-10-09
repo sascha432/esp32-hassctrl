@@ -280,6 +280,8 @@ the other path is not told (decided). It is an unlikely case and not worth extra
 +------------------------------------------------------------+
 |  Brightness   [=============o----------------]   60 %      |
 +------------------------------------------------------------+
+|  Volume       [=========o--------------------]   50 %      |
++------------------------------------------------------------+
 |  Wi-Fi           Home-Net, 192.168.1.57                 >  |
 +------------------------------------------------------------+
 |  Hotspot         Off                                [  o]  |
@@ -288,9 +290,23 @@ the other path is not told (decided). It is an unlikely case and not worth extra
 +------------------------------------------------------------+
 |  Display                                                >  |
 +------------------------------------------------------------+
+|  Sound                                                  >  |
++------------------------------------------------------------+
+|  Alarm           07:30, Mon-Fri                         >  |
++------------------------------------------------------------+
 |  System                                                 >  |
 +------------------------------------------------------------+
 ```
+
+The Volume slider and the Sound row are only there with an audio output (`CONFIG_HC_AUDIO` on a
+board with an amplifier, docs/architecture.md section 9.6), the Alarm row only with the alarm
+(`CONFIG_HC_AUDIO_ALARM`); the page scrolls then. The Alarm row shows the time and the days,
+"Off", or "Snoozed until 07:40".
+
+A row with a switch and no page of its own (Automatic, Hotspot on its page, the touch sounds, the
+alarm) flips the switch with a tap anywhere on it; a row without any action takes no touches,
+they scroll the page (2026-10-09: the switch alone was hard to hit, the row took the taps beside
+it).
 
 | Sub page | Content |
 | --- | --- |
@@ -298,6 +314,8 @@ the other path is not told (decided). It is an unlikely case and not worth extra
 | Hotspot | on or off, name, password, QR code to join, new password, connected devices |
 | Home Assistant | connection state, URL, last error, QR code to the web UI page where it is configured |
 | Display | brightness (also on quick settings), dim after (never, 10 s to 1 h), dimmed brightness (its own slider, the screen shows the level while it is dragged), screen off (never, 1 min to 24 h); both times with `-` and `+` whose step grows with the time (10 s, 15 s ... 1 min, 2 min ... 1 h, 1 h 30 min ... 24 h), holding a button steps 4 times a second; a touch on a dimmed screen works as usual, the touch that wakes a screen that is off only wakes it (running). With a light sensor: "Automatic" (on by default) with the measured lux and the backlight level; the brightness then follows the room light linearly, from 1 % in the dark to the slider's value at 350 lx and more (175 lx gives half of it), smoothed over about 2 s. The sensor's calibration belongs to the board (docs/adding-a-board.md), the user only has the slider. One "Rotation 90°" row: with an orientation sensor in charge a tap locks it ("Lock"); locked or without a sensor a tap opens a square window (200 px, always at the center of the display) with the title and the angle at the top, a square "Rotate" button (90 degrees clockwise) at its exact center and, with a sensor, "Use the sensor" at the bottom; nothing moves when the display turns. It closes 5 s after the last tap or with a tap outside (running). Later: orientation calibration |
+| Sound | only with an audio output: "Volume" 0 to 100 % (default 50, also on quick settings; 0 is silent; letting go of the slider plays the click at the new volume). "Touch sounds" (only with `CONFIG_HC_AUDIO_TOUCH_SOUND`), each on its own and on by default: "Click on taps", a short click for every tap on a tap target (buttons, switches, sliders, the keyboard, tiles, rows that open or do something), none for a tap beside them, the touch that only wakes the screen or the end of a drag; "Tick on sliders", soft ticks while a slider moves, more of them the faster it moves. A line under them: the touch sounds play at this volume, the alarm always at full volume. Stored a few seconds after the last change (running since 2026-10-09) |
+| Alarm | only with the alarm: "Alarm" on or off; "Next" (in 7 h 12 min, or the day and time when it is more than a day away; "Waiting for the clock" without SNTP); the time on two rollers (hour, minute; setting it turns the alarm on); the days as seven buttons Mon to Sun (none: once, then it turns itself off); "Snooze" 5, 10, 15, 20 or 30 min (a tap steps); the sound: "Beeps" (built in) and the MP3 files of `/fs/sounds/alarms`, a tap selects it and plays it once at full volume, leaving the page stops it; a line: it rings at full volume until Stop or Snooze, at most 10 minutes. Every change is stored at once (running since 2026-10-09) |
 | System | device name, firmware version, address, MAC, uptime, memory; reset web UI login; restart; factory reset |
 
 **Wi-Fi:**
@@ -329,6 +347,21 @@ the other path is not told (decided). It is an unlikely case and not worth extra
 |                             |                              |
 |  2 devices connected        |                              |
 |  [  New password  ]         |                              |
++------------------------------------------------------------+
+```
+
+**Alarm screen:** over everything (`lv_layer_top`), the screen wakes and stays on while it rings.
+Snooze is the large target; both end the sound. 10 minutes without a tap end it like Stop.
+
+```
++------------------------------------------------------------+
+|                         (bell) Alarm                        |
+|                            07:30                            |
+|      +----------------------------------------------+      |
+|      |                 Snooze 10 min                |      |
+|      +----------------------------------------------+      |
+|      |                     Stop                     |      |
+|      +----------------------------------------------+      |
 +------------------------------------------------------------+
 ```
 

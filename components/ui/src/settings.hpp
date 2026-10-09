@@ -21,6 +21,8 @@ enum class Page : uint8_t {
     Hotspot,
     HomeAssistant,
     Display,
+    Sound,
+    Alarm,
     System,
 };
 

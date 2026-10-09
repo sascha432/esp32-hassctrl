@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "settings_pages.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::settings {
@@ -146,6 +147,7 @@ lv_obj_t *build_bar(lv_obj_t *parent)
     lv_obj_set_flex_align(back, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(back, 8, 0);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(back);
     lv_obj_add_event_cb(back, on_back, LV_EVENT_CLICKED, nullptr);
     t::label(back, LV_SYMBOL_LEFT, t::font_normal(), t::kText);
     g.title = t::label(back, "", t::font_normal(), t::kText);

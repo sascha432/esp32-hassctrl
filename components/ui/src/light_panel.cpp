@@ -8,6 +8,7 @@
 #include "dashboard.hpp"
 #include "icons.hpp"
 #include "lvgl_compat.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
 
@@ -281,6 +282,8 @@ Slider make_slider(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, l
     lv_obj_set_style_border_post(s.track, true, 0);
     lv_obj_clear_flag(s.track, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s.track, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(s.track);
+    sound::draggable(s.track);
     // the drag does not bubble up as a gesture of the screen
     lv_obj_clear_flag(s.track, LV_OBJ_FLAG_GESTURE_BUBBLE);
     return s;
@@ -539,6 +542,7 @@ void build_color(lv_coord_t w, lv_coord_t h)
     compat::canvas_set_buffer(g.wheel, g.pixels.data(), g.wheel_size, g.wheel_size);
     lv_obj_set_pos(g.wheel, static_cast<lv_coord_t>((w - g.wheel_size) / 2), static_cast<lv_coord_t>((h - g.wheel_size) / 2));
     lv_obj_add_flag(g.wheel, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(g.wheel);
     lv_obj_clear_flag(g.wheel, LV_OBJ_FLAG_GESTURE_BUBBLE);
     for (const lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST}) {
         lv_obj_add_event_cb(g.wheel, on_wheel, code, nullptr);

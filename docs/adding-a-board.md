@@ -23,6 +23,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | backlight pin and polarity | board source file |
 | Wi-Fi in the chip, or on a companion chip (ESP32-P4 + C6: esp_hosted, its bus and pins, and the companion's firmware version, which has to match the host side) | `boards/<name>/sdkconfig.defaults`, `components/network/idf_component.yml` |
 | shared I2C bus and the sensors on it (MPU6050 address) | board source file, `Info::imu_address` |
+| speaker amplifier on I2S (often missing from the datasheet: look at working configurations of the module) | `Info::audio_*`, `select HC_BOARD_HAS_AUDIO` (step 9) |
 
 ## 2. Create the files
 
@@ -172,7 +173,24 @@ Steps:
       does not climb by its own light.
 - [ ] Unplug test (a sensor on a cable): see docs/TODO.md "I2C unplug tests".
 
-## 9. Record the results
+## 9. Speaker (if the board has an I2S amplifier)
+
+- [ ] The amplifier's I2S pins (BCLK, WS, DOUT; MCLK and an enable pin if it has them) go into
+      the board's `Info` (`audio_bclk_gpio`, `audio_ws_gpio`, `audio_dout_gpio`,
+      `audio_mclk_gpio`), and its Kconfig choice entry gets `select HC_BOARD_HAS_AUDIO`
+      (components/board/Kconfig). The `audio` component is then built by default
+      (`CONFIG_HC_AUDIO`).
+- [ ] A codec in front of the amplifier (ES8311 and the like) is set up by the board in `init()`
+      on its I2C bus: `Info::audio_codec = true` and `audio_codec()` returning its start/stop
+      (the JC4880P443C's `es8311.cpp` with `esp_codec_dev`). Boards without one return nullptr.
+- [ ] The boot log shows `audio: I2S out BCLK .., WS .., DOUT ..`.
+- [ ] Console `sound tone 1000 800`: a clean tone, no crackle; `sound volume 100` and
+      `sound volume 5`: loud and quiet but audible; `sound click`: a short tick.
+- [ ] Settings, Sound appears; tapping a tile clicks, tapping beside it does not.
+- [ ] Listen for a pop when the first sound starts and a second after the last one (the channel
+      stops then). Note it on the device page.
+
+## 10. Record the results
 
 - [ ] Every constant found above is in the board's `Info`; remove `CONFIG_HC_BOARD_BRING_UP=y`
       from `boards/<name>/sdkconfig.defaults`, rebuild: the firmware starts with the start screen
@@ -180,3 +198,13 @@ Steps:
 - [ ] Device page: verified settings, where they came from, the measurements of steps 4 and 6.
 - [ ] `docs/architecture.md` section 8: the board in the board table.
 - [ ] `docs/TODO.md`: what is still open for the board.
+
+## Power: restarts with "power on" or "brownout"
+
+A board that restarts with the reset reason "power on" or "brownout" (boot log `system: reset
+reason`) has lost its supply, it did not crash. Before anything is changed in the firmware to
+avoid it (a lower volume, a slower clock), discuss with the developer whether the power supply is
+the cause: a USB port of a PC gives 0.5 A (USB 2.0), a hub shares its power, and a worn cable drops
+voltage. The JC4880P443C recommends 5 V at 2 to 3 A; its speaker restarted it on USB (2026-10-09),
+and both boards restarted at random until their USB cables were replaced. Test with a proper
+5 V supply and a short cable first.

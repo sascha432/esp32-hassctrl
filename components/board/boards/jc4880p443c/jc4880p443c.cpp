@@ -1,6 +1,6 @@
 // Guition JC4880P443C-I-W (Shenzhen Jingcai Intelligent): ESP32-P4, 16 MB flash, 32 MB PSRAM, an
 // ESP32-C6 as the Wi-Fi radio (components/network), 4.3" 480x800 IPS panel with an ST7701S over
-// MIPI-DSI (2 lanes), GT911 touch on I2C. No orientation or light sensor.
+// MIPI-DSI (2 lanes), GT911 touch and an ES8311 audio codec on I2C. No orientation or light sensor.
 // Pins, timing and init table: docs/devices/JC4880P443C/JC4880P443C.md (from the vendor demo,
 // github.com/wegi1/ESP32P4-JC4880P443C-I-W, 1-Demo).
 
@@ -18,6 +18,7 @@
 #include "esp_log.h"
 
 #include "backlight.hpp"
+#include "es8311.hpp"
 
 // the board tag of every image built for this board (hc::board::ImageTag); CMakeLists.txt keeps it
 extern "C" constexpr hc::board::ImageTag hc_image_tag __attribute__((section(".rodata_custom_desc"), used)) = {
@@ -52,6 +53,14 @@ constexpr Info kInfo{
     // no sensor built in
     .light_sensor_scale = 1.0f,
     .light_sensor_backlight_lux = 0.0f,
+    // the ES8311 codec and its amplifier (es8311.cpp, docs/devices/JC4880P443C)
+    .audio_bclk_gpio = 12,
+    .audio_ws_gpio = 10,
+    .audio_dout_gpio = 9,
+    .audio_mclk_gpio = 13,
+    .audio_codec = true,
+    // the amplifier wakes too slowly for a click: the first one after a pause was not heard
+    .audio_always_on = true,
     // the large screen: pages slide, panels are dialogs, larger fonts (user, 2026-10-08)
     .ui_slide_pages = true,
     .ui_panel_dialogs = true,
@@ -287,6 +296,11 @@ const Info &info()
     return kInfo;
 }
 
+const AudioCodec *audio_codec()
+{
+    return detail::es8311();
+}
+
 esp_err_t init(Handles &out)
 {
     out = {};
@@ -307,6 +321,10 @@ esp_err_t init(Handles &out)
     } else {
         ESP_LOGW(kTag, "touch controller did not answer");
         out.touch = nullptr;
+    }
+    // the audio codec on the same bus; without it the board has no sound
+    if (detail::es8311_init(out.i2c) != ESP_OK) {
+        ESP_LOGW(kTag, "ES8311 audio codec did not answer, no sound");
     }
     return ESP_OK;
 }

@@ -12,7 +12,7 @@ if(CONFIG_HC_BOARD_JC3248W535)
     list(APPEND srcs "boards/jc3248w535/jc3248w535.cpp")
 endif()
 if(CONFIG_HC_BOARD_JC4880P443C)
-    list(APPEND srcs "boards/jc4880p443c/jc4880p443c.cpp")
+    list(APPEND srcs "boards/jc4880p443c/jc4880p443c.cpp" "boards/jc4880p443c/es8311.cpp")
 endif()
 
 # panel and touch drivers from the component registry: idf_component.yml

@@ -13,6 +13,10 @@ dependencies:
     version: "^1"
     rules:
       - if: "target == esp32p4"
+  espressif/esp_codec_dev:                 # JC4880P443C, the ES8311 audio codec
+    version: "^1"
+    rules:
+      - if: "target == esp32p4"
   # public: hc/board/board.hpp hands out an esp_lcd_touch handle
   espressif/esp_lcd_touch:
     version: "^1"
