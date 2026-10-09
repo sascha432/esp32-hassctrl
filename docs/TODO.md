@@ -651,7 +651,7 @@ Next:
         WT32 (1.83 MB). **Not tested against your cameras** (the device was not flashed): stack
         use, decode time and progressive JPEGs still to see. Approved by you in the Windows version
         (2026-10-07), the name on the band centered after your review.
-  - [ ] **MJPEG stream test** (2026-10-08, your request; docs/ui/dashboard.md "MJPEG stream"):
+  - [x] **MJPEG stream test** (2026-10-08, your request; docs/ui/dashboard.md "MJPEG stream"):
         `stream:` of a picture tile, first frame on the tile, live full screen with the frame rate.
         Tested on the WT32 (COM9, 192.168.0.199) with your TestCams: 800x480 1.3-1.4 fps,
         640x320 2.3-2.4 fps, the 2 fps stream complete. HA snapshots tested on the device too
@@ -667,6 +667,26 @@ Next:
         Your PC's firewall blocked go2rtc for the LAN (Block rules of go2rtc.exe on your
         Desktop); after your OK the TCP Block rule is disabled and "go2rtc MJPEG (hassctrl
         test)" allows TCP 1984 on Private networks.
+        P4 (JC4880P443C, COM11, your report "800x480 -r 10 -q:v 15 is choppy", 2026-10-08):
+        the stream came at 3.3 fps because go2rtc waited while a frame decoded (TCP window
+        5.7 KB); with 64 KB 5.3-5.6 fps (decode 139 ms), 640x320 all 3 fps. The P4 also
+        restarted when a stream started (memory corrupted: heap, lwIP, FreeRTOS lists); the
+        DMA2D copy into the frame buffer was the cause (4 of 4 starts crashed with it, 0 of 17
+        without), it is off now. `stream: hass` plays HA's MJPEG stream: camera.balconycam
+        704x576 2 fps, camera.doorspy_cam_axxon0 1280x960 at 1:2 2.5 fps (a stream frame is now
+        scaled to show at least 3/4 of it, doorspy showed only its middle before); the HA
+        snapshot of camera.balconycam failed (decoder work area too small, 8 KB now). Your
+        TestCams has a 4x3 grid and the two HA streams. To check by you: tearing and the redraw
+        without the DMA2D (no tearing, checked by you).
+        Hardware decoder (your request, 2026-10-08): the P4's JPEG decoder and PPA
+        (`hass/src/image_hw.cpp`), the stream reads and decodes while the UI draws, LVGL's
+        rotation buffer 48 KB. Shown now: `_xl` 15 fps, `balconycam_mjpeg` 12 fps (all the
+        source sends), `_m`/`_s` 5/3 fps, HA doorspy 9.4 fps (was 2.5), HA balconycam 2 fps;
+        6 starts and 3 minutes of `_xl` without a fault. TestCams has a 4x4 grid with `_xl`.
+        The UI's 50 ms per 800x480 frame (LVGL 8's software rotation) is the next limit
+        (about 20 fps). Checked by you: no tearing with the CPU copy, 18-22 fps with
+        `-r 25`; finalized by you (2026-10-08). The fps label and `hass streamscale` stay as
+        test aids.
   - [ ] Test the panels on the WT32 against your Home Assistant (history requests, the
         climate panel changes the real thermostat).
 - [x] **Bug (your report): switchtest1 on -> dimmertest1 showed 100 % before the real 33 %.** The
@@ -912,7 +932,8 @@ Dashboard ([architecture.md](architecture.md) section 14):
       (default 10 %, repeat while held), no `min`/`max` for lights.
 - [ ] **Camera live view** (later): Home Assistant streams every camera as MJPEG on
       `/api/camera_proxy_stream/<entity>` (from still images, at least 0.5 s apart, unless the
-      camera has its own MJPEG stream), so no extra MJPEG source is needed for tests. The P4 has a
+      camera has its own MJPEG stream), so no extra MJPEG source is needed for tests (`stream:
+      hass` plays it since 2026-10-08, see the MJPEG stream test above). The P4 has a
       hardware JPEG decoder; H.264 is hardware encode only, decoding is software. The fullscreen
       view of the old firmware already asks for a frame in display size.
 

@@ -20,3 +20,22 @@
   in this board's build). The sensor graph's label sizes grow with the fonts
   (`theme::scaled`). The sim's `--size p4` shows the same. Design approved by the user in the
   sim.
+- Camera streams on the JC4880P443C: the P4's hardware JPEG decoder decodes the frames
+  (800x480 in 17 ms instead of 139 ms; other chips, progressive JPEGs and pictures whose sides
+  are not divisible by 8 stay with the software decoder) and its PPA scales them to cover the
+  screen (`hass/src/image_hw.cpp`, `core::cover_block`), so LVGL shows them 1:1 (its zoom took
+  100 ms a frame). Every stream now shows all frames its source sends: go2rtc 800x480 at 15 fps,
+  Home Assistant's doorspy camera at 9.4 fps (was 2.5); the user measured 18 to 22 fps with
+  `-r 25`.
+- Stream loop: the next frame is read (and, with the hardware decoder, decoded) while the UI
+  draws the last; the UI's take wakes the media task (a semaphore instead of polling at the
+  10 ms tick). The software decoder still waits for the UI first.
+- JC4880P443C: memory got corrupted while a stream played (crashes in the heap, lwIP and
+  FreeRTOS lists at 4 of 4 stream starts); the DMA2D copy of LVGL's bands into the frame buffer
+  was the cause and is off, the CPU copies them (no tearing, checked by the user). TCP window
+  64 KB (with 5.7 KB go2rtc waited while a frame decoded) and LVGL's rotation buffer 48 KB.
+- `stream: hass` on a picture tile plays Home Assistant's own MJPEG stream of the camera
+  (`/api/camera_proxy_stream`) full screen; the tile keeps the camera proxy's snapshots.
+- A stream's frame is scaled to show at least 3/4 of it (`core::stream_shift`; a 1280x960
+  camera showed only its middle full screen). The software decoder gets a work area of 8 KB per
+  image (esp_jpeg's 3100 bytes failed on a Home Assistant snapshot).

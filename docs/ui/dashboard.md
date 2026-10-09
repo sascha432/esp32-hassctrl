@@ -236,13 +236,19 @@ waits, the newest. A JPEG of more than 512 KB is refused.
 
 A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
 from the first frame of the stream instead of Home Assistant; full screen plays the stream with the
-frame rate in the upper left corner. One stream plays at a time; the still images of the page
-wait meanwhile. A frame is decoded once the UI took the one before (it takes it within 10 to
-15 ms); the frames in between are read and dropped, so the picture never falls behind. A stream
-frame is shown as the decoder made it, centered, without a copy (the copy of 480x320 through PSRAM
-cost 166 ms). A spinner turns until the first frame; any tap or swipe goes back (on the release);
-turning the display builds the view again in the new size and restarts the stream in it.
-`hass streamscale auto|0..3` on the console forces the decoder's scale.
+frame rate in the upper left corner. `stream: hass` plays Home Assistant's own MJPEG stream of the
+camera (`/api/camera_proxy_stream/<entity>` with the token) full screen, and the tile keeps the
+scaled snapshots of the camera proxy (that stream has the camera's full size). One stream plays
+at a time; the still images of the page wait meanwhile. A frame is decoded once the UI took the
+one before (it takes it within 10 to 15 ms); the frames in between are read and dropped, so the
+picture never falls behind. A stream frame is shown as the decoder made it, centered, without a
+copy (the copy of 480x320 through PSRAM cost 166 ms); its scale is the largest that still shows
+3/4 of the frame (`core::stream_shift`: 704x576 on 800x480 loses a strip, 1280x960 is shown at
+1:2). A spinner turns until the first frame; any tap or swipe goes back (on the release); turning
+the display builds the view again in the new size and restarts the stream in it. `hass
+streamscale auto|0..3` on the console forces the decoder's scale. The decoder gets a work area of
+8 KB per image (esp_jpeg's 3100 bytes were too small for the snapshots of Home Assistant's
+`camera.balconycam`).
 
 Measured on the WT32-SC01 (ESP32, PSRAM at 40 MHz) with go2rtc, after the first 10 to 15 s (ffmpeg
 starts with large frames, 60 to 130 KB, which decode slower):
@@ -260,4 +266,31 @@ saves little, the Huffman decoding is most of it. Reading and decoding run one a
 in the media task (20 to 30 % of its time waits for data), so the two could overlap on the second
 core. Memory while playing: internal RAM 32 to 33 KB free (unchanged), 3.8 KB of the 6 KB stack
 unused, about 1 MB of PSRAM for the 800x480 frames.
+
+On the JC4880P443C (ESP32-P4) the hardware does the work (`hass/src/image_hw.cpp`): the JPEG
+decoder decodes at full size (800x480 in 17 ms, 140 ms in software; pictures whose sides are not
+divisible by 8, often Home Assistant's snapshots in a tile's size, and progressive JPEGs go to the
+software decoder), and the PPA scales the frame to cover the request's size (`core::cover_block`,
+scale in sixteenths), so the UI shows a stream's frame 1:1: LVGL's zoom of a smaller frame took
+100 ms. A frame that already has the screen's size is not scaled. The stream reads the next frame
+while the UI draws the last one (50 ms for 800x480, software rotation) and, with the hardware
+decoder, decodes it then too; the software decoder waits for the UI first, so a frame that is
+dropped is not decoded for nothing. The UI's take wakes the stream (a semaphore; the tick of 10 ms
+was too coarse to poll). Further settings of the board: a TCP window of 64 KB (with the default
+5.7 KB go2rtc waited while a frame decoded: 3.3 fps), LVGL's rotation buffer of 48 KB (a whole
+band; 10 KB flushed it in 5 pieces), the copy of LVGL's bands into the frame buffer by the CPU
+(with the DMA2D memory got corrupted while a stream played, `init_panel` of the board).
+
+Measured full screen 800x480 (2026-10-08):
+
+| Stream | source | shown | decode + scale per frame |
+| --- | --- | --- | --- |
+| go2rtc 800x480, `-r 15 -q:v 18` (`_xl`, 23 KB frames) | 15 fps | 14.1 to 15.8 fps | 17 ms |
+| go2rtc 800x480, `-r 12 -q:v 17` (24 KB frames) | 12.4 fps | 11 to 13 fps | 17 ms |
+| go2rtc 640x320, `-r 5` / `-r 3` (`_m`, `_s`, 15 KB frames) | 5 / 3 fps | 5 / 3 fps | 7 + 15 ms |
+| HA `camera.doorspy_cam_axxon0` (1280x960, 34 KB frames) | 9.4 fps | 9.4 fps | 55 + 21 ms |
+| HA `camera.balconycam` (704x576, 52 KB frames) | 2 fps | 2 fps | 17 + 17 ms |
+
+Before the hardware (software decoder, LVGL's zoom): 800x480 5.5 fps, doorspy 2.5 fps. The user
+measured 18 to 22 fps with go2rtc's `-r 25` and saw no tearing with the CPU copy (2026-10-08).
 

@@ -535,8 +535,8 @@ is software for this board; touch still comes from esp_lvgl_port.
 
 The ST7701S of the JC4880P443C is a MIPI-DSI video panel: the DPI controller scans a frame buffer
 in PSRAM and nothing can rotate it. The board sets `Info::mipi_dsi`, and `main` uses
-esp_lvgl_port's DSI display with two 50-line draw buffers in internal RAM, which the DMA2D copies
-into the frame buffer; LVGL rotates in software. The ESP32-P4 has no radio: Wi-Fi runs on the
+esp_lvgl_port's DSI display with two 50-line draw buffers in internal RAM, which the CPU copies
+into the frame buffer (the DMA2D corrupted memory under a full-screen camera stream); LVGL rotates in software. The ESP32-P4 has no radio: Wi-Fi runs on the
 ESP32-C6 of the board, and `network` gets the `esp_wifi` API from `esp_wifi_remote` over
 `esp_hosted` (SDIO) without code changes. The device name comes from the P4's base MAC.
 The C6 runs an esp_hosted coprocessor firmware of the same version as the host side, built

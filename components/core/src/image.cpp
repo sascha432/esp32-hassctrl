@@ -53,6 +53,56 @@ uint8_t cover_shift(uint32_t source_width, uint32_t source_height, uint32_t box_
     return shift;
 }
 
+uint8_t stream_shift(uint32_t source_width, uint32_t source_height, uint32_t box_width, uint32_t box_height)
+{
+    uint8_t shift = 0;
+    for (; shift < 3; shift++) {
+        const uint64_t width = scaled_size(source_width, shift);
+        const uint64_t height = scaled_size(source_height, shift);
+        const uint64_t shown = std::min<uint64_t>(width, box_width) * std::min<uint64_t>(height, box_height);
+        if (shown * 4 >= width * height * 3) {
+            break;
+        }
+    }
+    return shift;
+}
+
+CoverBlock cover_block(uint32_t frame_width, uint32_t frame_height, uint32_t box_width, uint32_t box_height,
+                       uint32_t steps)
+{
+    CoverBlock block;
+    if (frame_width == 0 || frame_height == 0 || box_width == 0 || box_height == 0 || steps == 0) {
+        return block;
+    }
+    const auto up = [](uint64_t a, uint64_t b) { return static_cast<uint32_t>((a + b - 1) / b); };
+    block.scale = std::max<uint32_t>({up(static_cast<uint64_t>(box_width) * steps, frame_width),
+                            up(static_cast<uint64_t>(box_height) * steps, frame_height), 1});
+    // as much of the frame as the box takes at this scale (rounded down: never more than the box)
+    block.width = std::min<uint32_t>(frame_width, static_cast<uint32_t>(static_cast<uint64_t>(box_width) * steps / block.scale));
+    block.height =
+        std::min<uint32_t>(frame_height, static_cast<uint32_t>(static_cast<uint64_t>(box_height) * steps / block.scale));
+    block.x = (frame_width - block.width) / 2;
+    block.y = (frame_height - block.height) / 2;
+    block.out_width = static_cast<uint32_t>(static_cast<uint64_t>(block.width) * block.scale / steps);
+    block.out_height = static_cast<uint32_t>(static_cast<uint64_t>(block.height) * block.scale / steps);
+    block.out_x = (box_width - block.out_width) / 2;
+    block.out_y = (box_height - block.out_height) / 2;
+    return block;
+}
+
+void shrink(const uint16_t *source, uint32_t source_width, uint32_t source_height, uint32_t stride, uint8_t shift,
+            uint16_t *out)
+{
+    const uint32_t width = scaled_size(source_width, shift);
+    const uint32_t height = scaled_size(source_height, shift);
+    for (uint32_t y = 0; y < height; y++) {
+        const uint16_t *row = source + static_cast<size_t>(y << shift) * stride;
+        for (uint32_t x = 0; x < width; x++) {
+            *out++ = row[x << shift];
+        }
+    }
+}
+
 void cover_copy(const uint16_t *source, uint32_t source_width, uint32_t source_height, uint16_t *box,
                 uint32_t box_width, uint32_t box_height)
 {

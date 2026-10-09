@@ -450,6 +450,41 @@ TEST(core_image_cover)
     CHECK(cover_shift(4000, 3000, 100, 100) == 3); // never more than 1:8
     CHECK(scaled_size(721, 3) == 91);
 
+    // full screen 800x480: the streams of the user's cameras (2026-10-08)
+    CHECK(stream_shift(800, 480, 800, 480) == 0);
+    CHECK(stream_shift(640, 320, 800, 480) == 0);   // smaller: shown whole
+    CHECK(stream_shift(704, 576, 800, 480) == 0);   // 83 % shown
+    CHECK(stream_shift(1280, 960, 800, 480) == 1);  // 1:1 shows 31 %, 1:2 all
+    CHECK(stream_shift(2304, 1296, 800, 480) == 2); // 1:2 shows 51 %
+    CHECK(stream_shift(8000, 6000, 100, 100) == 3); // never more than 1:8
+
+    // the PPA's cover of the 800x480 screen (scale in 1/16)
+    CoverBlock same = cover_block(800, 480, 800, 480, 16);
+    CHECK(same.scale == 16 && same.width == 800 && same.height == 480 && same.out_width == 800 && same.out_x == 0);
+    // 640x320 enlarged 1.5 times: 533 columns of the middle, 799 wide
+    CoverBlock enlarged = cover_block(640, 320, 800, 480, 16);
+    CHECK(enlarged.scale == 24 && enlarged.width == 533 && enlarged.height == 320 && enlarged.x == 53);
+    CHECK(enlarged.out_width == 799 && enlarged.out_height == 480 && enlarged.out_x == 0);
+    // 1280x960 at 10/16: 800x600 of which the middle 480 lines
+    CoverBlock large = cover_block(1280, 960, 800, 480, 16);
+    CHECK(large.scale == 10 && large.width == 1280 && large.height == 768 && large.y == 96);
+    CHECK(large.out_width == 800 && large.out_height == 480);
+    // 704x576: 1.136 rounds up to 19/16, never short of the box by more than the rounding
+    CoverBlock odd = cover_block(704, 576, 800, 480, 16);
+    CHECK(odd.scale == 19 && odd.out_width <= 800 && odd.out_width >= 798 && odd.out_height <= 480 && odd.out_height >= 478);
+    // a tile from a large picture: at least 1/16
+    CHECK(cover_block(4000, 3000, 100, 50, 16).scale == 1);
+
+    // 5x3 in rows of 8 at 1:2: columns 0, 2, 4 of rows 0 and 2 (the sizes round up)
+    uint16_t frame[8 * 3] = {};
+    for (uint16_t i = 0; i < 8 * 3; i++) {
+        frame[i] = i;
+    }
+    uint16_t half[3 * 2] = {};
+    shrink(frame, 5, 3, 8, 1, half);
+    CHECK(half[0] == 0 && half[1] == 2 && half[2] == 4);
+    CHECK(half[3] == 16 && half[4] == 18 && half[5] == 20);
+
     // 4x2 into 2x2: the middle two columns
     const uint16_t wide[] = {1, 2, 3, 4, 5, 6, 7, 8};
     uint16_t box[4] = {};

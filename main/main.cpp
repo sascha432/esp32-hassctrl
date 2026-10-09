@@ -78,7 +78,7 @@ lv_disp_t *start_lvgl(const hc::board::Handles &handles)
         }
 #if SOC_MIPI_DSI_SUPPORTED
     } else if (info.mipi_dsi) {
-        // the panel scans its frame buffer: two partial buffers in internal RAM, which the DMA2D
+        // the panel scans its frame buffer: two partial buffers in internal RAM, which draw_bitmap
         // copies into it; no rotation in the panel, so LVGL rotates the bands in software
         lvgl_port_display_cfg_t display_config{};
         display_config.io_handle = handles.io;

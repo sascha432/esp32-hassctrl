@@ -152,8 +152,8 @@ std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
             return tile_problem(index, "stream is only for picture tiles");
         }
         // https needs a certificate the bundle may not have; a camera stream on the network is http
-        if (tile.stream.rfind("http://", 0) != 0 || tile.stream.size() > 255) {
-            return tile_problem(index, "stream is an http:// address of an MJPEG stream");
+        if (tile.stream != kHassStream && (tile.stream.rfind("http://", 0) != 0 || tile.stream.size() > 255)) {
+            return tile_problem(index, "stream is hass or an http:// address of an MJPEG stream");
         }
     }
     return {};

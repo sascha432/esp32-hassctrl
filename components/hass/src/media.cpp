@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <mutex>
@@ -21,10 +22,12 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "hc/core/image.hpp"
 #include "hc/hass/hass.hpp"
 #include "internal.hpp"
+#include "image_hw.hpp"
 #include "jpeg_decoder.h"
 
 namespace hc::hass {
@@ -46,15 +49,18 @@ constexpr uint32_t kStackHttps = 8192;
 // the read buffer of a stream and the longest header line of a part
 constexpr size_t kReadBuffer = 4096;
 constexpr size_t kMaxLine = 256;
-// a stream's frame waits this long (in steps) for the UI to take the one before
-constexpr int kTakeWaitStepMs = 10;
-constexpr int kTakeWaitSteps = 10;
+// a stream's frame waits this long for the UI to take the one before
+constexpr int kTakeWaitMs = 100;
 // the statistics of a stream that plays are logged this often
 constexpr int64_t kStatsUs = 5 * 1000 * 1000;
+// TJpgDec's work area: esp_jpeg's own 3100 bytes hold the usual tables only, a snapshot of Home
+// Assistant (camera.balconycam) needed more (JDR_MEM1); with all four quantization and Huffman
+// tables at their largest it takes about 6.2 KB
+constexpr size_t kDecoderWork = 8192;
 
 struct Request {
     memory::String entity_id;
-    memory::String stream; // empty: the camera proxy of Home Assistant
+    memory::String stream; // empty or core::kHassStream: the camera proxy of Home Assistant
     core::EntityIndex entity = core::kNone;
     uint16_t width = 0;
     uint16_t height = 0;
@@ -70,6 +76,8 @@ TaskHandle_t g_task = nullptr;
 std::atomic<uint32_t> g_play_generation{0};
 // the UI took the last frame of the stream (take_event), the next one may be decoded
 std::atomic<bool> g_frame_taken{true};
+// given when the UI takes a frame: the stream waits on it (the tick of 10 ms is too coarse to poll)
+SemaphoreHandle_t g_taken_signal = nullptr;
 // how long the UI needed to take the frames (measurement): delivered at, sum and count
 std::atomic<int64_t> g_delivered_us{0};
 std::atomic<int64_t> g_take_us{0};
@@ -77,15 +85,32 @@ std::atomic<uint32_t> g_takes{0};
 // the scale of the stream's frames: -1 the smallest that covers the box, else 0..3 (1:1..1:8)
 std::atomic<int> g_stream_shift{-1};
 
-// the task's own buffers for the settings and the header, not on its stack: the token is 512 bytes
+// the task's own buffers for the settings, the header and the address of a request, not on its
+// stack: the token is 512 bytes
 char g_url[kUrlSize];
 char g_token[kTokenSize];
 char g_authorization[kTokenSize + 8];
+char g_request_url[kUrlSize + 160];
 
 void *psram(size_t size)
 {
     return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
 }
+
+// the decoder's work area for one image: internal RAM where there is room (the decoder reads its
+// tables for every pixel), else PSRAM
+struct DecoderWork {
+    uint8_t *data = static_cast<uint8_t *>(heap_caps_malloc_prefer(
+        kDecoderWork, 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+
+    DecoderWork() = default;
+    DecoderWork(const DecoderWork &) = delete;
+    DecoderWork &operator=(const DecoderWork &) = delete;
+    ~DecoderWork()
+    {
+        std::free(data);
+    }
+};
 
 struct Buffer {
     uint8_t *data = nullptr;
@@ -309,32 +334,110 @@ struct DecodeTimes {
     uint16_t source_width = 0;
     uint16_t source_height = 0;
     uint8_t shift = 0;
+    bool hardware = false;
+    bool scaled = false; // by the PPA, to the request's size
 };
 
-// The JPEG into a frame. A still image is cut to the request's size (the tile keeps a small frame);
-// a stream's frame (`live`) is the decoder's output as it is: the UI centers it and the screen cuts
-// off what sticks out, which saves a copy of the whole frame through PSRAM (166 ms at 480x320).
-bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live, int shift_wanted, core::Image &image,
-            DecodeTimes &times, char *error, size_t error_size)
+// the decoders used, for the log
+const char *decoder_name(const DecodeTimes &times)
 {
+    return times.scaled ? "hw+ppa" : times.hardware ? "hw" : "sw";
+}
+
+// The decoder's scale for a picture: a stream's frame shows most of the picture, a still image
+// covers the request's box (core::stream_shift, core::cover_shift); `shift_wanted` >= 0 overrides
+// it (the console's `hass streamscale`).
+uint8_t scale_of(const Request &request, uint32_t width, uint32_t height, bool live, int shift_wanted)
+{
+    if (shift_wanted >= 0) {
+        return static_cast<uint8_t>(std::min(shift_wanted, 3));
+    }
+    return live ? core::stream_shift(width, height, request.width, request.height)
+                : core::cover_shift(width, height, request.width, request.height);
+}
+
+// The hardware decoder (ESP32-P4, image_hw): the picture at full size, scaled by the PPA to cover
+// the request's size, so LVGL shows it as it is (its zoom took 100 ms a frame). With a scale from
+// the console, or without a PPA, it is made smaller by core::shrink when the scale asks for it.
+// False when there is no decoder or it cannot take the JPEG.
+bool decode_hardware(const Request &request, const uint8_t *jpeg, size_t size, bool live, int shift_wanted,
+                     core::Pixels &decoded, uint32_t &width, uint32_t &height, DecodeTimes &times)
+{
+    char error[64];
+    image_hw::Frame frame;
+    const int64_t started = esp_timer_get_time();
+    if (!image_hw::decode(jpeg, size, request.swap_bytes, frame, error, sizeof(error))) {
+        ESP_LOGD(kTag, "%s: %s, decoded in software", request.entity_id.c_str(), error);
+        return false;
+    }
+    const int64_t decoded_at = esp_timer_get_time();
+    times.decode_us = decoded_at - started;
+    times.source_width = static_cast<uint16_t>(frame.picture_width);
+    times.source_height = static_cast<uint16_t>(frame.picture_height);
+    times.hardware = true;
+    const bool fits = frame.width == request.width && frame.height == request.height &&
+                      frame.picture_width == frame.width && frame.picture_height == frame.height;
+    if (shift_wanted < 0 && !fits) {
+        if (image_hw::cover(frame, request.width, request.height, decoded, error, sizeof(error))) {
+            width = request.width;
+            height = request.height;
+            times.scaled = true;
+            times.copy_us = esp_timer_get_time() - decoded_at;
+            return true;
+        }
+        ESP_LOGD(kTag, "%s: %s", request.entity_id.c_str(), error);
+    }
+    const uint8_t shift = scale_of(request, frame.picture_width, frame.picture_height, live, shift_wanted);
+    times.shift = shift;
+    if (shift == 0) {
+        // whole blocks: their edge beyond the picture repeats it
+        decoded = std::move(frame.pixels);
+        width = frame.width;
+        height = frame.height;
+        return true;
+    }
+    width = core::scaled_size(frame.picture_width, shift);
+    height = core::scaled_size(frame.picture_height, shift);
+    decoded = core::allocate_pixels(static_cast<size_t>(width) * height);
+    if (!decoded) {
+        return false;
+    }
+    core::shrink(frame.pixels.get(), frame.picture_width, frame.picture_height, frame.width, shift, decoded.get());
+    times.copy_us = esp_timer_get_time() - decoded_at;
+    return true;
+}
+
+// The software decoder (esp_jpeg, TJpgDec), which scales while it decodes.
+bool decode_software(const Request &request, const uint8_t *jpeg, size_t size, bool live, int shift_wanted,
+                     core::Pixels &decoded, uint32_t &width, uint32_t &height, DecodeTimes &times, char *error,
+                     size_t error_size)
+{
+    const DecoderWork work_area;
+    uint8_t *work = work_area.data;
+    if (work == nullptr) {
+        std::snprintf(error, error_size, "no memory for the decoder");
+        return false;
+    }
     esp_jpeg_image_cfg_t config{};
     config.indata = const_cast<uint8_t *>(jpeg);
     config.indata_size = static_cast<uint32_t>(size);
     config.out_format = JPEG_IMAGE_FORMAT_RGB565;
+    config.advanced.working_buffer = work;
+    config.advanced.working_buffer_size = kDecoderWork;
     esp_jpeg_image_output_t info{};
     if (esp_jpeg_get_image_info(&config, &info) != ESP_OK || info.width == 0 || info.height == 0) {
         std::snprintf(error, error_size, "not a JPEG the decoder knows (a progressive one?)");
         return false;
     }
-    const uint8_t shift = shift_wanted >= 0 ? static_cast<uint8_t>(std::min(shift_wanted, 3))
-                                            : core::cover_shift(info.width, info.height, request.width, request.height);
+    const uint8_t shift = scale_of(request, info.width, info.height, live, shift_wanted);
     times.source_width = info.width;
     times.source_height = info.height;
     times.shift = shift;
-    const uint32_t width = core::scaled_size(info.width, shift);
-    const uint32_t height = core::scaled_size(info.height, shift);
-    const size_t bytes = static_cast<size_t>(width) * height * 2;
-    core::Pixels decoded = core::allocate_pixels(static_cast<size_t>(width) * height);
+    times.hardware = false;
+    const uint32_t out_width = core::scaled_size(info.width, shift);
+    const uint32_t out_height = core::scaled_size(info.height, shift);
+    const size_t bytes = static_cast<size_t>(out_width) * out_height * 2;
+    decoded = core::allocate_pixels(static_cast<size_t>(out_width) * out_height);
     if (!decoded) {
         std::snprintf(error, error_size, "no memory for the decoded image (%u KB)", static_cast<unsigned>(bytes / 1024));
         return false;
@@ -347,26 +450,50 @@ bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live,
     config.out_format = JPEG_IMAGE_FORMAT_RGB565;
     config.out_scale = static_cast<esp_jpeg_image_scale_t>(shift);
     config.flags.swap_color_bytes = request.swap_bytes ? 1 : 0;
+    config.advanced.working_buffer = work;
+    config.advanced.working_buffer_size = kDecoderWork;
     const int64_t started = esp_timer_get_time();
     if (esp_jpeg_decode(&config, &info) != ESP_OK) {
         std::snprintf(error, error_size, "the JPEG could not be decoded");
         return false;
     }
-    const int64_t decoded_at = esp_timer_get_time();
-    times.decode_us = decoded_at - started;
-    if (live) {
-        image.width = info.width;
-        image.height = info.height;
+    times.decode_us = esp_timer_get_time() - started;
+    width = info.width;
+    height = info.height;
+    return true;
+}
+
+// The JPEG into a frame, in hardware where the chip has a decoder, else in software. A still image
+// is cut to the request's size (the tile keeps a small frame); a stream's frame (`live`) is the
+// decoder's output as it is: the UI centers it and the screen cuts off what sticks out
+// (core::stream_shift keeps that small), which saves a copy of the whole frame through PSRAM
+// (166 ms at 480x320 on the ESP32).
+bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live, int shift_wanted, core::Image &image,
+            DecodeTimes &times, char *error, size_t error_size)
+{
+    times = {};
+    core::Pixels decoded;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    if (!decode_hardware(request, jpeg, size, live, shift_wanted, decoded, width, height, times) &&
+        !decode_software(request, jpeg, size, live, shift_wanted, decoded, width, height, times, error, error_size)) {
+        return false;
+    }
+    if (live || times.scaled) {
+        // a stream's frame as it is; one the PPA made the request's size needs no cut either
+        image.width = static_cast<uint16_t>(width);
+        image.height = static_cast<uint16_t>(height);
         image.pixels = std::move(decoded);
         return true;
     }
+    const int64_t copy_started = esp_timer_get_time();
     core::Pixels pixels = core::allocate_pixels(static_cast<size_t>(request.width) * request.height);
     if (!pixels) {
         std::snprintf(error, error_size, "no memory for the image");
         return false;
     }
-    core::cover_copy(decoded.get(), info.width, info.height, pixels.get(), request.width, request.height);
-    times.copy_us = esp_timer_get_time() - decoded_at;
+    core::cover_copy(decoded.get(), width, height, pixels.get(), request.width, request.height);
+    times.copy_us += esp_timer_get_time() - copy_started;
     image.width = request.width;
     image.height = request.height;
     image.pixels = std::move(pixels);
@@ -380,7 +507,27 @@ void credentials()
     detail::credentials(g_url, sizeof(g_url), g_token, sizeof(g_token));
 }
 
-// one still image: of the camera proxy, or the first frame of the stream
+// a stream of its own (http://), not one of Home Assistant
+bool own_stream(const Request &request)
+{
+    return !request.stream.empty() && request.stream != core::kHassStream;
+}
+
+// g_request_url: `path` of Home Assistant for the request's camera; false with `error` set when
+// Home Assistant is not set up
+bool hass_url(const Request &request, const char *path, char *error, size_t error_size)
+{
+    credentials();
+    if (g_url[0] == 0 || g_token[0] == 0) {
+        std::snprintf(error, error_size, "Home Assistant is not set up");
+        return false;
+    }
+    std::snprintf(g_request_url, sizeof(g_request_url), "%s%s%s", g_url, path, request.entity_id.c_str());
+    return true;
+}
+
+// one still image: of the camera proxy, or the first frame of the stream (Home Assistant's own
+// stream is not asked for a still image: the camera proxy scales it to the tile)
 void snapshot(const Request &request)
 {
     core::Image image;
@@ -394,7 +541,7 @@ void snapshot(const Request &request)
     {
         Connection c;
         int64_t length = 0;
-        if (!request.stream.empty()) {
+        if (own_stream(request)) {
             size_t part = 0;
             if (open(c, request.stream.c_str(), false, length, error, sizeof(error))) {
                 StreamReader reader(c);
@@ -409,25 +556,21 @@ void snapshot(const Request &request)
                     }
                 }
             }
-        } else {
-            credentials();
-            if (g_url[0] == 0 || g_token[0] == 0) {
-                std::snprintf(error, sizeof(error), "Home Assistant is not set up");
-            } else {
-                char url[kUrlSize + 160];
-                std::snprintf(url, sizeof(url), "%s/api/camera_proxy/%s?width=%u&height=%u", g_url,
-                              request.entity_id.c_str(), request.width, request.height);
-                fetched = open(c, url, true, length, error, sizeof(error)) && read_body(c, length, jpeg, error, sizeof(error));
-            }
+        } else if (hass_url(request, "/api/camera_proxy/", error, sizeof(error))) {
+            const size_t used = std::strlen(g_request_url);
+            std::snprintf(g_request_url + used, sizeof(g_request_url) - used, "?width=%u&height=%u", request.width,
+                          request.height);
+            fetched = open(c, g_request_url, true, length, error, sizeof(error)) &&
+                      read_body(c, length, jpeg, error, sizeof(error));
         }
     }
     if (fetched && decode(request, jpeg.data, jpeg.size, false, -1, image, times, error, sizeof(error))) {
-        ESP_LOGI(kTag, "%s%s: %u bytes, %ux%u 1:%u into %ux%u, %lld ms (decode %lld, copy %lld), %u bytes of stack left",
-                 request.entity_id.c_str(), request.stream.empty() ? "" : " (stream)", static_cast<unsigned>(jpeg.size),
+        ESP_LOGI(kTag, "%s%s: %u bytes, %ux%u 1:%u into %ux%u, %lld ms (decode %lld %s, copy %lld), %u bytes of stack left",
+                 request.entity_id.c_str(), own_stream(request) ? " (stream)" : "", static_cast<unsigned>(jpeg.size),
                  times.source_width, times.source_height, 1u << times.shift, request.width, request.height,
                  static_cast<long long>((esp_timer_get_time() - started) / 1000),
-                 static_cast<long long>(times.decode_us / 1000), static_cast<long long>(times.copy_us / 1000),
-                 static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+                 static_cast<long long>(times.decode_us / 1000), decoder_name(times),
+                 static_cast<long long>(times.copy_us / 1000), static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
     }
     if (error[0] != 0) {
         ESP_LOGW(kTag, "%s: %s", request.entity_id.c_str(), error);
@@ -453,9 +596,15 @@ void play(const Request &request)
     char error[96] = {};
     Connection c;
     int64_t length = 0;
-    ESP_LOGI(kTag, "stream of %s into %ux%u: %s", request.entity_id.c_str(), request.width, request.height,
-             request.stream.c_str());
-    if (!open(c, request.stream.c_str(), false, length, error, sizeof(error))) {
+    // Home Assistant's stream has the camera's full size: it cannot be scaled like a snapshot
+    const bool hass = !own_stream(request);
+    if (hass && !hass_url(request, "/api/camera_proxy_stream/", error, sizeof(error))) {
+        stream_failed(request, error);
+        return;
+    }
+    const char *url = hass ? g_request_url : request.stream.c_str();
+    ESP_LOGI(kTag, "stream of %s into %ux%u: %s", request.entity_id.c_str(), request.width, request.height, url);
+    if (!open(c, url, hass, length, error, sizeof(error))) {
         stream_failed(request, error);
         return;
     }
@@ -486,30 +635,43 @@ void play(const Request &request)
             stream_failed(request, error);
             return;
         }
-        // go2rtc sends frames in bursts: the next one is often there before the UI took the last
-        // (it takes them within 10 to 15 ms); it is waited for briefly, and only a UI that is
-        // really behind makes this frame be read past
-        for (int i = 0; i < kTakeWaitSteps && !g_frame_taken; i++) {
-            vTaskDelay(pdMS_TO_TICKS(kTakeWaitStepMs));
-        }
-        const bool wanted = g_frame_taken;
-        if (wanted && !jpeg.reserve(part)) {
+        if (!jpeg.reserve(part)) {
             stream_failed(request, "no memory for a frame");
             return;
         }
-        if (!reader->bytes(wanted ? jpeg.data : nullptr, part)) {
+        if (!reader->bytes(jpeg.data, part)) {
             stream_failed(request, "the stream broke off");
             return;
         }
         wait_us += esp_timer_get_time() - wait_start;
         received++;
         bytes += part;
+        // The frame is read while the UI draws the last one (the P4 takes 50 ms for 800x480). The
+        // hardware decoder's frame (17 ms) is decoded then too, before the UI is waited for; the
+        // software decoder's (300 ms on the ESP32) only once the UI took the last, so a frame that
+        // is dropped is not decoded for nothing. The UI is waited for briefly (go2rtc also sends
+        // frames in bursts); only a UI that is really behind makes a frame be dropped.
+        const bool decode_first = times.hardware; // the decoder of the last frame
+        core::Image image;
+        image.generation = request.generation;
+        image.entity = request.entity;
+        image.live = true;
+        if (decode_first && !decode(request, jpeg.data, part, true, g_stream_shift, image, times, error, sizeof(error))) {
+            stream_failed(request, error);
+            return;
+        }
+        const TickType_t wait_until = xTaskGetTickCount() + pdMS_TO_TICKS(kTakeWaitMs);
+        while (!g_frame_taken) {
+            const TickType_t now_ticks = xTaskGetTickCount();
+            if (static_cast<int32_t>(wait_until - now_ticks) <= 0) {
+                break;
+            }
+            xSemaphoreTake(g_taken_signal, wait_until - now_ticks);
+        }
+        const bool wanted = g_frame_taken;
         if (wanted && g_play_generation == request.generation) {
-            core::Image image;
-            image.generation = request.generation;
-            image.entity = request.entity;
-            image.live = true;
-            if (!decode(request, jpeg.data, part, true, g_stream_shift, image, times, error, sizeof(error))) {
+            if (!decode_first &&
+                !decode(request, jpeg.data, part, true, g_stream_shift, image, times, error, sizeof(error))) {
                 stream_failed(request, error);
                 return;
             }
@@ -517,6 +679,7 @@ void play(const Request &request)
             copy_us += times.copy_us;
             shown++;
             g_frame_taken = false;
+            xSemaphoreTake(g_taken_signal, 0); // a signal of an earlier frame
             g_delivered_us = esp_timer_get_time();
             detail::deliver_event(std::move(image));
         }
@@ -524,9 +687,10 @@ void play(const Request &request)
         if (now - window_start >= kStatsUs) {
             const double seconds = (now - window_start) / 1e6;
             ESP_LOGI(kTag,
-                     "stream %ux%u 1:%u: %.1f fps in, %.1f decoded, %u KB/frame, decode %lld ms, copy %lld ms, "
+                     "stream %ux%u 1:%u %s: %.1f fps in, %.1f decoded, %u KB/frame, decode %lld ms, copy %lld ms, "
                      "waiting for data %.0f %%, UI took a frame after %lld ms, free internal %u KB, PSRAM %u KB, stack left %u",
-                     times.source_width, times.source_height, 1u << times.shift, received / seconds, shown / seconds,
+                     times.source_width, times.source_height, 1u << times.shift, decoder_name(times),
+                     received / seconds, shown / seconds,
                      static_cast<unsigned>(received > 0 ? bytes / received / 1024 : 0),
                      static_cast<long long>(shown > 0 ? decode_us / shown / 1000 : 0),
                      static_cast<long long>(shown > 0 ? copy_us / shown / 1000 : 0), wait_us / 1e4 / seconds,
@@ -589,6 +753,13 @@ bool start_task()
     char token[8];
     detail::credentials(url, sizeof(url), token, sizeof(token));
     const uint32_t stack = std::strncmp(url, "https:", 6) == 0 ? kStackHttps : kStackHttp;
+    if (g_taken_signal == nullptr) {
+        g_taken_signal = xSemaphoreCreateBinary();
+        if (g_taken_signal == nullptr) {
+            ESP_LOGE(kTag, "no memory for the task's semaphore");
+            return false;
+        }
+    }
     if (xTaskCreate(task, "media", stack, nullptr, 3, &g_task) != pdPASS) {
         g_task = nullptr;
         ESP_LOGE(kTag, "no memory for the task (%u bytes of stack)", static_cast<unsigned>(stack));
@@ -619,6 +790,9 @@ void frame_taken()
         g_takes++;
     }
     g_frame_taken = true;
+    if (g_taken_signal != nullptr) {
+        xSemaphoreGive(g_taken_signal);
+    }
 }
 
 } // namespace detail

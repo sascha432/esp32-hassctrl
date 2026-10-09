@@ -42,6 +42,37 @@ bool mjpeg_content_length(std::string_view line, size_t &length);
 // box, so the frame is cut from the fewest pixels without being enlarged.
 uint8_t cover_shift(uint32_t source_width, uint32_t source_height, uint32_t box_width, uint32_t box_height);
 
+// The scale of a stream's frame, which is shown centered in the box with what sticks out cut off:
+// the largest image that still shows at least 3/4 of the frame. A frame of another shape loses a
+// strip (704x576 on 800x480), a large one is made smaller instead of showing its middle only
+// (1280x960 at 1:2).
+uint8_t stream_shift(uint32_t source_width, uint32_t source_height, uint32_t box_width, uint32_t box_height);
+
+// The cover of a box by a scaler that scales in steps of 1/`steps` (the P4's PPA: 16): `scale`
+// steps per pixel, the smallest that fills the box, and the block of the frame (centered) that is
+// scaled. The scaled block (`out_width` x `out_height`) is at most the box; with the rounding of
+// the scale it can be a pixel or two short, and it is placed at `out_x`, `out_y`.
+struct CoverBlock {
+    uint32_t scale = 0;
+    uint32_t x = 0;
+    uint32_t y = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t out_x = 0;
+    uint32_t out_y = 0;
+    uint32_t out_width = 0;
+    uint32_t out_height = 0;
+};
+
+CoverBlock cover_block(uint32_t frame_width, uint32_t frame_height, uint32_t box_width, uint32_t box_height,
+                       uint32_t steps);
+
+// `source` (source_width x source_height, rows `stride` pixels apart) made smaller by 1 << shift
+// into `out` (scaled_size of both sides): every (1 << shift)-th pixel of every (1 << shift)-th row.
+// For a hardware decoder that cannot scale.
+void shrink(const uint16_t *source, uint32_t source_width, uint32_t source_height, uint32_t stride, uint8_t shift,
+            uint16_t *out);
+
 // The size the decoder gives for a shift (it rounds up).
 constexpr uint32_t scaled_size(uint32_t size, uint8_t shift)
 {

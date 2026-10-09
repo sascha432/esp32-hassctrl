@@ -30,3 +30,15 @@ CONFIG_LV_FONT_MONTSERRAT_36=y
 # sdkconfig: CMD 19, CLK 18, D0..D3 14..17, C6 reset on GPIO 54)
 CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD=y
 CONFIG_SLAVE_IDF_TARGET_ESP32C6=y
+
+# A camera stream (components/hass/src/media.cpp) is read between the decoding of two frames: with
+# the default window of 4 segments go2rtc stops sending while a frame decodes, and its 10 fps
+# stream of 34 KB frames arrived at 3 fps (100 KB/s of the 338 sent). The segments wait in PSRAM
+# (CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP); the mailbox holds a window of them.
+CONFIG_LWIP_TCP_WND_DEFAULT=65535
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=64
+
+# LVGL rotates the landscape bands (800 x 30 lines) in pieces of this size and flushes each one: the
+# default 10 KB took 6 lines, each piece landing in the portrait frame buffer as 800 rows of 12
+# bytes; a whole band at once (47 KB, PSRAM) made a camera stream's 800x480 frame cost less
+CONFIG_LV_DISP_ROT_MAX_BUF=49152

@@ -41,7 +41,7 @@ constexpr Info kInfo{
     .mirror_y = false,
     .swap_bytes = false,
     // two draw buffers of 480 x 50 lines in internal RAM (47 KB each), copied into the frame
-    // buffer in PSRAM by the DMA2D
+    // buffer in PSRAM by the CPU (init_display: not the DMA2D)
     .draw_buffer_lines = 50,
     .mipi_dsi = true,
     .imu_address = 0,
@@ -225,8 +225,10 @@ esp_err_t init_panel(Handles &out)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(out.panel), kTag, "panel reset");
     // the table ends with sleep out and display on (11h, 29h), then the DPI video stream starts
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(out.panel), kTag, "panel init");
-    // draw_bitmap copies LVGL's bands into the frame buffer with the DMA2D, not the CPU
-    ESP_RETURN_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(out.panel), kTag, "DMA2D");
+    // draw_bitmap copies LVGL's bands into the frame buffer with the CPU. With the DMA2D
+    // (esp_lcd_dpi_panel_enable_dma2d) memory got corrupted while a camera image was shown full
+    // screen: 4 of 4 stream starts crashed (heap, lwIP and FreeRTOS lists), without it 0 of 10
+    // (2026-10-08, the cause inside the DMA2D path not found).
     return ESP_OK;
 }
 

@@ -148,9 +148,9 @@ TEST(config_imports_the_converted_dashboard_of_the_developer)
         return;
     }
     const Layout &layout = imported->layout;
-    // 2026-10-08: the TestCams area added one page and four tiles
+    // 2026-10-08: the TestCams area added one page and seven tiles (two of them HA streams)
     CHECK(layout.pages.size() == 25);
-    CHECK(layout.tiles.size() == 137); // 109 tiles, 4 spacers of the old positions, 24 areas
+    CHECK(layout.tiles.size() == 141); // tiles, 4 spacers of the old positions, 24 areas
     check_round_trips(layout);
 }
 
@@ -261,7 +261,7 @@ TEST(config_checks_tile_keys)
     CHECK_STR(error("entity: camera.a\n    refresh: 0\n"), "hass.yaml:3: refresh is a number of seconds, 1 to 3600");
     CHECK_STR(error("entity: sensor.a\n    stream: http://cam/x.mjpeg\n"), "hass.yaml:2: stream is only for picture tiles");
     CHECK_STR(error("entity: camera.a\n    stream: rtsp://cam/x\n"),
-              "hass.yaml:2: stream is an http:// address of an MJPEG stream");
+              "hass.yaml:2: stream is hass or an http:// address of an MJPEG stream");
 }
 
 TEST(config_keeps_the_stream_of_a_camera)
@@ -269,10 +269,13 @@ TEST(config_keeps_the_stream_of_a_camera)
     FileSet files;
     files.add("hass.yaml", "tiles:\n"
                            "  - entity: camera.balcony\n"
-                           "    stream: http://192.168.0.62:1984/api/stream.mjpeg?src=balcony\n");
+                           "    stream: http://192.168.0.62:1984/api/stream.mjpeg?src=balcony\n"
+                           "  - entity: camera.door\n"
+                           "    stream: hass\n");
     const auto imported = hc::config::import_yaml(files.view(), "hass.yaml");
     REQUIRE(imported.has_value());
     CHECK(imported->layout.tiles[0].stream == "http://192.168.0.62:1984/api/stream.mjpeg?src=balcony");
+    CHECK(imported->layout.tiles[1].stream == hc::core::kHassStream);
     check_round_trips(imported->layout);
 }
 

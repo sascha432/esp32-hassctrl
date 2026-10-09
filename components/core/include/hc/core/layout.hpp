@@ -67,6 +67,8 @@ using TileIndex = uint16_t;
 using PageIndex = uint16_t;
 using EntityIndex = uint16_t;
 constexpr uint16_t kNone = 0xFFFF;
+// Tile::stream: the MJPEG stream of Home Assistant's camera proxy (/api/camera_proxy_stream)
+constexpr std::string_view kHassStream = "hass";
 
 struct Tile {
     // stable, given by the device; the web UI and the screen name a tile by it
@@ -84,7 +86,7 @@ struct Tile {
     memory::String name;         // empty: the entity's friendly_name
     memory::String icon;         // empty: automatic; "none": no icon
     memory::String unit;         // Sensor; empty: the unit Home Assistant reports
-    memory::String stream;       // Picture: an MJPEG stream (http://...); empty: the images of HA
+    memory::String stream;       // Picture: an MJPEG stream (http://... or kHassStream); empty: none
     Cell landscape;              // set by finish()
     Cell portrait;
 };
