@@ -475,6 +475,17 @@ TEST(core_image_cover)
     // a tile from a large picture: at least 1/16
     CHECK(cover_block(4000, 3000, 100, 50, 16).scale == 1);
 
+    // esp_new_jpeg's scale (multiples of 8) to cover the S3's 480x320
+    uint32_t sw = 0;
+    uint32_t sh = 0;
+    CHECK(cover_size8(800, 480, 480, 320, sw, sh) && sw == 536 && sh == 320);
+    CHECK(cover_size8(1280, 960, 480, 320, sw, sh) && sw == 480 && sh == 360);
+    CHECK(!cover_size8(640, 320, 480, 320, sw, sh)); // as large as the box in height: as it is
+    CHECK(!cover_size8(320, 240, 480, 320, sw, sh)); // smaller: as it is
+    CHECK(cover_size8(4000, 3000, 100, 50, sw, sh) && sw == 504 && sh == 376); // at most 1/8
+    // a tile of 230x150 from 704x576
+    CHECK(cover_size8(704, 576, 230, 150, sw, sh) && sw == 232 && sh == 192);
+
     // 5x3 in rows of 8 at 1:2: columns 0, 2, 4 of rows 0 and 2 (the sizes round up)
     uint16_t frame[8 * 3] = {};
     for (uint16_t i = 0; i < 8 * 3; i++) {

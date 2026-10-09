@@ -687,6 +687,15 @@ Next:
         (about 20 fps). Checked by you: no tearing with the CPU copy, 18-22 fps with
         `-r 25`; finalized by you (2026-10-08). The fps label and `hass streamscale` stay as
         test aids.
+  - [x] **S3 streams** (2026-10-08, your request, JC3248W535 on COM10): `esp_new_jpeg` for the
+        S3, media task on the second core, TCP window 23 KB. 640x320 at 10 fps shows all frames
+        (was 4.6), `_xl` 800x480 6.6 fps (scaling in the decoder). The pinning tested on the P4
+        (unchanged) and the WT32 (640x320 2.3-2.6 fps, 800x480 1.8 fps). Optional: a stream in
+        the S3's screen size (480x320) needs no scaling.
+- [x] **Bug (your report): the P4 showed "--" on every tile after a start** until a panel was
+      opened and closed. The UI subscribed its page 80 ms before `hass` had created its queue,
+      and the subscription was dropped (`event 7 dropped`); the queue is created with its first
+      use now. Checked on the P4 after a restart (2026-10-08).
   - [ ] Test the panels on the WT32 against your Home Assistant (history requests, the
         climate panel changes the real thermostat).
 - [x] **Bug (your report): switchtest1 on -> dimmertest1 showed 100 % before the real 33 %.** The

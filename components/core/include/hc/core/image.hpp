@@ -67,6 +67,12 @@ struct CoverBlock {
 CoverBlock cover_block(uint32_t frame_width, uint32_t frame_height, uint32_t box_width, uint32_t box_height,
                        uint32_t steps);
 
+// The size a decoder that scales down to sides in multiples of 8 (esp_new_jpeg, at most 1/8)
+// decodes a picture at to cover a box: the smallest such that is still as large as the box. false
+// when the picture is not larger than the box (it is decoded as it is).
+bool cover_size8(uint32_t picture_width, uint32_t picture_height, uint32_t box_width, uint32_t box_height,
+                 uint32_t &width, uint32_t &height);
+
 // `source` (source_width x source_height, rows `stride` pixels apart) made smaller by 1 << shift
 // into `out` (scaled_size of both sides): every (1 << shift)-th pixel of every (1 << shift)-th row.
 // For a hardware decoder that cannot scale.

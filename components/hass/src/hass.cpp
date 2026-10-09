@@ -118,7 +118,13 @@ std::mutex g_mutex;
 Status g_status{};
 char g_token[kTokenSize] = {};
 
-QueueHandle_t g_queue = nullptr;
+// The task's events, created with the first use: the UI subscribes its page before start() when
+// the dashboard is loaded fast (the P4: 80 ms before), and that subscription waits in the queue.
+QueueHandle_t queue()
+{
+    static const QueueHandle_t created = xQueueCreate(16, sizeof(Event));
+    return created;
+}
 
 // events for the UI, under g_events_mutex
 std::mutex g_events_mutex;
@@ -138,7 +144,7 @@ void *json_malloc(size_t size)
 
 void post(const Event &event, TickType_t wait = 0)
 {
-    if (g_queue == nullptr || xQueueSend(g_queue, &event, wait) != pdTRUE) {
+    if (queue() == nullptr || xQueueSend(queue(), &event, wait) != pdTRUE) {
         ESP_LOGW(kTag, "event %d dropped, the queue is full", static_cast<int>(event.type));
         std::free(event.data);
         delete event.command;
@@ -881,7 +887,7 @@ void task(void *)
     idle_state();
     for (;;) {
         Event event{};
-        if (xQueueReceive(g_queue, &event, kTick) == pdTRUE) {
+        if (xQueueReceive(queue(), &event, kTick) == pdTRUE) {
             handle(event);
         }
         on_timers();
@@ -934,8 +940,7 @@ esp_err_t start()
         g_status.token_set = g_token[0] != 0;
     }
 
-    g_queue = xQueueCreate(16, sizeof(Event));
-    ESP_RETURN_ON_FALSE(g_queue != nullptr, ESP_ERR_NO_MEM, kTag, "queue");
+    ESP_RETURN_ON_FALSE(queue() != nullptr, ESP_ERR_NO_MEM, kTag, "queue");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip_event, nullptr), kTag,
                         "ip event");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_LOST_IP, on_ip_event, nullptr), kTag,

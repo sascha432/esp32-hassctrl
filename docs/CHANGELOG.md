@@ -39,3 +39,13 @@
 - A stream's frame is scaled to show at least 3/4 of it (`core::stream_shift`; a 1280x960
   camera showed only its middle full screen). The software decoder gets a work area of 8 KB per
   image (esp_jpeg's 3100 bytes failed on a Home Assistant snapshot).
+- Camera streams on the JC3248W535 (ESP32-S3): Espressif's `esp_new_jpeg` (S3 only, SIMD)
+  decodes and scales a frame to cover the screen (`hass/src/new_jpeg.cpp`,
+  `core::cover_size8`), TCP window 23 KB. A 640x320 stream at 10 fps shows all frames (was
+  4.6 fps), 800x480 6.6 fps (was 2.6).
+- The media task runs on the second core of chips that have one (the S3's first core was
+  saturated by Wi-Fi, LVGL and the decoding: task watchdog). Tested on the P4 (unchanged) and
+  the WT32 (640x320 2.3 to 2.6 fps).
+- Fix: after a start the P4's tiles stayed at "--" until a panel was opened. The UI subscribed
+  its page before `hass` had created its queue and the subscription was dropped; the queue is
+  created with its first use now.

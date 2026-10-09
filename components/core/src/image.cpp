@@ -90,6 +90,35 @@ CoverBlock cover_block(uint32_t frame_width, uint32_t frame_height, uint32_t box
     return block;
 }
 
+bool cover_size8(uint32_t picture_width, uint32_t picture_height, uint32_t box_width, uint32_t box_height,
+                 uint32_t &width, uint32_t &height)
+{
+    if (picture_width == 0 || picture_height == 0 || box_width == 0 || box_height == 0) {
+        return false;
+    }
+    const auto up8 = [](uint64_t value) { return static_cast<uint32_t>((value + 7) / 8 * 8); };
+    // the scale is the larger of the two ratios: whichever side reaches the box first
+    const bool by_width = static_cast<uint64_t>(box_width) * picture_height >= static_cast<uint64_t>(box_height) * picture_width;
+    uint32_t w = 0;
+    uint32_t h = 0;
+    if (by_width) {
+        w = up8(box_width);
+        h = up8((static_cast<uint64_t>(picture_height) * box_width + picture_width - 1) / picture_width);
+    } else {
+        h = up8(box_height);
+        w = up8((static_cast<uint64_t>(picture_width) * box_height + picture_height - 1) / picture_height);
+    }
+    // not larger: as it is; at most 1/8
+    if (w >= picture_width || h >= picture_height) {
+        return false;
+    }
+    w = std::max(w, up8((picture_width + 7) / 8));
+    h = std::max(h, up8((picture_height + 7) / 8));
+    width = w;
+    height = h;
+    return true;
+}
+
 void shrink(const uint16_t *source, uint32_t source_width, uint32_t source_height, uint32_t stride, uint8_t shift,
             uint16_t *out)
 {

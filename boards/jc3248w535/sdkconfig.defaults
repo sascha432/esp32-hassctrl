@@ -26,3 +26,9 @@ CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 # QSPI panel: RGB565 high byte first (hc::board::Info::swap_bytes). LVGL 8 only; with LVGL 9 this
 # becomes esp_lvgl_port's swap_bytes flag.
 CONFIG_LV_COLOR_16_SWAP=y
+
+# A camera stream (components/hass/src/media.cpp) is read between the decoding of two frames: with
+# the default window of 4 segments go2rtc stops sending while a frame decodes. 16 segments, within
+# the 32 dynamic Wi-Fi receive buffers; the mailbox holds a window of them.
+CONFIG_LWIP_TCP_WND_DEFAULT=23040
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=32

@@ -28,6 +28,7 @@
 #include "hc/hass/hass.hpp"
 #include "internal.hpp"
 #include "image_hw.hpp"
+#include "new_jpeg.hpp"
 #include "jpeg_decoder.h"
 
 namespace hc::hass {
@@ -336,12 +337,13 @@ struct DecodeTimes {
     uint8_t shift = 0;
     bool hardware = false;
     bool scaled = false; // by the PPA, to the request's size
+    bool simd = false;   // esp_new_jpeg (ESP32-S3)
 };
 
 // the decoders used, for the log
 const char *decoder_name(const DecodeTimes &times)
 {
-    return times.scaled ? "hw+ppa" : times.hardware ? "hw" : "sw";
+    return times.scaled ? "hw+ppa" : times.hardware ? "hw" : times.simd ? "simd" : "sw";
 }
 
 // The decoder's scale for a picture: a stream's frame shows most of the picture, a still image
@@ -404,6 +406,32 @@ bool decode_hardware(const Request &request, const uint8_t *jpeg, size_t size, b
     }
     core::shrink(frame.pixels.get(), frame.picture_width, frame.picture_height, frame.width, shift, decoded.get());
     times.copy_us = esp_timer_get_time() - decoded_at;
+    return true;
+}
+
+// esp_new_jpeg (ESP32-S3, new_jpeg): a quarter of TJpgDec's time, scaled while it decodes to the
+// smallest size that covers the request's (sides in multiples of 8), so a stream's frame needs no
+// zoom of LVGL. Not with a scale from the console. False when it is not built in or cannot take
+// the JPEG.
+bool decode_simd(const Request &request, const uint8_t *jpeg, size_t size, int shift_wanted, core::Pixels &decoded,
+                 uint32_t &width, uint32_t &height, DecodeTimes &times)
+{
+    if (shift_wanted >= 0) {
+        return false;
+    }
+    char error[64];
+    uint32_t picture_width = 0;
+    uint32_t picture_height = 0;
+    const int64_t started = esp_timer_get_time();
+    if (!new_jpeg::decode(jpeg, size, request.swap_bytes, request.width, request.height, decoded, width, height,
+                          picture_width, picture_height, error, sizeof(error))) {
+        ESP_LOGD(kTag, "%s: %s", request.entity_id.c_str(), error);
+        return false;
+    }
+    times.decode_us = esp_timer_get_time() - started;
+    times.source_width = static_cast<uint16_t>(picture_width);
+    times.source_height = static_cast<uint16_t>(picture_height);
+    times.simd = true;
     return true;
 }
 
@@ -476,6 +504,7 @@ bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live,
     uint32_t width = 0;
     uint32_t height = 0;
     if (!decode_hardware(request, jpeg, size, live, shift_wanted, decoded, width, height, times) &&
+        !decode_simd(request, jpeg, size, shift_wanted, decoded, width, height, times) &&
         !decode_software(request, jpeg, size, live, shift_wanted, decoded, width, height, times, error, error_size)) {
         return false;
     }
@@ -647,11 +676,12 @@ void play(const Request &request)
         received++;
         bytes += part;
         // The frame is read while the UI draws the last one (the P4 takes 50 ms for 800x480). The
-        // hardware decoder's frame (17 ms) is decoded then too, before the UI is waited for; the
-        // software decoder's (300 ms on the ESP32) only once the UI took the last, so a frame that
+        // frame of the P4's hardware decoder (17 ms) or of esp_new_jpeg on the S3 is decoded then
+        // too, before the UI is waited for; TJpgDec's (300 ms on the ESP32) only once the UI took
+        // the last, so a frame that
         // is dropped is not decoded for nothing. The UI is waited for briefly (go2rtc also sends
         // frames in bursts); only a UI that is really behind makes a frame be dropped.
-        const bool decode_first = times.hardware; // the decoder of the last frame
+        const bool decode_first = times.hardware || times.simd; // the decoder of the last frame
         core::Image image;
         image.generation = request.generation;
         image.entity = request.entity;
@@ -760,7 +790,10 @@ bool start_task()
             return false;
         }
     }
-    if (xTaskCreate(task, "media", stack, nullptr, 3, &g_task) != pdPASS) {
+    // on the second core where there is one: Wi-Fi runs on the first, and with LVGL and a stream's
+    // decoding both there the S3's first core was busy for seconds (task watchdog)
+    const BaseType_t core = portNUM_PROCESSORS > 1 ? 1 : tskNO_AFFINITY;
+    if (xTaskCreatePinnedToCore(task, "media", stack, nullptr, 3, &g_task, core) != pdPASS) {
         g_task = nullptr;
         ESP_LOGE(kTag, "no memory for the task (%u bytes of stack)", static_cast<unsigned>(stack));
         return false;

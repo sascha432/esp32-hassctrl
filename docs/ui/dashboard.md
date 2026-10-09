@@ -294,3 +294,28 @@ Measured full screen 800x480 (2026-10-08):
 Before the hardware (software decoder, LVGL's zoom): 800x480 5.5 fps, doorspy 2.5 fps. The user
 measured 18 to 22 fps with go2rtc's `-r 25` and saw no tearing with the CPU copy (2026-10-08).
 
+On the JC3248W535 (ESP32-S3, 480x320) Espressif's `esp_new_jpeg` decodes (`hass/src/new_jpeg.cpp`,
+a dependency of `hass` for the S3 only; SIMD, a 640x320 frame in 41 ms instead of TJpgDec's
+148 ms). It scales while it decodes, to sides in multiples of 8 (`core::cover_size8`): a frame
+larger than the screen is decoded at the smallest size that covers it (800x480 at 536x320), so
+LVGL needs no zoom; the scaling costs time (800x480 107 ms), a stream in the screen's size is
+cheaper. The media task runs on the second core of every chip that has one: on the S3's first
+core with Wi-Fi and LVGL the decoding starved the idle task (task watchdog) and took 60 ms
+instead of 41. TCP window 23 KB (16 segments, the Wi-Fi buffers are in PSRAM; internal RAM
+stayed at 40 KB free). Measured full screen (2026-10-08):
+
+| Stream | source | shown | decode per frame |
+| --- | --- | --- | --- |
+| go2rtc 640x320, `-r 10 -q:v 17` | 10.2 fps | 9.2 to 10.9 fps | 41 ms |
+| go2rtc 640x320, `-r 8 -q:v 16` (`_m`) | 8.2 fps | 7.7 to 8.4 fps | 40 ms |
+| go2rtc 800x480, `-r 15 -q:v 18` (`_xl`) | 15 fps | 6.4 to 6.9 fps | 107 ms (scaled) |
+| HA doorspy 1280x960 | 9.4 fps | about 3 fps | 210 to 240 ms (scaled) |
+
+Before (TJpgDec, window 5.7 KB): 640x320 4.6 fps, 800x480 2.6 fps; the window alone gave 5.9 and
+3.1 fps.
+
+With the media task on the second core the P4 is unchanged (`_xl` 13.6 to 16.6 fps, 640x320 all
+10 fps, doorspy 9.4 fps) and the WT32 (TJpgDec, default window) shows 640x320 at 2.3 to 2.6 fps,
+800x480 at 1.8 fps and Home Assistant's doorspy (1280x960, 1:4, about 1 s per frame) at 0.8 fps;
+internal RAM 32 KB free as before (2026-10-08).
+
