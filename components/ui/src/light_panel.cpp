@@ -30,14 +30,22 @@ constexpr uint8_t bit(Mode mode)
 constexpr lv_coord_t kButtonHeight = 40;
 constexpr lv_coord_t kButtonGap = 6;
 // the gap between the steppers and the slider
-using panel::kStepSize;
 using panel::kStepGap;
 constexpr lv_coord_t kSliderStepGap = 20;
 // the sliders: at most this wide, the track rounded like this
 constexpr lv_coord_t kSliderWidth = 113;
+// the level slider of a large frame (the P4's dialog), wider. Portrait: this part of the height,
+// centered; landscape: further from the steppers and this far above the bottom of the control.
+constexpr lv_coord_t kSliderWidthLarge = 160;
+constexpr int kSliderHeightLargePct = 80;
+constexpr lv_coord_t kSliderWidthLargeLandscape = 140;
+constexpr lv_coord_t kSliderStepGapLarge = 40;
+constexpr lv_coord_t kSliderBottomLarge = 16;
 constexpr lv_coord_t kSliderRadius = 24;
-// the marker of the color temperature
-constexpr lv_coord_t kMarkerHeight = 6;
+// the marker of the color temperature: a white bar this tall, this far from the track's sides
+constexpr lv_coord_t kMarkerHeight = 12;
+constexpr lv_coord_t kMarkerInset = 6;
+constexpr lv_coord_t kMarkerRadius = 4;
 // the color wheel at most this large, its knob
 constexpr lv_coord_t kWheelSize = 196;
 constexpr lv_coord_t kKnobSize = 28;
@@ -216,8 +224,10 @@ void slider_show(Slider &s, float value, bool known)
         set_hidden(s.fill, !known || offset == 0);
     }
     if (s.marker != nullptr) {
+        // at the ends as far from the track's edge as from its sides
         constexpr lv_coord_t marker = kMarkerHeight;
-        lv_obj_set_y(s.marker, static_cast<lv_coord_t>(std::clamp<int>(height - offset - marker / 2, 0, height - marker)));
+        lv_obj_set_y(s.marker, static_cast<lv_coord_t>(std::clamp<int>(height - offset - marker / 2, kMarkerInset,
+                                                                       height - marker - kMarkerInset)));
         set_hidden(s.marker, !known);
     }
 }
@@ -291,6 +301,26 @@ lv_obj_t *slider_label(Slider &s, uint32_t color)
     return s.value;
 }
 
+// The size of a slider in a control of `h` with `room` for its width, and its place from the
+// top; the level and the color temperature sliders look the same.
+struct SliderPlace {
+    lv_coord_t w;
+    lv_coord_t h;
+    lv_coord_t y;
+};
+
+SliderPlace slider_place(lv_coord_t room, lv_coord_t h)
+{
+    if (!g.frame.large) {
+        return {std::min(kSliderWidth, room), h, 0};
+    }
+    if (g.frame.portrait) {
+        const auto slider_h = static_cast<lv_coord_t>(h * kSliderHeightLargePct / 100);
+        return {std::min(kSliderWidthLarge, room), slider_h, static_cast<lv_coord_t>((h - slider_h) / 2)};
+    }
+    return {std::min(kSliderWidthLargeLandscape, room), static_cast<lv_coord_t>(h - kSliderBottomLarge), 0};
+}
+
 // ------------------------------------------------------------------------------- level
 
 void send_steps()
@@ -350,10 +380,14 @@ void build_level(lv_coord_t w, lv_coord_t h)
         lv_obj_center(g.note);
         return;
     }
-    const lv_coord_t step = std::min<lv_coord_t>(kStepSize, (h - kStepGap) / 2);
-    const lv_coord_t slider_w = std::min<lv_coord_t>(kSliderWidth, w - kSliderStepGap - step);
-    const lv_coord_t x = (w - (slider_w + kSliderStepGap + step)) / 2;
-    g.level = make_slider(g.control, x, 0, slider_w, h, 0, 100, [](float value) {
+    const lv_coord_t step = std::min<lv_coord_t>(panel::step_size(g.frame), (h - kStepGap) / 2);
+    const lv_coord_t gap = g.frame.large && !g.frame.portrait ? kSliderStepGapLarge : kSliderStepGap;
+    const SliderPlace place = slider_place(static_cast<lv_coord_t>(w - gap - step), h);
+    const lv_coord_t slider_w = place.w;
+    const lv_coord_t slider_h = place.h;
+    const lv_coord_t x = (w - (slider_w + gap + step)) / 2;
+    const lv_coord_t y = place.y;
+    g.level = make_slider(g.control, x, y, slider_w, slider_h, 0, 100, [](float value) {
         const int level = static_cast<int>(std::lround(value));
         send(core::IntentKind::SetLevel, static_cast<float>(level), 0, {}, level_expectation(level));
     });
@@ -366,8 +400,9 @@ void build_level(lv_coord_t w, lv_coord_t h)
     lv_obj_clear_flag(g.level.fill, LV_OBJ_FLAG_CLICKABLE);
     slider_label(g.level, t::kText);
 
-    const lv_coord_t step_x = x + slider_w + kSliderStepGap;
-    const lv_coord_t step_y = (h - (2 * step + kStepGap)) / 2;
+    // the steppers centered beside the slider
+    const lv_coord_t step_x = x + slider_w + gap;
+    const lv_coord_t step_y = y + (slider_h - (2 * step + kStepGap)) / 2;
     g.plus = panel::step_button(g.control, step_x, step_y, step, "plus", on_step);
     g.minus = panel::step_button(g.control, step_x, static_cast<lv_coord_t>(step_y + step + kStepGap), step, "minus", on_step);
 }
@@ -552,8 +587,8 @@ void build_temp(lv_coord_t w, lv_coord_t h)
     const core::EntityState &s = state();
     float min = !std::isnan(s.min_color_temp) && s.min_color_temp > 0 ? s.min_color_temp : kDefaultMinKelvin;
     float max = !std::isnan(s.max_color_temp) && s.max_color_temp > min ? s.max_color_temp : kDefaultMaxKelvin;
-    const lv_coord_t slider_w = std::min(kSliderWidth, w);
-    g.temp = make_slider(g.control, static_cast<lv_coord_t>((w - slider_w) / 2), 0, slider_w, h, min, max, [](float value) {
+    const SliderPlace place = slider_place(w, h);
+    g.temp = make_slider(g.control, static_cast<lv_coord_t>((w - place.w) / 2), place.y, place.w, place.h, min, max, [](float value) {
         // HA works in mireds underneath, steps of 10 K are as fine as it goes
         const float kelvin = std::round(value / 10) * 10;
         core::Expectation expected;
@@ -567,11 +602,11 @@ void build_temp(lv_coord_t w, lv_coord_t h)
     lv_obj_set_style_bg_grad_color(g.temp.track, kelvin_color(min), 0);
     lv_obj_set_style_bg_grad_dir(g.temp.track, LV_GRAD_DIR_VER, 0);
     g.temp.marker = t::plain(g.temp.track);
-    lv_obj_set_size(g.temp.marker, LV_PCT(100), kMarkerHeight);
+    lv_obj_set_size(g.temp.marker, static_cast<lv_coord_t>(place.w - 2 * kMarkerInset), kMarkerHeight);
+    lv_obj_set_x(g.temp.marker, kMarkerInset);
+    lv_obj_set_style_radius(g.temp.marker, kMarkerRadius, 0);
     lv_obj_set_style_bg_opa(g.temp.marker, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(g.temp.marker, t::color(t::kText), 0);
-    lv_obj_set_style_border_width(g.temp.marker, 1, 0);
-    lv_obj_set_style_border_color(g.temp.marker, t::color(t::kBackground), 0);
     lv_obj_clear_flag(g.temp.marker, LV_OBJ_FLAG_CLICKABLE);
     // dark on the light colors of the track
     slider_label(g.temp, t::kBackground);

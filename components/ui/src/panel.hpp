@@ -25,7 +25,8 @@
 //
 // With Options::panel_dialogs the frame is a dialog of 620 x 420 (440 x 600 in portrait) over the
 // dimmed page, sliding down from above the screen and back up (not for the camera image); the parts
-// are placed in the dialog's coordinates then.
+// are placed in the dialog's coordinates then, and the buttons of the header and the steppers are a
+// quarter larger (`Frame::large`).
 
 #include <string>
 #include <string_view>
@@ -46,6 +47,7 @@ struct Frame {
     lv_area_t options{};      // a column in landscape, a row in portrait
     lv_area_t control{};
     bool portrait = false;
+    bool large = false;       // a dialog (the P4): the larger buttons, see step_size()
 };
 
 // true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a picture: its image
@@ -74,6 +76,13 @@ void on_image(const core::Image &image);
 // the round steppers of a panel and the gap between two of them
 constexpr lv_coord_t kStepSize = 64;
 constexpr lv_coord_t kStepGap = 8;
+// the steppers of a large frame, a quarter larger
+constexpr lv_coord_t kStepSizeLarge = kStepSize * 5 / 4;
+
+inline lv_coord_t step_size(const Frame &frame)
+{
+    return frame.large ? kStepSizeLarge : kStepSize;
+}
 // holding a stepper steps this often (the touch repeats every 100 ms, too fast to stop on a value)
 constexpr uint32_t kStepRepeatMs = 250;
 // the color of an action on its way (docs/ui/dashboard.md section 3; cards show runner.hpp)

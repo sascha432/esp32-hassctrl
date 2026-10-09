@@ -25,7 +25,7 @@ CONF = ROOT / "host" / "sim" / "lv_conf.h"
 KNOWN_DIFFERENCES = {"LV_COLOR_16_SWAP", "LV_ATTRIBUTE_FAST_MEM_USE_IRAM", "LV_MEM_CUSTOM_INCLUDE",
                      "LV_ASSERT_HANDLER_INCLUDE", "LV_CONF_SKIP", "LV_LOG_LEVEL",
                      # the larger fonts of the JC4880P443C, not in the WT32's build
-                     "LV_FONT_MONTSERRAT_18", "LV_FONT_MONTSERRAT_26", "LV_FONT_MONTSERRAT_36"}
+                     "LV_FONT_MONTSERRAT_18", "LV_FONT_MONTSERRAT_24", "LV_FONT_MONTSERRAT_26", "LV_FONT_MONTSERRAT_36"}
 
 
 def sdkconfig_values(path):

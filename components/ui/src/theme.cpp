@@ -84,14 +84,16 @@ struct Fonts {
     const lv_font_t *medium;
     const lv_font_t *large;
     const lv_font_t *huge;
+    const lv_font_t *item; // the items of the panels' lists
 };
 
 constexpr Fonts kFonts{100, &lv_font_montserrat_12, &lv_font_montserrat_14, &lv_font_montserrat_16, &lv_font_montserrat_20,
-                       &lv_font_montserrat_28};
+                       &lv_font_montserrat_28, &lv_font_montserrat_14};
 // only in the builds of the boards that use them (their sdkconfig.defaults)
-#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
+#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_24 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
+// the list items a third larger than the normal font: the panels' lists read small on the P4
 constexpr Fonts kLargeFonts{130, &lv_font_montserrat_16, &lv_font_montserrat_18, &lv_font_montserrat_20,
-                            &lv_font_montserrat_26, &lv_font_montserrat_36};
+                            &lv_font_montserrat_26, &lv_font_montserrat_36, &lv_font_montserrat_24};
 #endif
 
 const Fonts *g_fonts = &kFonts;
@@ -100,11 +102,11 @@ const Fonts *g_fonts = &kFonts;
 
 void use_large_fonts(bool large)
 {
-#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
+#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_24 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
     g_fonts = large ? &kLargeFonts : &kFonts;
 #else
     if (large) {
-        LV_LOG_WARN("large fonts are not built in (Montserrat 18, 26, 36)");
+        LV_LOG_WARN("large fonts are not built in (Montserrat 18, 24, 26, 36)");
     }
 #endif
 }
@@ -132,6 +134,11 @@ const lv_font_t &font_large()
 const lv_font_t &font_huge()
 {
     return *g_fonts->huge;
+}
+
+const lv_font_t &font_item()
+{
+    return *g_fonts->item;
 }
 
 lv_coord_t scaled(lv_coord_t px)

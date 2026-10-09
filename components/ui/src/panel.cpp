@@ -21,8 +21,9 @@ namespace t = theme;
 constexpr lv_coord_t kMargin = 8;
 constexpr lv_coord_t kGap = 4;
 constexpr lv_coord_t kRadius = 8;
-// the header row: the name, and the back tile of a portrait panel
+// the header row: the name, and the back tile of a portrait panel; a quarter taller in a large frame
 constexpr lv_coord_t kHeaderHeight = 48;
+constexpr lv_coord_t kHeaderHeightLarge = kHeaderHeight * 5 / 4;
 // the gap between the header and the control
 constexpr lv_coord_t kControlGap = 8;
 // the name keeps this far from the back tile: the text has no card around it, so the grid's 4 px
@@ -35,8 +36,9 @@ constexpr lv_coord_t kControlSide = 2 * kGap;
 constexpr lv_coord_t kItemHeight = 42;
 constexpr lv_coord_t kItemGap = 4;
 constexpr lv_coord_t kScrollbarRoom = 10;
-// the row of the options of a portrait panel
+// the row of the options of a portrait panel; a quarter taller in a large frame
 constexpr lv_coord_t kOptionsRow = 44;
+constexpr lv_coord_t kOptionsRowLarge = kOptionsRow * 5 / 4;
 // Options::panel_dialogs: the opaque dialog in landscape and in portrait, the page behind it dimmed
 // by a black veil. The dialog slides down from above the screen and back up when it closes; the
 // veil darkens at once (fading it redrew the whole screen every frame, the P4 needs 50 ms for that).
@@ -75,22 +77,25 @@ lv_area_t area(lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h)
 
 // The areas of the panel (panel.hpp). Landscape: the left column is one cell of a 4-column grid,
 // its back tile at most a third of the height; the rest of the column holds the options.
-Frame frame_of(lv_obj_t *root, lv_coord_t width, lv_coord_t height, bool with_action, bool compact)
+Frame frame_of(lv_obj_t *root, lv_coord_t width, lv_coord_t height, bool with_action, bool compact, bool large)
 {
     Frame f;
     f.root = root;
     f.portrait = height > width;
+    f.large = large;
+    const lv_coord_t header = large ? kHeaderHeightLarge : kHeaderHeight;
     if (compact) {
-        f.back = area(kMargin, kMargin, kHeaderHeight, kHeaderHeight);
-        const lv_coord_t control_y = kMargin + kHeaderHeight + kControlGap;
+        f.back = area(kMargin, kMargin, header, header);
+        const lv_coord_t control_y = kMargin + header + kControlGap;
         f.control = area(kMargin, control_y, static_cast<lv_coord_t>(width - 2 * kMargin),
                          static_cast<lv_coord_t>(height - kMargin - control_y));
         f.options = area(kMargin, static_cast<lv_coord_t>(height - kMargin), 0, 0);
     } else if (f.portrait) {
-        f.back = area(kMargin, kMargin, kHeaderHeight, kHeaderHeight);
-        f.options = area(kMargin, static_cast<lv_coord_t>(height - kMargin - kOptionsRow),
-                         static_cast<lv_coord_t>(width - 2 * kMargin), kOptionsRow);
-        const lv_coord_t control_y = kMargin + kHeaderHeight + kControlGap;
+        f.back = area(kMargin, kMargin, header, header);
+        const lv_coord_t row = large ? kOptionsRowLarge : kOptionsRow;
+        f.options = area(kMargin, static_cast<lv_coord_t>(height - kMargin - row),
+                         static_cast<lv_coord_t>(width - 2 * kMargin), row);
+        const lv_coord_t control_y = kMargin + header + kControlGap;
         f.control = area(kMargin, control_y, static_cast<lv_coord_t>(width - 2 * kMargin),
                          static_cast<lv_coord_t>(f.options.y1 - kControlGap - control_y));
     } else {
@@ -100,15 +105,15 @@ Frame frame_of(lv_obj_t *root, lv_coord_t width, lv_coord_t height, bool with_ac
         f.options = area(kMargin, static_cast<lv_coord_t>(kMargin + back + kGap), column,
                          static_cast<lv_coord_t>(height - 2 * kMargin - back - kGap));
         const lv_coord_t x = kMargin + column + kControlSide;
-        const lv_coord_t control_y = kMargin + kHeaderHeight + kControlGap;
+        const lv_coord_t control_y = kMargin + header + kControlGap;
         f.control = area(x, control_y, static_cast<lv_coord_t>(width - kMargin - x),
                          static_cast<lv_coord_t>(height - kMargin - control_y));
     }
     const auto header_x = static_cast<lv_coord_t>(f.back.x2 + 1 + kNameGap);
-    f.action = area(static_cast<lv_coord_t>(width - kMargin - kHeaderHeight), kMargin, kHeaderHeight, kHeaderHeight);
+    f.action = area(static_cast<lv_coord_t>(width - kMargin - header), kMargin, header, header);
     // without an action the name has the whole header
     const lv_coord_t header_end = with_action ? static_cast<lv_coord_t>(f.action.x1 - kGap) : static_cast<lv_coord_t>(width - kMargin);
-    f.header = area(header_x, kMargin, static_cast<lv_coord_t>(header_end - header_x), kHeaderHeight);
+    f.header = area(header_x, kMargin, static_cast<lv_coord_t>(header_end - header_x), header);
     return f;
 }
 
@@ -230,11 +235,19 @@ void set_text(lv_obj_t *label, const std::string &text)
     }
 }
 
+// The height of an item: kItemHeight for the normal font, as much taller as font_item() is
+// (Montserrat 24 on the P4, the items grow with their text).
+lv_coord_t item_height()
+{
+    return static_cast<lv_coord_t>(kItemHeight * lv_font_get_line_height(&t::font_item()) /
+                                   lv_font_get_line_height(&t::font_normal()));
+}
+
 // the height of `count` items in `columns`
 lv_coord_t list_content(size_t count, size_t columns)
 {
     const auto rows = static_cast<lv_coord_t>((count + columns - 1) / columns);
-    return rows == 0 ? 0 : static_cast<lv_coord_t>(rows * kItemHeight + (rows - 1) * kItemGap);
+    return rows == 0 ? 0 : static_cast<lv_coord_t>(rows * item_height() + (rows - 1) * kItemGap);
 }
 
 // one column when every item fits in it, else two
@@ -269,6 +282,7 @@ void list_fill(lv_obj_t *list, lv_coord_t width, lv_coord_t height, const memory
     const size_t columns = list_columns(values.size(), height);
     const lv_coord_t content = list_content(values.size(), columns);
     const bool fits = content <= height;
+    const lv_coord_t item_h = item_height();
     // the items are as wide as two of them side by side, whether there are one or two columns
     const auto item_width = static_cast<lv_coord_t>((width - (fits ? 0 : kScrollbarRoom) - kItemGap) / 2);
     // a list that fits is a block centered in the area (a short one a single column), one that
@@ -279,7 +293,7 @@ void list_fill(lv_obj_t *list, lv_coord_t width, lv_coord_t height, const memory
     lv_obj_set_pos(list, static_cast<lv_coord_t>((width - list_width) / 2),
                    fits ? static_cast<lv_coord_t>((height - content) / 2) : 0);
     for (const auto &value : values) {
-        lv_obj_t *item = card(list, area(0, 0, item_width, kItemHeight));
+        lv_obj_t *item = card(list, area(0, 0, item_width, item_h));
         lv_obj_set_flex_flow(item, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(item, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_hor(item, 8, 0);
@@ -288,7 +302,7 @@ void list_fill(lv_obj_t *list, lv_coord_t width, lv_coord_t height, const memory
         if (const char *glyph = glyph_of != nullptr ? glyph_of(value) : nullptr) {
             t::label(item, glyph, icons::small(), t::kTextLabel);
         }
-        lv_obj_t *label = t::label(item, "", t::font_normal(), t::kTextLabel);
+        lv_obj_t *label = t::label(item, "", t::font_item(), t::kTextLabel);
         lv_obj_set_flex_grow(label, 1);
         const std::string text = text_of != nullptr ? text_of(value) : std::string(value);
         t::line_text(label, text.c_str());
@@ -319,12 +333,13 @@ void list_reveal(lv_obj_t *list, const memory::Vector<memory::String> &values, s
         return;
     }
     const auto row = static_cast<lv_coord_t>(static_cast<size_t>(found - values.begin()) / columns);
-    const lv_coord_t top = static_cast<lv_coord_t>(row * (kItemHeight + kItemGap));
-    if (top + kItemHeight <= height) {
+    const lv_coord_t item_h = item_height();
+    const lv_coord_t top = static_cast<lv_coord_t>(row * (item_h + kItemGap));
+    if (top + item_h <= height) {
         return; // in view from the start
     }
     // the item in the middle, but no further than the end of the list
-    const lv_coord_t y = std::clamp<lv_coord_t>(static_cast<lv_coord_t>(top + kItemHeight / 2 - height / 2), 0,
+    const lv_coord_t y = std::clamp<lv_coord_t>(static_cast<lv_coord_t>(top + item_h / 2 - height / 2), 0,
                                                 static_cast<lv_coord_t>(content - height));
     lv_obj_scroll_to_y(list, y, LV_ANIM_OFF);
 }
@@ -386,7 +401,7 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         place(appear ? 0 : kShown);
     }
     const bool light = kind == core::TileKind::Light;
-    Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, kind == core::TileKind::Sensor);
+    Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, kind == core::TileKind::Sensor, dialog);
 
     lv_obj_t *back = card(body, frame.back);
     lv_obj_t *arrow = t::label(back, icons::glyph("arrow-left"),

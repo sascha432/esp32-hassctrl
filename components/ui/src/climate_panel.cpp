@@ -280,7 +280,7 @@ void build_arc(lv_coord_t w, lv_coord_t h)
     // landscape: the steppers stacked right of the arc (+ above -, like the bars of the tile);
     // portrait: a row under it (- left of +)
     const bool portrait = g.frame.portrait;
-    const lv_coord_t step = std::min<lv_coord_t>(panel::kStepSize, (h - panel::kStepGap) / 2);
+    const lv_coord_t step = std::min<lv_coord_t>(panel::step_size(g.frame), (h - panel::kStepGap) / 2);
     lv_coord_t size = 0;
     lv_coord_t arc_x = 0;
     lv_coord_t arc_y = 0;
@@ -333,6 +333,10 @@ void build_arc(lv_coord_t w, lv_coord_t h)
     for (const lv_event_code_t code : {LV_EVENT_VALUE_CHANGED, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST}) {
         lv_obj_add_event_cb(g.arc, on_arc, code, nullptr);
     }
+    // The arc's hit test takes the whole ring, its gap at the bottom too: the portrait steppers lie
+    // in it and the arc, made after them, took their taps. They go in front of it.
+    lv_obj_move_foreground(g.minus);
+    lv_obj_move_foreground(g.plus);
 
     // inside: the action, the setpoint, the room temperature; a fixed box at the center
     lv_obj_t *col = t::plain(g.control);

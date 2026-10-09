@@ -573,6 +573,10 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         (`/api/hass/entities`, `/api/hass/entity`; the editor takes typed entity ids meanwhile).
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
+- [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,
+      steppers, options row, list items and sliders (docs/ui/dashboard.md section 6), the color
+      temperature marker a rounded bar. Fix: the climate `+`/`-` in portrait did nothing (the arc
+      took their taps). Approved by you, tested on a 3.5" board and the P4.
 
 Home Assistant values (2026-10-07, running on the T4 against your Home Assistant):
 

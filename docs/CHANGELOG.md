@@ -134,6 +134,18 @@ Screen:
   opening; the power button leads there too). Approved by the user.
 - Camera full screen: the spinner's track is at 50 % opacity, so the image shows through.
   Approved by the user.
+- Fix: the climate panel's `+`/`-` did nothing in portrait. The arc's hit test takes the whole
+  ring, its gap at the bottom too, where the portrait steppers lie; they are in front of the arc
+  now (every board).
+- Dimmer and climate panels on the JC4880P443C (`panel::Frame::large`, the dialogs): header
+  row, back tile and power button 60 px, steppers 80 px, the portrait options row 55 px (a
+  quarter larger); list items in Montserrat 24 (`theme::font_item()`, +33 %,
+  `CONFIG_LV_FONT_MONTSERRAT_24` in the board's sdkconfig.defaults) and 54 px tall; the level
+  and color temperature sliders 160 px wide and 80 % high in portrait, 140 px wide in landscape
+  with 40 px to the steppers.
+- Color temperature marker (every board): a white rounded bar 12 px tall, 6 px from the track's
+  sides, no border (was a 6 px bar across the track with a dark border).
+- Design approved by the user; tested on a 3.5" board and the JC4880P443C.
 
 Devices: WT32-SC01 (COM9), JC3248W535 (COM10) and JC4880P443C (COM11) have this firmware and
 its web image, their dashboards kept. The WT32's firmware write failed twice at 921600 baud

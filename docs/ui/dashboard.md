@@ -131,6 +131,16 @@ round steppers of both panels are 64 px (smaller when the control area is short)
 times a second. The header action of a climate is shown only while it is on; without it the name
 takes the whole header.
 
+In the dialogs of the P4 (`panel_dialogs`, `Frame::large`) the touch targets are larger:
+
+- the header row, the portrait back tile and the header action 60 px, the steppers 80 px and the
+  portrait options row 55 px (a quarter larger);
+- the list items in Montserrat 24 (`theme::font_item()`, a third larger than the normal 18) and
+  as much taller as their font (42 px scaled by the line heights: 54 px);
+- the level and color temperature sliders wider: 160 px and 80 % of the control's height,
+  centered, in portrait; 140 px, 16 px short of the control's bottom and (the level) 40 px from
+  the steppers in landscape. The steppers are centered on the slider.
+
 The lists of both panels (effects, modes, presets, fan modes) have 42 px items as wide as two of
 them side by side. When every item fits in one column, the list is that column, centered in the
 control area; else it has two columns, centered when they fit (no room kept for a scrollbar). A
@@ -156,7 +166,7 @@ Carried over from `behavior.md` section 7 of the old firmware, fitted to 320x240
 | level | vertical slider (113 px at most, the fill orange, the percentage in the middle) and the round `+`/`-` steppers (64 px) beside it | drag or tap sets the level on release; the steppers go to the next multiple of the tile's `step` (default 1 %), held 4 times a second, sent 0.5 s after the last step; 0 turns the light off |
 | level of an on/off light | `On` / `Off` in large type | (the power button) |
 | color | hue and saturation wheel (196 px at most; hue counterclockwise from red at the right, white in the center), the knob in the color that is set | drag, sent on release (`hs_color`) |
-| color temperature | vertical slider with the colors of the range (cool at the top), a white marker, the kelvin in the middle; empty while the light is in a color mode | drag, sent on release in steps of 10 K |
+| color temperature | vertical slider as large as the level slider, with the colors of the range (cool at the top), a white marker (a rounded bar 12 px tall, 6 px from the sides, no border), the kelvin in the middle; empty while the light is in a color mode | drag, sent on release in steps of 10 K |
 | effects | the effect list in two columns, scrolling, the running effect orange | sets the effect |
 
 The wheel is drawn by the panel into a buffer of the large heap (`lv_colorwheel` exists only in
