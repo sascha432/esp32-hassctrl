@@ -44,7 +44,7 @@ Any other page change (a new layout, turning the display) has no slide.
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
 | dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel (section 6) |
 | climate 1x2 | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
-| climate 1x1 | action, setpoint, name | opens the climate panel |
+| climate 1x1 | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
 | picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
@@ -60,7 +60,7 @@ long ends in `...`.
 | --- | --- |
 | on (switch, light, binary sensor `on`) | filled with the active color (`0xff8000`), white icon and name |
 | off | card `0x182029`, border `0x2b3844`, icon and name `0x7fa8c9`; the off glyph of the domain |
-| pending (an action on its way) | cyan border (`0x00ffff`, 2 px), the expected value shown at once |
+| pending (an action on its way) | a cyan (`0x00ffff`) dot with a glow and a short fading tail runs clockwise round the border, 220 px a second on every card size (`runner.cpp`; each frame redraws only the dot's stretch of the border); the expected value shown at once |
 | unavailable (`unavailable`, `unknown`) | card `0x161d25`, value `--` |
 | no value yet | value `...` |
 | dimmer | the fill is the indicator, the card stays dark |
@@ -128,7 +128,8 @@ The left column is one cell of a 4-column grid, the back tile at most a third of
 between it and the control (twice the grid's gap: with 4 px the arc and the lists looked glued to
 the buttons); the header row is 48 px, the name 12 px right of the back tile. Portrait: back tile 48 px, the buttons in a row of 44 px at the bottom. The
 round steppers of both panels are 64 px (smaller when the control area is short), held they step 4
-times a second. A climate has no header action, its name takes the whole header.
+times a second. The header action of a climate is shown only while it is on; without it the name
+takes the whole header.
 
 The lists of both panels (effects, modes, presets, fan modes) have 42 px items as wide as two of
 them side by side. When every item fits in one column, the list is that column, centered in the
@@ -139,8 +140,9 @@ middle (no further than the end of the list).
 Boards with `Info::ui_panel_dialogs` (the JC4880P443C, `hc::ui::Options::panel_dialogs`): the
 panels of a dimmer, a climate and a sensor are a dialog of 620x420 (440x600 in portrait),
 centered over the page. The page behind it is dimmed by a black veil of 50 %, the dialog is opaque,
-radius 12, 1 px border. Veil and dialog fade in when the dialog opens and out when it closes
-(200 ms). A tap on the veil closes the dialog like the back tile. The camera image stays full
+radius 12, 1 px border. The veil darkens at once; the dialog slides down from above the screen into
+the middle (250 ms, easing out) and back up when it closes (easing in). Only these boards animate
+the panels; a fading veil redrew the whole screen every frame and is gone. A tap on the veil closes the dialog like the back tile. The camera image stays full
 screen.
 
 ### Light panel
@@ -149,9 +151,9 @@ Carried over from `behavior.md` section 7 of the old firmware, fitted to 320x240
 
 | Part | Content | Touch |
 | --- | --- | --- |
-| power (header) | power glyph, filled orange while on, cyan border while pending | toggles |
+| power (header) | power glyph, filled orange while on (no running dot in the panels) | toggles |
 | buttons | level (`brightness-6`), color (`palette`), color temperature (`thermometer`), effects (`creation`); only those the light offers (`supported_color_modes`, `effect_list`), none when only the level is left; the selected one white | shows its control |
-| level | vertical slider (113 px at most, the fill orange, the percentage in the middle) and the round `+`/`-` steppers (64 px) beside it | drag or tap sets the level on release; the steppers go to the next multiple of the tile's `step` (default 10 %), held 4 times a second, sent 0.5 s after the last step; 0 turns the light off |
+| level | vertical slider (113 px at most, the fill orange, the percentage in the middle) and the round `+`/`-` steppers (64 px) beside it | drag or tap sets the level on release; the steppers go to the next multiple of the tile's `step` (default 1 %), held 4 times a second, sent 0.5 s after the last step; 0 turns the light off |
 | level of an on/off light | `On` / `Off` in large type | (the power button) |
 | color | hue and saturation wheel (196 px at most; hue counterclockwise from red at the right, white in the center), the knob in the color that is set | drag, sent on release (`hs_color`) |
 | color temperature | vertical slider with the colors of the range (cool at the top), a white marker, the kelvin in the middle; empty while the light is in a color mode | drag, sent on release in steps of 10 K |
@@ -168,7 +170,8 @@ Carried over from `behavior.md` section 6 of the old firmware (the Lyric thermos
 
 | Part | Content | Touch |
 | --- | --- | --- |
-| pills | mode, preset, fan mode: the option's name (small), its value, the glyph left of them when the pill is at least 100 px wide (mode: `fire`, `snowflake`, `sun-snowflake-variant`, `thermostat-auto`, `water-percent`, `fan`, `power`; preset `record`; fan `fan`); only the options the entity has a list for; cyan border while a change is pending; the pill of the open list white | shows the list of the option in the place of the arc; a second tap goes back |
+| power (header) | power glyph, filled orange; only while the mode (the pending one first) is not `off` and the entity has `off` in its `hvac_modes` | `set_hvac_mode` `off` (not `climate.turn_off`, which needs the entity's TURN_OFF feature); turning on again is the mode pill's job |
+| pills | mode, preset, fan mode: the option's name (small), its value, the glyph left of them when the pill is at least 100 px wide (mode: `fire`, `snowflake`, `sun-snowflake-variant`, `thermostat-auto`, `water-percent`, `fan`, `power`; preset `record`; fan `fan`); only the options the entity has a list for; the pill of the open list white | shows the list of the option in the place of the arc; a second tap goes back |
 | arc | 270 degrees, the gap at the bottom, the ring a tenth of its diameter (at least 12 px), the track `0x2b3844`, the value orange while the mode is not `off` (grey when off), the knob white; centered on its ring, not on its box | drag on the ring sets the setpoint on release |
 | inside the arc | the action (`Heating`, else the mode; orange while not off), the setpoint (28 px, cyan while pending), `Current temperature` (`Current` in an arc under 180 px) and the room temperature | |
 | steppers | `+` above `-` right of the arc in landscape, `-` left of `+` under it in portrait | step the setpoint by `target_temp_step`, the tile's `step` or 0.5; sent 0.7 s after the last step |

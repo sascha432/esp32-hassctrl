@@ -20,12 +20,12 @@
 // The sensor panel has no options: its frame is the portrait one in both orientations, without the
 // options row (the control takes the whole width and height below the header).
 //
-// `a` is the action of the header (the power button of a light); without one the name takes its
-// place.
+// `a` is the action of the header (the power button of a light or a climate); without one the name
+// takes its place. A panel that hides its action gives the name its place by widening `Frame::name`.
 //
 // With Options::panel_dialogs the frame is a dialog of 620 x 420 (440 x 600 in portrait) over the
-// dimmed page, fading in and out (not for the camera image); the parts are placed in the dialog's
-// coordinates then.
+// dimmed page, sliding down from above the screen and back up (not for the camera image); the parts
+// are placed in the dialog's coordinates then.
 
 #include <string>
 #include <string_view>
@@ -53,10 +53,10 @@ struct Frame {
 bool has_panel(const core::Tile &tile);
 
 // Builds the panel of `tile` over the page in `parent` (the dashboard's root); a panel that is open
-// goes first. Called again after the display turned. `appear`: a dialog fades in (opened by a tap).
+// goes first. Called again after the display turned. `appear`: a dialog slides in (opened by a tap).
 void build(lv_obj_t *parent, core::TileIndex tile, bool appear = false);
 
-// removes the panel: a dialog fades out first, the full screen panel goes at once
+// removes the panel: a dialog slides out first, the full screen panel goes at once
 void close();
 // removes the panel at once; nothing happens when none is open
 void destroy();
@@ -76,7 +76,7 @@ constexpr lv_coord_t kStepSize = 64;
 constexpr lv_coord_t kStepGap = 8;
 // holding a stepper steps this often (the touch repeats every 100 ms, too fast to stop on a value)
 constexpr uint32_t kStepRepeatMs = 250;
-// the border of an action on its way (docs/ui/dashboard.md section 3)
+// the color of an action on its way (docs/ui/dashboard.md section 3; cards show runner.hpp)
 constexpr uint32_t kPendingBorder = 0x00ffff;
 
 // a card of the panel in `area`, pressed a shade lighter

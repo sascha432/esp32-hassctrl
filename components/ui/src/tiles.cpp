@@ -9,6 +9,7 @@
 
 #include "dashboard.hpp"
 #include "icons.hpp"
+#include "runner.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::tiles {
@@ -18,7 +19,6 @@ namespace {
 namespace t = theme;
 using core::TileKind;
 
-constexpr uint32_t kPendingBorder = 0x00ffff;
 constexpr lv_coord_t kTileRadius = 8;
 // a cell at least this tall gets the large fonts (480x320 with 3 rows has 98 px)
 constexpr lv_coord_t kLargeCell = 90;
@@ -132,6 +132,18 @@ lv_obj_t *column(lv_obj_t *parent)
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(obj, LV_OBJ_FLAG_EVENT_BUBBLE);
     return obj;
+}
+
+// a row of labels as wide as its content, `gap` apart, centered in the column
+lv_obj_t *flex_row(lv_obj_t *parent, lv_coord_t gap)
+{
+    lv_obj_t *row = t::plain(parent);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, gap, 0);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    return row;
 }
 
 lv_obj_t *text(lv_obj_t *parent, const lv_font_t &font, uint32_t color)
@@ -392,9 +404,8 @@ void apply_look(View &view, const Look &look)
 {
     const uint32_t background = look.active ? t::kActive : look.unavailable ? t::kCardAlt : t::kCard;
     lv_obj_set_style_bg_color(view.card, t::color(background), 0);
-    lv_obj_set_style_border_color(view.card,
-                                  t::color(look.pending ? kPendingBorder : look.active ? t::kActive : t::kBorder), 0);
-    lv_obj_set_style_border_width(view.card, look.pending ? 2 : 1, 0);
+    lv_obj_set_style_border_color(view.card, t::color(look.active ? t::kActive : t::kBorder), 0);
+    runner::set(view.card, look.pending);
     set_color(view.icon, look.active ? t::kText : t::kTextLabel);
     // the name of a dimmer stands on its fill
     set_color(view.name, look.active || view.fill != nullptr ? t::kText : t::kTextLabel);
@@ -447,7 +458,12 @@ void update_climate(View &view, const core::EntityState &state, const core::Expe
     set_text(view.action, action);
     set_color(view.action, on ? t::kActive : t::kTextLabel);
     if (view.current != nullptr) {
-        set_text(view.current, available && !std::isnan(state.current) ? temperature(state.current) + "°" : std::string());
+        std::string current;
+        if (available && !std::isnan(state.current)) {
+            // after the action in the line of a small tile
+            current = (view.tall ? "" : "\xe2\x80\xa2 ") + temperature(state.current) + "°";
+        }
+        set_text(view.current, current);
     }
     for (lv_obj_t *step : {view.plus, view.minus}) {
         if (step == nullptr) {
@@ -630,18 +646,23 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
             middle_bottom = bar_height;
         }
         lv_obj_t *col = column(view.card);
-        lv_obj_set_height(col, height - 12 - middle_top - middle_bottom);
+        const auto col_height = static_cast<lv_coord_t>(height - 12 - middle_top - middle_bottom);
+        lv_obj_set_height(col, col_height);
         lv_obj_align(col, LV_ALIGN_TOP_MID, 0, middle_top);
-        view.action = text(col, t::font_normal(), t::kTextLabel);
-        view.value = text(col, value_font(view), t::kText);
         if (view.tall) {
-            lv_obj_t *row = t::plain(col);
-            lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_style_pad_column(row, 2, 0);
+            view.action = text(col, t::font_normal(), t::kTextLabel);
+            view.value = text(col, value_font(view), t::kText);
+            // the room temperature under the setpoint
+            lv_obj_t *row = flex_row(col, 2);
             t::label(row, icons::glyph("thermometer"), icons::small(), t::kTextLabel);
             view.current = t::label(row, "", t::font_medium(), t::kTextValue);
+        } else {
+            // the action and the room temperature share one line in the small font, so every
+            // tile has room for it
+            lv_obj_t *row = flex_row(col, 4);
+            view.action = text(row, t::font_small(), t::kTextLabel);
+            view.current = t::label(row, "", t::font_small(), t::kTextValue);
+            view.value = text(col, value_font(view), t::kText);
         }
         view.name = name_label(view, col);
         // a tap beside the step bars opens the climate panel

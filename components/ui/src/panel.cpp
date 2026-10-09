@@ -38,18 +38,28 @@ constexpr lv_coord_t kScrollbarRoom = 10;
 // the row of the options of a portrait panel
 constexpr lv_coord_t kOptionsRow = 44;
 // Options::panel_dialogs: the opaque dialog in landscape and in portrait, the page behind it dimmed
-// by a black veil; the veil and the dialog fade in and out together
+// by a black veil. The dialog slides down from above the screen and back up when it closes; the
+// veil darkens at once (fading it redrew the whole screen every frame, the P4 needs 50 ms for that).
+// Only the boards with panel_dialogs (the P4) animate: the others are too slow for it.
 constexpr lv_coord_t kDialogWidth = 620;
 constexpr lv_coord_t kDialogHeight = 420;
 constexpr lv_coord_t kDialogPortraitWidth = 440;
 constexpr lv_coord_t kDialogPortraitHeight = 600;
 constexpr lv_coord_t kDialogRadius = 12;
 constexpr lv_opa_t kVeilOpacity = LV_OPA_50;
-constexpr uint32_t kFadeMs = 200;
+constexpr uint32_t kSlideMs = 250;
+// the slide's progress: 0 above the screen, kShown in the middle
+constexpr int32_t kShown = 1000;
 
 struct State {
     lv_obj_t *root = nullptr; // the panel, or the veil the dialog lies on
     bool dialog = false;
+    lv_obj_t *body = nullptr; // the dialog
+    int32_t shown = kShown;   // the dialog's slide progress
+    // as built: LVGL lays the objects out only before the next frame, the first step of a slide
+    // read 0 from them
+    lv_coord_t body_height = 0;
+    lv_coord_t screen_height = 0;
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
     lv_obj_t *name = nullptr;
@@ -107,21 +117,35 @@ void on_back(lv_event_t *)
     dashboard::close_panel();
 }
 
-// The opacity of `obj` and its children from `from` to `to`; at the end of a fade out the panel goes.
-void fade(lv_obj_t *obj, lv_opa_t from, lv_opa_t to)
+// the dialog at `progress` of its slide: from above the screen down to the middle
+void place(int32_t progress)
 {
-    lv_obj_set_style_opa(obj, from, 0);
+    g.shown = progress;
+    const lv_coord_t height = g.body_height;
+    const lv_coord_t middle = static_cast<lv_coord_t>((g.screen_height - height) / 2);
+    lv_obj_set_y(g.body, static_cast<lv_coord_t>(-height + (middle + height) * progress / kShown));
+}
+
+// The dialog slides in (down) or out (up), from where it is; at the end of a slide out the panel goes.
+void slide(bool in)
+{
+    lv_anim_del(g.root, nullptr);
     lv_anim_t anim;
     lv_anim_init(&anim);
-    lv_anim_set_var(&anim, obj);
-    lv_anim_set_values(&anim, from, to);
-    lv_anim_set_time(&anim, kFadeMs);
-    lv_anim_set_exec_cb(&anim, [](void *target, int32_t opa) {
-        lv_obj_set_style_opa(static_cast<lv_obj_t *>(target), static_cast<lv_opa_t>(opa), 0);
+    lv_anim_set_var(&anim, g.root);
+    lv_anim_set_values(&anim, g.shown, in ? kShown : 0);
+    // the whole way takes kSlideMs, the rest of an interrupted slide its part of it
+    const int32_t way = in ? kShown - g.shown : g.shown;
+    lv_anim_set_time(&anim, static_cast<uint32_t>(kSlideMs * way / kShown));
+    lv_anim_set_path_cb(&anim, in ? lv_anim_path_ease_out : lv_anim_path_ease_in);
+    lv_anim_set_exec_cb(&anim, [](void *target, int32_t progress) {
+        // a panel opened meanwhile has replaced this one already
+        if (target == g.root) {
+            place(progress);
+        }
     });
-    if (to == LV_OPA_TRANSP) {
+    if (!in) {
         lv_anim_set_ready_cb(&anim, [](lv_anim_t *a) {
-            // a panel opened meanwhile has replaced this one already
             if (a->var == g.root) {
                 destroy();
             }
@@ -346,7 +370,7 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         height = std::min<lv_coord_t>(portrait ? kDialogPortraitHeight : kDialogHeight, height);
         body = t::plain(g.root);
         lv_obj_set_size(body, width, height);
-        lv_obj_center(body);
+        lv_obj_align(body, LV_ALIGN_TOP_MID, 0, 0);
         lv_obj_set_style_radius(body, kDialogRadius, 0);
         lv_obj_set_style_bg_opa(body, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(body, t::color(t::kBackground), 0);
@@ -355,9 +379,14 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLLABLE);
         // a tap on the dialog between its parts does not close it
         lv_obj_add_flag(body, LV_OBJ_FLAG_CLICKABLE);
+        g.body = body;
+        g.body_height = height;
+        g.screen_height = lv_obj_get_height(screen);
+        // opened by a tap: from above the screen; built again after a turn: in place
+        place(appear ? 0 : kShown);
     }
     const bool light = kind == core::TileKind::Light;
-    Frame frame = frame_of(body, width, height, light, kind == core::TileKind::Sensor);
+    Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, kind == core::TileKind::Sensor);
 
     lv_obj_t *back = card(body, frame.back);
     lv_obj_t *arrow = t::label(back, icons::glyph("arrow-left"),
@@ -381,7 +410,7 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     }
     update(g.entity);
     if (dialog && appear) {
-        fade(g.root, LV_OPA_TRANSP, LV_OPA_COVER);
+        slide(true);
     }
 }
 
@@ -391,10 +420,8 @@ void close()
         destroy();
         return;
     }
-    // from where a fade in got to
-    const lv_opa_t opa = lv_obj_get_style_opa(g.root, LV_PART_MAIN);
-    lv_anim_del(g.root, nullptr);
-    fade(g.root, opa, LV_OPA_TRANSP);
+    // from where a slide in got to
+    slide(false);
 }
 
 void destroy()

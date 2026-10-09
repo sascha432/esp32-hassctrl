@@ -21,7 +21,7 @@ using hc::core::EntityState;
 using hc::core::Field;
 
 constexpr uint32_t kValuesMs = 150;
-constexpr uint32_t kActionMs = 400;
+uint32_t g_action_ms = 400;
 constexpr uint32_t kHistoryMs = 300;
 constexpr uint32_t kImageMs = 500;
 // a stream plays 5 frames a second
@@ -220,6 +220,11 @@ void queue_page()
 
 } // namespace
 
+void set_action_ms(uint32_t ms)
+{
+    g_action_ms = ms;
+}
+
 void set_dashboard(std::shared_ptr<const hc::core::Layout> layout)
 {
     g = {};
@@ -318,7 +323,7 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
     default:
         return;
     }
-    queue_values({intent.entity}, kActionMs);
+    queue_values({intent.entity}, g_action_ms);
 }
 
 void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::HistoryKind kind, uint32_t hours,

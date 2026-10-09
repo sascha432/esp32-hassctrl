@@ -347,7 +347,7 @@ Tile format, details (decided 2026-10-07):
 * Climate step: the entity's `target_temp_step` (a capability attribute in the state, only there
   when the integration sets it, for example `generic_thermostat` with 0.1, 0.5 or 1), else the
   `step` of the tile (0.1 or more), else 0.5 for °C and 1 for °F as in the HA frontend.
-* Light step: `step` of the tile for the `+`/`-` buttons of the light panel, default 10 %,
+* Light step: `step` of the tile for the `+`/`-` buttons of the light panel, default 1 %,
   1 to 50. The slider stays continuous. `+`/`-` repeat while held, in the light and the climate
   panel. `min`/`max` of lights are dropped.
 

@@ -23,7 +23,9 @@ the generated sdkconfig, the sdkconfig is regenerated, so menuconfig changes are
 Flashing the main firmware is different from a plain `idf.py flash`: idf.py writes the app to the
 factory partition, which holds the recovery app. This script writes the main firmware to ota_0
 with parttool.py and makes it the boot partition with otatool.py instead. The recovery app (and with it the
-bootloader and the partition table) has to be flashed once before.
+bootloader and the partition table) has to be flashed once before. Both tools run esptool at
+115200 baud unless told otherwise; they get -b/--baud, else ESPBAUD, else 921600 (a USB-Serial/JTAG
+port ignores the baud rate).
 """
 
 import os
@@ -68,6 +70,19 @@ def port_of(args: list[str]) -> str | None:
         if arg.startswith("--port="):
             return arg.split("=", 1)[1]
     return os.environ.get("ESPPORT")
+
+
+# the baud rate of parttool.py and otatool.py when neither -b nor ESPBAUD gives one
+DEFAULT_BAUD = "921600"
+
+
+def baud_of(args: list[str]) -> str:
+    for i, arg in enumerate(args):
+        if arg in ("-b", "--baud") and i + 1 < len(args):
+            return args[i + 1]
+        if arg.startswith("--baud="):
+            return arg.split("=", 1)[1]
+    return os.environ.get("ESPBAUD") or DEFAULT_BAUD
 
 
 def run(command: list[str]) -> None:
@@ -155,8 +170,9 @@ def main() -> None:
     parttool = components / "partition_table" / "parttool.py"
     otatool = components / "app_update" / "otatool.py"
     image = build_dir / f"{PROJECT_NAMES[app]}.bin"
-    run([python, str(parttool), "--port", port, "write_partition", "--partition-name", "ota_0", "--input", str(image)])
-    run([python, str(otatool), "--port", port, "switch_ota_partition", "--slot", "0"])
+    baud = baud_of(actions)
+    run([python, str(parttool), "--port", port, "--baud", baud, "write_partition", "--partition-name", "ota_0", "--input", str(image)])
+    run([python, str(otatool), "--port", port, "--baud", baud, "switch_ota_partition", "--slot", "0"])
 
     if "monitor" in actions:
         run(idf + ["-p", port, "monitor"])

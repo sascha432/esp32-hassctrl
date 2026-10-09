@@ -3,7 +3,7 @@
 // The Home Assistant of the Windows version: sample states for the entities of the dashboard file,
 // made up from the domain and the name of each entity (a "..._temperature" sensor reports °C).
 // The values of a page arrive 150 ms after it is subscribed, an action changes the sample state
-// 400 ms after the tap, so a pending tile is seen for a moment. Every tenth entity is unavailable.
+// 400 ms after the tap (--action-ms), so a pending tile is seen for a moment. Every tenth entity is unavailable.
 // The history of a sensor panel is made up as well: a daily curve around the sensor's value with
 // a gap of an hour, or on/off changes with an unavailable hour; it arrives 300 ms after the request.
 // A camera image is a drawn landscape whose sun moves with the clock, 500 ms after the request.
@@ -16,6 +16,9 @@
 #include "hc/core/layout.hpp"
 
 namespace sim {
+
+// how long an action takes until the sample state changes (--action-ms)
+void set_action_ms(uint32_t ms);
 
 // the dashboard of --dashboard; null with `--dashboard none` (the test screen)
 void set_dashboard(std::shared_ptr<const hc::core::Layout> layout);

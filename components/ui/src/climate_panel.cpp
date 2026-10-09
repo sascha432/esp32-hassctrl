@@ -45,6 +45,7 @@ struct State {
     panel::Frame frame;
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
+    lv_obj_t *power = nullptr; // turns the climate off; shown only while it is on
     lv_obj_t *pills[kOptions] = {};
     lv_obj_t *pill_glyphs[kOptions] = {};
     lv_obj_t *pill_values[kOptions] = {};
@@ -111,21 +112,6 @@ std::string_view shown_value(const core::EntityState &s, const core::Expectation
     default:
         return pending != nullptr && !pending->state.empty() ? std::string_view(pending->state)
                                                              : std::string_view(s.state);
-    }
-}
-
-bool pending_for(const core::Expectation *pending, Option option)
-{
-    if (pending == nullptr) {
-        return false;
-    }
-    switch (option) {
-    case Option::Preset:
-        return !pending->preset.empty();
-    case Option::Fan:
-        return !pending->fan_mode.empty();
-    default:
-        return !pending->state.empty();
     }
 }
 
@@ -460,6 +446,42 @@ void update_list(const core::EntityState &s, const core::Expectation *pending)
     }
 }
 
+// ------------------------------------------------------------------------------- power
+
+bool offers_off(const core::EntityState &s)
+{
+    return std::find(s.hvac_modes.begin(), s.hvac_modes.end(), "off") != s.hvac_modes.end();
+}
+
+// Off through set_hvac_mode: climate.turn_off needs the entity to declare it (a supported
+// feature), "off" in the hvac modes is all this needs. Turning on again is the mode pill's job.
+void on_power(lv_event_t *)
+{
+    const core::EntityState &s = state();
+    if (!available() || !offers_off(s)) {
+        return;
+    }
+    // a setpoint the steps collected goes first
+    send_steps();
+    core::Expectation expected;
+    expected.state = "off";
+    send(core::IntentKind::SetHvacMode, 0, "off", std::move(expected));
+}
+
+// The button shows while the mode is not off (the pending one counts, so it goes at the tap); the
+// name has the whole header without it.
+void update_power(const core::EntityState &s, const core::Expectation *pending, bool avail)
+{
+    const std::string_view mode = shown_value(s, pending, Option::Mode);
+    const bool shown = avail && offers_off(s) && !mode.empty() && mode != "off";
+    if (shown == !lv_obj_has_flag(g.power, LV_OBJ_FLAG_HIDDEN)) {
+        return;
+    }
+    set_hidden(g.power, !shown);
+    const lv_coord_t end = shown ? g.frame.header.x2 : g.frame.action.x2;
+    lv_obj_set_width(g.frame.name, static_cast<lv_coord_t>(end - g.frame.header.x1 + 1));
+}
+
 // ------------------------------------------------------------------------------- pills
 
 void clear_control()
@@ -544,11 +566,8 @@ void update_pills(const core::EntityState &s, const core::Expectation *pending, 
     for (int i = 0; i < kOptions; i++) {
         const auto option = static_cast<Option>(i);
         const bool selected = g.list_option == i;
-        const bool waiting = pending_for(pending, option);
         const std::string_view value = shown_value(s, pending, option);
         lv_obj_set_style_bg_color(g.pills[i], t::color(selected ? t::kText : t::kCard), 0);
-        lv_obj_set_style_border_color(g.pills[i], t::color(waiting ? panel::kPendingBorder : t::kBorder), 0);
-        lv_obj_set_style_border_width(g.pills[i], waiting ? 2 : 1, 0);
         const uint32_t text = selected ? t::kBackground : t::kText;
         lv_obj_set_style_text_color(g.pill_values[i], t::color(text), 0);
         lv_obj_set_style_text_color(g.pill_glyphs[i], t::color(text), 0);
@@ -569,6 +588,13 @@ void build(const panel::Frame &frame, core::TileIndex tile)
     g.frame = frame;
     g.tile = tile;
     g.entity = dashboard::layout().tiles[tile].entity;
+
+    // drawn like the power button of a light that is on
+    g.power = panel::card(frame.root, frame.action);
+    lv_obj_set_style_bg_color(g.power, t::color(t::kActive), 0);
+    lv_obj_set_style_border_color(g.power, t::color(t::kActive), 0);
+    lv_obj_center(t::label(g.power, icons::glyph("power"), icons::small(), t::kText));
+    lv_obj_add_event_cb(g.power, on_power, LV_EVENT_CLICKED, nullptr);
 
     for (int i = 0; i < kOptions; i++) {
         lv_obj_t *pill = panel::card(frame.root, frame.options);
@@ -616,6 +642,7 @@ void update()
          tiles::climate_step(dashboard::layout().tiles[g.tile], s) != g.step)) {
         show_control(-1);
     }
+    update_power(s, pending, avail);
     update_pills(s, pending, avail);
     if (g.list_option < 0) {
         update_arc(s, pending, avail);

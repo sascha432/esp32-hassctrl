@@ -52,7 +52,7 @@ tiles:
     name: Ceiling
     dimmer: true
     # the +/- buttons of the light panel change the level by this many percent. 1 to 50,
-    # default 10. The slider itself is continuous.
+    # default 1. The slider itself is continuous.
     step: 5
 
   # A thermostat. The +/- bars change the target temperature by the step the thermostat

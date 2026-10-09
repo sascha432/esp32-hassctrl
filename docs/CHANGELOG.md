@@ -49,3 +49,20 @@
 - Fix: after a start the P4's tiles stayed at "--" until a panel was opened. The UI subscribed
   its page before `hass` had created its queue and the subscription was dropped; the queue is
   created with its first use now.
+- Climate panel: a power button in the header while the mode is not `off` (and the entity offers
+  `off`); it sends `set_hvac_mode off` (`climate.turn_off` needs the entity's TURN_OFF feature).
+  Turning on again is the mode pill's job. Without the button the name takes the whole header.
+- Climate tile 1x1: the action and the room temperature share one line in the small font
+  (`Off • 27°`), on every tile size; the 1x2 tile keeps its thermometer row.
+- An action on its way is a cyan dot with a glow and a short tail running round the tile's border
+  (`ui/src/runner.cpp`, 220 px a second; each frame redraws only the dot's stretch of the
+  border) instead of the 2 px cyan border; smooth on the WT32. The dimmer and climate panels
+  have no pending look on their buttons and pills any more.
+- JC4880P443C panel dialogs slide down from above the screen and back up (250 ms) instead of
+  fading; the veil darkens at once (fading it redrew the whole screen every frame). Fix: the
+  first frame showed the dialog in place before the slide (its height was read before LVGL had
+  laid it out).
+- Light panel: `+`/`-` step 1 % when the tile has no `step` (was 10 %).
+- `tools/build.py`: `parttool.py` and `otatool.py` run esptool at 921600 baud (`-b`, `ESPBAUD`)
+  instead of their 115200: the WT32 writes the firmware at 770 kbit/s (was 130).
+- Sim: `--action-ms` sets how long an action takes in the sample Home Assistant.

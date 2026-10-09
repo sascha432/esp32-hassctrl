@@ -46,7 +46,7 @@ constexpr lv_coord_t kKnobSize = 28;
 constexpr uint32_t kStepSendMs = 500;
 using panel::kStepRepeatMs;
 // the light step of docs/architecture.md section 5 when the tile has none
-constexpr float kDefaultStep = 10;
+constexpr float kDefaultStep = 1;
 constexpr float kPi = 3.14159265f;
 // the color temperature range when the light does not report one
 constexpr float kDefaultMinKelvin = 2000;
@@ -754,8 +754,8 @@ void update_power(const core::EntityState &s, const core::Expectation *pending, 
     tiles::shown_level(s, pending, on);
     on = on && avail;
     lv_obj_set_style_bg_color(g.power, t::color(on ? t::kActive : t::kCard), 0);
-    lv_obj_set_style_border_color(g.power, t::color(pending != nullptr ? panel::kPendingBorder : on ? t::kActive : t::kBorder), 0);
-    lv_obj_set_style_border_width(g.power, pending != nullptr ? 2 : 1, 0);
+    // no pending look: the panel shows the expected state at once
+    lv_obj_set_style_border_color(g.power, t::color(on ? t::kActive : t::kBorder), 0);
     lv_obj_set_style_text_color(lv_obj_get_child(g.power, 0), t::color(on ? t::kText : t::kTextLabel), 0);
 }
 

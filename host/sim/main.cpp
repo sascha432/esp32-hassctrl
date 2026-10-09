@@ -454,6 +454,7 @@ void usage()
         "                         tap TEXT (a label on the screen) | tap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"
+        "  --action-ms MS       an action changes the sample state this long after the tap (default 400)\n"
         "  --list               scenarios, pages and keys\n"
         "\n"
         "In the window: R rotate, S / Shift+S next / previous scenario, 1-9 a scenario, F12 screenshot, Q quit.\n"
@@ -583,6 +584,11 @@ bool parse(int argc, char **argv, Options &o)
                 return false;
             }
             o.screenshot = v;
+        } else if (arg == "--action-ms") {
+            if ((v = value()) == nullptr) {
+                return false;
+            }
+            sim::set_action_ms(static_cast<uint32_t>(std::atoi(v)));
         } else if (arg == "--wait") {
             if ((v = value()) == nullptr) {
                 return false;
