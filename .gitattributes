@@ -1,0 +1,8 @@
+# Text files are stored and checked out as LF on every platform. A tool
+# that writes CRLF on Windows no longer shows up as a whole-file change.
+* text=auto eol=lf
+
+*.pdf binary
+*.jpg binary
+*.png binary
+*.bin binary
