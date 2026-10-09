@@ -468,23 +468,30 @@ void on_disconnected(uint8_t reason)
         start_scan(ScanPurpose::Connect);
         return;
     }
-    // saved without a password: the device looked for an open network, the network has security
-    const bool no_password = reason == WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY && t.current >= 0 &&
-                             t.stored.networks[t.current].password[0] == 0;
-    set_error(no_password ? "the network needs a password, add it again" : reason_text(reason));
-    ESP_LOGW(kTag, "'%s': %s (reason %u)", t.status.ssid, t.status.error, reason);
     // A failed attempt (wrong password, "network security not supported", no answer) moves on to
     // the next saved network; a connection that was up and broke may be tried again first. A
     // router that still holds the old connection of this device gets one more try first, else
-    // a power cut moves the device to the next network for good.
+    // a power cut moves the device to the next network for good. That first try is expected
+    // after a reset and is no error for the display.
+    bool expected = false;
     if (t.status.state == StaState::Connecting && t.current >= 0) {
         const uint32_t bit = 1u << t.current;
         if (may_pass_on_retry(reason) && !(t.retried & bit)) {
             t.retried |= bit;
             t.prefer = t.current;
+            expected = true;
         } else {
             t.failed |= bit;
         }
+    }
+    if (expected) {
+        ESP_LOGI(kTag, "'%s': %s (reason %u), trying again", t.status.ssid, reason_text(reason), reason);
+    } else {
+        // saved without a password: the device looked for an open network, the network has security
+        const bool no_password = reason == WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY && t.current >= 0 &&
+                                 t.stored.networks[t.current].password[0] == 0;
+        set_error(no_password ? "the network needs a password, add it again" : reason_text(reason));
+        ESP_LOGW(kTag, "'%s': %s (reason %u)", t.status.ssid, t.status.error, reason);
     }
     schedule_retry();
 }
@@ -889,7 +896,15 @@ esp_err_t start(const char *device_name, Listener listener, void *context)
 
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&init), kTag, "wifi init");
-    esp_register_shutdown_handler([] { g_restarting = true; });
+    // Shutdown handlers run in reverse order: this one runs before the Wi-Fi driver stops.
+    // Leaving the network on purpose sends the deauthentication the router waits for; without it
+    // the router still holds the old connection after the restart and turns the first attempt away.
+    esp_register_shutdown_handler([] {
+        g_restarting = true;
+        if (esp_wifi_disconnect() == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    });
     // the network component is the only owner of the stored networks (docs/architecture.md 9.3)
     ESP_RETURN_ON_ERROR(esp_wifi_set_storage(WIFI_STORAGE_RAM), kTag, "storage");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_event, nullptr), kTag, "events");

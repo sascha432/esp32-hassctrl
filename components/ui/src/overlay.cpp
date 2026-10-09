@@ -106,6 +106,11 @@ void strip_message(char *out, size_t size, uint32_t &color, settings::Page &page
     g.backend->wifi_info(w);
     out[0] = 0;
     page = settings::Page::Wifi;
+    if (!w.ready) {
+        // the network component has not reported yet (the P4 waits for its coprocessor): no
+        // saved networks is not known yet
+        return;
+    }
     if (!w.connected && w.error[0] != 0) {
         std::snprintf(out, size, LV_SYMBOL_WARNING "  %s", w.error);
         color = t::kAlert;

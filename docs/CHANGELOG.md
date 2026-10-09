@@ -66,3 +66,11 @@
 - `tools/build.py`: `parttool.py` and `otatool.py` run esptool at 921600 baud (`-b`, `ESPBAUD`)
   instead of their 115200: the WT32 writes the firmware at 770 kbit/s (was 130).
 - Sim: `--action-ms` sets how long an action takes in the sample Home Assistant.
+- Fix: after a restart the strip showed "the network did not answer in time" until the second
+  attempt connected (the router still held the old connection, `WIFI_REASON_AUTH_EXPIRE`). The
+  shutdown handler now leaves the network (`esp_wifi_disconnect`, 100 ms for the deauth) before
+  the reset, and the first `AUTH_EXPIRE` of an attempt that gets one more try (power cut) is
+  logged only, not shown as an error. Checked by the user.
+- Fix: the JC4880P443C showed "Wi-Fi is not set up" during the start: the strip read the network
+  status before its first report (the P4 waits for the C6 in `esp_wifi_init`). The strip stays
+  hidden until the status is ready, like the first setup. Checked by the user.
