@@ -59,8 +59,10 @@ bool update_auto(const DisplaySettings &s)
         g.auto_level = -1.0f;
         return false;
     }
-    // linear: no light gives the minimum, kFullBrightnessLux and more the user's brightness
-    const float share = std::min(lux / kFullBrightnessLux, 1.0f);
+    // linear between the user's two lights: the minimum at light_min_lux, the user's brightness at
+    // light_max_lux and above
+    const float span = s.light_max_lux - s.light_min_lux;
+    const float share = span > 0.0f ? std::clamp((lux - s.light_min_lux) / span, 0.0f, 1.0f) : (lux >= s.light_max_lux ? 1.0f : 0.0f);
     const float target = std::max(1.0f, share * static_cast<float>(s.brightness));
     g.auto_level = g.auto_level < 0.0f ? target : g.auto_level + kAutoSmoothing * (target - g.auto_level);
     return true;

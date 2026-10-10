@@ -41,7 +41,19 @@ constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
                                                    .off_after_s = 0,
                                                    .auto_brightness = true,
                                                    .rotation = 0,
-                                                   .rotation_locked = false};
+                                                   .rotation_locked = false,
+                                                   .light_min_lux = 0.0f,
+                                                   .light_max_lux = 350.0f};
+// The layout before the two lights of the automatic brightness.
+struct DisplaySettingsV3 {
+    uint8_t brightness;
+    uint8_t dim_brightness;
+    uint16_t dim_after_s;
+    uint32_t off_after_s;
+    bool auto_brightness;
+    uint8_t rotation;
+    bool rotation_locked;
+};
 // The layout of the second version (screen off in 16 bit seconds); the first version was its
 // first 8 bytes, without the rotation. The current one is DisplaySettings itself: the sizes tell
 // them apart.
@@ -56,12 +68,28 @@ struct DisplaySettingsV2 {
 };
 constexpr size_t kDisplaySettingsV1 = 8;
 static_assert(sizeof(DisplaySettingsV2) != sizeof(hc::ui::DisplaySettings));
+static_assert(sizeof(DisplaySettingsV3) != sizeof(hc::ui::DisplaySettings));
+static_assert(sizeof(DisplaySettingsV3) != sizeof(DisplaySettingsV2));
+static_assert(sizeof(DisplaySettingsV3) != kDisplaySettingsV1);
 
 // a stored value of any version into the current settings; false when it is none of them
 bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplaySettings &out)
 {
     if (size == sizeof(hc::ui::DisplaySettings)) {
         std::memcpy(&out, data, size);
+        return true;
+    }
+    if (size == sizeof(DisplaySettingsV3)) {
+        // what the third version did not have (the two lights) keeps the defaults
+        DisplaySettingsV3 old;
+        std::memcpy(&old, data, size);
+        out.brightness = old.brightness;
+        out.dim_brightness = old.dim_brightness;
+        out.dim_after_s = old.dim_after_s;
+        out.off_after_s = old.off_after_s;
+        out.auto_brightness = old.auto_brightness;
+        out.rotation = old.rotation;
+        out.rotation_locked = old.rotation_locked;
         return true;
     }
     if (size != sizeof(DisplaySettingsV2) && size != kDisplaySettingsV1) {
@@ -217,6 +245,11 @@ void display_settings(hc::ui::DisplaySettings &out)
         if (settings.ok() && settings.get_blob(kDisplayKey, data, size) == ESP_OK &&
             convert_display_settings(data, size, stored) && stored.brightness >= 1 && stored.brightness <= 100 &&
             stored.dim_brightness >= 1 && stored.dim_brightness <= 100) {
+            // a stored pair that is not a range (or not a number) falls back to the defaults
+            if (!(stored.light_min_lux >= 0.0f && stored.light_max_lux > stored.light_min_lux)) {
+                stored.light_min_lux = kDisplayDefaults.light_min_lux;
+                stored.light_max_lux = kDisplayDefaults.light_max_lux;
+            }
             g_display = stored;
         }
     }

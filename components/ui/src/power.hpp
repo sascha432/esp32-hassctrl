@@ -14,17 +14,13 @@
 // 0.5 s; before it the panel would show what it held before the start.
 //
 // Automatic brightness (with a light sensor): the active brightness follows the ambient light on
-// a linear curve, from 1 % in the dark to the user's brightness at kFullBrightnessLux,
-// smoothed over about two seconds. Later: Home Assistant events may wake the screen.
+// a linear curve between two lights the user sets (DisplaySettings::light_min_lux: 1 %,
+// light_max_lux: the user's brightness), smoothed over about two seconds. Later: Home Assistant events may wake the screen.
 
 #include "hc/ui/backend.hpp"
 #include "lvgl.h"
 
 namespace hc::ui::power {
-
-// The light at which the automatic brightness reaches the user's brightness; half of it gives
-// half of the user's brightness.
-constexpr float kFullBrightnessLux = 350.0f;
 
 void init(lv_disp_t *disp, const Backend &backend);
 

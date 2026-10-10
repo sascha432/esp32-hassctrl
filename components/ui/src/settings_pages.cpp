@@ -675,9 +675,32 @@ Built home_assistant(lv_obj_t *content)
 
 lv_obj_t *g_auto_row = nullptr;
 lv_obj_t *g_rotation_row = nullptr;
+// the two rows that set the lights of the automatic brightness (with a light sensor)
+lv_obj_t *g_light_min_row = nullptr;
+lv_obj_t *g_light_max_row = nullptr;
+// the row whose last tap was refused (the light was not on the right side of the other point), and when
+lv_obj_t *g_light_refused = nullptr;
+uint32_t g_light_refused_at = 0;
+constexpr uint32_t kRefusedShownMs = 2000;
+
+void light_row_text(lv_obj_t *row, float lux, const char *refused)
+{
+    char text[24];
+    if (row == g_light_refused && lv_tick_elaps(g_light_refused_at) < kRefusedShownMs) {
+        std::snprintf(text, sizeof(text), "%s", refused);
+    } else {
+        std::snprintf(text, sizeof(text), "%ld lx", std::lround(lux));
+    }
+    t::line_text(t::row_value(row), text);
+}
 
 void display_refresh()
 {
+    if (g_light_min_row != nullptr && g_light_max_row != nullptr) {
+        const DisplaySettings s = display_settings();
+        light_row_text(g_light_min_row, s.light_min_lux, "not darker");
+        light_row_text(g_light_max_row, s.light_max_lux, "not brighter");
+    }
     float lux = 0.0f;
     if (g_auto_row != nullptr && be().ambient_lux(lux)) {
         char text[24];
@@ -745,6 +768,9 @@ Built display(lv_obj_t *content)
     float lux = 0.0f;
     g_auto_row = nullptr;
     g_rotation_row = nullptr;
+    g_light_min_row = nullptr;
+    g_light_max_row = nullptr;
+    g_light_refused = nullptr;
     if (be().ambient_lux(lux)) {
         g_auto_row = t::row(col, "Automatic", "", false, nullptr);
         t::toggle(g_auto_row, s.auto_brightness, [](lv_event_t *event) {
@@ -752,8 +778,41 @@ Built display(lv_obj_t *content)
             changed.auto_brightness = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
             store(changed);
         });
-        text_block(col, "Automatic: the brightness follows the room light, the slider sets how bright it gets in "
-                        "bright light.");
+        // Each row takes the light in the room now. The screen is at its lowest at the first light and
+        // at the slider's brightness at the second and above; between them it follows the light.
+        g_light_min_row = t::row(col, "Lowest brightness at", "", false, [](lv_event_t *) {
+            float now = 0.0f;
+            DisplaySettings changed = display_settings();
+            if (!be().ambient_lux(now)) {
+                return;
+            }
+            if (now >= changed.light_max_lux) {
+                g_light_refused = g_light_min_row;
+                g_light_refused_at = lv_tick_get();
+            } else {
+                changed.light_min_lux = now;
+                store(changed);
+            }
+            display_refresh();
+        });
+        g_light_max_row = t::row(col, "Full brightness at", "", false, [](lv_event_t *) {
+            float now = 0.0f;
+            DisplaySettings changed = display_settings();
+            if (!be().ambient_lux(now)) {
+                return;
+            }
+            if (now <= changed.light_min_lux) {
+                g_light_refused = g_light_max_row;
+                g_light_refused_at = lv_tick_get();
+            } else {
+                changed.light_max_lux = now;
+                store(changed);
+            }
+            display_refresh();
+        });
+        text_block(col, "Automatic: the brightness follows the room light. Tap a row while the room is as dark, "
+                        "or as bright, as you want that setting: the screen is at its lowest at the first light, "
+                        "and at the brightness of the slider at the second.");
     }
     stepper_row(col, "Dim after", kDimTimes, s.dim_after_s, [](int32_t seconds) {
         DisplaySettings changed = display_settings();

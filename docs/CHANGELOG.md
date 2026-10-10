@@ -2,6 +2,17 @@
 
 ## 2026-10-10
 
+- Automatic brightness: two lights set by the user instead of a fixed 350 lx. Settings, Display has
+  "Lowest brightness at" and "Full brightness at"; a tap takes the light in the room now. The screen
+  is at 1 % at the first light and at the slider's brightness at the second and above, linear
+  between (defaults 0 and 350 lx). A tap that would cross the other point is refused ("not darker",
+  "not brighter"). Stored with the display settings (older stored settings load with the defaults)
+  and in the backup (`light_min_lx`, `light_max_lx`). The LDR lux table as board defaults is dropped.
+  Confirmed by the user on the WT32.
+- Setup screen: the Web UI login and Done pages are dropped from the design (screen.md section 4):
+  the browser setup on the phone does Wi-Fi, login (signs in at once) and Done ("Keep the hotspot
+  on"). Update page in the browser (file and URL) and the larger pull-down zone confirmed by the
+  user; TODO items closed.
 - Recovery app screen: an update shows its progress ("Update downloading: 42 %", "receiving" for
   an upload), green when done, red with the reason when it failed. Before, nothing showed while
   the image was written. Confirmed by the user on the WT32 (firmware by URL).

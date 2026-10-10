@@ -1,6 +1,7 @@
 #include "backup.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -197,6 +198,8 @@ void write_display(backup::Writer &out)
     out.boolean("automatic", s.auto_brightness);
     out.number("rotation", clockwise_steps(s.rotation) * 90);
     out.boolean("rotation_locked", s.rotation_locked);
+    out.number("light_min_lx", std::lround(s.light_min_lux));
+    out.number("light_max_lx", std::lround(s.light_max_lux));
 }
 
 void read_display(const Node &value, bool apply, backup::Report &report)
@@ -215,6 +218,16 @@ void read_display(const Node &value, bool apply, backup::Report &report)
         s.rotation = clockwise_steps(static_cast<uint8_t>(steps));
     }
     fields.boolean("rotation_locked", s.rotation_locked);
+    long light_min = std::lround(s.light_min_lux);
+    long light_max = std::lround(s.light_max_lux);
+    const bool has_min = fields.number("light_min_lx", 0, 100000, light_min);
+    const bool has_max = fields.number("light_max_lx", 1, 100000, light_max);
+    if ((has_min || has_max) && light_min >= light_max) {
+        fields.problem("light_min_lx", "must be less than light_max_lx");
+    } else {
+        s.light_min_lux = static_cast<float>(light_min);
+        s.light_max_lux = static_cast<float>(light_max);
+    }
     fields.finish();
     if (apply) {
         ui_backend().set_display_settings(s);

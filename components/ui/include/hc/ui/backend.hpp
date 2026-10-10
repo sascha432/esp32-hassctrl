@@ -84,6 +84,11 @@ struct DisplaySettings {
     // it is locked
     uint8_t rotation;
     bool rotation_locked;
+    // The automatic brightness runs linearly between two room lights (the sensor's lux, set by the
+    // user in the room): at light_min_lux the screen is at its minimum, at light_max_lux and above
+    // at `brightness`. light_min_lux < light_max_lux.
+    float light_min_lux;
+    float light_max_lux;
 };
 
 // Settings, Sound. The UI plays the touch sounds; the backend stores the settings and sets the

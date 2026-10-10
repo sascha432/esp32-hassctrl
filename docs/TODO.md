@@ -70,8 +70,8 @@ working kfc_fw configuration. Main firmware 509 KB, recovery app 133 KB.
       lowest levels, the linear one gets choppy; 1, 5 and 25 kHz look the same, 25 kHz stays.
 - [x] Minimum brightness of the WT32: duty 10 of 1023 at 25 kHz, readable in daylight and easy in
       the dark (2026-10-06), now `Info::backlight_min_duty`.
-- [ ] New boards arriving 2026-10-06: bring them up with
-      [adding-a-board.md](adding-a-board.md).
+- [x] New boards arriving 2026-10-06: bring them up with
+      [adding-a-board.md](adding-a-board.md). Done (the JC3248W535 and the JC4880P443C run).
 
 JC3248W535 (COM10) since 2026-10-08: ESP32-S3, 16 MB Boya flash (QIO), 8 MB octal PSRAM,
 AXS15231B over QSPI at 40 MHz (init table of Arduino_GFX, no DISPON from the driver: see the
@@ -275,9 +275,9 @@ Open:
 - [x] **Swipe up closed Settings by mistake while scrolling** (your report, 2026-10-07): the
       screen gesture and the overscroll close are removed; Settings closes only by `<` from
       Quick (and the timeout). Flashed 2026-10-07.
-- [ ] **Pull-down hard to hit** (your report, 2026-10-07): the start zone grew from 80 x 24 to
+- [x] **Pull-down hard to hit** (your report, 2026-10-07): the start zone grew from 80 x 24 to
       160 x 40 px, the drag to open from 30 to 24 px (`components/ui/src/overlay.cpp`). Flashed;
-      to try on the WT32. A tap on the top center of a tile under the zone now hits the zone.
+      tried on the WT32, confirmed by you 2026-10-10. A tap on the top center of a tile under the zone now hits the zone.
 - [x] **First setup screen** (2026-10-07, `components/ui/src/setup.cpp`, screen.md section 4):
       shown at boot while no network is saved (console: `setup`). Two ways side by side
       (stacked in portrait): "Choose Wi-Fi" on the screen, or the phone (QR code to join the
@@ -286,10 +286,9 @@ Open:
       `<name>.local`, Next to the dashboard) or failed (the error, "Other network", "Try again").
       Tested on the T4 through the console: welcome, Choose Wi-Fi and back, adding a network,
       connected, Next.
-- [ ] Setup screen: the Web UI login and Done pages of screen.md section 4 (login on the
-      screen, "Keep the hotspot on", QR code of the web UI) are not built. Today `Next` goes
-      straight to the dashboard; the login is made in the web UI. Build them, or drop them from
-      the design?
+- [x] Setup screen: the Web UI login and Done pages of screen.md section 4 dropped (2026-10-10):
+      the browser setup on the phone does Wi-Fi, creating the login (signs in at once), then
+      Done with "Keep the hotspot on", which works (tried by you); `Next` on the screen goes straight to the dashboard.
 - [x] Setup screen: the "failed" view seen and tested by the user on the WT32 (2026-10-10): the
       wrong password showed, but the device kept retrying with no hotspot for good. Fixed
       (`setup_attempt_failed`, network.cpp): during the first setup, or while no saved network
@@ -364,10 +363,11 @@ Open:
     without a restart, files served at once;
   - URL: HTTP from the PC (good image, bad image, 404), HTTPS to example.com and a GitHub
     redirect (TLS with the common CA bundle works).
-- [ ] **Try the update page in the browser** (both boards): System part of the built-in page,
+- [x] **Try the update page in the browser** (both boards): System part of the built-in page,
       firmware by file, then by URL. On the WT32 it goes through the recovery app too.
-      WT32 by URL works (user, 2026-10-10): download from the PC, written, started; the recovery
-      screen now shows the progress in percent. Still open: by file, and the other board.
+      Confirmed by you 2026-10-10: WT32 by URL (download from the PC, written, started; the
+      recovery screen shows the progress in percent) and by file; the .bin update by file works
+      on all boards. URL on the other boards not tried separately: same code path as the WT32.
 - **Tests on the T4** (2026-10-07), all passed after the fixes below:
   - Wi-Fi: a missing network at position 1 is skipped (connected to #2 in 3.9 s); a wrong
     password (the WT32's hotspot with a wrong one) is detected, skipped, and the T4 is back on
@@ -1018,8 +1018,6 @@ sim.
 - [ ] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
       argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Worth
       reporting to Espressif; `read_ota_partition` probably has the same problem.
-- [ ] **Your WLED controller on COM7** was flashed with this project's step 1 firmware by mistake
-      on 2026-10-06 (COM7 was taken for the T4). You are reflashing WLED yourself.
 - [x] ~~Size check against the recovery partition~~: with Wi-Fi the main firmware passed 1 MB
       (1.22 MB). ESP-IDF 6.1 only warns that 1 of 2 app partitions is too small and the build
       succeeds, so nothing blocks. The warning stays in the build output.
@@ -1211,7 +1209,7 @@ These follow [architecture.md](architecture.md) section 13:
 4. First setup, Settings and web server: done except the open points of step 4.
 5. Home Assistant connection: first part running (connect, authenticate, reconnect), see step 5.
 
-- [ ] **WT32 replaced + LDR** (2026-10-07): new WT32-SC01 flashed on COM9 (recovery app, main, web UI image).
+- [x] **WT32 replaced + LDR** (2026-10-07; the lux table is dropped 2026-10-10, see the two-point setup below): new WT32-SC01 flashed on COM9 (recovery app, main, web UI image).
       LDR on IO34 (ADC1_CH6) with 10k to GND, `hc::light_sensor::ldr` (ldr.hpp): pin voltage -> LDR
       resistance -> lux through a table of up to 8 points, log-log interpolated; default GL5528 curve until
       there are points. Console: `light`, `light watch [s]`, `light calibrate <lux>` (adds a point),
@@ -1237,4 +1235,7 @@ These follow [architecture.md](architecture.md) section 13:
       T4) may have hidden part of this: check the task priorities first if reads fail again.
 - [x] `log lvgl` (2026-10-07): the test screen report every 2 s and the touch messages (LV_LOG_USER, tag `lvgl`)
       are off by default, `log lvgl` toggles them and the choice is stored; warnings and errors of LVGL stay.
-- [ ] LDR table as board defaults (now only in the NVS of this unit); recalibrate the dim end at night.
+- [x] ~~LDR table as board defaults~~ dropped (your decision, 2026-10-10): the LDR does not work well
+      enough for a lux table. Instead a simple two-point setup for the automatic brightness: the light
+      where the display is at its minimum, and the light where it is at 100 %. Built and flashed on the WT32 2026-10-10 (Display page: "Lowest brightness at" /
+      "Full brightness at", tap in the room's light; defaults 0 and 350 lx; in the backup). Confirmed by you 2026-10-10.
