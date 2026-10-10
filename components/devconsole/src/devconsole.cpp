@@ -35,6 +35,7 @@
 #include "hc/touch_input/touch_input.hpp"
 #include "hc/ui/ui.hpp"
 #include "hc/uidebug/uidebug.hpp"
+#include "hc/vibration/vibration.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hc/webserver/webserver.hpp"
@@ -821,6 +822,39 @@ int cmd_sound(int argc, char **argv)
 }
 #endif
 
+#if CONFIG_HC_VIBRATION
+// The motor without the screen: a pulse of a length (for tuning the click), the alarm pattern
+int cmd_vibrate(int argc, char **argv)
+{
+    if (!hc::vibration::running()) {
+        std::printf("no vibration motor\n");
+        return 1;
+    }
+    if (argc == 1 || std::strcmp(argv[1], "click") == 0) {
+        hc::vibration::click();
+        return 0;
+    }
+    if (std::strcmp(argv[1], "alarm") == 0) {
+        hc::vibration::start_alarm();
+        return 0;
+    }
+    if (std::strcmp(argv[1], "stop") == 0) {
+        hc::vibration::stop_alarm();
+        return 0;
+    }
+    if (std::strcmp(argv[1], "status") == 0) {
+        std::printf("motor %s\n", hc::vibration::motor_on() ? "on" : "off");
+        return 0;
+    }
+    const int ms = std::atoi(argv[1]);
+    if (ms <= 0) {
+        return usage("vibrate [click|<ms>|alarm|stop|status]");
+    }
+    hc::vibration::pulse(static_cast<uint16_t>(ms));
+    return 0;
+}
+#endif
+
 // the samples of the touch controller (hc::touch_input), for a board whose touch misbehaves
 int cmd_touch(int argc, char **argv)
 {
@@ -1024,6 +1058,9 @@ void register_commands()
         cmd_light);
 #if CONFIG_HC_AUDIO
     add("sound", "speaker: volume, test tone, touch sound", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|alarm [file]|stop|ring]", cmd_sound);
+#endif
+#if CONFIG_HC_VIBRATION
+    add("vibrate", "vibration motor: the click, a pulse, the alarm pattern", "[click|<ms>|alarm|stop|status]", cmd_vibrate);
 #endif
 }
 

@@ -140,6 +140,14 @@ struct Backend {
     // (CONFIG_HC_AUDIO_TOUCH_SOUND)
     void (*play_touch_sound)();
     void (*play_slider_tick)();
+    // Vibration: nullptr when the firmware has no motor (CONFIG_HC_VIBRATION); false when it did
+    // not start. Settings show the switch on the Sound page then, and the page also without audio.
+    // Off means no vibration at all, also none while the alarm rings.
+    bool (*vibration)(bool &on);
+    // stores the switch a few seconds after the last change
+    void (*set_vibration)(bool on);
+    // the pulse for a tap, whatever the switch says
+    void (*vibrate_click)();
 
     // The alarm: nullptr without it (CONFIG_HC_AUDIO_ALARM), and then Settings have no Alarm page.
     void (*alarm_settings)(AlarmSettings &out);

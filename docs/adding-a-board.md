@@ -190,7 +190,22 @@ Steps:
 - [ ] Listen for a pop when the first sound starts and a second after the last one (the channel
       stops then). Note it on the device page.
 
-## 10. Record the results
+## 10. Vibration motor (if the board has one)
+
+- [ ] The motor's GPIO goes into `Info::vibration_gpio` (high = on, through a transistor), and the
+      board's Kconfig choice entry gets `select HC_BOARD_HAS_VIBRATION`.
+- [ ] The boot log shows `vibration: motor on GPIO .., click .. ms`. `vibrate 300`, then
+      `vibrate status` right away (`on`) and a second later (`off`).
+- [ ] **The click length, measured by the developer**: try `vibrate <ms>` from short to long
+      (e.g. 20, 40, 60, 80) and find the shortest pulse that gives a clear tap; shorter ones do
+      nothing, and motors differ a lot (the JC4880P443C's 3 V test motor: nothing below 70 ms).
+      A little above it goes into `Info::vibration_click_ms` (75 ms there). The firmware does not
+      start the motor without it. It is a constant of the board type, not a setting.
+- [ ] `vibrate alarm`: on and off every half second, `vibrate stop` ends it. Watch the boot log
+      for a brownout while the motor starts (section Power below).
+- [ ] Settings, Sound shows "Vibrate"; taps vibrate, the switch turns it off.
+
+## 11. Record the results
 
 - [ ] Every constant found above is in the board's `Info`; remove `CONFIG_HC_BOARD_BRING_UP=y`
       from `boards/<name>/sdkconfig.defaults`, rebuild: the firmware starts with the start screen

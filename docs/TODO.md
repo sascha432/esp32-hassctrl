@@ -916,6 +916,35 @@ Your report of the second version (2026-10-09):
       read with open/read now, internal RAM stays at 39 KB while it plays.
 - [ ] Later: sounds from HTTP (Home Assistant TTS), what plays them.
 
+## Vibration (2026-10-09)
+
+Component `vibration` (docs/architecture.md section 9.7): a motor on the P4's GPIO 28, a pulse
+with every tap that clicks, a pattern while the alarm rings, the "Vibrate" switch on Settings,
+Sound. Built for the JC3248W535 (without it) and the JC4880P443C; the Sound page checked in the
+sim.
+
+- [x] First test by you: the motor turned on with the first tap and stayed on until a restart.
+      Cause: the off-timer asked `esp_timer_is_active()`, which is true inside the timer's own
+      callback, so it always thought a newer pulse had taken over. Now a deadline decides. Flashed
+      on the P4; the pin read back with the new `vibrate status`: on during a 300 ms pulse, off
+      after it; the alarm pattern 500 ms on, 500 ms off.
+- [x] Click length: shorter than 70 ms does not move this motor (you); now 75 ms, a constant of
+      the board (`Info::vibration_click_ms`), measured by the developer (adding-a-board.md step 10).
+- [ ] The P4 hangs after a reset over USB (flashing, or RTS from a serial tool) until it is
+      power-cycled: no console, and every 5 s a register dump of core 0 (the task watchdog; the
+      log level is off, so only the dumps show). The busy task is LVGL's (`lv_timer_handler`,
+      the port lock), not the vibration; the motor pin stays low. Seen twice on 2026-10-09 after
+      flashing; it is probably the "brownout boot loop" you saw. The reset reason looks wrong too:
+      the ROM said `rst:0x3 (SW_SYS_RESET)`, our `system: reset reason` said brownout. Not checked
+      yet whether it happened before the vibration change. Motor wiring for reference: 3 V / 70 mA
+      on 3.3 V through a 2N2222, 470 Ohm base.
+- [x] Working on the device, confirmed by you (2026-10-09).
+- [x] Bug (you): with both touch sounds off, letting go of the volume slider still clicked. It
+      clicks now only when one of them is on.
+- [ ] Tune the click (`kClickMs`, 25 ms now) with `vibrate <ms>`: the shortest pulse that is
+      felt clearly; and the alarm rhythm (500 / 500 ms).
+- [ ] Check: taps vibrate, the switch turns it off, `sound ring` vibrates until Stop or Snooze.
+
 ## Known issues
 
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the

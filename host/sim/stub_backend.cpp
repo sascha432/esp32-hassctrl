@@ -95,6 +95,8 @@ struct State {
     DisplaySettings display = kDisplayDefaults;
     // the Sound and Alarm pages as on a board with a speaker; the sounds are printed
     SoundSettings sound{.volume = 50, .tap_sound = true, .slider_sound = true};
+    // and a vibration motor
+    bool vibration = true;
     AlarmSettings alarm{.on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = "Argon"};
     bool hint_seen = true;
     bool clock_set = true;
@@ -459,6 +461,12 @@ void set_sound_settings(const SoundSettings &settings)
     g.sound = settings;
 }
 
+bool vibration(bool &on)
+{
+    on = g.vibration;
+    return true;
+}
+
 void alarm_settings(AlarmSettings &out)
 {
     out = g.alarm;
@@ -629,6 +637,9 @@ const hc::ui::Backend kBackend{
     .set_sound_settings = set_sound_settings,
     .play_touch_sound = [] { print("touch sound"); },
     .play_slider_tick = [] { print("slider tick"); },
+    .vibration = vibration,
+    .set_vibration = [](bool on) { g.vibration = on; },
+    .vibrate_click = [] { print("vibration pulse"); },
     .alarm_settings = alarm_settings,
     .set_alarm_settings = set_alarm_settings,
     .alarm_sounds = alarm_sounds,

@@ -13,6 +13,7 @@
 #include "esp_ota_ops.h"
 #if CONFIG_HC_AUDIO
 #include "hc/audio/audio.hpp"
+#include "hc/vibration/vibration.hpp"
 #endif
 #include "hc/board/board.hpp"
 #include "hc/config/dashboard.hpp"
@@ -379,6 +380,12 @@ extern "C" void app_main()
         }
 #if CONFIG_HC_AUDIO
         start_audio(board);
+#endif
+#if CONFIG_HC_VIBRATION
+        // before the UI, which asks whether it runs
+        if (board.vibration_gpio >= 0 && hc::vibration::start(board.vibration_gpio, board.vibration_click_ms) != ESP_OK) {
+            ESP_LOGW(kTag, "vibration motor did not start");
+        }
 #endif
         if (disp != nullptr && lvgl_port_lock(0)) {
             const hc::ui::Options ui_options{.slide_pages = board.ui_slide_pages,

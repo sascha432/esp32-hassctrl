@@ -61,6 +61,10 @@ constexpr Info kInfo{
     .audio_codec = true,
     // the amplifier wakes too slowly for a click: the first one after a pause was not heard
     .audio_always_on = true,
+    // a vibration motor on the expansion header for testing (user, 2026-10-09)
+    .vibration_gpio = 28,
+    // 3 V / 70 mA motor through a 2N2222 (470 Ohm base): below 70 ms it did not move (user, 2026-10-09)
+    .vibration_click_ms = 75,
     // the large screen: pages slide, panels are dialogs, larger fonts (user, 2026-10-08)
     .ui_slide_pages = true,
     .ui_panel_dialogs = true,

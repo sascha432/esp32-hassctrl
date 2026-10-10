@@ -25,6 +25,7 @@ struct State {
     const Backend *backend = nullptr;
     bool tap_sound = false;
     bool slider_sound = false;
+    bool vibrate = false;
     // one click per tap: the feedback comes for every object an event bubbles to
     bool clicked = false;
     lv_point_t pressed_at{};
@@ -136,7 +137,7 @@ void on_clicked(lv_indev_t *indev)
     g.clicked = true;
     // a switch that just turned the tap sound off makes none
     lv_obj_t *obj = lv_indev_get_obj_act();
-    if (!g.tap_sound || !is_target(obj)) {
+    if ((!g.tap_sound && !g.vibrate) || !is_target(obj)) {
         return;
     }
     // LVGL sends no click after a drag that scrolled, but a slider or a drag control gets one after
@@ -150,7 +151,12 @@ void on_clicked(lv_indev_t *indev)
             return;
         }
     }
-    g.backend->play_touch_sound();
+    if (g.tap_sound) {
+        g.backend->play_touch_sound();
+    }
+    if (g.vibrate) {
+        g.backend->vibrate_click();
+    }
 }
 
 // the code of every event a touch sends, once for each object it reaches
@@ -184,7 +190,9 @@ void init(const Backend &backend)
 {
     g = {};
     g.backend = &backend;
-    if (backend.play_touch_sound == nullptr || !available()) {
+    const bool click = backend.play_touch_sound != nullptr && available();
+    const bool vibrate = backend.vibrate_click != nullptr && vibration_available();
+    if (!click && !vibrate) {
         return;
     }
     settings_changed();
@@ -201,12 +209,21 @@ bool available()
     return g.backend != nullptr && g.backend->sound_settings != nullptr && g.backend->sound_settings(s);
 }
 
+bool vibration_available()
+{
+    bool on = false;
+    return g.backend != nullptr && g.backend->vibration != nullptr && g.backend->vibration(on);
+}
+
 void settings_changed()
 {
     SoundSettings s{};
     const bool sound = g.backend->sound_settings != nullptr && g.backend->sound_settings(s) && s.volume > 0;
     g.tap_sound = sound && s.tap_sound && g.backend->play_touch_sound != nullptr;
     g.slider_sound = sound && s.slider_sound && g.backend->play_slider_tick != nullptr;
+    bool vibrate = false;
+    g.vibrate = g.backend->vibration != nullptr && g.backend->vibration(vibrate) && vibrate &&
+                g.backend->vibrate_click != nullptr;
 }
 
 void tappable(lv_obj_t *obj)

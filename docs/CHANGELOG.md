@@ -269,3 +269,26 @@ JC4880P443C):
   P4's backlight pin is undriven until the next start and lit the ST7701S, which shows cyan
   without a signal. The runner redraws from where its head was at the last step, so a slow frame
   no longer leaves a dot behind (seen at the top of the logo during the first second).
+
+Vibration (docs/architecture.md section 9.7):
+
+- New component `vibration` (`CONFIG_HC_VIBRATION`, menu "hassctrl vibration"): a motor on a
+  GPIO, pulses through a one-shot `esp_timer`, the alarm pattern 500 ms on / 500 ms off. Offered
+  by boards that `select HC_BOARD_HAS_VIBRATION` with `Info::vibration_gpio`; the JC4880P443C
+  has a test motor on GPIO 28.
+- A 25 ms pulse with every tap that clicks (`Backend::vibrate_click`, from the touch feedback of
+  `ui/sound.cpp`), independent of the volume and the click switch; none for slider ticks. The
+  alarm vibrates with its sound (`main/ui_sound.cpp`), not the preview.
+- Settings, Sound: "Vibration" section with the "Vibrate" switch (on by default, NVS
+  `ui`/`vibrate`); the page is there with audio or a motor. Sim: `[stub] vibration pulse`.
+- Console `vibrate [click|<ms>|alarm|stop|status]` (`status` reads the pin back).
+- Fix after the first test: the motor stayed on after the first tap. `esp_timer_is_active()` is
+  true inside the timer's own callback, so the off-timer always took itself for stale; a deadline
+  decides now.
+- The click is `Info::vibration_click_ms`, measured per board by the developer (adding-a-board.md
+  step 10): 75 ms on the JC4880P443C, whose test motor does not move below 70 ms.
+- Confirmed working on the JC4880P443C by the user.
+- Fix: letting go of the volume slider clicked even with both touch sounds off; it clicks only
+  when one of them is on.
+- JC4880P443C device page: the schematic (`JC4880P443_V1.0.pdf`) and the expansion header pins
+  (`gpio-header.jpeg`) added.

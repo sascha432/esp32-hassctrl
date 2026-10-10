@@ -1,0 +1,12 @@
+menu "hassctrl vibration"
+
+    config HC_VIBRATION
+        bool "Vibration motor"
+        depends on HC_BOARD_HAS_VIBRATION
+        default y
+        help
+            A vibration motor on a GPIO (hc::board::Info::vibration_gpio): a pulse with every tap
+            that clicks, a pattern while the alarm rings, the Vibration switch in Settings, Sound
+            and the `vibrate` console command. Only boards with a motor offer it.
+
+endmenu

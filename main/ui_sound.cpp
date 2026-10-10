@@ -7,6 +7,7 @@
 #include "hc/audio/audio.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/storage.hpp"
+#include "hc/vibration/vibration.hpp"
 
 namespace ui_sound {
 
@@ -68,6 +69,41 @@ void set_sound(const hc::ui::SoundSettings &settings)
     g_sound_loaded = true;
     hc::audio::set_volume(g_sound.volume);
     hc::platform::set_blob_later(kUiNamespace, kSoundKey, &g_sound, sizeof(g_sound));
+}
+#endif
+
+#if CONFIG_HC_VIBRATION
+// the Vibration switch, on until it is turned off
+constexpr const char *kVibrationKey = "vibrate";
+bool g_vibration = true;
+bool g_vibration_loaded = false;
+
+bool vibration_on()
+{
+    if (!g_vibration_loaded) {
+        g_vibration_loaded = true;
+        hc::platform::Settings settings(kUiNamespace, hc::platform::Settings::Mode::Read);
+        uint8_t stored = 0;
+        size_t size = sizeof(stored);
+        if (settings.ok() && settings.get_blob(kVibrationKey, &stored, size) == ESP_OK && size == sizeof(stored)) {
+            g_vibration = stored != 0;
+        }
+    }
+    return g_vibration;
+}
+
+bool get_vibration(bool &on)
+{
+    on = vibration_on();
+    return hc::vibration::running();
+}
+
+void set_vibration(bool on)
+{
+    g_vibration = on;
+    g_vibration_loaded = true;
+    const uint8_t stored = on ? 1 : 0;
+    hc::platform::set_blob_later(kUiNamespace, kVibrationKey, &stored, sizeof(stored));
 }
 #endif
 
@@ -163,6 +199,20 @@ void ring(const char *sound, bool loop)
                       kAlarmExtension);
     }
     hc::audio::play_alarm(path, loop);
+#if CONFIG_HC_VIBRATION
+    // the alarm itself, not the preview of Settings
+    if (loop && vibration_on()) {
+        hc::vibration::start_alarm();
+    }
+#endif
+}
+
+void silence()
+{
+    hc::audio::stop_alarm();
+#if CONFIG_HC_VIBRATION
+    hc::vibration::stop_alarm();
+#endif
 }
 #endif
 
@@ -189,12 +239,22 @@ void (*const play_touch_sound)() = nullptr;
 void (*const play_slider_tick)() = nullptr;
 #endif
 
+#if CONFIG_HC_VIBRATION
+bool (*const vibration)(bool &) = get_vibration;
+void (*const set_vibration_setting)(bool) = set_vibration;
+void (*const vibrate_click)() = hc::vibration::click;
+#else
+bool (*const vibration)(bool &) = nullptr;
+void (*const set_vibration_setting)(bool) = nullptr;
+void (*const vibrate_click)() = nullptr;
+#endif
+
 #if CONFIG_HC_AUDIO_ALARM
 void (*const alarm_settings)(hc::ui::AlarmSettings &) = get_alarm;
 void (*const set_alarm_settings)(const hc::ui::AlarmSettings &) = set_alarm;
 size_t (*const alarm_sounds)(char (*)[hc::ui::kSoundNameSize], size_t) = list_alarm_sounds;
 void (*const play_alarm)(const char *, bool) = ring;
-void (*const stop_alarm)() = hc::audio::stop_alarm;
+void (*const stop_alarm)() = silence;
 #else
 void (*const alarm_settings)(hc::ui::AlarmSettings &) = nullptr;
 void (*const set_alarm_settings)(const hc::ui::AlarmSettings &) = nullptr;

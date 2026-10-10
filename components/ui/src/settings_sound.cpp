@@ -1,5 +1,5 @@
-// Settings, Sound (docs/ui/screen.md section 5, Sound): only with an audio output (sound::available()).
-// The volume is also on quick settings (volume_card()).
+// Settings, Sound (docs/ui/screen.md section 5, Sound): only with an audio output or a vibration
+// motor (sound::page_available()). The volume is also on quick settings (volume_card()).
 
 #include "settings.hpp"
 #include "settings_pages.hpp"
@@ -31,6 +31,23 @@ void touch_switch(lv_obj_t *parent, const char *name, bool on, lv_event_cb_t cal
     t::toggle(row, on, callback);
 }
 
+// the motor's switch, only with one
+void vibration_section(lv_obj_t *col)
+{
+    if (!sound::vibration_available()) {
+        return;
+    }
+    bool on = false;
+    backend().vibration(on);
+    section(col, "Vibration");
+    // the tap that turns it on pulses already: the feedback comes after the switch changed
+    touch_switch(col, "Vibrate", on, [](lv_event_t *event) {
+        backend().set_vibration(lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED));
+        sound::settings_changed();
+    });
+    text_block(col, "A short pulse with every tap, and pulses while the alarm rings.");
+}
+
 } // namespace
 
 void volume_card(lv_obj_t *parent)
@@ -40,11 +57,12 @@ void volume_card(lv_obj_t *parent)
         changed.volume = static_cast<uint8_t>(lv_slider_get_value(lv_event_get_target(event)));
         store(changed);
     });
-    // the new volume to hear: the click when the slider is let go
+    // the new volume to hear: the click when the slider is let go, unless both touch sounds are off
     lv_obj_add_event_cb(
         slider,
         [](lv_event_t *) {
-            if (backend().play_touch_sound != nullptr && sound_settings().volume > 0) {
+            const SoundSettings s = sound_settings();
+            if (backend().play_touch_sound != nullptr && s.volume > 0 && (s.tap_sound || s.slider_sound)) {
                 backend().play_touch_sound();
             }
         },
@@ -54,6 +72,10 @@ void volume_card(lv_obj_t *parent)
 Built sound_page(lv_obj_t *content)
 {
     lv_obj_t *col = t::column(content);
+    if (!sound::available()) {
+        vibration_section(col);
+        return {"Sound", nullptr};
+    }
     const SoundSettings s = sound_settings();
     volume_card(col);
 
@@ -71,6 +93,7 @@ Built sound_page(lv_obj_t *content)
         });
     }
     text_block(col, "Touch sounds play at this volume, none at 0 %. The alarm always rings at full volume.");
+    vibration_section(col);
     return {"Sound", nullptr};
 }
 

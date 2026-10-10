@@ -75,6 +75,13 @@ struct Info {
     // The speaker channel runs all the time instead of stopping a second after a sound: the
     // amplifier's wake-up changed how loud a click was (hc::audio::Config::keep_running).
     bool audio_always_on = false;
+    // A vibration motor on this GPIO (through a transistor, high = on), -1 without one. The board's
+    // Kconfig option selects HC_BOARD_HAS_VIBRATION when it has one (hc::vibration).
+    int8_t vibration_gpio = -1;
+    // The pulse of a tap: the shortest one this motor turns into a clear tap, found by the
+    // developer with console `vibrate <ms>` when the motor is added (docs/adding-a-board.md).
+    // Motors differ a lot: shorter pulses than this one do nothing.
+    uint16_t vibration_click_ms = 0;
     // How the MPU6050 sits on this board type, measured by the developer when the board is added
     // (docs/adding-a-board.md, console `orient`): gravity in the module's axes with the panel upright
     // in the base orientation (3 floats), then turned 90 degrees clockwise (3 floats). All zero = the

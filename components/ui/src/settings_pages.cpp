@@ -229,7 +229,7 @@ Built quick(lv_obj_t *content)
     g_quick_hotspot_switch = t::toggle(g_quick_hotspot, false, on_hotspot_switch);
     g_quick_ha = t::row(col, "Home Assistant", "", true, [](lv_event_t *) { push(Page::HomeAssistant); });
     t::row(col, "Display", "", true, [](lv_event_t *) { push(Page::Display); });
-    if (sound::available()) {
+    if (sound::page_available()) {
         t::row(col, "Sound", "", true, [](lv_event_t *) { push(Page::Sound); });
     }
     g_quick_alarm = nullptr;
