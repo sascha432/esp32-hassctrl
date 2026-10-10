@@ -1134,6 +1134,9 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
       and a tap asks for the password. Imported names are merged: a network that is already
       saved keeps its password, so an import over Wi-Fi does not cut the connection; the order
       comes from the file; more than 5 are cut off with a note.
+      2026-10-10 (confirmed by the user on the WT32): in the scan lists (screen and web) "saved"
+      means saved with a password; the tag is worked out when the list is read, so it follows a
+      password entered after the scan, and the web page redraws the list after Enter and Forget.
 - [x] **Who writes the sections** (decided 2026-10-07): a table of sections filled in `main`, like
       `hc::ui::Backend` and `HassAccess`. Each entry has a name, `write` (export), `check`
       (import, step 1) and `apply` (import, step 2); nothing is applied before every section

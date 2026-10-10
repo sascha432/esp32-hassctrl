@@ -4,6 +4,7 @@
 
 #include "dashboard.hpp"
 #include "runner.hpp"
+#include "settings.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::splash {
@@ -34,6 +35,8 @@ struct State {
     lv_obj_t *box = nullptr;
     // "No dashboard yet ...", hidden while there is one
     lv_obj_t *hint = nullptr;
+    // "Setup Home Assistant", while no address and token are stored and there is Wi-Fi
+    lv_obj_t *setup = nullptr;
     lv_timer_t *timer = nullptr;
     bool connected = false;
     uint32_t connected_at = 0;
@@ -64,6 +67,13 @@ void add_mask(lv_obj_t *parent, const lv_img_dsc_t &image, uint32_t color)
     lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
 }
 
+// the logo runs while the splash waits, not while it shows the hint or the button
+void update_runner()
+{
+    const bool waiting = lv_obj_has_flag(g.hint, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(g.setup, LV_OBJ_FLAG_HIDDEN);
+    runner::set(g.box, waiting, &kTrack);
+}
+
 // Without a dashboard nothing more comes from Home Assistant: the runner stops and the line says
 // where a dashboard is made.
 void show_hint(bool on)
@@ -83,7 +93,21 @@ void show_hint(bool on)
     } else {
         lv_obj_add_flag(g.hint, LV_OBJ_FLAG_HIDDEN);
     }
-    runner::set(g.box, !on, &kTrack);
+    update_runner();
+}
+
+// the button "Setup Home Assistant" below the logo, hidden while there is something to wait for
+void show_setup(bool on)
+{
+    if (on == !lv_obj_has_flag(g.setup, LV_OBJ_FLAG_HIDDEN)) {
+        return;
+    }
+    if (on) {
+        lv_obj_clear_flag(g.setup, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(g.setup, LV_OBJ_FLAG_HIDDEN);
+    }
+    update_runner();
 }
 
 void close()
@@ -99,6 +123,17 @@ void on_check(lv_timer_t *)
 {
     HassInfo info{};
     g.backend->hass_info(info);
+    if (!info.configured) {
+        // no address or token (a backup carries none): once there is Wi-Fi the button leads to the
+        // page with the QR code of the web UI, where they are entered; until then the logo runs
+        WifiInfo wifi{};
+        g.backend->wifi_info(wifi);
+        g.connected = false;
+        show_hint(false);
+        show_setup(wifi.connected);
+        return;
+    }
+    show_setup(false);
     if (!info.connected) {
         g.connected = false;
         show_hint(false);
@@ -150,6 +185,11 @@ void init(const Backend &backend, lv_obj_t *screen)
     lv_label_set_long_mode(g.hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(g.hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_add_flag(g.hint, LV_OBJ_FLAG_HIDDEN);
+
+    // the normal Settings with the page on top: `<` leads to quick settings and all the others
+    g.setup = t::button(g.root, "Setup Home Assistant",
+                        [](lv_event_t *) { settings::open(settings::Page::HomeAssistant); });
+    lv_obj_add_flag(g.setup, LV_OBJ_FLAG_HIDDEN);
 
     runner::set(g.box, true, &kTrack);
     g.timer = lv_timer_create(on_check, kCheckMs, nullptr);

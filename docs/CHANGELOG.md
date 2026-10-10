@@ -12,6 +12,13 @@
 - First setup: a failed network brings the hotspot back (wrong password at once, other errors
   after 3 attempts) until a connection works; before, the device retried with no way in. Also
   after a restart while no saved network ever connected.
+- Wi-Fi scan lists: "saved" only for a network saved with its password (not one that is
+  "password needed"), and up to date without a rescan: the flag is set when the list is read
+  (`network::last_scan`). The web Wi-Fi page redraws "Add a network" after Enter and Forget.
+  Confirmed by the user on the WT32.
+- Start screen without Home Assistant set up (no token after a factory reset and a backup import):
+  it ran forever. Now, with Wi-Fi, the runner stops and a "Setup Home Assistant" button opens
+  Settings at the Home Assistant page. Flashed on the WT32, not yet confirmed.
 
 ## 2026-10-08
 

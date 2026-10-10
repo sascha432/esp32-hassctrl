@@ -429,10 +429,7 @@ void on_scan_done()
         entry.rssi = record.rssi;
         entry.channel = record.primary;
         entry.secure = record.authmode != WIFI_AUTH_OPEN;
-        entry.saved = false;
-        for (size_t n = 0; n < t.stored.count; n++) {
-            entry.saved |= std::strcmp(entry.ssid, t.stored.networks[n].ssid) == 0;
-        }
+        entry.saved = false; // set when the results are read, see last_scan()
     }
     xSemaphoreGive(g_lock);
 
@@ -1081,6 +1078,14 @@ size_t last_scan(ScanEntry *out, size_t max)
     xSemaphoreTake(g_lock, portMAX_DELAY);
     const size_t count = std::min(max, g_scan_count);
     std::copy(g_scan, g_scan + count, out);
+    // the flag is set when read: a network saved after the scan shows as saved without a rescan
+    for (size_t i = 0; i < count; i++) {
+        out[i].saved = false;
+        for (size_t n = 0; n < g_saved_count; n++) {
+            // one still waiting for its password is not saved yet: choosing it enters the password
+            out[i].saved |= !g_saved[n].password_needed && std::strcmp(out[i].ssid, g_saved[n].ssid) == 0;
+        }
+    }
     xSemaphoreGive(g_lock);
     return count;
 }

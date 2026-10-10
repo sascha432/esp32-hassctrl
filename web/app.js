@@ -513,6 +513,7 @@ const views = {
               await sleep(300);
               w = await api("/api/wifi");
               drawSaved();
+              drawAdd(); // its "saved" tags follow the saved networks
             });
           };
           input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
@@ -529,6 +530,7 @@ const views = {
           await sleep(300);
           w = await api("/api/wifi");
           drawSaved();
+          drawAdd();
         });
       };
       $("#policy").onchange = (event) => api("/api/wifi/policy", { policy: event.target.value })

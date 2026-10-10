@@ -72,6 +72,11 @@ it); the first setup opens over it as before. A touch on the logo does nothing.
 * Without a dashboard nothing more comes: once Home Assistant is connected the runner stops and a
   line below the logo says "No dashboard yet. Create one in the web UI at http://...". The logo
   goes once a dashboard is saved and its values came.
+* Without a Home Assistant address and token (a factory reset, a backup carries no token) there
+  is nothing to wait for: once Wi-Fi is connected the runner stops and a button "Setup Home
+  Assistant" below the logo opens Settings at the Home Assistant page (the QR code of the web UI);
+  `<` leads to quick settings as usual. When the token is saved the button goes and the runner
+  starts again. Without Wi-Fi the runner keeps going.
 * It is shown once per start: a lost connection later shows the alert strip over the dashboard.
 
 The backlight stays off from the start until LVGL has drawn the first frame, then fades up in
