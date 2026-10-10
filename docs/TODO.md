@@ -177,7 +177,7 @@ Open:
       Cause: network 1 was saved on the WT32 without a password, so the driver looked for an open
       network. Now: the error says "the network needs a password, add it again" (no second try),
       and the screen, web API and console refuse passwords of 1 to 7 characters (2026-10-07).
-- [ ] WT32: add the password of network 1 again (user).
+- [x] WT32: add the password of network 1 again (user).
 - [x] How the password got lost: `wifi add` on the console, then the hotspot web setup (no login
       yet) opened "Choose your Wi-Fi", the saved network was picked with an empty password field
       and Connect saved it again without a password. Now a saved network added again with an
@@ -575,7 +575,7 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
   (`switch.blinds_living_room`) and the fireplace (`switch.fireplace`). Anything else: ask.
 - [x] **Save and connect** stays (decided 2026-10-07): a new token replaces the stored one, that
       is the user's choice; no test before storing.
-- [ ] **Internal RAM on the WT32**: 25 KB left with Home Assistant connected, before the
+- [x] **Internal RAM on the WT32**: 25 KB left with Home Assistant connected, before the
       dashboard. `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384` keeps every allocation under 16 KB
       in internal RAM (LVGL objects too; 512 on the ESP32 since 2026-10-10, see Next steps). Decided 2026-10-07: the dashboard lives in PSRAM (as
       in the old firmware), small hot values in a compact array in internal RAM
@@ -598,7 +598,7 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
       effect when that attempt ends; the page shows "connecting" meanwhile.
 - [x] Host tests for `hass/src/url.cpp` (2026-10-07): `python tools/host_test.py`, 8 tests.
       `strncasecmp` (POSIX, missing in MSVC) replaced by a small helper in `url.cpp`.
-- [ ] **Windows version of the UI** for the design review (decided 2026-10-07; the final version
+- [x] **Windows version of the UI** for the design review (decided 2026-10-07; the final version
       is tested on the WT32 by the developer): GUI only, no network, sample states written by
       the agent, taps change the sample states; LVGL 8.4 with its Windows driver; board window
       sizes and a rotate key (architecture.md section 1). Built 2026-10-07 (README, "The UI on
