@@ -9,3 +9,9 @@
 # matters for throughput. The main firmware with the dashboard, HA client and sensor drivers
 # overflowed IRAM by 2.6 KB on the WT32 without this.
 # CONFIG_ESP_WIFI_IRAM_OPT is not set
+
+# Plain malloc puts everything up to this size into internal RAM first (ESP-IDF default 16384).
+# On the WT32 that filled the internal RAM to 0 bytes once Home Assistant was connected (LVGL ran
+# out of memory, docs/TODO.md). Above 512 bytes, allocations go to PSRAM; DMA buffers, task stacks
+# and the code that runs with the cache off ask for internal RAM explicitly.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512

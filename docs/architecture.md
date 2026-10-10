@@ -833,7 +833,7 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
     IRAM on the ESP32-S3.
   * Memory: the library allocates through weak `media_lib_module_malloc/calloc/realloc` and
     `media_lib_free`, which call `malloc`; every block under 16 KB went to internal RAM
-    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`), 25 KB of the 33 KB left. `file_source.cpp` defines
+    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`, the default on the S3 and P4), 25 KB of the 33 KB left. `file_source.cpp` defines
     them and prefers PSRAM: while a file plays the internal RAM stays where it was (39 KB on the
     JC3248W535).
   * The dependency is fetched for the targets of the boards with audio (`target in [esp32s3,
@@ -943,7 +943,11 @@ esp32-hassctrl/
   `include/hc/<component>/`, everything else private to the component.
 * Files stay small. A file over about 600 lines is a design smell to discuss, not a target.
 * Memory: large buffers (message reassembly, images, store) in PSRAM via `heap_caps_malloc`;
-  LVGL draw buffers in internal DMA RAM. No allocation per frame in the render path.
+  LVGL draw buffers in internal DMA RAM. No allocation per frame in the render path. On the
+  ESP32 a plain `malloc` up to 512 bytes goes to internal RAM first, anything larger to PSRAM
+  (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` in `sdkconfig.main.esp32`; the ESP-IDF default 16 KB
+  filled the WT32's internal RAM). Memory that must be internal (DMA, code that runs with the
+  cache off) is asked for with `heap_caps_malloc`. The console command `mem` shows what is free.
 * The dashboard lives in PSRAM: layout, entity states and the LVGL objects of the dashboard.
   Small values that are read often (flags, state bits, pending marks) sit in a separate compact
   array in internal RAM, indexed like the tiles or entities. The old firmware worked this way.

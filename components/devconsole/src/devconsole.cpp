@@ -399,6 +399,33 @@ int cmd_restart(int, char **)
     return 0;
 }
 
+// Heap per kind of memory: free now and the largest block one allocation can get (KB). Internal
+// includes IRAM on the ESP32, which data cannot use; 8-bit is the part that can hold data. No
+// "lowest since the start": ESP-IDF sums the low point of every region, so one region that was
+// full once reads as 0 although the others had room.
+int cmd_mem(int, char **)
+{
+    struct Row {
+        const char *name;
+        uint32_t caps;
+    };
+    static constexpr Row kRows[] = {{"internal", MALLOC_CAP_INTERNAL},
+                                    {"internal 8-bit", MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT},
+                                    {"DMA", MALLOC_CAP_DMA},
+                                    {"PSRAM", MALLOC_CAP_SPIRAM}};
+    std::printf("%-15s %8s %8s\n", "", "free", "largest");
+    for (const auto &row : kRows) {
+        multi_heap_info_t info{};
+        heap_caps_get_info(&info, row.caps);
+        if (info.total_free_bytes + info.total_allocated_bytes == 0) {
+            continue;
+        }
+        std::printf("%-15s %5u KB %5u KB\n", row.name, static_cast<unsigned>(info.total_free_bytes / 1024),
+                    static_cast<unsigned>(info.largest_free_block / 1024));
+    }
+    return 0;
+}
+
 // ------------------------------------------------------------------------------ log output
 
 constexpr const char *kSettingsNamespace = "console";
@@ -1039,6 +1066,7 @@ void register_commands()
     add("hotspot", "turn the hotspot on or off, or give it a new password", "on|off|password", cmd_hotspot);
     add("c6", "Wi-Fi coprocessor: firmware version, update from a URL", "[version|update <http url>]", cmd_c6);
     add("fs", "file system status", nullptr, cmd_fs);
+    add("mem", "free memory: internal, DMA, PSRAM", nullptr, cmd_mem);
     add("restart", "restart the device", nullptr, cmd_restart);
     add("reboot", "restart the device", nullptr, cmd_restart);
     add("login-reset", "remove the web UI login", "yes", cmd_login_reset);

@@ -550,7 +550,7 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
       is the user's choice; no test before storing.
 - [ ] **Internal RAM on the WT32**: 25 KB left with Home Assistant connected, before the
       dashboard. `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384` keeps every allocation under 16 KB
-      in internal RAM (LVGL objects too). Decided 2026-10-07: the dashboard lives in PSRAM (as
+      in internal RAM (LVGL objects too; 512 on the ESP32 since 2026-10-10, see Next steps). Decided 2026-10-07: the dashboard lives in PSRAM (as
       in the old firmware), small hot values in a compact array in internal RAM
       (architecture.md section 11). Measure before and after step 6.
 - [ ] A Home Assistant with a self-signed certificate (https without a public CA) is refused
@@ -853,7 +853,8 @@ Next:
       are the two DMA draw buffers (320 x 40 lines x 2 bytes x 2 = 51 KB) and every allocation
       below 16 KB, which goes to internal RAM first (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384`,
       LVGL objects, strings). Proposal: lower that limit so small allocations go to PSRAM and
-      measure the render times, or use fewer draw buffer lines. To decide.
+      measure the render times, or use fewer draw buffer lines. To decide. Lowered to 512 on
+      2026-10-10, see Next steps.
 
 ## Your review of 2026-10-07 (evening)
 
@@ -1211,13 +1212,39 @@ Dashboard ([architecture.md](architecture.md) section 14):
 
 ## Next steps
 
-These follow [architecture.md](architecture.md) section 13:
+State as of 2026-10-10. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+WT32-SC01, the JC3248W535 and the JC4880P443C; what is left of them is listed in their sections
+above. In order:
 
-1. ~~Project skeleton~~ runs on the T4, see step 1 above.
-2. ~~Board bring-up~~ runs on the T4 and the WT32-SC01 (with touch and orientation), see step 2.
-3. ~~Platform and network~~ runs on the T4, see step 3.
-4. First setup, Settings and web server: done except the open points of step 4.
-5. Home Assistant connection: first part running (connect, authenticate, reconnect), see step 5.
+1. [ ] **WT32 memory** (the only open crash): LVGL ran out of memory (Vibration, 2026-10-09) and
+       internal RAM is nearly used up (Step 6).
+       - [x] 2026-10-10: `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` 16384 -> 512 for the main firmware
+             on the ESP32 (`sdkconfig.main.esp32`): allocations above 512 bytes go to PSRAM. New
+             console command `mem` (free and largest block of internal, 8-bit, DMA, PSRAM). WT32
+             with Home Assistant connected: internal RAM that can hold data 11 -> 19 KB free
+             (largest block 8 -> 14 KB), unchanged over five page swipes; no failed allocation
+             in the boot log. Render times: not measured again, LVGL already allocated from PSRAM
+             (`hc_lv_mem.h`), so its speed does not depend on this setting.
+       - [ ] Use it for a while: does the LVGL crash come back? If it does, the failed allocation
+             prints its size and both heaps (the log with it is what is needed). Note: with
+             PSRAM 3.9 MB free, LVGL's own allocations should not fail; the crash may come from
+             another cause.
+       - [ ] If more is needed: 20 instead of 40 draw buffer lines frees about 25 KB of DMA RAM,
+             at some cost in render time (measure first).
+2. [ ] Test the panels on the WT32 against your Home Assistant (Step 6).
+3. [ ] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (Vibration).
+4. [ ] `web/icons.svg`: the dashboard editor's icons are stand-ins (Step 6).
+
+Not built yet (placeholders in the code or the documentation):
+
+- [ ] **Logs page** of the web UI: `web/app.js` shows "The log view comes later." Planned in
+      [ui/web.md](ui/web.md) section 6: the log as of loading with a filter, Refresh, Download
+      and a debug mode that adds notice and info messages. Needs a log buffer and an API in the
+      firmware.
+- [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
+- [ ] Home Assistant events waking the screen (`ui/src/power.hpp`).
+- [ ] Trusting a self-signed Home Assistant certificate on first use (Step 5).
+- [ ] OTA push method in detail (Open decisions).
 
 - [x] **WT32 replaced + LDR** (2026-10-07; the lux table is dropped 2026-10-10, see the two-point setup below): new WT32-SC01 flashed on COM9 (recovery app, main, web UI image).
       LDR on IO34 (ADC1_CH6) with 10k to GND, `hc::light_sensor::ldr` (ldr.hpp): pin voltage -> LDR

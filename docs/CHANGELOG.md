@@ -2,6 +2,15 @@
 
 ## 2026-10-10
 
+- WT32 internal RAM: a plain `malloc` above 512 bytes goes to PSRAM on the ESP32 (was 16 KB,
+  `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` in `sdkconfig.main.esp32`). With Home Assistant connected
+  the internal RAM that can hold data has 19 KB free (was 11), the largest block 14 KB (was 8),
+  steady over page changes. Whether the LVGL out-of-memory crash of 2026-10-09 is gone is still
+  to be seen. Flashed on the WT32.
+- Console: `mem` prints free memory and the largest block of internal, internal 8-bit, DMA and
+  PSRAM.
+- TODO: "Next steps" rewritten (the order of what comes next) with a list of what is not built
+  yet, the web UI's Logs page among it.
 - "Swipe down for Settings" stays while the onboarding runs: as long as Home Assistant has no
   address and token (the start screen offers "Set up Home Assistant") it shows, also when it was
   stored as seen. It goes after a swipe once Wi-Fi is up and Home Assistant connected, then stays
