@@ -28,6 +28,8 @@ struct State {
     bool vibrate = false;
     // one click per tap: the feedback comes for every object an event bubbles to
     bool clicked = false;
+    // one pulse per touch, for the same reason; cleared when the finger lifts
+    bool buzzed = false;
     lv_point_t pressed_at{};
     // where the last tick was: the value of a slider, the point of a drag control
     int32_t tick_value = 0;
@@ -97,6 +99,12 @@ void on_pressed(lv_indev_t *indev)
         int32_t step = 0;
         g.tick_value = slider_value(obj, step);
     }
+    // the motor buzzes when the finger touches, not when it lifts: also for a press that turns
+    // into a scroll or a drag, which nobody can tell yet
+    if (g.vibrate && !g.buzzed && is_target(obj)) {
+        g.buzzed = true;
+        g.backend->vibrate_click();
+    }
 }
 
 // a slider that moved by a step since the last tick ticks
@@ -137,7 +145,7 @@ void on_clicked(lv_indev_t *indev)
     g.clicked = true;
     // a switch that just turned the tap sound off makes none
     lv_obj_t *obj = lv_indev_get_obj_act();
-    if ((!g.tap_sound && !g.vibrate) || !is_target(obj)) {
+    if (!g.tap_sound || !is_target(obj)) {
         return;
     }
     // LVGL sends no click after a drag that scrolled, but a slider or a drag control gets one after
@@ -151,12 +159,7 @@ void on_clicked(lv_indev_t *indev)
             return;
         }
     }
-    if (g.tap_sound) {
-        g.backend->play_touch_sound();
-    }
-    if (g.vibrate) {
-        g.backend->vibrate_click();
-    }
+    g.backend->play_touch_sound();
 }
 
 // the code of every event a touch sends, once for each object it reaches
@@ -178,6 +181,10 @@ void on_feedback(uint8_t code)
         break;
     case LV_EVENT_CLICKED:
         on_clicked(indev);
+        break;
+    case LV_EVENT_RELEASED:
+    case LV_EVENT_PRESS_LOST:
+        g.buzzed = false;
         break;
     default:
         break;

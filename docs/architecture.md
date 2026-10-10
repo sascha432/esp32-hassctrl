@@ -702,7 +702,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `ota` | yes | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web.md](ui/web.md) section 8), restart into the recovery app and back, partition layout of section 9.5 (running) |
 | `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset. Used until the setup screens exist |
 | `audio` | yes, per board, removable | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
-| `vibration` | yes, per board, removable | a vibration motor on a GPIO: a pulse with every tap that clicks, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
+| `vibration` | yes, per board, removable | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
 | `touch_input` | yes | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
 | `uidebug` | yes, removable | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Over the network later |
 
@@ -876,7 +876,10 @@ JC4880P443C, GPIO 28 of the expansion header.
   cannot tell this: in ESP-IDF 6.1 it is also true inside the timer's own callback, and the first
   version, which asked it, never turned the motor off (2026-10-09).
 * **Taps**: the UI's touch feedback (section 9.6, touch sounds) also calls
-  `Backend::vibrate_click` for every tap on a tap target, a pulse of `Info::vibration_click_ms`.
+  `Backend::vibrate_click` when a finger touches a tap target (LV_EVENT_PRESSED, once per touch),
+  a pulse of `Info::vibration_click_ms`. The click sound comes when the finger lifts; the pulse
+  does not wait for it, so a press that turns into a scroll or a drag vibrates too (changed
+  2026-10-10, before it came with the click).
   Motors differ a lot (the 3 V test motor on the P4 does not move below 70 ms, it has 75 ms), so the
   length is a constant of the board, measured by the developer when the motor is added
   ([adding-a-board.md](adding-a-board.md) step 10), never a user setting. It follows

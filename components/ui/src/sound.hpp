@@ -8,8 +8,10 @@
 // - ticks while a slider or an arc moves, one per 1/25 of its range, and while a drag control
 //   marked with draggable() moves, one per 14 px (Backend::play_slider_tick): the faster it
 //   moves, the more ticks.
-// The vibration motor pulses with every tap that clicks (Backend::vibrate_click), with a switch of
-// its own; it follows neither the volume nor the click's switch. Sliders do not vibrate.
+// The vibration motor pulses when a finger touches a tap target (Backend::vibrate_click), not
+// when it lifts like the click: also for a press that turns into a scroll or a drag. It has a
+// switch of its own and follows neither the volume nor the click's switch. Slider ticks do not
+// vibrate.
 
 #include "hc/ui/backend.hpp"
 #include "lvgl.h"

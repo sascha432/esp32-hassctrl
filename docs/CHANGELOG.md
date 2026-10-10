@@ -2,6 +2,10 @@
 
 ## 2026-10-10
 
+- Vibration: the motor pulses when the finger touches a tap target, not when it lifts. The
+  click sound stays on the release. A press that becomes a scroll or a slider drag vibrates too
+  (nobody can tell at the touch). WT32-SC01: click 15 ms (was 50), the user's choice: the pulse
+  at touch-down is tactile and short. Flashed and confirmed by the user.
 - Automatic brightness: two lights set by the user instead of a fixed 350 lx. Settings, Display has
   "Lowest brightness at" and "Full brightness at"; a tap takes the light in the room now. The screen
   is at 1 % at the first light and at the slider's brightness at the second and above, linear

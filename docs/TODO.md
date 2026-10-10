@@ -1003,6 +1003,9 @@ sim.
 - [ ] Tune the click (`kClickMs`, 25 ms now) with `vibrate <ms>`: the shortest pulse that is
       felt clearly; and the alarm rhythm (500 / 500 ms).
 - [ ] Check: taps vibrate, the switch turns it off, `sound ring` vibrates until Stop or Snooze.
+- [x] Vibration on touch-down (2026-10-10, you asked; before it came on release): touching a
+      button buzzes at once, the click sounds on release, one pulse per touch. Confirmed by you on
+      the WT32, which now has a 15 ms click (`Info::vibration_click_ms`); the P4 keeps its own.
 
 ## Known issues
 
