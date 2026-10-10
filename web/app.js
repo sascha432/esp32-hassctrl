@@ -431,7 +431,12 @@ function hassFacts(h) {
   if (h.error) rows.push(["Problem", `<span class="text-danger">${esc(h.error)}</span>`]);
   rows.push(["Address", esc(h.url || "-")], ["Version", esc(h.version || "-")]);
   if (h.state === "connected" && h.connected_s !== undefined) rows.push(["Connected for", duration(h.connected_s)]);
+  if (h.certificate) rows.push(["Certificate", "self-signed, trusted on this device"]);
   return facts(rows);
+}
+// a SHA-256 the way browsers show it: AB:CD:...
+function fingerprint(hex) {
+  return hex.toUpperCase().match(/../g).join(":");
 }
 
 const views = {
@@ -599,14 +604,44 @@ const views = {
       render(`<h1>Home Assistant</h1>${card("Home Assistant", '<p class="text-body-secondary mb-0">The recovery app has no Home Assistant connection. Start the firmware (System).</p>')}`);
       return;
     }
+    // https with a self-signed certificate: the user compares its fingerprint and trusts it
+    const certificateCard = () => {
+      if (h.refused_certificate) return card("Certificate not trusted", `
+        <p>No certificate authority vouches for this server's certificate. It may be the self-signed
+          certificate of your Home Assistant. Open the address in your browser and compare the
+          certificate's SHA-256 fingerprint (the lock or warning icon in the address bar, certificate details).
+          Trust it only if both match.</p>
+        <p class="font-monospace small text-break mb-3">${esc(fingerprint(h.refused_certificate))}</p>
+        ${h.certificate ? '<p class="text-danger small">It replaces the certificate trusted so far: that one is no longer used by the server.</p>' : ""}
+        <div class="d-flex justify-content-end"><button id="ha-trust" class="btn btn-sm btn-warning" type="button"
+          data-fingerprint="${esc(h.refused_certificate)}">Trust this certificate</button></div>`);
+      if (h.certificate) return card("Certificate", `
+        <p class="small mb-2">This device trusts the self-signed certificate with the SHA-256 fingerprint</p>
+        <p class="font-monospace small text-break mb-3">${esc(fingerprint(h.certificate))}</p>
+        <div class="d-flex justify-content-end"><button id="ha-forget-cert" class="btn btn-sm btn-outline-danger" type="button">Forget</button></div>`);
+      return "";
+    };
     const drawStatus = () => {
       const box = $("#ha-status");
       if (!box) return;
       const retry = h.state === "token_rejected" || h.state === "disconnected";
       box.innerHTML = card("Connection", hassFacts(h) + (retry
-        ? '<div class="d-flex justify-content-end"><button id="ha-reconnect" class="btn btn-sm btn-outline-secondary" type="button">Try now</button></div>' : ""));
+        ? '<div class="d-flex justify-content-end"><button id="ha-reconnect" class="btn btn-sm btn-outline-secondary" type="button">Try now</button></div>' : "")) +
+        certificateCard();
       const button = $("#ha-reconnect");
       if (button) button.onclick = (e) => busy(e.target, async () => { h = await api("/api/hass/reconnect", {}); drawStatus(); });
+      const trust = $("#ha-trust");
+      if (trust) trust.onclick = (e) => busy(e.target, async () => {
+        h = await api("/api/hass/certificate", { fingerprint: trust.dataset.fingerprint });
+        toast("certificate trusted, connecting ...", "success");
+        drawStatus();
+      });
+      const forget = $("#ha-forget-cert");
+      if (forget) forget.onclick = (e) => busy(e.target, async () => {
+        if (!confirm("Forget the trusted certificate? The device no longer connects to this Home Assistant until you trust it again.")) return;
+        h = await api("/api/hass/certificate", { fingerprint: "" });
+        drawStatus();
+      });
     };
     $("#ha-form").innerHTML = card("Address and token", `
       <form id="ha-settings" autocomplete="off">

@@ -11,7 +11,6 @@
 
 #include "cJSON.h"
 #include "esp_check.h"
-#include "esp_crt_bundle.h"
 #include "esp_event.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -38,6 +37,8 @@ constexpr const char *kTag = "hass";
 constexpr const char *kNamespace = "hass";
 constexpr const char *kKeyUrl = "url";
 constexpr const char *kKeyToken = "token";
+// the SHA-256 of the certificate trusted on first use, as hex
+constexpr const char *kKeyCertificate = "cert";
 
 // the values of the old client, which worked (docs/architecture.md section 6)
 constexpr int64_t kPingIntervalMs = 25000;
@@ -127,6 +128,9 @@ struct Event {
     // Closed: what went wrong
     esp_websocket_error_codes_t error{};
     int close_code = 0;
+    // Closed: the server's certificate that the handshake refused
+    bool has_refused = false;
+    uint8_t refused[kFingerprintBytes] = {};
 };
 
 // What the WebSocket task needs of one connection: its messages are put together here.
@@ -222,8 +226,9 @@ bool token_chars_ok(const char *token)
     return true;
 }
 
-// What went wrong with a connection, in words for the web UI and the screen.
-void describe(const Event &event, char *out, size_t size)
+// What went wrong with a connection, in words for the web UI and the screen. `trusted`: a
+// certificate is trusted on first use.
+void describe(const Event &event, bool trusted, char *out, size_t size)
 {
     const esp_websocket_error_codes_t &e = event.error;
     const int status = e.esp_ws_handshake_status_code;
@@ -254,7 +259,11 @@ void describe(const Event &event, char *out, size_t size)
         }
         return;
     case ESP_ERR_MBEDTLS_SSL_HANDSHAKE_FAILED:
-        if (e.esp_tls_cert_verify_flags != 0) {
+        if (event.has_refused && trusted) {
+            std::snprintf(out, size, "the server's certificate changed: it is not the trusted one");
+        } else if (event.has_refused) {
+            std::snprintf(out, size, "the server's certificate is not trusted (self-signed?)");
+        } else if (e.esp_tls_cert_verify_flags != 0) {
             std::snprintf(out, size, "the server's certificate is not trusted (flags 0x%x)", e.esp_tls_cert_verify_flags);
         } else {
             std::snprintf(out, size, "the TLS handshake failed (-0x%x)", -e.esp_tls_stack_err);
@@ -336,6 +345,8 @@ void on_websocket_event(void *arg, esp_event_base_t, int32_t id, void *event_dat
             event.error = d->error_handle;
             event.close_code = d->close_status_code;
         }
+        // the handshake ran in this task
+        event.has_refused = detail::refused_certificate(event.refused);
         post(event);
         break;
     }
@@ -626,7 +637,7 @@ void open_connection()
     config.ping_interval_sec = 30;
     // the TLS handshake runs in the client's task
     config.task_stack = std::strncmp(s.ws_url, "wss:", 4) == 0 ? 6144 : 4096;
-    config.crt_bundle_attach = esp_crt_bundle_attach;
+    config.crt_bundle_attach = detail::tls_attach;
     config.user_agent = "hassctrl";
     s.client = esp_websocket_client_init(&config);
     if (s.client == nullptr) {
@@ -917,6 +928,8 @@ void handle(Event &event)
         if (current) {
             s.last_message = now_ms();
             ESP_LOGI(kTag, "open, waiting for the authentication request");
+            std::lock_guard lock(g_mutex);
+            g_status.refused_certificate[0] = 0;
         }
         break;
     case EventType::Message:
@@ -926,8 +939,19 @@ void handle(Event &event)
         break;
     case EventType::Closed:
         if (current) {
+            char refused[kFingerprintSize] = {};
+            if (event.has_refused) {
+                detail::fingerprint_text(event.refused, refused);
+                ESP_LOGW(kTag, "certificate refused, SHA-256 %s", refused);
+            }
+            bool trusted;
+            {
+                std::lock_guard lock(g_mutex);
+                trusted = g_status.certificate[0] != 0;
+                std::memcpy(g_status.refused_certificate, refused, sizeof(refused));
+            }
             char error[96];
-            describe(event, error, sizeof(error));
+            describe(event, trusted, error, sizeof(error));
             retry_later(error);
         }
         break;
@@ -1047,6 +1071,13 @@ esp_err_t start()
             if (settings.get_string(kKeyToken, g_token, sizeof(g_token)) != ESP_OK) {
                 g_token[0] = 0;
             }
+            uint8_t digest[kFingerprintBytes];
+            if (settings.get_string(kKeyCertificate, g_status.certificate, sizeof(g_status.certificate)) == ESP_OK &&
+                detail::parse_fingerprint(g_status.certificate, digest)) {
+                detail::set_trusted_certificate(digest);
+            } else {
+                g_status.certificate[0] = 0;
+            }
         }
         g_status.token_set = g_token[0] != 0;
     }
@@ -1124,8 +1155,18 @@ esp_err_t set_config(const char *url, const char *token, char *error, size_t err
         return err;
     }
 
+    // the trusted certificate belongs to the address
+    bool new_address;
+    {
+        std::lock_guard lock(g_mutex);
+        new_address = std::strcmp(g_status.url, normalized) != 0;
+    }
+
     platform::Settings settings(kNamespace, platform::Settings::Mode::ReadWrite);
     esp_err_t err = settings.ok() ? ESP_OK : ESP_FAIL;
+    if (err == ESP_OK && new_address) {
+        settings.erase(kKeyCertificate);
+    }
     if (err == ESP_OK && remove) {
         settings.erase(kKeyUrl);
         settings.erase(kKeyToken);
@@ -1152,6 +1193,11 @@ esp_err_t set_config(const char *url, const char *token, char *error, size_t err
             std::snprintf(g_token, sizeof(g_token), "%s", clean_token);
         }
         g_status.token_set = g_token[0] != 0;
+        if (new_address) {
+            g_status.certificate[0] = 0;
+            detail::set_trusted_certificate(nullptr);
+        }
+        g_status.refused_certificate[0] = 0;
         g_status.version[0] = 0;
         // what follows, so the answer to this change already shows it; the task takes over
         g_status.state = g_status.url[0] != 0 && g_status.token_set ? State::Connecting : State::NotSetUp;
@@ -1168,6 +1214,60 @@ esp_err_t set_config(const char *url, const char *token, char *error, size_t err
 void reconnect()
 {
     post({.type = EventType::Reconnect}, pdMS_TO_TICKS(100));
+}
+
+esp_err_t check_certificate(const char *fingerprint, char *error, size_t error_size)
+{
+    uint8_t digest[kFingerprintBytes];
+    if (fingerprint != nullptr && fingerprint[0] != 0 && !detail::parse_fingerprint(fingerprint, digest)) {
+        std::snprintf(error, error_size, "not a SHA-256 fingerprint (64 hex digits)");
+        return ESP_ERR_INVALID_ARG;
+    }
+    return ESP_OK;
+}
+
+esp_err_t trust_certificate(const char *fingerprint, char *error, size_t error_size)
+{
+    if (const esp_err_t err = check_certificate(fingerprint, error, error_size); err != ESP_OK) {
+        return err;
+    }
+    const bool forget = fingerprint == nullptr || fingerprint[0] == 0;
+    uint8_t digest[kFingerprintBytes] = {};
+    char text[kFingerprintSize] = {};
+    if (!forget) {
+        detail::parse_fingerprint(fingerprint, digest);
+        detail::fingerprint_text(digest, text);
+    }
+
+    platform::Settings settings(kNamespace, platform::Settings::Mode::ReadWrite);
+    esp_err_t err = settings.ok() ? ESP_OK : ESP_FAIL;
+    if (err == ESP_OK && forget) {
+        settings.erase(kKeyCertificate);
+    } else if (err == ESP_OK) {
+        err = settings.set_string(kKeyCertificate, text);
+    }
+    if (err == ESP_OK) {
+        err = settings.commit();
+    }
+    if (err != ESP_OK) {
+        std::snprintf(error, error_size, "the settings could not be stored (%s)", esp_err_to_name(err));
+        return err;
+    }
+
+    detail::set_trusted_certificate(forget ? nullptr : digest);
+    {
+        std::lock_guard lock(g_mutex);
+        std::memcpy(g_status.certificate, text, sizeof(text));
+        g_status.refused_certificate[0] = 0;
+        if (g_status.state == State::Disconnected) {
+            g_status.state = State::Connecting;
+            g_status.error[0] = 0;
+            g_status.retry_in_s = 0;
+        }
+    }
+    ESP_LOGI(kTag, "trusted certificate: %s", forget ? "none" : text);
+    post({.type = EventType::Reconnect}, pdMS_TO_TICKS(100));
+    return ESP_OK;
 }
 
 void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::TileIndex panel,

@@ -2,6 +2,19 @@
 
 ## 2026-10-10
 
+- Home Assistant over https with a self-signed certificate: trusted on first use. A refused
+  certificate's SHA-256 is shown on the Home Assistant page of the web UI ("Certificate not
+  trusted", compare it with the browser's); **Trust this certificate** stores it and connects,
+  **Forget** removes it, a new address forgets it. The WebSocket and the camera images accept it
+  besides the certificate bundle (`hass/src/tls.cpp` wraps the bundle's verify callback). A changed
+  certificate reads "the server's certificate changed". API `POST /api/hass/certificate`,
+  `certificate` and `refused_certificate` in `GET /api/hass`; the backup carries it
+  (`hass: certificate:`). Tested on the WT32 with hassctrltestdomain.com, google.com and
+  self-signed.badssl.com; the web UI card confirmed working by the user.
+- TLS: cross-signed verification in the certificate bundle
+  (`CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY`, about 700 bytes of heap during a
+  handshake). google.com was refused before: it sends GTS Root R1 cross-signed by GlobalSign Root
+  CA, which the common bundle does not hold. Also helps the update download by URL.
 - P4: the boot no longer logs `esp_lcd_panel_swap_xy: swap_xy is not supported by this panel`.
   esp_lvgl_port (LVGL 8) sets the orientation once when the display is added, even with software
   rotation; the board file gives the ST7701 panel a `swap_xy` that does nothing. Flashed on the P4,

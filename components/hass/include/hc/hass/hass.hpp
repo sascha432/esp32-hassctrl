@@ -10,6 +10,10 @@
 // not tried again until the token changes or reconnect() is called: every failed login is a
 // notification in Home Assistant, and with ip_ban enabled it bans the device.
 //
+// Over https the certificate bundle checks Home Assistant's certificate. A self-signed one is
+// refused until the user trusts it on first use: status() shows its SHA-256, the web UI hands it
+// to trust_certificate(). From then on that certificate is accepted besides the bundle.
+//
 // The UI names the page it shows (subscribe_page): the task subscribes its template, renders it
 // again every 60 s as a safety net and at once after a reconnect, and hands the decoded values to
 // the UI (take_event). Service calls go over the same connection; a failure comes back as an
@@ -30,6 +34,9 @@ namespace hc::hass {
 constexpr size_t kUrlSize = 128;
 // a long-lived token is a JWT of about 180 characters
 constexpr size_t kTokenSize = 512;
+// the SHA-256 of a certificate, and as 64 hex digits with their terminator
+constexpr size_t kFingerprintBytes = 32;
+constexpr size_t kFingerprintSize = kFingerprintBytes * 2 + 1;
 
 enum class State : uint8_t {
     NotSetUp,          // no URL or no token
@@ -55,6 +62,11 @@ struct Status {
     uint32_t retry_in_s;  // Disconnected: seconds until the next try
     uint32_t connected_s; // Connected: seconds since the authentication
     uint32_t connections; // successful authentications since the start
+    // https: the SHA-256 of the certificate trusted on first use, empty: none (only the bundle)
+    char certificate[kFingerprintSize];
+    // the SHA-256 of the server's certificate when the last try refused it (neither the bundle nor
+    // the trusted certificate); empty once a connection works or the address changes
+    char refused_certificate[kFingerprintSize];
 };
 
 // Loads URL and token and starts the task. The default event loop has to exist.
@@ -73,6 +85,15 @@ esp_err_t check_config(const char *url, const char *token, char *error, size_t e
 
 // tries at once instead of after the backoff, also after a rejected token
 void reconnect();
+
+// Trusts the certificate with this SHA-256 (64 hex digits, colons allowed) besides the bundle,
+// for a Home Assistant with a self-signed certificate, stores it and connects again; empty
+// forgets it. One certificate: it belongs to the address and goes when the address changes.
+// ESP_ERR_INVALID_ARG with `error` filled when `fingerprint` is not a SHA-256.
+esp_err_t trust_certificate(const char *fingerprint, char *error, size_t error_size);
+
+// The check of trust_certificate() alone, stores nothing (the backup import).
+esp_err_t check_certificate(const char *fingerprint, char *error, size_t error_size);
 
 // What the task hands to the UI (core/entity.hpp).
 using core::HassEvent;

@@ -580,8 +580,20 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
       in internal RAM (LVGL objects too; 512 on the ESP32 since 2026-10-10, see Next steps). Decided 2026-10-07: the dashboard lives in PSRAM (as
       in the old firmware), small hot values in a compact array in internal RAM
       (architecture.md section 11). Measure before and after step 6.
-- [ ] A Home Assistant with a self-signed certificate (https without a public CA) is refused
-      ("certificate is not trusted"). Option later: trust the certificate on first use.
+- [x] A Home Assistant with a self-signed certificate (https without a public CA) is refused
+      ("certificate is not trusted"). Done 2026-10-10: trusted on first use (architecture.md
+      section 6, web.md section 6). Tested on the WT32 over the API:
+      - `https://hassctrltestdomain.com`: "the host name cannot be resolved";
+      - `https://google.com`: certificate accepted by the bundle, then "no Home Assistant at this
+        address (HTTP 404)". It needed cross-signed verification in the bundle (GTS Root R1 comes
+        cross-signed by GlobalSign Root CA, which the common bundle lacks): refused before;
+      - `https://self-signed.badssl.com`: refused, the offered SHA-256 equals openssl's; trusted
+        (pasted with colons), then HTTP 404 as for google; kept over a restart, no bundle error
+        in the log anymore; a wrong stored fingerprint gives "the server's certificate changed";
+        not hex: 400; a new address forgets it.
+- [x] Try the "Certificate not trusted" card of the web UI (Home Assistant page) with
+      `https://self-signed.badssl.com`: fingerprint, **Trust this certificate**, **Forget**.
+      Confirmed working by the user (2026-10-10).
 - [ ] A new address while a connection attempt hangs (up to 10 s, the network timeout) takes
       effect when that attempt ends; the page shows "connecting" meanwhile.
 - [x] Host tests for `hass/src/url.cpp` (2026-10-07): `python tools/host_test.py`, 8 tests.
@@ -1258,7 +1270,7 @@ Not built yet (placeholders in the code or the documentation):
 
 - [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
 - [ ] Home Assistant events waking the screen (`ui/src/power.hpp`).
-- [ ] Trusting a self-signed Home Assistant certificate on first use (Step 5).
+- [x] Trusting a self-signed Home Assistant certificate on first use (Step 5, 2026-10-10).
 - [x] OTA push method in detail (Open decisions).
 
 - [x] **WT32 replaced + LDR** (2026-10-07; the lux table is dropped 2026-10-10, see the two-point setup below): new WT32-SC01 flashed on COM9 (recovery app, main, web UI image).

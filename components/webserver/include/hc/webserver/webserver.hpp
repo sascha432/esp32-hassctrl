@@ -29,6 +29,10 @@ struct HassStatus {
     char error[96];
     uint32_t retry_in_s;
     uint32_t connected_s;
+    // SHA-256 as hex: the certificate trusted on first use, and the one the last try refused;
+    // empty: none
+    char certificate[65];
+    char refused_certificate[65];
 };
 
 // a Home Assistant instance found on the network
@@ -45,6 +49,8 @@ struct HassAccess {
     // stores the URL and, unless empty, the token, and connects; an empty URL removes both
     esp_err_t (*set)(const char *url, const char *token, char *error, size_t error_size);
     void (*reconnect)();
+    // trusts the certificate with this SHA-256 besides the bundle and connects; empty forgets it
+    esp_err_t (*trust)(const char *fingerprint, char *error, size_t error_size);
     // searches the network (mDNS) for about 2 s, blocking
     size_t (*discover)(HassFound *out, size_t max);
     // The entity picker of the editor (docs/ui/web-dashboard.md section 2.3), blocking for a few

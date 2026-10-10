@@ -16,7 +16,6 @@
 #include <deque>
 #include <mutex>
 
-#include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
@@ -164,7 +163,7 @@ bool open(Connection &c, const char *url, bool authorize, int64_t &length, char 
     esp_http_client_config_t config{};
     config.url = url;
     config.timeout_ms = kTimeoutMs;
-    config.crt_bundle_attach = esp_crt_bundle_attach;
+    config.crt_bundle_attach = detail::tls_attach;
     // the token goes into a header longer than the default send buffer
     config.buffer_size_tx = 1024;
     config.user_agent = "hassctrl";

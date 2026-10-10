@@ -396,8 +396,18 @@ What is kept from the old client, because it works:
 
 What changes:
 
-* Transport is `esp_websocket_client` (TLS through `esp-tls`, optionally with the certificate
-  bundle) instead of a hand-written framer on `WiFiClient`.
+* Transport is `esp_websocket_client` (TLS through `esp-tls` with the certificate bundle) instead
+  of a hand-written framer on `WiFiClient`.
+* A self-signed certificate is trusted on first use (`hass/src/tls.cpp`): the connections to
+  Home Assistant (WebSocket and camera images) attach the bundle and wrap its verify callback.
+  The server's certificate passes when its SHA-256 equals the trusted one (checked first) or the
+  bundle trusts the chain. A refused certificate's SHA-256 goes to the status, and the user
+  trusts it in the web UI after comparing it with the browser's. One fingerprint in the settings
+  NVS (`hass`/`cert`), forgotten with a new address, in the backup. Not a CA: a Home Assistant
+  behind a private CA is trusted by its server certificate as well, and a renewed certificate
+  has to be trusted again. The bundle has cross-signed verification on
+  (`CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY`): google.com sends its root
+  cross-signed by a root the common bundle lacks.
 * The client delivers a large frame in several data events, and a single read can also return a
   partial frame when the next TCP segment or TLS record has not arrived yet. The event handler
   reassembles by `payload_offset` / `payload_len` / `fin` into a PSRAM buffer with a hard size cap,

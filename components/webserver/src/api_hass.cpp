@@ -4,6 +4,8 @@
 //   POST /api/hass             url, token: stores them and connects; an empty token keeps the
 //                              stored one, an empty url removes address and token
 //   POST /api/hass/reconnect   connects at once (also after a rejected token)
+//   POST /api/hass/certificate fingerprint: trusts the https certificate with this SHA-256 (the
+//                              refused_certificate of the status) and connects; empty forgets it
 //   GET  /api/hass/discover    Home Assistant instances on the network (mDNS, about 2 s)
 //   GET  /api/hass/entities?domain=&q=
 //                              the entity picker of the editor: {"more", "rows": [[id, name,
@@ -38,7 +40,7 @@ esp_err_t send_status(httpd_req_t *req)
 {
     HassStatus status{};
     g_hass->status(status);
-    char buffer[512];
+    char buffer[768];
     JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .string("state", status.state)
@@ -48,6 +50,8 @@ esp_err_t send_status(httpd_req_t *req)
         .string("error", status.error)
         .number("retry_in_s", status.retry_in_s)
         .number("connected_s", status.connected_s)
+        .string("certificate", status.certificate)
+        .string("refused_certificate", status.refused_certificate)
         .end_object();
     return send_json(req, json);
 }
@@ -199,6 +203,24 @@ esp_err_t post_reconnect(httpd_req_t *req)
     return send_status(req);
 }
 
+esp_err_t post_certificate(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    char body[256];
+    char fingerprint[128];
+    if (!read_body(req, body, sizeof(body)) || !form_value(body, "fingerprint", fingerprint, sizeof(fingerprint))) {
+        return send_error(req, "400 Bad Request", "fingerprint required (empty forgets the certificate)");
+    }
+    char error[96] = {};
+    const esp_err_t err = g_hass->trust(fingerprint, error, sizeof(error));
+    if (err != ESP_OK) {
+        return send_error(req, err == ESP_ERR_INVALID_ARG ? "400 Bad Request" : "500 Internal Server Error", error);
+    }
+    return send_status(req);
+}
+
 } // namespace
 
 void register_hass_routes(httpd_handle_t server, const HassAccess *hass)
@@ -211,6 +233,7 @@ void register_hass_routes(httpd_handle_t server, const HassAccess *hass)
         {.uri = "/api/hass", .method = HTTP_GET, .handler = get_hass, .user_ctx = nullptr},
         {.uri = "/api/hass", .method = HTTP_POST, .handler = post_hass, .user_ctx = nullptr},
         {.uri = "/api/hass/reconnect", .method = HTTP_POST, .handler = post_reconnect, .user_ctx = nullptr},
+        {.uri = "/api/hass/certificate", .method = HTTP_POST, .handler = post_certificate, .user_ctx = nullptr},
         {.uri = "/api/hass/discover", .method = HTTP_GET, .handler = get_discover, .user_ctx = nullptr},
         {.uri = "/api/hass/entities", .method = HTTP_GET, .handler = get_entities, .user_ctx = nullptr},
         {.uri = "/api/hass/entity", .method = HTTP_GET, .handler = get_entity, .user_ctx = nullptr},

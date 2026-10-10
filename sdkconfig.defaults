@@ -25,6 +25,10 @@ CONFIG_LWIP_DHCP_RESTORE_LAST_IP=y
 # Update images can be downloaded over HTTPS (hc::ota). The common CA bundle covers almost all
 # public sites at a fraction of the full bundle's size.
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN=y
+# A server may send its root cross-signed by an older root the bundle does not have (google.com:
+# GTS Root R1 signed by GlobalSign Root CA); this finds the bundle's own copy of the root by its
+# name. About 700 bytes of heap during the handshake.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
 
 # Sockets: browsers keep up to 6 connections per host open, a phone and a PC together more than
 # the default 10 sockets (httpd 2 + its sessions, the captive portal DNS). 16 sockets, 12 of them

@@ -5,6 +5,7 @@ idf_component_register(SRCS "src/discover.cpp"
                             "src/image_hw.cpp"
                             "src/media.cpp"
                             "src/new_jpeg.cpp"
+                            "src/tls.cpp"
                             "src/url.cpp"
                        INCLUDE_DIRS "include"
                        REQUIRES core memory

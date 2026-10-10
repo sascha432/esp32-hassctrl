@@ -179,8 +179,17 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
   The status shows the result within seconds. Open: a separate test that does not store the
   token, so a typo cannot replace a working token ([TODO](../TODO.md)).
 * The header's `HA` is green while connected, red for a rejected token, yellow otherwise.
-* API: `GET /api/hass`, `POST /api/hass` (`url`, `token`; an empty token keeps the stored one,
-  an empty url removes both), `POST /api/hass/reconnect`, `GET /api/hass/discover`, and for the
+* A self-signed certificate (https, 2026-10-10, confirmed by the user): when the bundle does not trust the server's
+  certificate, the card "Certificate not trusted" shows its SHA-256 fingerprint
+  (`AB:CD:...`, as browsers show it) and asks to compare it with the browser's. **Trust this
+  certificate** stores it and connects. From then on the card "Certificate" shows the trusted
+  fingerprint with **Forget**. A new address forgets it. If the server presents a different
+  certificate later, the problem reads "the server's certificate changed" and the new
+  fingerprint is offered.
+* API: `GET /api/hass` (also `certificate` and `refused_certificate`, SHA-256 as hex, empty:
+  none), `POST /api/hass` (`url`, `token`; an empty token keeps the stored one, an empty url
+  removes both), `POST /api/hass/reconnect`, `POST /api/hass/certificate` (`fingerprint`, 64 hex
+  digits, colons allowed; empty forgets it), `GET /api/hass/discover`, and for the
   dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`
   ([web-dashboard.md](web-dashboard.md) section 2.3). The token is write-only. The recovery app has none of them (404).
 
@@ -234,7 +243,8 @@ backup card sits above the update card, so the backup is seen before an update (
 Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`, `hass`
 and the dashboard (`defaults`, `tiles`); Export all, Settings only, Dashboard only
 (`GET /api/backup.yaml[?parts=settings|dashboard]`). No password and no token is written; a Wi-Fi
-`password:` or a `hass:` `token:` added to the file by hand is used. Import and Check upload the
+`password:` or a `hass:` `token:` added to the file by hand is used. A trusted self-signed
+certificate is written as `hass:` `certificate:` (its SHA-256) and trusted again on import. Import and Check upload the
 file (`POST /api/backup/import[?check=1]`): the whole file is checked first, one problem and
 nothing changes; the answer lists the sections, the problems, what to know ("Office needs its
 password") and what was ignored. A network without a password is saved as "password needed" and

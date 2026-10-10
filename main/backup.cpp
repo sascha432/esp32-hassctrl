@@ -391,6 +391,10 @@ void write_hass(backup::Writer &out)
     }
     out.section("hass");
     out.text("url", status.url);
+    if (status.certificate[0] != 0) {
+        out.comment("the SHA-256 of Home Assistant's self-signed certificate, trusted on the device");
+        out.text("certificate", status.certificate);
+    }
     out.comment("the token is not exported: add \"token: ...\" by hand, or enter it on the device");
 }
 
@@ -400,10 +404,19 @@ void read_hass(const Node &value, bool apply, backup::Report &report)
     backup::Fields fields(value, "hass", report);
     String url = status.url;
     String token;
+    String certificate;
     const bool has_url = fields.text("url", hc::hass::kUrlSize - 1, url);
     const bool has_token = fields.text("token", hc::hass::kTokenSize - 1, token) && !token.empty();
+    // colons allowed (95 characters)
+    const bool has_certificate = fields.text("certificate", 127, certificate) && !certificate.empty();
     fields.finish();
     if (!has_url && !has_token) {
+        return;
+    }
+    char certificate_error[64] = {};
+    if (has_certificate &&
+        hc::hass::check_certificate(certificate.c_str(), certificate_error, sizeof(certificate_error)) != ESP_OK) {
+        fields.problem("certificate", certificate_error);
         return;
     }
     if (url.empty() && has_token) {
@@ -419,7 +432,15 @@ void read_hass(const Node &value, bool apply, backup::Report &report)
     if (!url.empty() && !has_token && !status.token_set) {
         report.note("hass", "no token yet: enter it on the Home Assistant page");
     }
-    if (apply && hc::hass::set_config(url.c_str(), has_token ? token.c_str() : nullptr, error, sizeof(error)) != ESP_OK) {
+    if (!apply) {
+        return;
+    }
+    if (hc::hass::set_config(url.c_str(), has_token ? token.c_str() : nullptr, error, sizeof(error)) != ESP_OK) {
+        report.problem("hass", error);
+        return;
+    }
+    // after the address: a new one forgets the certificate of the old
+    if (has_certificate && hc::hass::trust_certificate(certificate.c_str(), error, sizeof(error)) != ESP_OK) {
         report.problem("hass", error);
     }
 }

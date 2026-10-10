@@ -249,9 +249,12 @@ const hc::webserver::HassAccess kHassAccess{
             snprintf(out.error, sizeof(out.error), "%s", s.error);
             out.retry_in_s = s.retry_in_s;
             out.connected_s = s.connected_s;
+            snprintf(out.certificate, sizeof(out.certificate), "%s", s.certificate);
+            snprintf(out.refused_certificate, sizeof(out.refused_certificate), "%s", s.refused_certificate);
         },
     .set = hc::hass::set_config,
     .reconnect = hc::hass::reconnect,
+    .trust = hc::hass::trust_certificate,
     .discover =
         [](hc::webserver::HassFound *out, size_t max) {
             hc::hass::Found found[6];
