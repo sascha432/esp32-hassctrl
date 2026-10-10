@@ -6,7 +6,7 @@ namespace {
 
 // the glyphs of the old firmware by their MDI names, their off states, and the HA defaults of the
 // domains and device classes of the tiles (docs/architecture.md section 5, "Icon order"); sorted.
-// tools/build_icons.py reads this list for the icon fonts of ui.
+// tools/build_icons.py reads this list for the icon fonts of ui and web/icons.svg; run it after a change.
 constexpr std::string_view kIcons[] = {
     "brightness-6",      "camera",            "checkbox-marked-circle", "current-ac",        "door-closed",
     "door-open",         "eye",               "fan",               "fan-off",           "flash",

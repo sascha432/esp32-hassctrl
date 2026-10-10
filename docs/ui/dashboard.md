@@ -83,7 +83,8 @@ the tile's `decimals` or HA's display precision. A state of several lines shows 
 The tile's `icon`; else the entity's `icon` attribute when the glyph is in the firmware; else the
 default of the domain and device class (light `lightbulb`/`lightbulb-off`, outlet `power-plug`,
 motion `motion-sensor`, temperature `thermometer`, ...; `icons.cpp`). The glyphs are the 43 names
-of `core` plus `arrow-left`, `plus` and `minus`, in 24 and 48 px (`tools/build_icons.py`).
+of `core` plus `arrow-left`, `plus` and `minus`, in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
+web editor from the same names).
 
 ## 5. Open points
 

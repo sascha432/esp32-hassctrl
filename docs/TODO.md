@@ -685,7 +685,7 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         you (2026-10-09). With it: "+ Area" opens the new area's page, the screen stays on its
         page after a save from the web UI (by the area tile's id), the editor no longer names
         the screen, the Import & export tab counts pages and tiles of every level.
-  - [ ] `web/icons.svg` (the editor's icons are stand-ins).
+  - [x] `web/icons.svg`: MDI paths from `tools/build_icons.py`, flashed on the WT32; icons confirmed by you (2026-10-10).
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,
@@ -730,7 +730,7 @@ Dashboard screen (2026-10-07, in the Windows version and on the T4 with your das
   does not depend on `hass`. The `Backend` has `dashboard`, `subscribe_page`, `call_service`,
   `take_event`.
 - Icons: `tools/build_icons.py` (MDI 7.4.47 downloaded into `build/mdi`, lv_font_conv 1.5.3 by
-  npx) writes `components/ui/src/fonts/hc_mdi_24.c` / `hc_mdi_48.c` and `icon_glyphs.inc`. The
+  npx) writes `components/ui/src/fonts/hc_mdi_24.c` / `hc_mdi_48.c`, `icon_glyphs.inc` and `web/icons.svg`. The
   `core` list grew to 43 names with the HA defaults (robot, script-text, palette, door, eye,
   checkbox/radiobox); plus arrow-left, plus, minus. Flash: 24 px 8.8 KB, 48 px 16.4 KB.
   Montserrat 28 for the values: 37 KB. Firmware 1.81 MB of the T4's 2.44 MB slot.
@@ -1264,7 +1264,7 @@ above. In order:
              at some cost in render time (measure first).
 2. [ ] Test the panels on the WT32 against your Home Assistant (Step 6).
 3. [ ] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (Vibration).
-4. [ ] `web/icons.svg`: the dashboard editor's icons are stand-ins (Step 6).
+4. [x] `web/icons.svg` (2026-10-10, confirmed by you).
 
 Not built yet (placeholders in the code or the documentation):
 

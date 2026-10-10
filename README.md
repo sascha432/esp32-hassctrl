@@ -9,6 +9,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 
 Open a PowerShell prepared with the ESP-IDF activation script of EIM, then use the build script.
 It keeps one build directory per board and application (`build/<board>/<app>`).
+In a plain shell every tool fails with "IDF_PATH is not set"; the activation line goes first in every
+PowerShell call (also for `tools/build_fs.py` and `tools/update.py`).
 
 ```powershell
 . C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1
@@ -52,8 +54,9 @@ states ("scenarios": connected, no network, hotspot on, Home Assistant token rej
 a tap changes them (a network is forgotten, a connect succeeds or fails). The dashboard shows
 the dashboard file with sample values made up from the entities' domains and names; a tap on a
 tile acts on them. Same compiler and tools as the tests; build the firmware once first so
-`managed_components/lvgl__lvgl` exists. The icon fonts are generated files:
-`python tools/build_icons.py` (needs Node.js) after the icon list of `core` changed.
+`managed_components/lvgl__lvgl` exists. The icon fonts and the web editor's
+`web/icons.svg` are generated files: `python tools/build_icons.py` (needs Node.js and the network once)
+after the icon list of `core` changed; commit the output, then flash the firmware and the web image.
 
 ```powershell
 python tools/sim.py                          # build and open the window (480x320)

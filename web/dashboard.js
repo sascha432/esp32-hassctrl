@@ -6,7 +6,7 @@
 // It copies rules of the firmware: the placement of core::finish() (components/core/src/layout.cpp),
 // the sizes of a kind, the kinds of the domains. A change of the dashboard in core or config is a
 // change here too, and the web image goes onto the devices with the firmware (docs/architecture.md
-// section 5). The device's check is the truth. Icons are rough stand-ins until web/icons.svg exists.
+// section 5). The device's check is the truth. Icons come from web/icons.svg.
 // The preview shows no live values (decided 2026-10-09).
 "use strict";
 
@@ -19,53 +19,25 @@ window.hcEditor = (() => {
   // the device's screen in landscape (GET /api/dashboard/editor); margin 8 (docs/ui/dashboard.md)
   let screen = { name: "", w: 480, h: 320, gap: 4 };
 
-  // ------------------------------------------------------------------------- icon stand-ins
-  const SHAPES = {
-    bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
-    power: '<path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>',
-    plug: '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',
-    therm: '<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/><path d="M12 9v6"/>',
-    thermostat: '<circle cx="12" cy="12" r="8"/><path d="M12 12V7"/><circle cx="12" cy="12" r="1.5"/>',
-    camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
-    folder: '<path d="M3 6h6l2 2h10v11H3z"/>',
-    fan: '<circle cx="12" cy="12" r="1.5"/><path d="M12 10.5C11 6 13 3 16 4s1 5-4 6.5M13.5 12c4.5-1 7.5 1 6.5 4s-5 1-6.5-4M10.5 12.5C9.5 17 6.5 19 4.5 17s1-5 6-4.5"/>',
-    bolt: '<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>',
-    lock: '<rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-    drop: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
-    eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-    motion: '<circle cx="13" cy="4" r="2"/><path d="M8 21l3-7 3 3v4M10 9l3-2 3 4 3 1M11 14l-1-5"/>',
-    home: '<path d="M3 11 12 3l9 8M5 9v12h14V9"/>',
-    toggle: '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="3"/>',
-    door: '<rect x="6" y="3" width="12" height="18"/><circle cx="15" cy="12" r="1"/>',
-    window: '<rect x="4" y="4" width="16" height="16"/><path d="M12 4v16M4 12h16"/>',
-    gauge: '<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/>',
-    palette: '<path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.7-.6-1 0-2.3 1.2-2.3H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/>',
-    script: '<path d="M6 3h10l2 2v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
-    robot: '<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M12 4v4"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>',
-    remote: '<rect x="8" y="3" width="8" height="18" rx="2"/><circle cx="12" cy="8" r="1.5"/>',
-    tap: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
-    check: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
-    circle: '<circle cx="12" cy="12" r="8"/>',
-    wave: '<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-2"/>',
-    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
-    molecule: '<circle cx="7" cy="12" r="3"/><circle cx="17" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M9.7 10.7 14.8 8M9.7 13.3l5.1 2.7"/>',
-    radiator: '<path d="M5 6v12M9 6v12M13 6v12M17 6v12M3 18h18"/>',
-    arrow: '<path d="M20 12H5M11 6l-6 6 6 6"/>',
-    none: '<path d="M5 5l14 14" stroke-dasharray="2 3"/>',
-  };
-  const ICON_SHAPE = {
-    "brightness-6": "sun", camera: "camera", "checkbox-marked-circle": "check", "current-ac": "wave", "door-closed": "door",
-    "door-open": "door", eye: "eye", fan: "fan", "fan-off": "fan", flash: "bolt", "flash-off": "bolt", folder: "folder",
-    gauge: "gauge", "gesture-tap-button": "tap", home: "home", "home-assistant": "home", lightbulb: "bulb",
-    "lightbulb-off": "bulb", "lightbulb-on": "bulb", "lightning-bolt": "bolt", lock: "lock", "lock-open": "lock",
-    "molecule-co2": "molecule", "motion-sensor": "motion", "motion-sensor-off": "motion", palette: "palette", power: "power",
-    "power-plug": "plug", "power-plug-off": "plug", radiator: "radiator", "radiobox-blank": "circle", remote: "remote",
-    robot: "robot", "robot-off": "robot", "script-text": "script", "sine-wave": "wave", thermometer: "therm",
-    thermostat: "thermostat", "toggle-switch": "toggle", "toggle-switch-off": "toggle", "water-percent": "drop",
-    "window-closed": "window", "window-open": "window", "arrow-left": "arrow",
-  };
+  // ------------------------------------------------------------------------------- icons
+  // web/icons.svg (tools/build_icons.py): one <symbol id="mdi-<name>"> per icon name, put into the
+  // page once when the editor opens.
   const svg = (name, px) =>
-    `<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${SHAPES[ICON_SHAPE[name] || name] || SHAPES.circle}</svg>`;
+    name === "none"
+      ? `<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l14 14" stroke-dasharray="2 3"/></svg>`
+      : `<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="currentColor"><use href="#mdi-${name}"/></svg>`;
+  async function loadSprite() {
+    if (document.getElementById("hc-icons")) return;
+    try {
+      const response = await fetch("icons.svg");
+      if (!response.ok) return;
+      const holder = document.createElement("div");
+      holder.id = "hc-icons";
+      holder.hidden = true;
+      holder.innerHTML = await response.text();
+      document.body.appendChild(holder);
+    } catch (e) { /* the icons stay empty; the editor works without them */ }
+  }
 
   const STYLE = `
   .ed { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
@@ -121,7 +93,7 @@ window.hcEditor = (() => {
   let K = 1;         // local keys: a new tile has no id until the device gives it one
   let doc = null, saved = null, undoStack = [], dirty = false;
   let pageKey = 0, sel = null, orient = "l";
-  let icons = Object.keys(ICON_SHAPE).filter((n) => n !== "arrow-left");
+  let icons = [];    // the device sends the names (/api/dashboard/editor)
   let check = { state: "ok", text: "", k: null }, checkTimer = null, checkSeq = 0;
   let addCell = null, drag = null;
   // the entity picker: the tile whose entity it replaces (null: a new tile), the newest search,
@@ -853,7 +825,7 @@ window.hcEditor = (() => {
     const t = locate(sel).tile;
     modal("Icon", `<input class="form-control form-control-sm mb-2" id="ed-icon-q" placeholder="Search">
       <div class="icon-grid" id="ed-icon-grid"></div>
-      <p class="small text-body-secondary mt-2 mb-0">The names the firmware holds. The pictures here are rough stand-ins.</p>`, "modal-lg");
+      <p class="small text-body-secondary mt-2 mb-0">The names the firmware holds.</p>`, "modal-lg");
     const drawGrid = () => {
       const q = root.querySelector("#ed-icon-q").value.toLowerCase();
       root.querySelector("#ed-icon-grid").innerHTML =
@@ -1014,7 +986,7 @@ window.hcEditor = (() => {
     addEventListener("resize", onResize);
     addEventListener("beforeunload", onBeforeUnload);
     root.innerHTML = '<p class="text-body-secondary">Loading ...</p>';
-    const [, info] = await Promise.all([load(), request("GET", "/api/dashboard/editor").catch(() => null)]);
+    const [, , info] = await Promise.all([loadSprite(), load(), request("GET", "/api/dashboard/editor").catch(() => null)]);
     if (info && info.status === 200) {
       const s = info.answer.screen || {};
       if (s.width > 0 && s.height > 0) screen = { name: s.name || "", w: s.width, h: s.height, gap: s.gap ?? 4 };

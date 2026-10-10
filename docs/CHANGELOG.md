@@ -2,6 +2,12 @@
 
 ## 2026-10-10
 
+- Web UI dashboard editor: the real MDI icons instead of the hand-drawn stand-ins. `tools/build_icons.py`
+  also writes `web/icons.svg` (one `<symbol id="mdi-<name>">` per icon, 18 KB, 6.5 KB gzipped, MDI
+  7.4.47); the editor loads it once and draws every tile and the icon picker with `<use>`. Needs the
+  web image on the devices (`tools/build_fs.py`). Workflow: a change to the icon list of `core` is
+  followed by `python tools/build_icons.py` (fonts and sprite), committed with it. Confirmed by the
+  user on the WT32 (2026-10-10).
 - Home Assistant over https with a self-signed certificate: trusted on first use. A refused
   certificate's SHA-256 is shown on the Home Assistant page of the web UI ("Certificate not
   trusted", compare it with the browser's); **Trust this certificate** stores it and connects,
@@ -289,7 +295,7 @@ Dashboard editing (docs/ui/web-dashboard.md, approved by the user after trying i
   every key of the tile format, Up/Down/Duplicate/Move to/Remove, Undo, Discard, Save with 409
   (Reload or Overwrite), the device's check a second after each change with the problem marked
   on its tile, a question before leaving with unsaved changes. No live values in the preview
-  (decided). Icons are stand-ins until `web/icons.svg` exists.
+  (decided). Icons: see 2026-10-10 (`web/icons.svg`).
 - Rule: the web UI goes with the firmware. The editor copies rules of `core` (placement, sizes
   of a kind, kinds of the domains); a change to the dashboard changes `web/dashboard.js` in the
   same commit, and the web image goes onto the devices with the firmware (architecture.md
