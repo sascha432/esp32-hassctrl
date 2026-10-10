@@ -1,0 +1,6 @@
+# Recovery app on the ESP32-P4 (JC4880P443C): the DPI panel scans its frame buffer by a DMA that
+# the DSI interrupt restarts after every frame. A flash write turns the cache off, so that
+# interrupt has to run from IRAM, or the panel misses frames while an update is written: the
+# screen flickered cyan during every upload (2026-10-10). The main firmware cannot turn it on as
+# is: esp_lvgl_port's DSI callback is not in IRAM, and the driver then refuses it.
+CONFIG_LCD_DSI_ISR_CACHE_SAFE=y

@@ -717,8 +717,8 @@ in the main firmware.
 | Partition | 4 MB boards | 16 MB boards |
 | --- | --- | --- |
 | nvs, otadata, phy | 36 KB | 36 KB |
-| factory: recovery app | 1.06 MB | 1 MB |
-| ota_0: main firmware | about 2.4 MB | 6 MB |
+| factory: recovery app | 1.06 MB | 1.25 MB |
+| ota_0: main firmware | about 2.4 MB | 5.75 MB |
 | ota_1: main firmware | none | 6 MB |
 | LittleFS | about 512 KB | the rest |
 

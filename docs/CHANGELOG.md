@@ -2,6 +2,15 @@
 
 ## 2026-10-10
 
+- "Swipe down for Settings" stays while the onboarding runs: as long as Home Assistant has no
+  address and token (the start screen offers "Set up Home Assistant") it shows, also when it was
+  stored as seen. It goes after a swipe once Wi-Fi is up and Home Assistant connected, then stays
+  gone. Confirmed by the user on the P4.
+- P4 recovery app: the screen flickered cyan during every upload. The DSI interrupt restarts the
+  panel's DMA after each frame and could not run while the flash was written (cache off).
+  `sdkconfig.recovery.esp32p4` turns on `CONFIG_LCD_DSI_ISR_CACHE_SAFE`; the main firmware cannot
+  yet (esp_lvgl_port's DSI callback is not in IRAM, the driver refuses it). Confirmed by the user.
+- `dependencies.lock` (P4): esp_lcd_st7701 2.0.2~2 to 2.0.3.
 - Vibration: the motor pulses when the finger touches a tap target, not when it lifts. The
   click sound stays on the release. A press that becomes a scroll or a slider drag vibrates too
   (nobody can tell at the touch). WT32-SC01: click 15 ms (was 50), the user's choice: the pulse
@@ -32,6 +41,10 @@
   (`network::force_hotspot`, not stored). Tested on the WT32.
 - 4 MB layout: factory partition 1.06 MB (the screen drivers made the recovery app larger), ota_0
   from 0x120000 and 2.4 MB. A WT32 or T4 needs the recovery app flashed once for the new table.
+- 16 MB layout: factory partition 1.25 MB (the recovery app with its screen was 1.04 to 1.06 MB and
+  no longer fit 1 MB: boot loop, black screen), ota_0 from 0x150000 and 5.75 MB. The JC3248W535
+  and the P4 need the recovery app flashed once for the new table, then the main firmware again.
+  Recovery screen confirmed by the user on both.
 - First setup: a failed network brings the hotspot back (wrong password at once, other errors
   after 3 attempts) until a connection works; before, the device retried with no way in. Also
   after a restart while no saved network ever connected.

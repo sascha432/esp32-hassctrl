@@ -51,7 +51,7 @@ through it, and a tap on it opens Settings at the matching page.
 | Wi-Fi error, such as "Wi-Fi: wrong password" | the error exists | the error is gone |
 | "Scanning for Wi-Fi ..." / "Connecting to Home-Net ..." | the device scans or connects (decided: shown on the display) | connected, or replaced by an error |
 | Home Assistant error, such as "Home Assistant: the host does not answer" (running: after Wi-Fi problems, once it lasts 10 s, so a reconnect or a restart of Home Assistant does not flash it; a tap opens its Settings page) | the error exists | connected again |
-| "Swipe down from the top for Settings" | after the first setup | the first pull-down (decided). A tap leaves it in place |
+| "Swipe down from the top for Settings" | after the first setup | the first pull-down once the onboarding is complete: Wi-Fi up and Home Assistant connected (decided 2026-10-10: while the start screen offers "Set up Home Assistant" the hint stays). Stored, so it does not come back after a restart. A tap leaves it in place |
 
 The strip is as wide as its message needs, so it can get large. It keeps a small gap to the
 left and right screen edges, so the rounded corners and the transparency stay visible (decided).

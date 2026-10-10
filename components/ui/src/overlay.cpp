@@ -36,6 +36,9 @@ struct State {
     lv_coord_t strip_for_width = 0;
     lv_coord_t press_y = 0;
     bool dragged = false;
+    // Settings was opened by the swipe since the start; the hint is stored as seen once the
+    // onboarding is complete too
+    bool swiped = false;
     // lv_tick_get() when the Home Assistant problem started, 0 while there is none
     uint32_t hass_problem_since = 0;
 };
@@ -66,8 +69,8 @@ void on_drag(lv_event_t *event)
         g.dragged = false;
     } else if (code == LV_EVENT_PRESSING && !g.dragged && point.y - g.press_y > kDragDistance) {
         g.dragged = true;
+        g.swiped = true;
         lv_indev_wait_release(indev);
-        g.backend->set_hint_seen();
         settings::open(settings::Page::Quick);
     }
 }
@@ -99,6 +102,28 @@ bool hass_problem(char *out, size_t size)
     return true;
 }
 
+// The hint "Swipe down for Settings" stays while the onboarding runs (the start screen's "Set up
+// Home Assistant" leads there too) and goes once Settings was opened by the swipe after it is
+// complete: Wi-Fi up and Home Assistant connected.
+bool hint_done(const WifiInfo &w)
+{
+    HassInfo h{};
+    g.backend->hass_info(h);
+    // without an address and token the start screen offers the setup: the hint is back too (also
+    // after a factory reset of Home Assistant's settings, or when it was seen before this rule)
+    if (!h.configured) {
+        return false;
+    }
+    if (g.backend->hint_seen()) {
+        return true;
+    }
+    if (!g.swiped || !w.connected || !h.connected) {
+        return false;
+    }
+    g.backend->set_hint_seen();
+    return true;
+}
+
 // Picks the message of the strip: a Wi-Fi problem, then connecting, then a Home Assistant
 // problem (it cannot connect without Wi-Fi anyway), then the hint. Empty hides it.
 void strip_message(char *out, size_t size, uint32_t &color, settings::Page &page)
@@ -124,7 +149,7 @@ void strip_message(char *out, size_t size, uint32_t &color, settings::Page &page
     } else if (hass_problem(out, size)) {
         color = t::kAlert;
         page = settings::Page::HomeAssistant;
-    } else if (!g.backend->hint_seen()) {
+    } else if (!hint_done(w)) {
         std::snprintf(out, size, LV_SYMBOL_DOWN "  Swipe down for Settings");
         color = t::kTextLabel;
         page = settings::Page::Quick;

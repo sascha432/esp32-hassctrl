@@ -6,7 +6,8 @@
 //     Settings;
 //   * the alert strip, top center with rounded bottom corners: Wi-Fi problems, connecting, and the
 //     one-time hint "Swipe down from the top for Settings". Tapping it opens Settings at the
-//     matching page; the hint stays until Settings was opened by the swipe.
+//     matching page; the hint stays until the onboarding is complete (Wi-Fi up, Home Assistant
+//     connected) and Settings was opened by the swipe.
 //
 // Both are hidden while Settings is open and while the dashboard is edited.
 

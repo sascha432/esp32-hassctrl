@@ -226,6 +226,8 @@ console (`swipe`, `tap`, `screenshot`) in every rotation:
 - **Alert strip** (top center, rounded bottom corners, 60 % black): Wi-Fi error, "Wi-Fi is not
   set up", connecting, then the one-time hint "Swipe down for Settings". A tap opens the
   matching page; the hint stays until Settings was opened by the swipe (stored in NVS `ui`).
+  Since 2026-10-10 it also stays while Home Assistant is not set up, and goes after a swipe once
+  Wi-Fi and Home Assistant are connected (confirmed by you on the P4).
 - **Settings** (`settings.cpp`, `settings_pages.cpp`): status bar with back + title, hotspot,
   Wi-Fi symbol, HA, clock (UTC until the time zone comes from Home Assistant). Pages: Quick
   (brightness, Wi-Fi, hotspot toggle, Home Assistant, Display, System), Wi-Fi (status, saved
@@ -468,7 +470,8 @@ Open:
 - [x] I2C unplug tests: dropped (2026-10-10). The failed reads were not the wiring but the starved
       orientation task (see "MPU6050 I2C timeouts" below); the timeouts, the 2 s retry and the failure
       count stay and passed your cable test on the WT32.
-- [ ] Check the direction of "Rotate": it should turn the picture clockwise.
+- [x] Check the direction of "Rotate": it should turn the picture clockwise (confirmed by you
+      2026-10-10).
 - [x] Fades by eye (3 s down, 0.5 s up): look good (your report, 2026-10-07).
 - [x] **Board check of update images** (2026-10-07): every image carries its board name in
       ESP-IDF's custom app description (`hc::board::ImageTag`, right after `esp_app_desc_t`),
@@ -480,9 +483,16 @@ Open:
       that joins it, drawn without LVGL. An update shows as "Update downloading: 42 %" (receiving
       for an upload), green when done, red with the reason when it failed; download with
       percent confirmed by the user on the WT32.
-- [ ] Recovery app screen on the T4, JC3248W535 and P4: not flashed yet (the P4's recovery size
-      is unchecked). The 4 MB table changed (factory 1.06 MB, ota_0 at 0x120000), so a WT32 or T4
-      needs `--app recovery flash` once (new table), then the main firmware again.
+- [x] Recovery app screen on the JC3248W535 and P4 (confirmed by you 2026-10-10). The app no
+      longer fit the 1 MB factory partition of the 16 MB layout (boot loop, black screen): now
+      1.25 MB, ota_0 at 0x150000 and 5.75 MB. The P4 flickered cyan during an upload: fixed with
+      `CONFIG_LCD_DSI_ISR_CACHE_SAFE` in `sdkconfig.recovery.esp32p4`.
+- [ ] Recovery app screen on the T4: not flashed yet. The 4 MB table changed (factory 1.06 MB,
+      ota_0 at 0x120000), so it needs `--app recovery flash` once (new table), then the main
+      firmware again.
+- [ ] P4 main firmware: the same flicker probably shows during an update from the main firmware
+      (not tried). `CONFIG_LCD_DSI_ISR_CACHE_SAFE` needs esp_lvgl_port's DSI callback in IRAM
+      first (a linker fragment), else the driver refuses it and LVGL stops.
 - **2026-10-07, after the break**:
   - Light sensor: the average of the last second is a rolling sum over the raw counts
     (integers, your TODO), no low-pass filter on top of the brightness's own smoothing. Fixed
