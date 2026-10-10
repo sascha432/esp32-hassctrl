@@ -2,6 +2,10 @@
 
 ## 2026-10-10
 
+- Vibration: the alarm preview in Settings vibrates too, in the alarm's 500 ms on / 500 ms off
+  pattern for as long as its sound plays; the last pulse is played in full, not cut when the
+  sound ends. `vibration::start_alarm(active)` takes a check that ends the pattern before the
+  next pulse. The looping alarm is unchanged. Flashed on the P4, confirmed by the user.
 - WT32 internal RAM: a plain `malloc` above 512 bytes goes to PSRAM on the ESP32 (was 16 KB,
   `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` in `sdkconfig.main.esp32`). With Home Assistant connected
   the internal RAM that can hold data has 19 KB free (was 11), the largest block 14 KB (was 8),

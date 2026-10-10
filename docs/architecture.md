@@ -885,9 +885,12 @@ JC4880P443C, GPIO 28 of the expansion header.
   ([adding-a-board.md](adding-a-board.md) step 10), never a user setting. It follows
   neither the volume nor "Click on taps"; slider ticks do not vibrate (a motor cannot tick that
   fast).
-* **Alarm**: `main` starts the pattern with the alarm sound (`play_alarm` with `loop`; not the
-  preview of Settings) and stops it with the sound: 500 ms on, 500 ms off. Pulses are dropped
-  while it runs.
+* **Alarm**: `main` starts the pattern with the alarm sound (`play_alarm`) and stops it with the
+  sound: 500 ms on, 500 ms off. Pulses are dropped while it runs. The looping alarm runs until
+  `stop_alarm()`. The preview of Settings plays once, so `start_alarm(active)` gets
+  `audio::alarm_playing`: before each new pulse the motor asks it and ends when the sound has
+  ended. A pulse that began is always played in full (changed 2026-10-10, before the preview did
+  not vibrate).
 * **Setting**: one switch, "Vibrate" on Settings, Sound (on by default); off means no vibration
   at all, also none with the alarm. Stored in the settings NVS (`ui` / `vibrate`) a few seconds
   after the change. The Sound page is there with audio or a motor.

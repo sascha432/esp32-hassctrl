@@ -28,6 +28,8 @@ struct State {
     // the callers (the LVGL task, the console) and the timer's task
     SemaphoreHandle_t lock = nullptr;
     bool alarm = false;
+    // ends the alarm when it returns false, checked before each pulse; nullptr: never
+    bool (*active)() = nullptr;
     bool on = false;
     // when the timer that runs now is due (esp_timer_get_time())
     int64_t due_us = 0;
@@ -65,8 +67,13 @@ void on_timer(void *)
     // timer's own callback.)
     if (esp_timer_get_time() >= g.due_us) {
         if (g.alarm) {
-            set_motor(!g.on);
-            schedule(g.on ? kAlarmOnMs : kAlarmOffMs);
+            // a pulse that began is always played in full
+            if (!g.on && g.active != nullptr && !g.active()) {
+                g.alarm = false;
+            } else {
+                set_motor(!g.on);
+                schedule(g.on ? kAlarmOnMs : kAlarmOffMs);
+            }
         } else {
             set_motor(false);
         }
@@ -129,13 +136,14 @@ void click()
     pulse(g.click_ms);
 }
 
-void start_alarm()
+void start_alarm(bool (*active)())
 {
     if (!running()) {
         return;
     }
     xSemaphoreTake(g.lock, portMAX_DELAY);
     g.alarm = true;
+    g.active = active;
     run_for(kAlarmOnMs);
     xSemaphoreGive(g.lock);
 }

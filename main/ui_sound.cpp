@@ -200,9 +200,9 @@ void ring(const char *sound, bool loop)
     }
     hc::audio::play_alarm(path, loop);
 #if CONFIG_HC_VIBRATION
-    // the alarm itself, not the preview of Settings
-    if (loop && vibration_on()) {
-        hc::vibration::start_alarm();
+    if (vibration_on()) {
+        // the preview of Settings plays once: the motor follows its sound
+        hc::vibration::start_alarm(loop ? nullptr : hc::audio::alarm_playing);
     }
 #endif
 }

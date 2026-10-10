@@ -28,8 +28,9 @@ void pulse(uint16_t ms);
 // The pulse for a tap, along with the click sound.
 void click();
 
-// The alarm pattern, repeated until stop_alarm().
-void start_alarm();
+// The alarm pattern, repeated until stop_alarm(). With `active`, it also ends by itself, after
+// the pulse that runs, once active() returns false (the sound it goes with has ended).
+void start_alarm(bool (*active)() = nullptr);
 void stop_alarm();
 
 } // namespace hc::vibration
