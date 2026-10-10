@@ -43,6 +43,8 @@ constexpr uint32_t kRssiCheckMs = 5000;
 // the hotspot of the first setup stays on this long after the first connection
 constexpr uint32_t kSetupHotspotMs = 15 * 60 * 1000;
 constexpr uint8_t kHotspotMaxClients = 4;
+// failed attempts of the first setup (not a wrong password) before the hotspot comes back
+constexpr uint8_t kSetupFailures = 3;
 
 enum class MsgType : uint8_t {
     Add,
@@ -53,6 +55,7 @@ enum class MsgType : uint8_t {
     Scan,
     Hotspot,
     NewHotspotPassword,
+    ForceHotspot,
     Import,
     WifiEvent,
     GotIp,
@@ -102,6 +105,12 @@ struct Task {
     TickType_t setup_hotspot_until = 0;
     // the hotspot is on because no network was saved when the setup started
     bool setup_hotspot = false;
+    // during the first setup: the network just entered failed (wrong password at once, other
+    // errors after kSetupFailures attempts), so the hotspot comes back for the next try
+    bool setup_failed = false;
+    // the hotspot is on whatever the settings say; not stored (the recovery app)
+    bool force_hotspot = false;
+    uint8_t setup_failures = 0;
     // saved networks whose connection attempt failed in this round, for any reason (bit per
     // index): the next attempt takes another saved network in range. A round ends with a
     // connection, or when every saved network in range has failed.
@@ -233,7 +242,8 @@ size_t usable_count()
 // without a network to try, the hotspot is the way to set one up, as at the first setup
 bool hotspot_wanted()
 {
-    return usable_count() == 0 || t.stored.hotspot_enabled || t.setup_hotspot_until != 0;
+    return usable_count() == 0 || t.stored.hotspot_enabled || t.setup_hotspot_until != 0 ||
+           t.setup_failed || t.force_hotspot;
 }
 
 void update_hotspot()
@@ -322,6 +332,15 @@ void start_connect()
     start_scan(ScanPurpose::Connect);
 }
 
+// A failed attempt during the first setup: the hotspot comes back, at once for a wrong password
+void setup_attempt_failed(bool wrong_password)
+{
+    if (t.setup_hotspot && !t.setup_failed && (wrong_password || ++t.setup_failures >= kSetupFailures)) {
+        t.setup_failed = true;
+        ESP_LOGI(kTag, "first setup: the network failed, the hotspot comes back");
+    }
+}
+
 void schedule_retry()
 {
     t.status.state = StaState::WaitingToRetry;
@@ -359,6 +378,7 @@ void connect_to(const Candidate &candidate)
     if (err != ESP_OK) {
         ESP_LOGW(kTag, "connect to '%s' failed: %s", network.ssid, esp_err_to_name(err));
         set_error("connection failed");
+        setup_attempt_failed(false);
         schedule_retry();
         return;
     }
@@ -451,6 +471,7 @@ void on_scan_done()
             connect_to(candidate);
         } else {
             set_error("no saved network in range");
+            setup_attempt_failed(false);
             schedule_retry();
         }
     } else if (purpose == ScanPurpose::Roam && t.status.state == StaState::Connected) {
@@ -521,6 +542,7 @@ void on_disconnected(uint8_t reason)
                                  t.stored.networks[t.current].password[0] == 0;
         set_error(no_password ? "the network needs a password, add it again" : reason_text(reason));
         ESP_LOGW(kTag, "'%s': %s (reason %u)", t.status.ssid, t.status.error, reason);
+        setup_attempt_failed(is_auth_failure(reason));
     }
     schedule_retry();
 }
@@ -556,6 +578,8 @@ void on_got_ip(uint32_t ip)
     t.retry_delay_ms = kRetryMinMs;
     t.failed = 0;
     t.retried = 0;
+    t.setup_failed = false;
+    t.setup_failures = 0;
     t.fast_attempt = false;
     t.fast_failed = false;
     t.fast_allowed = false;
@@ -631,6 +655,8 @@ void cmd_add(const Msg &msg)
         t.stored.networks[index].password_needed = false;
     }
     save_networks(t.stored);
+    t.setup_failed = false;
+    t.setup_failures = 0;
     ESP_LOGI(kTag, "network '%s' saved as %u%s", msg.ssid, static_cast<unsigned>(index + 1),
              keep_password ? ", password kept" : "");
 
@@ -822,6 +848,9 @@ void handle(const Msg &msg)
         }
         save_hotspot(t.stored);
         break;
+    case MsgType::ForceHotspot:
+        t.force_hotspot = msg.value != 0;
+        break;
     case MsgType::NewHotspotPassword:
         generate_hotspot_password(t.stored.hotspot_password);
         save_hotspot(t.stored);
@@ -968,7 +997,9 @@ esp_err_t start(const char *device_name, Listener listener, void *context)
     ESP_RETURN_ON_ERROR(load(t.stored), kTag, "settings");
     copy_string(t.status.hotspot_ssid, sizeof(t.status.hotspot_ssid), device_name);
     t.status.state = StaState::NoNetworks;
-    t.setup_hotspot = usable_count() == 0;
+    // still the first setup: nothing saved, or no saved network ever connected (no access point
+    // remembered), so a restart with a wrong password gets the hotspot back as well
+    t.setup_hotspot = usable_count() == 0 || t.stored.last_index == kNoIndex;
     t.fast_allowed = esp_reset_reason() == ESP_RST_DEEPSLEEP;
 
     ESP_RETURN_ON_ERROR(esp_netif_init(), kTag, "netif");
@@ -1117,6 +1148,11 @@ esp_err_t reconnect()
 esp_err_t scan()
 {
     return command(MsgType::Scan);
+}
+
+esp_err_t force_hotspot(bool on)
+{
+    return command(MsgType::ForceHotspot, 0, on ? 1 : 0);
 }
 
 esp_err_t set_hotspot(bool on)

@@ -1,11 +1,12 @@
 # esp32-hassctrl, 4 MB flash (docs/architecture.md section 9.5)
 # One OTA partition: an update reboots into the recovery app, which writes ota_0.
+# The recovery app has the screen drivers since 2026-10-10: 1.06 MB.
 # "nvs" is the system NVS (Wi-Fi driver, PHY), "settings" the NVS of the firmware.
 # Name,    Type, SubType,  Offset,   Size
 nvs,       data, nvs,      0x9000,   0x4000
 otadata,   data, ota,      0xd000,   0x2000
 phy_init,  data, phy,      0xf000,   0x1000
-factory,   app,  factory,  0x10000,  0x100000
-ota_0,     app,  ota_0,    0x110000, 0x270000
+factory,   app,  factory,  0x10000,  0x110000
+ota_0,     app,  ota_0,    0x120000, 0x260000
 storage,   data, littlefs, 0x380000, 0x70000
 settings,  data, nvs,      0x3f0000, 0x10000

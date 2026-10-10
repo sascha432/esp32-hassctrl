@@ -717,7 +717,7 @@ in the main firmware.
 | Partition | 4 MB boards | 16 MB boards |
 | --- | --- | --- |
 | nvs, otadata, phy | 36 KB | 36 KB |
-| factory: recovery app | 1 MB | 1 MB |
+| factory: recovery app | 1.06 MB | 1 MB |
 | ota_0: main firmware | about 2.4 MB | 6 MB |
 | ota_1: main firmware | none | 6 MB |
 | LittleFS | about 512 KB | the rest |
@@ -738,10 +738,18 @@ in the main firmware.
   4 MB board (the main firmware is being replaced), a broken main firmware (crash loop, failed
   update, interrupted update), and a request from the user. A broken file system alone does not
   need it: the main firmware handles that with its own recovery page.
-* **Screen in the recovery app** (decided: small, nothing fancy): no LVGL, which would cost a few hundred KB of the
-  1 MB. The app uses the same `board` drivers and draws directly on the panel: a small bitmap font
-  for a few status lines and a QR code with the address of its web page, drawn with Espressif's
-  `qrcode` component. For example "Recovery mode", "Updating 42 %", "Open http://192.168.1.57".
+* **Screen in the recovery app** (built 2026-10-10): no LVGL, which would cost a few hundred KB.
+  The app uses the same `board` drivers and draws directly on the panel, band by band from a list
+  of text lines and one QR code (no frame buffer, so it works for the SPI panels, the AXS15231B
+  that only takes whole frames from the top and the DSI panel): the 8x8 font of
+  `recovery/font8x8.inc` (from LVGL's unscii-8, `tools/gen_recovery_font.py`) and Nayuki's
+  `qrcodegen.c` (copied from LVGL, MIT). It shows the board, the firmware in flash, the Wi-Fi
+  state and address, the hotspot name and password while it is on, and the QR code of
+  the hotspot, which is always on in this app (`network::force_hotspot`, not stored) with its name and
+  password and a QR code that joins it (the phone then opens the captive portal at
+  `http://192.168.4.1/`); with a Wi-Fi connection its IP is a line of text. Redrawn when something
+  changes. The drivers made the app 45 KB larger, so the factory partition of the 4 MB layout is
+  1.06 MB (ota_0 2.4 MB).
 * **Alternative**: compressed or delta OTA updates exist for ESP-IDF, but they need a custom
   bootloader or a patch component. The recovery app is simpler and also covers the recovery case.
 

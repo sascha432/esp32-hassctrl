@@ -288,8 +288,13 @@ Open:
       screen, "Keep the hotspot on", QR code of the web UI) are not built. Today `Next` goes
       straight to the dashboard; the login is made in the web UI. Build them, or drop them from
       the design?
-- [ ] Setup screen: the "failed" view was not seen yet (the T4 always found its network). Try:
-      `setup`, then a network with a wrong password.
+- [x] Setup screen: the "failed" view seen and tested by the user on the WT32 (2026-10-10): the
+      wrong password showed, but the device kept retrying with no hotspot for good. Fixed
+      (`setup_attempt_failed`, network.cpp): during the first setup, or while no saved network
+      ever connected, a wrong password brings the hotspot back at once, other errors after 3
+      failed attempts; it stays on until a connection. Wrong password, a network that is not
+      found and a successful connection with its IP all show; the setup finished and the
+      "hotspot off" choice was kept for the main firmware (uploaded through `/recovery`).
 - [x] **Files of a broken file system** (2026-10-07, `api_files.cpp`): `GET /api/fs/files.zip`
       streams every readable file as one .zip (stored, CRC per file; what cannot be read is
       listed in `unreadable.txt` inside), `POST /api/fs/format` with `confirm=yes`. In the
@@ -388,7 +393,7 @@ Open:
       (Superseded 2026-10-07: from 30 lx up the slider acted as a cap. Now linear as you asked:
       0 lx 1 %, 175 lx half the slider, 350 lx and more the slider's value; first 500 lx, lowered
       to 350 lx by you.)
-- [ ] Try the linear automatic brightness on the WT32 (built, not flashed).
+- [x] Try the linear automatic brightness on the WT32 (done, user, 2026-10-10).
 - **Web UI, first increment** (2026-10-07, `web/`): page frame with menu (overlay on phones,
   sidebar from 800 px), light/dark/automatic, setup (Wi-Fi, login, done), login, status, Wi-Fi
   (saved networks with order and forget, policy, reconnect, add from the scan), hotspot (keep
@@ -401,8 +406,8 @@ Open:
 - **Fixed**: the web server ran out of sockets as soon as a browser held its connections open
   (10 lwIP sockets: 7 sessions, 2 for the server, 1 for the captive DNS). Now 16 sockets and
   12 sessions; 60 requests from 8 connections pass on both boards.
-- [ ] Try the web UI yourself: the setup in the captive portal after a factory reset is the one
-      flow I could not run (it needs a phone on the hotspot).
+- [x] The setup in the captive portal after a factory reset (user, 2026-10-10): the portal opens
+      by itself on an iPhone. The rest of the web UI is still yours to try.
 - **Your report, 2026-10-07** (all on both boards unless noted):
   - **Screen froze when the sensor lost its 3.3 V**: the touch controller's I2C reads (LVGL task)
     had no timeout (`esp_lcd` waits forever when none is set), and an unpowered module on the
@@ -472,8 +477,13 @@ Open:
       ESP-IDF's custom app description (`hc::board::ImageTag`, right after `esp_app_desc_t`),
       checked with the first bytes before anything is written. Tested on the T4 with a WT32
       image: "the firmware is for the WT32-SC01, this is the TTGO T4", nothing erased.
-- [ ] **Recovery app screen** (not built yet, `recovery/recovery.cpp`): dark for now. Planned: a few status lines and a QR code of its
-      address, drawn without LVGL (architecture.md section 9.5).
+- [x] **Recovery app screen** (built and tested on the WT32 by the user, 2026-10-10,
+      `recovery/recovery.cpp`, architecture.md section 9.5): board, firmware in flash, Wi-Fi with
+      its IP, the hotspot (always on in the recovery app, `network::force_hotspot`) and a QR code
+      that joins it, drawn without LVGL.
+- [ ] Recovery app screen on the T4, JC3248W535 and P4: not flashed yet (the P4's recovery size
+      is unchecked). The 4 MB table changed (factory 1.06 MB, ota_0 at 0x120000), so a WT32 or T4
+      needs `--app recovery flash` once (new table), then the main firmware again.
 - **2026-10-07, after the break**:
   - Light sensor: the average of the last second is a rolling sum over the raw counts
     (integers, your TODO), no low-pass filter on top of the brightness's own smoothing. Fixed

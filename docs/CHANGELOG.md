@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-10
+
+- Recovery app screen (`recovery/`), drawn without LVGL: board, firmware in flash, Wi-Fi state with
+  its IP, the hotspot's name and password, and a QR code that joins the hotspot (the phone then
+  opens the captive portal). 8x8 font from LVGL's unscii-8 (`tools/gen_recovery_font.py`), QR code
+  from Nayuki's qrcodegen. The hotspot is always on in the recovery app
+  (`network::force_hotspot`, not stored). Tested on the WT32.
+- 4 MB layout: factory partition 1.06 MB (the screen drivers made the recovery app larger), ota_0
+  from 0x120000 and 2.4 MB. A WT32 or T4 needs the recovery app flashed once for the new table.
+- First setup: a failed network brings the hotspot back (wrong password at once, other errors
+  after 3 attempts) until a connection works; before, the device retried with no way in. Also
+  after a restart while no saved network ever connected.
+
 ## 2026-10-08
 
 - Initial commit (`e276f3e`)

@@ -18,7 +18,8 @@
 //     password is skipped for the next attempts while other saved networks are in range.
 //   * While connected: no switching while the signal is good. When it stays weak for 30 s, a
 //     background scan looks for an access point that is clearly better and switches to it.
-//   * Hotspot: on while no network is saved (first setup), for 15 minutes after the first
+//   * Hotspot: on while no network is saved (first setup), and back on when a network of the first
+//     setup fails (wrong password at once, other errors after 3 attempts); for 15 minutes after the first
 //     successful connection of the setup, and whenever the user turned it on. It never opens by
 //     itself when the Wi-Fi fails (touch is a requirement, Settings is the recovery path).
 //   * The hotspot password is generated on the first boot: 8 digits and 2 lowercase letters.
@@ -149,6 +150,8 @@ esp_err_t move_network(uint8_t index, int8_t delta);
 esp_err_t set_policy(Policy policy);
 esp_err_t reconnect();
 esp_err_t scan();
+// The hotspot on whatever the settings say, not stored: the recovery app is always reachable.
+esp_err_t force_hotspot(bool on);
 esp_err_t set_hotspot(bool on);
 esp_err_t new_hotspot_password();
 
