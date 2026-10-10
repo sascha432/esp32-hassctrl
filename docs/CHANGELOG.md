@@ -2,6 +2,15 @@
 
 ## 2026-10-10
 
+- Web UI: the Logs page. New component `logbuf` keeps the last 16 KB of esp_log messages in
+  PSRAM (main firmware and recovery app): errors and warnings always, info messages with Debug
+  on (switch on the page, stored). Filter, Refresh, Download. The console's `log` level now only
+  changes the serial output, so a quiet console still fills the log. APIs `/api/log` and
+  `/api/log.txt`. Flashed on all three boards (recovery app, main firmware, web image); the
+  page was tried by the user.
+- Web UI: pages are up to 800 px wide (was 480), so log lines fit. A request for a missing file
+  is logged with its path (`web: 404 GET /favicon.ico`) instead of ESP-IDF's
+  "httpd_resp_send_err: 404 Not Found - not found".
 - Vibration: the alarm preview in Settings vibrates too, in the alarm's 500 ms on / 500 ms off
   pattern for as long as its sound plays; the last pulse is played in full, not cut when the
   sound ends. `vibration::start_alarm(active)` takes a check that ends the pattern before the

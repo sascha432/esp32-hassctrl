@@ -26,6 +26,7 @@
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/hass/hass.hpp"
 #include "hc/light_sensor/ldr.hpp"
+#include "hc/logbuf/logbuf.hpp"
 #include "hc/orientation/orientation.hpp"
 #include "hc/light_sensor/light_sensor.hpp"
 #include "hc/network/coprocessor.hpp"
@@ -309,14 +310,15 @@ struct Base64Out {
     }
 };
 
+void restore_console_level();
+
 int cmd_screenshot(int, char **)
 {
     Base64Out out;
     uint16_t width = 0;
     uint16_t height = 0;
-    // no log lines in the middle of the picture
-    const esp_log_level_t level = esp_log_level_get("*");
-    esp_log_level_set("*", ESP_LOG_NONE);
+    // no log lines in the middle of the picture (the web UI's log still gets them)
+    hc::logbuf::set_console_level(ESP_LOG_NONE, ESP_LOG_NONE);
     std::printf("SCREENSHOT-BEGIN\n");
     const esp_err_t err = hc::uidebug::screenshot(
         [](const void *data, size_t size, void *context) {
@@ -326,7 +328,7 @@ int cmd_screenshot(int, char **)
     out.finish();
     std::printf("SCREENSHOT-END %u %u %u\n", width, height, static_cast<unsigned>(out.total));
     std::fflush(stdout);
-    esp_log_level_set("*", level);
+    restore_console_level();
     return check(err);
 }
 
@@ -462,15 +464,19 @@ const char *level_name(esp_log_level_t level)
 void apply_log_level(esp_log_level_t level, bool store)
 {
     g_log_level = level;
-    esp_log_level_set("*", level);
-    // after the wildcard, which resets every tag; warnings and errors of LVGL stay visible
-    esp_log_level_set("lvgl", g_log_lvgl || level < ESP_LOG_INFO ? level : ESP_LOG_WARN);
+    // warnings and errors of LVGL stay visible; the web UI's log keeps its own level
+    hc::logbuf::set_console_level(level, g_log_lvgl || level < ESP_LOG_INFO ? level : ESP_LOG_WARN);
     if (store) {
         hc::platform::Settings settings(kSettingsNamespace, hc::platform::Settings::Mode::ReadWrite);
         if (settings.set_u8(kKeyLogLevel, static_cast<uint8_t>(level)) == ESP_OK) {
             settings.commit();
         }
     }
+}
+
+void restore_console_level()
+{
+    apply_log_level(g_log_level, false);
 }
 
 int cmd_log(int argc, char **argv)

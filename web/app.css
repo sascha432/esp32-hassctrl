@@ -3,8 +3,8 @@
 
 .app-header { max-width: 100%; }
 .app-body { display: flex; min-height: calc(100vh - 57px); }
-/* phone first: one column, at most 480 px, centered */
-.app-page { max-width: 480px; margin: 0 auto; }
+/* phone first: one column, at most 800 px (the log's lines), centered */
+.app-page { max-width: 800px; margin: 0 auto; }
 .app-page h1 { font-size: 1.4rem; margin-bottom: 1rem; }
 /* the dashboard editor uses the whole width; its import tab keeps the one column */
 .app-page.app-wide { max-width: none; }
@@ -35,3 +35,9 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 .bars i.on { background: var(--bs-body-color); }
 
 .app-toast { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 1100; max-width: 90vw; }
+
+/* the log: newest at the bottom, scrolls inside the card */
+.app-log { max-height: 60vh; overflow: auto; font-size: .75rem; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--bs-tertiary-bg); border-radius: var(--bs-border-radius); padding: .5rem; }
+.app-log .log-E { color: var(--bs-danger-text-emphasis); }
+.app-log .log-W { color: var(--bs-warning-text-emphasis); }

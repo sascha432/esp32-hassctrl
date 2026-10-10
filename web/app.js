@@ -332,7 +332,6 @@ function loginPage() {
 
 const facts = (rows) => `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
 const card = (title, body) => `<div class="card"><div class="card-body"><h2 class="h6 card-title">${esc(title)}</h2>${body}</div></div>`;
-const later = (title, text) => () => render(`<h1>${esc(title)}</h1>${card(title, `<p class="text-body-secondary mb-0">${esc(text)}</p>`)}`);
 
 // The editor (web/dashboard.js, docs/ui/web-dashboard.md) is loaded on the first visit of the page.
 function loadScript(src) {
@@ -695,7 +694,85 @@ const views = {
     }
     await show(tab);
   },
-  logs: later("Logs", "The log view comes later."),
+  async logs() {
+    render(`<h1>Logs</h1><div class="card"><div class="card-body">
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+        <span id="log-count" class="small text-body-secondary"></span>
+        <select id="log-filter" class="form-select form-select-sm w-auto" aria-label="Show">
+          <option value="E">Errors</option><option value="W">Warnings and errors</option>
+          <option value="I" selected>Everything</option>
+        </select>
+      </div>
+      <pre id="log-lines" class="app-log mb-3">Loading ...</pre>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <button id="log-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+        <button id="log-download" class="btn btn-outline-secondary" type="button">Download</button>
+        <div class="form-check form-switch ms-auto mb-0">
+          <input id="log-debug" class="form-check-input" type="checkbox" role="switch">
+          <label class="form-check-label" for="log-debug">Debug</label>
+        </div>
+      </div>
+      <p class="small text-body-secondary mt-2 mb-0">Errors and warnings are kept in the device's memory, the
+        oldest go first. Debug keeps the info messages as well. The log starts again with each restart.</p>
+    </div></div>`);
+    let entries = [];
+    const rank = { E: 0, W: 1, I: 2, D: 3, V: 4 };
+    const pad = (n) => String(n).padStart(2, "0");
+    // the device's clock once it is set, else the time since the start
+    const when = (e) => {
+      if (e.unix) {
+        const d = new Date(e.unix * 1000);
+        const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return d.toDateString() === new Date().toDateString() ? time
+          : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`;
+      }
+      const s = Math.floor(e.ms / 1000);
+      return `+${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+    };
+    const draw = () => {
+      const max = rank[$("#log-filter").value];
+      const shown = entries.filter((e) => rank[e.level] <= max);
+      $("#log-count").textContent = `${shown.length} of ${entries.length} messages`;
+      $("#log-lines").innerHTML = shown.length ? shown.map((e) =>
+        `<span class="log-${e.level}">${esc(when(e))} ${e.level} ${esc(e.tag)}  ${esc(e.text)}</span>`).join("\n")
+        : '<span class="text-body-secondary">No messages.</span>';
+      const box = $("#log-lines");
+      box.scrollTop = box.scrollHeight;
+    };
+    const load = async () => {
+      const [settings, response] = await Promise.all([api("/api/log"), fetch("/api/log.txt", { cache: "no-store" })]);
+      if (response.status === 401) return go("login");
+      if (!response.ok) throw new Error(`the log could not be loaded (${response.status})`);
+      $("#log-debug").checked = settings.debug;
+      // `<unix time or 0> <level> (<ms since the start>) <tag>: <message>`
+      entries = (await response.text()).split("\n").map((line) => {
+        const m = /^(\d+) ([EWIDV]) \((\d+)\) ([^:]*): ?(.*)$/.exec(line);
+        return m && { unix: Number(m[1]), level: m[2], ms: Number(m[3]), tag: m[4], text: m[5] };
+      }).filter(Boolean);
+      draw();
+    };
+    $("#log-filter").onchange = draw;
+    $("#log-refresh").onclick = (e) => busy(e.target, load);
+    $("#log-download").onclick = () => {
+      const text = entries.map((e) => `${when(e)} ${e.level} (${e.ms}) ${e.tag}: ${e.text}`).join("\n") + "\n";
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      const d = new Date();
+      link.download = `${document.title || "hassctrl"}-log-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.txt`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    };
+    $("#log-debug").onchange = (e) => busy(e.target, async () => {
+      try {
+        await api("/api/log", { debug: e.target.checked ? 1 : 0 });
+      } catch (err) {
+        e.target.checked = !e.target.checked;
+        throw err;
+      }
+      toast(e.target.checked ? "debug on: info messages are kept from now on" : "debug off", "success");
+    });
+    await load();
+  },
 
   async system() {
     const [s, u] = await Promise.all([api("/api/status"), api("/api/update")]);

@@ -1,13 +1,13 @@
 # Web UI layout
 
 Status: **proposal**, partly running (2026-10-07): setup, login, status, Wi-Fi, hotspot and
-system pages in `web/`; Home Assistant, dashboard and logs follow with their firmware steps.
+system, Home Assistant, dashboard and logs pages in `web/`.
 Terms and colors are in [design-system.md](design-system.md).
 
 ## 1. Principles
 
 * **Phone first.** The first contact is a phone in the captive portal. One column, at most
-  480 px wide, centered on large screens.
+  800 px wide (480 until 2026-10-10; the log's lines need the room), centered on large screens.
 * **Works without internet.** Everything is served by the device: no CDN, no web fonts. In the
   captive portal there is no internet.
 * **Bootstrap look with light and dark mode** (decided), the full Bootstrap CSS file (decided),
@@ -205,6 +205,14 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
 **Logs.** Viewable over the web with a filter, plus a debug mode that adds notice and info
 messages to the normal error log (decided; details are discussed later). No live view: the page
 shows the log as of loading, `Refresh` loads it again (decided).
+
+Built (2026-10-10, `components/logbuf`, `api_log.cpp`): the last 16 KB of esp_log messages in
+PSRAM, the oldest lines go first, empty after a restart. Errors and warnings are always kept,
+Debug (stored) keeps info messages as well (ESP-IDF has no "notice"). The console's `log` level
+only changes the serial output. Filter: Errors, Warnings and errors, Everything (the default).
+Times are the device's clock once it is set, else `+h:mm:ss` since the start. Download saves the
+whole log as text. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` `debug=1|0`,
+`GET /api/log.txt` one line per message, `<unix time or 0> <esp_log line>`.
 
 ```
 +--------------------------------------------+

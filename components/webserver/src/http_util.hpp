@@ -50,6 +50,7 @@ void register_session_routes(httpd_handle_t server);
 void register_wifi_routes(httpd_handle_t server);
 void register_update_routes(httpd_handle_t server);
 void register_file_routes(httpd_handle_t server);
+void register_log_routes(httpd_handle_t server);
 // nothing without a Home Assistant connection (the recovery app)
 void register_hass_routes(httpd_handle_t server, const HassAccess *hass);
 // nothing without a dashboard (the recovery app)

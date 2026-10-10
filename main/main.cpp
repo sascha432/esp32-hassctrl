@@ -27,6 +27,7 @@
 #include "hc/hass/hass.hpp"
 #include "hc/light_sensor/ldr.hpp"
 #include "hc/light_sensor/light_sensor.hpp"
+#include "hc/logbuf/logbuf.hpp"
 #include "hc/memory/large.hpp"
 #include "hc/network/network.hpp"
 #include "hc/orientation/orientation.hpp"
@@ -364,6 +365,8 @@ const hc::webserver::DashboardAccess kDashboardAccess{
 
 extern "C" void app_main()
 {
+    // first, so the web UI's log has the boot as well
+    hc::logbuf::start();
     heap_caps_register_failed_alloc_callback(on_alloc_failed);
     // the dashboard and the trees of an import live in PSRAM (docs/architecture.md section 11)
     hc::memory::set_large_heap(
@@ -373,6 +376,7 @@ extern "C" void app_main()
         [](void *pointer) { heap_caps_free(pointer); });
     hc::platform::log_system_info();
     ESP_ERROR_CHECK(hc::platform::init_storage());
+    hc::logbuf::restore();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 #if CONFIG_HC_DEV_CONSOLE
     // early, while the internal RAM is in one piece; it takes commands after ready() below

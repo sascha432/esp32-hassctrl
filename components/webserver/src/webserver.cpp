@@ -221,6 +221,15 @@ esp_err_t get_status(httpd_req_t *req)
     return detail::send_json(req, json);
 }
 
+// with the path in the log (httpd_resp_send_err's own warning does not name it)
+esp_err_t send_not_found(httpd_req_t *req)
+{
+    ESP_LOGW(kTag, "404 %s %s", http_method_str(static_cast<enum http_method>(req->method)), req->uri);
+    httpd_resp_set_status(req, HTTPD_404);
+    httpd_resp_set_type(req, "text/plain");
+    return httpd_resp_sendstr(req, "not found");
+}
+
 esp_err_t get_any(httpd_req_t *req)
 {
     if (redirect_to_portal(req) || send_file(req, req->uri)) {
@@ -234,7 +243,7 @@ esp_err_t get_any(httpd_req_t *req)
         httpd_resp_set_hdr(req, "Cache-Control", "no-store");
         return httpd_resp_sendstr(req, detail::kBuiltinPage);
     }
-    return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
+    return send_not_found(req);
 }
 
 // requests no handler takes (other methods) on the hotspot go to the portal as well
@@ -243,7 +252,7 @@ esp_err_t not_found(httpd_req_t *req, httpd_err_code_t)
     if (redirect_to_portal(req)) {
         return ESP_OK;
     }
-    return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
+    return send_not_found(req);
 }
 
 // The hotspot address, and the portal address announced by its DHCP server (option 114, which
@@ -277,7 +286,7 @@ esp_err_t start(const Config &config)
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.uri_match_fn = httpd_uri_match_wildcard;
-    server_config.max_uri_handlers = 40;
+    server_config.max_uri_handlers = 44;
     // browsers keep connections open; with all sessions taken the oldest is closed (LRU). Sessions
     // + 2 of the server + the captive DNS must stay within CONFIG_LWIP_MAX_SOCKETS (16).
     server_config.max_open_sockets = 12;
@@ -301,6 +310,7 @@ esp_err_t start(const Config &config)
     detail::register_wifi_routes(server);
     detail::register_update_routes(server);
     detail::register_file_routes(server);
+    detail::register_log_routes(server);
     detail::register_hass_routes(server, config.hass);
     detail::register_dashboard_routes(server, config.dashboard);
     detail::register_backup_routes(server, config.backup, config.device_name);

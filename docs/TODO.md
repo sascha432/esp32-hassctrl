@@ -501,6 +501,29 @@ Open:
 - [x] Build the web UI (Bootstrap) and its LittleFS image in `tools/build.py` (done: `tools/build_fs.py`); the littlefs
       component's `littlefs_create_partition_image` (littlefs-python 0.15) creates images that
       mount on the device (tested with a test image).
+- **Logs page** (2026-10-10, [ui/web.md](ui/web.md) section 6): new component `logbuf`, a 16 KB
+  ring buffer in PSRAM fed by an `esp_log` output hook, started first in `app_main` of both
+  apps (the recovery app has it as well, 16 KB of its partition left). Errors and warnings are
+  always kept; Debug (stored, `logbuf/debug`) keeps info messages too. The serial output has
+  its own level (`log off` keeps the console quiet, the log still fills): esp_log runs at the
+  more detailed of the two, the hook prints only what the console asked for. Messages the Wi-Fi
+  driver writes in pieces are put together. APIs `GET|POST /api/log` (debug), `GET /api/log.txt`
+  (login required). The page: the log as of loading, filter (errors / warnings and errors /
+  everything), Refresh, Download (a .txt with clock times), the Debug switch; the device's clock
+  time once it is set, else the time since the start.
+  - [x] WT32: built (main and recovery), flashed with the web image; 401 without login, warnings
+        kept with the clock time, Debug adds the info messages (Wi-Fi lines whole), `debug=x`
+        refused, `log off` on the console stays quiet while the log fills.
+  - [x] Your review (2026-10-10): pages 800 px wide instead of 480 so the log lines are
+        readable (login page checked at 1280 px); a 404 is logged with its path
+        (`web: 404 GET /favicon.ico`, checked on the WT32).
+  - [x] Try the Logs page in the browser (works, you, 2026-10-10).
+  - [x] JC3248W535 and JC4880P443C: recovery app, main firmware and web image flashed, `/api/log`
+        answers on both (2026-10-10).
+  - [ ] P4: every boot logs `E lcd_panel: esp_lcd_panel_swap_xy(60): swap_xy is not supported by
+        this panel`, now visible on the Logs page. Find who calls it and skip the call on this panel.
+  - [ ] With `log off` and Debug on, two empty lines still reach the serial port during a Wi-Fi
+        reconnect (cosmetic; probably Wi-Fi driver pieces from a second task).
 
 ## Step 5: Home Assistant connection
 
@@ -1090,6 +1113,7 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
   | `webui/*` | no | the login is a secret, the new device keeps its own |
   | `light/scale`, `light/ldr_points` | no | per device, the developer's calibration |
   | `console/log_level` | no | development |
+  | `logbuf/debug` | no | diagnosis of this device |
   | `hass/url` | yes | |
   | `hass/token` | no, an import may carry it | decided 2026-10-09 |
   | `ui/sounds`, `ui/sound`, `ui/vibrate`, `ui/alarm` | yes, own sections | decided 2026-10-09 |
@@ -1237,10 +1261,6 @@ above. In order:
 
 Not built yet (placeholders in the code or the documentation):
 
-- [ ] **Logs page** of the web UI: `web/app.js` shows "The log view comes later." Planned in
-      [ui/web.md](ui/web.md) section 6: the log as of loading with a filter, Refresh, Download
-      and a debug mode that adds notice and info messages. Needs a log buffer and an API in the
-      firmware.
 - [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
 - [ ] Home Assistant events waking the screen (`ui/src/power.hpp`).
 - [ ] Trusting a self-signed Home Assistant certificate on first use (Step 5).

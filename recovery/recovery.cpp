@@ -18,6 +18,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hc/board/board.hpp"
+#include "hc/logbuf/logbuf.hpp"
 #include "hc/network/network.hpp"
 #include "hc/ota/ota.hpp"
 #include "hc/platform/device.hpp"
@@ -373,6 +374,8 @@ void update_screen()
 
 extern "C" void app_main()
 {
+    // first, so the web UI's log has the boot as well
+    hc::logbuf::start();
     hc::platform::log_system_info();
     const hc::ota::Info ota = hc::ota::info();
     ESP_LOGI(kTag, "recovery app on %s, firmware in flash: %s%s", hc::board::info().name,
@@ -380,6 +383,7 @@ extern "C" void app_main()
              ota.firmware_failed ? " (did not start, rolled back)" : "");
 
     ESP_ERROR_CHECK(hc::platform::init_storage());
+    hc::logbuf::restore();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     if (hc::network::start(hc::platform::device_name(), nullptr, nullptr) != ESP_OK) {
         ESP_LOGE(kTag, "network did not start");
