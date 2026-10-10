@@ -53,6 +53,11 @@ Non-goals for the first version (seams are left for them, see section 9):
   commands.
 * One ESP-IDF project builds both applications: `HC_APP=main` or `HC_APP=recovery` excludes the
   other application's top-level component (section 9.5).
+* FreeRTOS tick 1 ms (`CONFIG_FREERTOS_HZ=1000`, `sdkconfig.main`). esp_lvgl_port sleeps at
+  least 5 ms between `lv_timer_handler()` calls; at the default 100 Hz that is 0 ticks, so the
+  LVGL task only yielded and starved IDLE0 (task watchdog) whenever its flush did not block, as
+  with the P4's MIPI-DSI panel. Durations are converted with `portTICK_PERIOD_MS` /
+  `pdMS_TO_TICKS`, never with a fixed 10 ms tick.
 * Host builds (tests) are a plain CMake project in `host/` that compiles the pure
   components directly. They do not use the ESP-IDF build system at all. Compiler: MSVC of Visual
   Studio 2022 (decided), with the cmake and ninja that ESP-IDF installs.

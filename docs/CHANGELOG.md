@@ -292,3 +292,8 @@ Vibration (docs/architecture.md section 9.7):
   when one of them is on.
 - JC4880P443C device page: the schematic (`JC4880P443_V1.0.pdf`) and the expansion header pins
   (`gpio-header.jpeg`) added.
+- Fix: the task watchdog fired on the JC4880P443C a few seconds after boot (IDLE0 starved,
+  `taskLVGL` running). esp_lvgl_port's minimum sleep of 5 ms was 0 ticks at the 100 Hz tick, so
+  the LVGL task never slept while the screen redrew and its MIPI-DSI flush did not block. The
+  FreeRTOS tick is 1 ms now (`CONFIG_FREERTOS_HZ=1000` in `sdkconfig.main`, all boards).
+  Confirmed fixed by the user.

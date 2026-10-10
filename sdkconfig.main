@@ -3,6 +3,11 @@
 # rendering speed over size, as recommended by esp_lvgl_port's performance notes
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 
+# 1 ms tick: esp_lvgl_port sleeps at least 5 ms between lv_timer_handler() calls, which is 0 ticks
+# at 100 Hz; the LVGL task then only yields and starves IDLE0 (task watchdog) whenever its flush does
+# not block, as on the P4's MIPI-DSI panel
+CONFIG_FREERTOS_HZ=1000
+
 # LVGL 8.4 (docs/architecture.md section 7.1)
 CONFIG_LV_COLOR_DEPTH_16=y
 # LVGL allocates from PSRAM, internal RAM only when the PSRAM is full (main/lvgl/hc_lv_mem.h)

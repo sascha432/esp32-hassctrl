@@ -938,6 +938,8 @@ sim.
       the ROM said `rst:0x3 (SW_SYS_RESET)`, our `system: reset reason` said brownout. Not checked
       yet whether it happened before the vibration change. Motor wiring for reference: 3 V / 70 mA
       on 3.3 V through a 2N2222, 470 Ohm base.
+      Probably the same cause as the watchdog after boot fixed on 2026-10-09: the LVGL task never
+      slept at the 100 Hz tick (now 1 ms, CHANGELOG). Still to check: flash and reset over USB.
 - [x] Working on the device, confirmed by you (2026-10-09).
 - [x] Bug (you): with both touch sounds off, letting go of the volume slider still clicked. It
       clicks now only when one of them is on.
