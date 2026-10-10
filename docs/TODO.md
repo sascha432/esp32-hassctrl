@@ -487,12 +487,9 @@ Open:
       longer fit the 1 MB factory partition of the 16 MB layout (boot loop, black screen): now
       1.25 MB, ota_0 at 0x150000 and 5.75 MB. The P4 flickered cyan during an upload: fixed with
       `CONFIG_LCD_DSI_ISR_CACHE_SAFE` in `sdkconfig.recovery.esp32p4`.
-- [ ] Recovery app screen on the T4: not flashed yet. The 4 MB table changed (factory 1.06 MB,
-      ota_0 at 0x120000), so it needs `--app recovery flash` once (new table), then the main
-      firmware again.
-- [ ] P4 main firmware: the same flicker probably shows during an update from the main firmware
-      (not tried). `CONFIG_LCD_DSI_ISR_CACHE_SAFE` needs esp_lvgl_port's DSI callback in IRAM
-      first (a linker fragment), else the driver refuses it and LVGL stops.
+- [x] P4 main firmware: no flicker during an update from the main firmware (tested by you
+      2026-10-10), so it keeps `CONFIG_LCD_DSI_ISR_CACHE_SAFE` off (it would need esp_lvgl_port's
+      DSI callback in IRAM).
 - **2026-10-07, after the break**:
   - Light sensor: the average of the last second is a rolling sum over the raw counts
     (integers, your TODO), no low-pass filter on top of the brightness's own smoothing. Fixed

@@ -8,8 +8,10 @@
   gone. Confirmed by the user on the P4.
 - P4 recovery app: the screen flickered cyan during every upload. The DSI interrupt restarts the
   panel's DMA after each frame and could not run while the flash was written (cache off).
-  `sdkconfig.recovery.esp32p4` turns on `CONFIG_LCD_DSI_ISR_CACHE_SAFE`; the main firmware cannot
-  yet (esp_lvgl_port's DSI callback is not in IRAM, the driver refuses it). Confirmed by the user.
+  `sdkconfig.recovery.esp32p4` turns on `CONFIG_LCD_DSI_ISR_CACHE_SAFE`. Confirmed by the user.
+  The main firmware does not flicker during an update (tested by the user) and keeps it off: it
+  would need esp_lvgl_port's DSI callback in IRAM.
+- TTGO T4 retired: it will not be updated anymore, its open recovery item is removed.
 - `dependencies.lock` (P4): esp_lcd_st7701 2.0.2~2 to 2.0.3.
 - Vibration: the motor pulses when the finger touches a tap target, not when it lifts. The
   click sound stays on the release. A press that becomes a scroll or a slider drag vibrates too
