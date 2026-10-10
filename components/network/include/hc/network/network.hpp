@@ -96,14 +96,50 @@ esp_err_t start(const char *device_name, Listener listener, void *context);
 
 Status status();
 
-// saved networks in their order, SSIDs only
-size_t saved_networks(char (*ssids)[kSsidSize], size_t max);
+struct SavedNetworkInfo {
+    char ssid[kSsidSize];
+    // saved without a password
+    bool open;
+    // imported without its password: not tried until it gets one
+    bool password_needed;
+};
+
+// saved networks in their order, without their passwords
+size_t saved_networks(SavedNetworkInfo *out, size_t max);
+
+// One network of a settings import (docs/TODO.md, settings export and import). The export never
+// writes a password; one added to the file by hand is used as it is.
+constexpr size_t kMaxImport = 16;
+
+struct ImportedNetwork {
+    char ssid[kSsidSize];
+    char password[kPasswordSize];
+    // false: a saved network keeps its password, a new one is saved as "password needed"
+    bool has_password;
+};
+
+struct ImportResult {
+    // saved networks afterwards
+    uint8_t count;
+    uint8_t need_password_count;
+    char need_password[kMaxNetworks][kSsidSize];
+    // cut off: more than kMaxNetworks in the file and the saved ones together
+    uint8_t dropped_count;
+    char dropped[kMaxImport + kMaxNetworks][kSsidSize];
+};
+
+// Merges imported networks into the saved ones: the file's order first, then the saved networks
+// it does not name, at most kMaxNetworks (the network in use is never cut off, so an import over
+// Wi-Fi keeps the connection). With `apply` false nothing changes, `result` says what would.
+// Blocks until the network task has done it; never call it from a listener.
+esp_err_t import_networks(const ImportedNetwork *networks, size_t count, bool apply, ImportResult &result);
 
 // the results of the last scan, strongest first
 size_t last_scan(ScanEntry *out, size_t max);
 
 // Commands. They return ESP_ERR_TIMEOUT when the task's queue is full.
-// Saves a network (updates the password of a saved one; an empty password keeps it). `connect_now` (the screen's Connect):
+// Saves a network (updates the password of a saved one; an empty password keeps it, or makes one
+// that needs its password an open network). `connect_now` (the screen's Connect):
 // connects to it right away, once, which also proves the password; when that fails, or after a
 // restart, the network order applies as usual. ESP_ERR_INVALID_ARG for a password of 1 to 7
 // characters.

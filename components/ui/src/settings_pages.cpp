@@ -245,6 +245,7 @@ Built quick(lv_obj_t *content)
 
 lv_obj_t *g_wifi_status = nullptr;
 int g_wifi_saved_built = -1;
+uint8_t g_wifi_needed_built = 0;
 char g_wifi_connected_built[kSsidSize] = {};
 
 void wifi_status_text(const WifiInfo &w, char *out, size_t size)
@@ -267,9 +268,11 @@ void wifi_refresh()
     wifi_status_text(w, text, sizeof(text));
     lv_label_set_text(g_wifi_status, text);
     char saved[kMaxSavedNetworks][kSsidSize];
-    const int count = static_cast<int>(be().saved_networks(saved, kMaxSavedNetworks));
+    uint8_t needed = 0;
+    const int count = static_cast<int>(be().saved_networks(saved, kMaxSavedNetworks, &needed));
     const char *connected = w.connected ? w.ssid : "";
-    if (count != g_wifi_saved_built || std::strcmp(connected, g_wifi_connected_built) != 0) {
+    if (count != g_wifi_saved_built || needed != g_wifi_needed_built ||
+        std::strcmp(connected, g_wifi_connected_built) != 0) {
         reload();
     }
 }
@@ -284,8 +287,10 @@ Built wifi(lv_obj_t *content)
     g_wifi_status = text_block(col, text);
 
     char saved[kMaxSavedNetworks][kSsidSize];
-    const size_t count = be().saved_networks(saved, kMaxSavedNetworks);
+    uint8_t needed = 0;
+    const size_t count = be().saved_networks(saved, kMaxSavedNetworks, &needed);
     g_wifi_saved_built = static_cast<int>(count);
+    g_wifi_needed_built = needed;
     std::snprintf(g_wifi_connected_built, sizeof(g_wifi_connected_built), "%s", w.connected ? w.ssid : "");
 
     char heading[48];
@@ -296,11 +301,12 @@ Built wifi(lv_obj_t *content)
         char name[kSsidSize + 16];
         std::snprintf(name, sizeof(name), "%u  %.32s", static_cast<unsigned>(i + 1), saved[i]);
         const bool in_use = w.connected && std::strcmp(saved[i], w.ssid) == 0;
-        t::row(col, name, in_use ? "connected" : "", true,
+        const char *value = in_use ? "connected" : (needed & (1u << i)) ? "password needed" : "";
+        t::row(col, name, value, true,
                [](lv_event_t *event) {
                    const int index = from_data(event);
                    char ssids[kMaxSavedNetworks][kSsidSize];
-                   const size_t n = be().saved_networks(ssids, kMaxSavedNetworks);
+                   const size_t n = be().saved_networks(ssids, kMaxSavedNetworks, nullptr);
                    if (index < static_cast<int>(n)) {
                        push(Page::NetworkDetail, ssids[index], index);
                    }
@@ -325,10 +331,23 @@ int g_detail_index = -1;
 Built network_detail(lv_obj_t *content, const char *ssid, int index)
 {
     g_detail_index = index;
+    char ssids[kMaxSavedNetworks][kSsidSize];
+    uint8_t needed = 0;
+    const size_t count = be().saved_networks(ssids, kMaxSavedNetworks, &needed);
+    const bool password_needed = index >= 0 && static_cast<size_t>(index) < count && (needed & (1u << index));
+
     lv_obj_t *col = t::column(content);
-    char text[80];
-    std::snprintf(text, sizeof(text), "%.32s\nposition %d in the list", ssid, index + 1);
+    char text[160];
+    std::snprintf(text, sizeof(text), "%.32s\nposition %d in the list%s", ssid, index + 1,
+                  password_needed ? "\nPassword needed: it came from a backup without its password and is not "
+                                    "tried until it has one."
+                                  : "");
     text_block(col, text, t::kText);
+    if (password_needed) {
+        static char ssid_copy[kSsidSize];
+        std::snprintf(ssid_copy, sizeof(ssid_copy), "%s", ssid);
+        t::button(button_row(col), "Enter password", [](lv_event_t *) { push(Page::Password, ssid_copy); });
+    }
     lv_obj_t *buttons = button_row(col);
     t::button(buttons, "Move up", [](lv_event_t *) {
         be().move_network(static_cast<uint8_t>(g_detail_index), -1);

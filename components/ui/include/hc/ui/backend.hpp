@@ -111,7 +111,9 @@ struct AlarmSettings {
 
 struct Backend {
     void (*wifi_info)(WifiInfo &out);
-    size_t (*saved_networks)(char (*ssids)[kSsidSize], size_t max);
+    // `password_needed` (may be nullptr): bit i set when network i was imported without its
+    // password and is not tried until it gets one
+    size_t (*saved_networks)(char (*ssids)[kSsidSize], size_t max, uint8_t *password_needed);
     size_t (*scan_results)(ScanItem *out, size_t max);
     void (*scan)();
     // saves the network and connects to it right away

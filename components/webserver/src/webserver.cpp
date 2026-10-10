@@ -303,6 +303,7 @@ esp_err_t start(const Config &config)
     detail::register_file_routes(server);
     detail::register_hass_routes(server, config.hass);
     detail::register_dashboard_routes(server, config.dashboard);
+    detail::register_backup_routes(server, config.backup, config.device_name);
     for (const auto &route : routes) {
         ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &route), kTag, "route %s", route.uri);
     }

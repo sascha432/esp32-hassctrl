@@ -62,6 +62,13 @@ void from_sensor(uint8_t rotation)
     }
 }
 
+void settings_changed()
+{
+    const DisplaySettings s = settings();
+    show(g.sensor && !s.rotation_locked && g.sensor_rotation >= 0 ? static_cast<uint8_t>(g.sensor_rotation)
+                                                                    : s.rotation);
+}
+
 void rotate_clockwise()
 {
     // LVGL's steps turn the content counterclockwise (the panel turned clockwise), so one step

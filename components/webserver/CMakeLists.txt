@@ -1,5 +1,6 @@
 # Web server and captive portal (docs/ui/web.md, docs/architecture.md section 9.4).
-idf_component_register(SRCS "src/api_dashboard.cpp"
+idf_component_register(SRCS "src/api_backup.cpp"
+                            "src/api_dashboard.cpp"
                             "src/api_files.cpp"
                             "src/api_hass.cpp"
                             "src/api_session.cpp"
@@ -11,4 +12,5 @@ idf_component_register(SRCS "src/api_dashboard.cpp"
                             "src/http_util.cpp"
                             "src/webserver.cpp"
                        INCLUDE_DIRS "include"
-                       PRIV_REQUIRES esp_app_format esp_http_server esp_netif esp_timer formats lwip mbedtls memory network ota platform)
+                       REQUIRES memory
+                       PRIV_REQUIRES esp_app_format esp_http_server esp_netif esp_timer formats lwip mbedtls network ota platform)

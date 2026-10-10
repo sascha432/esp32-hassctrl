@@ -41,6 +41,14 @@ void ring_alarm()
     alarm::request_ring();
 }
 
+void settings_imported()
+{
+    settings::close();
+    rotation::settings_changed();
+    power::settings_changed();
+    sound::settings_changed();
+}
+
 void sensor_rotation(uint8_t rotation)
 {
     rotation::from_sensor(rotation);

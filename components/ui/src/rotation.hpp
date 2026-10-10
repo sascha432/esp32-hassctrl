@@ -16,6 +16,9 @@ void init(lv_disp_t *disp, const Backend &backend, bool sensor);
 // the sensor's rotation (LVGL steps); taken over unless locked
 void from_sensor(uint8_t rotation);
 
+// the stored rotation and lock changed: shows the stored rotation unless the sensor's applies
+void settings_changed();
+
 void rotate_clockwise();
 void set_locked(bool locked);
 

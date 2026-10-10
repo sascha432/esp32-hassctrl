@@ -13,6 +13,9 @@ namespace hc::network::detail {
 struct SavedNetwork {
     char ssid[kSsidSize];
     char password[kPasswordSize];
+    // saved by an import without its password: never tried until the user enters one (an empty
+    // password is a valid open network, so it cannot be the marker)
+    bool password_needed;
 };
 
 struct SeenAp {
@@ -30,7 +33,8 @@ struct Candidate {
 };
 
 // `failed` has bit i set when the last attempt on saved network i failed in this round. Those are
-// skipped while another saved network is in range. Of several access points with the same
+// skipped while another saved network is in range. A network that needs its password is never
+// chosen. Of several access points with the same
 // name, the strongest one is taken. False when no saved network is in range.
 bool choose(const SavedNetwork *saved, size_t saved_count, const SeenAp *seen, size_t seen_count, Policy policy,
             uint32_t failed, Candidate &out);

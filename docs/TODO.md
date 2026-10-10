@@ -296,7 +296,46 @@ Open:
       built-in page (`/recovery`, also when the web UI is gone) and on the System page. Tested on
       the T4: the archive checks out in Python and unpacks in Windows, the files are identical to
       the sources; formatted, then the web image uploaded again.
-- [ ] **Settings export/import**: decided 2026-10-07 (one YAML backup file, sections from a table in `main`, see "Open decisions"); to be built.
+- [x] **Settings export/import**: decided 2026-10-07 (one YAML backup file, sections from a table in `main`, see "Open decisions"); done 2026-10-10, confirmed by you on the WT32.
+  - [x] Step 1, "password needed" in `network` (2026-10-09): a saved network has the flag (own NVS
+        key `pw_needed`, the stored networks keep their layout); such a network is never tried,
+        not even by the fast reconnect; with no network left to try the hotspot comes on as at
+        the first setup. `import_networks()` merges a file's list (plain C++ `merge.cpp`, 7 host
+        tests): the file's order, then the saved ones it does not name, at most 5, the network in
+        use is never cut off, a saved network keeps its password. Screen: "password needed" in
+        the list, the saved network page explains it and has "Enter password"; web UI: a badge
+        and an inline password field; console `wifi list` marks it. On the WT32: both saved
+        networks load after the update and it connects; after an import (step 5) the flagged
+        network is skipped and the device connects to the next one, also after a restart.
+        `saved_networks()` returns a struct per network (name, open, password needed).
+  - [x] Step 2 (2026-10-09): the file format in `config` (`hc/config/backup.hpp`, 10 host tests
+        with made-up sections): header (`format: hassctrl-backup`, `version`, `board`,
+        `firmware`), `Writer` and `Fields` for named fields, two passes (check everything, then
+        apply). Not in `webserver` as decided on 2026-10-07: then the recovery app (4 % free, no
+        backup) would link the YAML parser too. The sections in `main/backup.cpp`: `network`
+        (policy, hotspot_on, names, `open: true`, a hand-added `password:`), `display`, `sound`
+        (volume, tap/slider sound, vibration), `alarm` (time, days `[mon, ...]`, snooze, sound),
+        `hass` (url, a hand-added token; `hass::check_config()` checks it before anything is
+        applied), and the dashboard (one file, `import_yaml` with check). A section the device
+        lacks (alarm on the WT32) is named "not on this device". The UI's settings change under
+        the LVGL lock, then `ui::settings_imported()` applies brightness, rotation and touch
+        feedback and closes Settings.
+  - [x] Step 3 (2026-10-09): `GET /api/backup.yaml[?parts=settings|dashboard]`
+        (`<device>-backup.yaml`), `POST /api/backup/import[?check=1]` (the file as the body, 256 KB
+        at most; answer: sections, problems, ignored, notes; 400 when refused). Built in memory,
+        not chunked: the file is a few KB to a few dozen.
+  - [x] Step 4 (2026-10-09): the Backup card on the System page, above Update (Export all,
+        Settings only, Dashboard only; file, Check, Import, the report below).
+  - [x] Step 5, on the WT32 (2026-10-09, over the API with a script; the Backup card tried and
+        confirmed by you 2026-10-10): export 15 KB (your
+        dashboard, 2 networks, display, vibration, hass URL), its own export checks clean,
+        mistakes are refused with their path (policy, short password, brightness 0, rotation 45,
+        ftp URL, a newer version, tabs, a token without URL), a settings import with one network
+        added without password: saved as "password needed" (screen and console), the connection
+        stayed, after a restart it connects to the next network; a hand-added `password:` clears
+        the flag; the full export imports again (dashboard revision follows). The JC3248W535 and
+        the P4 build (not flashed). Still open: the sound and alarm sections on the P4 and
+        JC3248W535.
 - [x] ~~2-step orientation calibration in System~~: dropped, it is a developer step (`orient capture`,
       board info `imu_axes`), not a Settings function.
 - The sensors (MPU6050, BH1750) stay on the T4 (decided 2026-10-07: the wiring on the WT32 is
@@ -1020,7 +1059,7 @@ Web UI ([ui/web.md](ui/web.md) section 10):
 Settings export and import (2026-10-07; decided: no secrets in the export, Wi-Fi networks as
 names only, YAML like the dashboard, an import may carry passwords added by hand):
 
-- [ ] **What goes in.** Today's settings in NVS, sorted:
+- [x] **What goes in** (settled 2026-10-09). Today's settings in NVS, sorted:
 
   | Namespace / key | Export | Why |
   | --- | --- | --- |
@@ -1031,15 +1070,17 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
   | `ui/display` | yes, as named fields | brightness, dim, off, automatic, rotation, lock |
   | `ui/hint` | no | state ("hint seen") |
   | `webui/*` | no | the login is a secret, the new device keeps its own |
-  | `light/scale` | no | per device, the developer's calibration |
+  | `light/scale`, `light/ldr_points` | no | per device, the developer's calibration |
   | `console/log_level` | no | development |
-  | later: Home Assistant URL / token | URL yes, token no | the token is a secret |
+  | `hass/url` | yes | |
+  | `hass/token` | no, an import may carry it | decided 2026-10-09 |
+  | `ui/sounds`, `ui/sound`, `ui/vibrate`, `ui/alarm` | yes, own sections | decided 2026-10-09 |
 
 - [x] **Format** (decided 2026-10-07): YAML, the same as the dashboard, readable and editable by
       hand, one section per owner, only named fields (never NVS blobs, whose layout changes
       between versions):
 
-      format: hassctrl-settings
+      format: hassctrl-backup
       version: 1
       board: TTGO T4
       firmware: 0.1.0
@@ -1075,6 +1116,8 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
       anyway). The answer lists what was applied and which networks need a password.
 - [x] **Passwords in an import** (decided 2026-10-07): a network in the file may carry a
       `password:` added by hand, it is used as it is. The export never writes one.
+      2026-10-09: the Home Assistant token too (`hass: token:` added by hand). Not the hotspot
+      password and not the web UI login: an import must not change who can log in.
 - [x] **Networks without a password** need a change in `network`: a saved network gets a flag
       "password needed" (an empty password is a valid open network, so it cannot be the marker).
       Such a network is never tried. The Wi-Fi page (screen and web) shows "Password needed" on it,
@@ -1084,8 +1127,8 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
 - [x] **Who writes the sections** (decided 2026-10-07): a table of sections filled in `main`, like
       `hc::ui::Backend` and `HassAccess`. Each entry has a name, `write` (export), `check`
       (import, step 1) and `apply` (import, step 2); nothing is applied before every section
-      passed its check. The main firmware registers `network`, `display`, `hass` and the
-      dashboard; the recovery app only `network`. The web server owns the request and the file
+      passed its check. The main firmware registers `network`, `ui`, `sound`, `hass` and the
+      dashboard (2026-10-09: no recovery app, sounds, vibration and alarm in their own section). The web server owns the request and the file
       format, nothing else. Rejected: a self-registering registry in `platform` (what is in an
       app becomes implicit), everything in `webserver` (it would depend on the UI and the
       dashboard).
@@ -1094,8 +1137,11 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
       storage reads it too. The settings file is YAML now, so its import does not need it, and
       the recovery app stays without cJSON.
 - [x] **Where** (decided 2026-10-07): System page, a "Backup" card with Export and Import
-      **above** the update card, so the backup is seen before an update (web.md section 6). The
-      recovery app's page offers the export of the network section next to files.zip.
+      **above** the update card, so the backup is seen before an update (web.md section 6).
+      2026-10-09: no backup in the recovery app (was: the network section next to files.zip).
+      Recovery gets the device back on the network; the import follows in the main firmware.
+      NVS survives a firmware reflash, files.zip covers LittleFS, and the recovery partition is
+      4 % free.
 
 Dashboard ([architecture.md](architecture.md) section 14):
 

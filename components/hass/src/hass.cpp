@@ -1068,23 +1068,25 @@ Status status()
     return g_status;
 }
 
-esp_err_t set_config(const char *url, const char *token, char *error, size_t error_size)
+namespace {
+
+// The URL as stored and the token without the spaces around it; ESP_ERR_INVALID_ARG with `error`
+// filled when one is not usable.
+esp_err_t clean_config(const char *url, const char *token, char (&normalized)[kUrlSize],
+                       char (&clean_token)[kTokenSize], char *error, size_t error_size)
 {
     const auto fail = [&](const char *text) {
         std::snprintf(error, error_size, "%s", text);
         return ESP_ERR_INVALID_ARG;
     };
 
-    char normalized[kUrlSize] = {};
-    const bool remove = url == nullptr || url[0] == 0;
-    if (!remove) {
+    if (url != nullptr && url[0] != 0) {
         const char *problem = nullptr;
         if (!detail::normalize_url(url, normalized, sizeof(normalized), problem)) {
             return fail(problem);
         }
     }
     // a pasted token often comes with a space or a line break around it
-    char clean_token[kTokenSize] = {};
     if (token != nullptr) {
         while (std::isspace(static_cast<unsigned char>(*token))) {
             token++;
@@ -1100,6 +1102,26 @@ esp_err_t set_config(const char *url, const char *token, char *error, size_t err
         if (!token_chars_ok(clean_token)) {
             return fail("the token contains characters a token cannot have");
         }
+    }
+    return ESP_OK;
+}
+
+} // namespace
+
+esp_err_t check_config(const char *url, const char *token, char *error, size_t error_size)
+{
+    char normalized[kUrlSize] = {};
+    char clean_token[kTokenSize] = {};
+    return clean_config(url, token, normalized, clean_token, error, error_size);
+}
+
+esp_err_t set_config(const char *url, const char *token, char *error, size_t error_size)
+{
+    char normalized[kUrlSize] = {};
+    char clean_token[kTokenSize] = {};
+    const bool remove = url == nullptr || url[0] == 0;
+    if (const esp_err_t err = clean_config(url, token, normalized, clean_token, error, error_size); err != ESP_OK) {
+        return err;
     }
 
     platform::Settings settings(kNamespace, platform::Settings::Mode::ReadWrite);

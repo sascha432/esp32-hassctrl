@@ -44,6 +44,11 @@ void show_setup();
 // any task; it rings in the LVGL task within a second. For the development console and the sim.
 void ring_alarm();
 
+// The settings were changed behind the UI's back (a backup import through the Backend's setters):
+// applies brightness, dimming, rotation and the touch feedback, and closes Settings, whose pages
+// show the old values. Call with the LVGL lock held, after start().
+void settings_imported();
+
 // The orientation sensor's rotation in LVGL steps, also before start(); taken over unless the
 // rotation is locked in Settings. Call with the LVGL lock held.
 void sensor_rotation(uint8_t rotation);

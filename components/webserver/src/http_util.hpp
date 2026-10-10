@@ -11,6 +11,7 @@
 namespace hc::webserver {
 struct HassAccess;
 struct DashboardAccess;
+struct BackupAccess;
 }
 
 namespace hc::webserver::detail {
@@ -21,6 +22,14 @@ constexpr const char *kSessionCookie = "hc_session";
 
 // Reads the whole body into `out` (terminated). False when it is larger than the buffer.
 bool read_body(httpd_req_t *req, char *out, size_t size);
+
+// The whole request body in a buffer of the large heap (memory::release_large), terminated; null
+// when it is empty, larger than `limit` or the client stalls (the server has one task, one
+// receive timeout ends the request).
+char *read_large_body(httpd_req_t *req, size_t limit, size_t &length);
+
+// the value of `key` in the query string, false when it is not there
+bool query_value(httpd_req_t *req, const char *key, char *out, size_t size);
 
 // The decoded value of `key` in a form encoded body; false when the key is missing or the value
 // does not fit.
@@ -45,5 +54,7 @@ void register_file_routes(httpd_handle_t server);
 void register_hass_routes(httpd_handle_t server, const HassAccess *hass);
 // nothing without a dashboard (the recovery app)
 void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *dashboard);
+// nothing without a backup (the recovery app)
+void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, const char *device_name);
 
 } // namespace hc::webserver::detail

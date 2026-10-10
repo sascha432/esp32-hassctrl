@@ -475,6 +475,8 @@ const views = {
         <li class="list-group-item d-flex align-items-center gap-2">
           <span class="text-body-secondary">${i + 1}</span>
           <span class="flex-grow-1 text-truncate">${esc(n.ssid)}</span>
+          ${n.password_needed ? `<span class="badge text-bg-warning" title="From a backup without its password; not tried until it has one">Password needed</span>
+            <button class="btn btn-sm btn-outline-primary" data-password="${i}">Enter</button>` : ""}
           <button class="btn btn-sm btn-outline-secondary" data-move="-1" data-index="${i}" ${i === 0 ? "disabled" : ""} aria-label="up">&uarr;</button>
           <button class="btn btn-sm btn-outline-secondary" data-move="1" data-index="${i}" ${i === w.saved.length - 1 ? "disabled" : ""} aria-label="down">&darr;</button>
           <button class="btn btn-sm btn-outline-danger" data-forget="${i}">Forget</button>
@@ -490,8 +492,32 @@ const views = {
           <button id="reconnect" class="btn btn-sm btn-outline-secondary ms-auto" type="button">Reconnect</button>
         </div>`);
       $("#wifi-saved").onclick = (event) => {
-        const b = event.target.closest("button[data-index],button[data-forget]");
+        const b = event.target.closest("button[data-index],button[data-forget],button[data-password]");
         if (!b) return;
+        if (b.dataset.password !== undefined) {
+          // the password in place of the badge, saved like a new network (it connects at once)
+          const ssid = w.saved[Number(b.dataset.password)].ssid;
+          const item = b.closest("li");
+          item.innerHTML = `<span class="text-truncate">${esc(ssid)}</span>
+            <input type="password" class="form-control form-control-sm flex-grow-1" placeholder="password" autocomplete="off">
+            <button class="btn btn-sm btn-primary" type="button">Save</button>
+            <button class="btn btn-sm btn-outline-secondary" type="button">Cancel</button>`;
+          const [input, save, cancel] = item.querySelectorAll("input,button");
+          input.focus();
+          cancel.onclick = (e) => { e.stopPropagation(); drawSaved(); };
+          save.onclick = (e) => {
+            e.stopPropagation();
+            busy(save, async () => {
+              await api("/api/wifi/add", { ssid, password: input.value });
+              toast(`Saved ${ssid}`, "success");
+              await sleep(300);
+              w = await api("/api/wifi");
+              drawSaved();
+            });
+          };
+          input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+          return;
+        }
         busy(b, async () => {
           if (b.dataset.forget !== undefined) {
             const ssid = w.saved[Number(b.dataset.forget)].ssid;
@@ -677,6 +703,21 @@ const views = {
         ["Free memory", `${s.device.heap_internal_kb} KB internal, ${s.device.heap_psram_kb} KB PSRAM`],
         ["Firmware update", u.firmware_direct ? "direct" : "through the recovery app"],
       ])) +
+      card("Backup", `
+        <p class="small text-body-secondary">The settings and the dashboard in one YAML file. Wi-Fi passwords and the
+          Home Assistant token are not in it; they may be added to the file by hand before an import.</p>
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <a class="btn btn-outline-secondary" href="/api/backup.yaml">Export all</a>
+          <a class="btn btn-outline-secondary" href="/api/backup.yaml?parts=settings">Settings only</a>
+          <a class="btn btn-outline-secondary" href="/api/backup.yaml?parts=dashboard">Dashboard only</a>
+        </div>
+        <label class="form-label" for="backup-file">Import a backup</label>
+        <input id="backup-file" type="file" class="form-control mb-2" accept=".yaml,.yml">
+        <div class="d-flex gap-2 justify-content-end">
+          <button id="backup-check" class="btn btn-outline-secondary" type="button">Check</button>
+          <button id="backup-import" class="btn btn-primary" type="button">Import</button>
+        </div>
+        <div id="backup-report" class="mt-3"></div>`) +
       card("Update", `
         <label class="form-label" for="fw-file">Firmware image</label>
         <input id="fw-file" type="file" class="form-control mb-2" accept=".bin">
@@ -699,6 +740,8 @@ const views = {
           <button id="restart" class="btn btn-outline-secondary" type="button">Restart</button>
           <button id="reset" class="btn btn-outline-danger ms-auto" type="button">Factory reset</button>
         </div>`));
+    $("#backup-check").onclick = (e) => busy(e.target, () => importBackup(true));
+    $("#backup-import").onclick = (e) => busy(e.target, () => importBackup(false));
     $("#fw-go").onclick = (e) => busy(e.target, () => runUpdate("firmware"));
     $("#fs-go").onclick = (e) => busy(e.target, () => runUpdate("filesystem"));
     $("#format").onclick = (e) => busy(e.target, async () => {
@@ -720,6 +763,35 @@ const views = {
     });
   },
 };
+
+// --------------------------------------------------------------------------------- backup
+
+// The file goes up as it is; the answer lists the sections, the problems (nothing imported then),
+// what the user should know and what was ignored.
+async function importBackup(checkOnly) {
+  const file = $("#backup-file").files[0];
+  if (!file) throw new Error("choose a backup file");
+  if (!checkOnly && !confirm("Import the backup? What is in the file replaces the settings and the dashboard of this device.")) return;
+  const response = await fetch("/api/backup/import" + (checkOnly ? "?check=1" : ""),
+    { method: "POST", body: await file.text(), cache: "no-store" });
+  const r = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    session.logged_in = false;
+    go("login");
+    return;
+  }
+  if (!Array.isArray(r.problems)) throw new Error(r.error || response.statusText);
+  const list = (title, items, kind) => items.length
+    ? `<div class="mb-2"><strong class="${kind}">${title}</strong><ul class="mb-0 small">${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></div>`
+    : "";
+  const sections = esc(r.sections.join(", ") || "nothing");
+  const head = r.problems.length ? '<p class="text-danger mb-2">Not imported, nothing was changed: fix the file first.</p>'
+    : r.imported ? `<p class="text-success mb-2">Imported: ${sections}.</p>`
+    : `<p class="text-success mb-2">The file is fine (${sections}). Import applies it.</p>`;
+  $("#backup-report").innerHTML = head + list("Problems", r.problems, "text-danger") +
+    list("Please note", r.notes, "") + list("Ignored", r.ignored, "text-body-secondary");
+  if (r.imported) toast("backup imported", "success");
+}
 
 // --------------------------------------------------------------------------------- update
 

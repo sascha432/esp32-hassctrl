@@ -52,7 +52,7 @@ const Backend &be()
 size_t saved_count()
 {
     char ssids[kMaxSavedNetworks][kSsidSize];
-    return be().saved_networks(ssids, kMaxSavedNetworks);
+    return be().saved_networks(ssids, kMaxSavedNetworks, nullptr);
 }
 
 lv_obj_t *text(lv_obj_t *parent, const char *value, const lv_font_t &font = t::font_normal(),

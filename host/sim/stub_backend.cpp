@@ -78,6 +78,8 @@ struct State {
     bool reject_passwords = false;
     // the saved networks are not in the scan list
     bool saved_out_of_range = false;
+    // saved by a backup import without their password
+    std::vector<std::string> password_needed;
     bool ready = true;
     // hotspot
     bool hotspot_on = false;
@@ -287,6 +289,12 @@ const Scenario kScenarios[] = {
          base();
          g.saved = {"Home-WLAN", "Office 5G", "FRITZ!Box 7590 KL", "Telekom-Wohnzimmer-Mesh-Repeater", "Guest"};
      }},
+    {{"imported", "a backup import saved a network without its password: 'password needed'"},
+     [] {
+         base();
+         g.saved = {"Holiday flat", "Home-WLAN", "Office 5G"};
+         g.password_needed = {"Holiday flat"};
+     }},
     {{"token-rejected", "Wi-Fi fine, Home Assistant refuses the token (the alert strip shows after 10 s)"},
      [] {
          base();
@@ -339,11 +347,19 @@ void wifi_info(WifiInfo &out)
     out.ready = g.ready;
 }
 
-size_t saved_networks(char (*ssids)[kSsidSize], size_t max)
+size_t saved_networks(char (*ssids)[kSsidSize], size_t max, uint8_t *password_needed)
 {
+    if (password_needed != nullptr) {
+        *password_needed = 0;
+    }
     const size_t count = std::min(g.saved.size(), max);
     for (size_t i = 0; i < count; i++) {
         copy(ssids[i], g.saved[i]);
+        const bool needed = std::find(g.password_needed.begin(), g.password_needed.end(), g.saved[i]) !=
+                            g.password_needed.end();
+        if (needed && password_needed != nullptr) {
+            *password_needed |= static_cast<uint8_t>(1u << i);
+        }
     }
     return count;
 }
@@ -389,6 +405,8 @@ void add_network(const char *ssid, const char *password)
     if (saved_index(ssid) < 0 && g.saved.size() < kMaxSavedNetworks) {
         g.saved.push_back(ssid);
     }
+    // an empty password makes it an open network, as in the firmware
+    std::erase(g.password_needed, std::string(ssid));
     begin_connect(ssid);
 }
 

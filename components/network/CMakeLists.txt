@@ -1,5 +1,6 @@
 # Wi-Fi and hotspot (docs/architecture.md sections 9.1, 9.2, 9.4).
 idf_component_register(SRCS "src/coprocessor.cpp"
+                            "src/merge.cpp"
                             "src/network.cpp"
                             "src/reasons.cpp"
                             "src/selection.cpp"

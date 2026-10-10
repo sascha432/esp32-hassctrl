@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "hc/memory/large.hpp"
+
 #include "auth.hpp"
 
 namespace hc::webserver::detail {
@@ -70,6 +72,33 @@ bool read_body(httpd_req_t *req, char *out, size_t size)
     }
     out[received] = 0;
     return true;
+}
+
+char *read_large_body(httpd_req_t *req, size_t limit, size_t &length)
+{
+    if (req->content_len == 0 || req->content_len > limit) {
+        return nullptr;
+    }
+    auto *body = static_cast<char *>(memory::allocate_large(req->content_len + 1));
+    size_t received = 0;
+    while (received < req->content_len) {
+        const int n = httpd_req_recv(req, body + received, req->content_len - received);
+        if (n <= 0) {
+            memory::release_large(body);
+            return nullptr;
+        }
+        received += static_cast<size_t>(n);
+    }
+    body[received] = 0;
+    length = received;
+    return body;
+}
+
+bool query_value(httpd_req_t *req, const char *key, char *out, size_t size)
+{
+    char query[64];
+    return httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+           httpd_query_key_value(query, key, out, size) == ESP_OK;
 }
 
 bool form_value(const char *body, const char *key, char *out, size_t size)

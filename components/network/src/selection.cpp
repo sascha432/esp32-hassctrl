@@ -31,7 +31,7 @@ bool pass(const SavedNetwork *saved, size_t saved_count, const SeenAp *seen, siz
 {
     if (policy == Policy::EnteredOrder) {
         for (size_t i = 0; i < saved_count; i++) {
-            if (skip & (1u << i)) {
+            if ((skip & (1u << i)) || saved[i].password_needed) {
                 continue;
             }
             const SeenAp *ap = strongest_of(saved[i], seen, seen_count);
@@ -45,7 +45,7 @@ bool pass(const SavedNetwork *saved, size_t saved_count, const SeenAp *seen, siz
     const SeenAp *best = nullptr;
     size_t best_index = 0;
     for (size_t i = 0; i < saved_count; i++) {
-        if (skip & (1u << i)) {
+        if ((skip & (1u << i)) || saved[i].password_needed) {
             continue;
         }
         const SeenAp *ap = strongest_of(saved[i], seen, seen_count);

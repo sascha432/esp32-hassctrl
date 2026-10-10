@@ -19,8 +19,17 @@ constexpr const char *kKeyHotspotPassword = "ap_password";
 constexpr const char *kKeyHotspotEnabled = "ap_enabled";
 constexpr const char *kKeyLastSeen = "last_seen";
 constexpr const char *kKeyLastIndex = "last_index";
+// bit i: saved network i needs its password (separate from the networks, so their stored layout
+// stays the same as before the flag)
+constexpr const char *kKeyPasswordNeeded = "pw_needed";
 
 using hc::platform::Settings;
+
+// a saved network as stored in NVS
+struct StoredNetwork {
+    char ssid[kSsidSize];
+    char password[kPasswordSize];
+};
 
 } // namespace
 
@@ -47,11 +56,18 @@ esp_err_t load(Stored &stored)
     {
         Settings settings(kNamespace, Settings::Mode::Read);
         if (settings.ok()) {
-            size_t size = sizeof(stored.networks);
-            if (settings.get_blob(kKeyNetworks, stored.networks, size) == ESP_OK) {
-                stored.count = static_cast<uint8_t>(size / sizeof(SavedNetwork));
+            StoredNetwork networks[kMaxNetworks];
+            size_t size = sizeof(networks);
+            if (settings.get_blob(kKeyNetworks, networks, size) == ESP_OK) {
+                stored.count = static_cast<uint8_t>(size / sizeof(StoredNetwork));
             }
             uint8_t value = 0;
+            const uint8_t needed = (settings.get_u8(kKeyPasswordNeeded, value) == ESP_OK) ? value : 0;
+            for (size_t i = 0; i < stored.count; i++) {
+                std::memcpy(stored.networks[i].ssid, networks[i].ssid, kSsidSize);
+                std::memcpy(stored.networks[i].password, networks[i].password, kPasswordSize);
+                stored.networks[i].password_needed = (needed & (1u << i)) != 0;
+            }
             if (settings.get_u8(kKeyPolicy, value) == ESP_OK && value <= static_cast<uint8_t>(Policy::StrongestSignal)) {
                 stored.policy = static_cast<Policy>(value);
             }
@@ -81,10 +97,19 @@ esp_err_t load(Stored &stored)
 
 esp_err_t save_networks(const Stored &stored)
 {
+    StoredNetwork networks[kMaxNetworks];
+    uint8_t needed = 0;
+    for (size_t i = 0; i < stored.count; i++) {
+        std::memcpy(networks[i].ssid, stored.networks[i].ssid, kSsidSize);
+        std::memcpy(networks[i].password, stored.networks[i].password, kPasswordSize);
+        needed |= stored.networks[i].password_needed ? (1u << i) : 0;
+    }
     Settings settings(kNamespace, Settings::Mode::ReadWrite);
-    esp_err_t err = (stored.count == 0)
-                        ? settings.erase(kKeyNetworks)
-                        : settings.set_blob(kKeyNetworks, stored.networks, stored.count * sizeof(SavedNetwork));
+    esp_err_t err = (stored.count == 0) ? settings.erase(kKeyNetworks)
+                                        : settings.set_blob(kKeyNetworks, networks, stored.count * sizeof(StoredNetwork));
+    if (err == ESP_OK) {
+        err = (needed == 0) ? settings.erase(kKeyPasswordNeeded) : settings.set_u8(kKeyPasswordNeeded, needed);
+    }
     return (err == ESP_OK) ? settings.commit() : err;
 }
 

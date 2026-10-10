@@ -42,6 +42,7 @@
 #include "hc/uidebug/uidebug.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "soc/soc_caps.h"
+#include "backup.hpp"
 #include "ui_backend.hpp"
 #include "ui_sound.hpp"
 
@@ -436,6 +437,7 @@ extern "C" void app_main()
 #if CONFIG_HC_DEV_CONSOLE
             hc::uidebug::init(disp);
 #endif
+            backup_ui_started();
             // the UI sets the backlight (stored brightness, dimming, standby)
             lvgl_port_unlock();
         }
@@ -452,7 +454,8 @@ extern "C" void app_main()
         }
         if (hc::webserver::start({.device_name = hc::platform::device_name(),
                                   .hass = &kHassAccess,
-                                  .dashboard = &kDashboardAccess}) != ESP_OK) {
+                                  .dashboard = &kDashboardAccess,
+                                  .backup = &backup_access()}) != ESP_OK) {
             ESP_LOGE(kTag, "web server did not start");
         }
         if (hc::hass::start() != ESP_OK) {

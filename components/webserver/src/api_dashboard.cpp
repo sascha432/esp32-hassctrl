@@ -52,36 +52,6 @@ const char *status_line(DashboardResult result)
     }
 }
 
-// The whole request body in a buffer of the large heap, terminated; null when it is empty, too
-// large or the client stalls (the server has one task, one receive timeout ends the request).
-char *read_large_body(httpd_req_t *req, size_t limit, size_t &length)
-{
-    if (req->content_len == 0 || req->content_len > limit) {
-        return nullptr;
-    }
-    auto *body = static_cast<char *>(memory::allocate_large(req->content_len + 1));
-    size_t received = 0;
-    while (received < req->content_len) {
-        const int n = httpd_req_recv(req, body + received, req->content_len - received);
-        if (n <= 0) {
-            memory::release_large(body);
-            return nullptr;
-        }
-        received += static_cast<size_t>(n);
-    }
-    body[received] = 0;
-    length = received;
-    return body;
-}
-
-// the value of `key` in the query string, false when it is not there
-bool query_value(httpd_req_t *req, const char *key, char *out, size_t size)
-{
-    char query[64];
-    return httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
-           httpd_query_key_value(query, key, out, size) == ESP_OK;
-}
-
 esp_err_t send_text(httpd_req_t *req, char *text, size_t length, const char *type, const char *filename)
 {
     httpd_resp_set_type(req, type);

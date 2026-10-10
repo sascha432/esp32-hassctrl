@@ -30,13 +30,16 @@ target_include_directories(cjson PUBLIC ${HC_CJSON})
 
 add_executable(hc_tests
     tests/alarm_test.cpp
+    tests/backup_test.cpp
     tests/check.cpp
     tests/config_test.cpp
     tests/layout_test.cpp
     tests/multipart_test.cpp
+    tests/network_test.cpp
     tests/protocol_test.cpp
     tests/url_test.cpp
     tests/yaml_test.cpp
+    ${HC_ROOT}/components/config/src/backup.cpp
     ${HC_ROOT}/components/config/src/export.cpp
     ${HC_ROOT}/components/config/src/import.cpp
     ${HC_ROOT}/components/config/src/json.cpp
@@ -55,6 +58,8 @@ add_executable(hc_tests
     ${HC_ROOT}/components/hass_protocol/src/history.cpp
     ${HC_ROOT}/components/hass_protocol/src/picker.cpp
     ${HC_ROOT}/components/memory/src/large.cpp
+    ${HC_ROOT}/components/network/src/merge.cpp
+    ${HC_ROOT}/components/network/src/selection.cpp
 )
 target_include_directories(hc_tests PRIVATE
     tests
@@ -64,6 +69,10 @@ target_include_directories(hc_tests PRIVATE
     ${HC_ROOT}/components/hass/src
     ${HC_ROOT}/components/hass_protocol/include
     ${HC_ROOT}/components/memory/include
+    ${HC_ROOT}/components/network/include
+    ${HC_ROOT}/components/network/src
+    # esp_err.h for the network header
+    tests/stubs
 )
 target_link_libraries(hc_tests PRIVATE cjson)
 target_compile_options(hc_tests PRIVATE ${HC_WARNINGS})

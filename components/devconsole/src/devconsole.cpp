@@ -101,13 +101,14 @@ void print_status()
 
 void print_saved()
 {
-    char ssids[net::kMaxNetworks][net::kSsidSize];
-    const size_t count = net::saved_networks(ssids, net::kMaxNetworks);
+    net::SavedNetworkInfo saved[net::kMaxNetworks];
+    const size_t count = net::saved_networks(saved, net::kMaxNetworks);
     if (count == 0) {
         std::printf("no saved networks\n");
     }
     for (size_t i = 0; i < count; i++) {
-        std::printf("%u  %s\n", static_cast<unsigned>(i + 1), ssids[i]);
+        std::printf("%u  %s%s\n", static_cast<unsigned>(i + 1), saved[i].ssid,
+                    saved[i].password_needed ? "  (password needed)" : saved[i].open ? "  (open)" : "");
     }
 }
 

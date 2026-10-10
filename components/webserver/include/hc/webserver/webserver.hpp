@@ -12,8 +12,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 #include "esp_err.h"
+#include "hc/memory/large.hpp"
 
 namespace hc::webserver {
 
@@ -111,10 +113,33 @@ struct DashboardAccess {
     void (*screen)(const char *&name, uint16_t &width, uint16_t &height, uint8_t &tile_gap);
 };
 
+// What a backup import found and did, one line of text each (hc/config/backup.hpp).
+struct BackupReport {
+    // the import is refused when there is one
+    memory::Vector<memory::String> problems;
+    // unknown sections and fields
+    memory::Vector<memory::String> ignored;
+    // what the user should know ("network: Office needs its password")
+    memory::Vector<memory::String> notes;
+    // the sections that were in the file
+    memory::Vector<memory::String> sections;
+};
+
+// The backup of the settings and the dashboard in one YAML file, filled in `main` (the recovery
+// app has none and passes nullptr; it gets the device back on the network, the import follows in
+// the main firmware).
+struct BackupAccess {
+    // the file with the settings, the dashboard or both
+    memory::String (*export_file)(bool settings, bool dashboard);
+    // checks `text` and, unless `check_only`, imports it when the check found no problem
+    BackupReport (*import_file)(std::string_view text, bool check_only);
+};
+
 struct Config {
     const char *device_name;
     const HassAccess *hass = nullptr;
     const DashboardAccess *dashboard = nullptr;
+    const BackupAccess *backup = nullptr;
 };
 
 // Starts the server and the DNS responder. The network component has to be started.

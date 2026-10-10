@@ -1,10 +1,11 @@
 // Wi-Fi of the setup and of Settings (docs/ui/web.md sections 4 and 6), login required after the
 // setup:
 //
-//   GET  /api/wifi          saved networks and the results of the last scan
+//   GET  /api/wifi          saved networks (with password_needed: imported without its
+//                           password, not tried until it has one) and the results of the last scan
 //   POST /api/wifi/scan     starts a scan; the results follow in GET /api/wifi
 //   POST /api/wifi/add      ssid, password: saves a network (updates the password of a saved one;
-//                           an empty password keeps it)
+//                           an empty password keeps it, or makes one that needs its password open)
 //   POST /api/wifi/remove   index (0 = first): forgets a saved network
 //   POST /api/wifi/move     index, delta (-1 up, 1 down): changes the order
 //   POST /api/wifi/policy   policy=order|strongest
@@ -37,7 +38,7 @@ esp_err_t get_wifi(httpd_req_t *req)
         return ESP_OK;
     }
     static char buffer[2560];
-    static char saved[net::kMaxNetworks][net::kSsidSize];
+    static net::SavedNetworkInfo saved[net::kMaxNetworks];
     static net::ScanEntry scan[20];
     const size_t saved_count = net::saved_networks(saved, net::kMaxNetworks);
     const size_t scan_count = net::last_scan(scan, 20);
@@ -46,7 +47,10 @@ esp_err_t get_wifi(httpd_req_t *req)
     json.begin_object();
     json.begin_array("saved");
     for (size_t i = 0; i < saved_count; i++) {
-        json.begin_object().string("ssid", saved[i]).end_object();
+        json.begin_object()
+            .string("ssid", saved[i].ssid)
+            .boolean("password_needed", saved[i].password_needed)
+            .end_object();
     }
     json.end_array();
     json.begin_array("scan");

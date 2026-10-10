@@ -1,5 +1,6 @@
 #include "ui_backend.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
@@ -284,7 +285,20 @@ void hass_info(hc::ui::HassInfo &out)
 
 const hc::ui::Backend g_backend{
     .wifi_info = wifi_info,
-    .saved_networks = [](char (*ssids)[kSsidSize], size_t max) { return net::saved_networks(ssids, max); },
+    .saved_networks =
+        [](char (*ssids)[kSsidSize], size_t max, uint8_t *password_needed) {
+            net::SavedNetworkInfo saved[net::kMaxNetworks];
+            const size_t count = net::saved_networks(saved, std::min(max, net::kMaxNetworks));
+            uint8_t needed = 0;
+            for (size_t i = 0; i < count; i++) {
+                copy(ssids[i], saved[i].ssid);
+                needed |= saved[i].password_needed ? (1u << i) : 0;
+            }
+            if (password_needed != nullptr) {
+                *password_needed = needed;
+            }
+            return count;
+        },
     .scan_results = scan_results,
     .scan = [] { net::scan(); },
     .add_network = [](const char *ssid, const char *password) { net::add_network(ssid, password, true); },

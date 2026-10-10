@@ -304,3 +304,29 @@ Vibration (docs/architecture.md section 9.7):
   task halted in `LV_ASSERT_MALLOC`): every failed allocation prints its size, caps and the free
   and largest block of both heaps with `esp_rom_printf` (also with the log off), and a failed
   LVGL assert calls `abort()` (panic and restart) instead of LVGL's `while(1)`.
+
+Backup of the settings and the dashboard (System page):
+
+- One YAML file (`format: hassctrl-backup`) with the sections `network`, `display`, `sound`,
+  `alarm`, `hass` and the dashboard (`defaults`, `tiles`). The System page has a Backup card above
+  Update: Export all, Settings only, Dashboard only, and Check / Import with a report (problems,
+  notes, ignored). `GET /api/backup.yaml[?parts=settings|dashboard]`,
+  `POST /api/backup/import[?check=1]`. The recovery app has none (decided: it gets the device back
+  on the network, the import follows in the main firmware).
+- No password and no token in an export. An import may carry a Wi-Fi `password:` and the Home
+  Assistant `token:` added by hand; not the hotspot password and not the web UI login.
+- The whole file is checked before anything is written; one problem and nothing changes. A
+  section the device lacks is named "not on this device".
+- The file format is in `config` (`hc/config/backup.hpp`, host tested); the sections are in
+  `main/backup.cpp`. `hass::check_config()` checks a URL and token without storing them.
+  `ui::settings_imported()` applies the imported display and sound settings and closes Settings.
+- Network: a saved network can be "password needed" (a network imported without its password,
+  own NVS key `pw_needed`). It is never tried, also not by the fast reconnect; with nothing left to
+  try the hotspot comes on. `import_networks()` merges the file's list (file order, then the saved
+  ones it does not name, at most 5, the network in use is never cut off, a saved network keeps its
+  password). The screen's Wi-Fi list and saved network page ("Enter password"), the web Wi-Fi page
+  (badge and inline password field) and `wifi list` show it. `saved_networks()` returns a struct
+  per network.
+- The web server's request helpers (`read_large_body`, `query_value`) are shared by the dashboard
+  and the backup routes.
+- Sim: the scenario `imported`. Host tests: 89 (`merge`, `choose`, the backup file).

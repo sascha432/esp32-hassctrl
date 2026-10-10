@@ -136,7 +136,7 @@ const Page kPages[] = {
     {"network", "Settings, Wi-Fi, the first saved network",
      [] {
          char ssids[ui::kMaxSavedNetworks][ui::kSsidSize];
-         const size_t count = sim::backend().saved_networks(ssids, ui::kMaxSavedNetworks);
+         const size_t count = sim::backend().saved_networks(ssids, ui::kMaxSavedNetworks, nullptr);
          ui::settings::open(ui::settings::Page::Wifi);
          ui::settings::push(ui::settings::Page::NetworkDetail, count > 0 ? ssids[0] : "", 0);
      }},

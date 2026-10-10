@@ -67,6 +67,10 @@ Status status();
 // when the URL is not usable.
 esp_err_t set_config(const char *url, const char *token, char *error, size_t error_size);
 
+// The checks of set_config() alone: ESP_ERR_INVALID_ARG with `error` filled when set_config()
+// would refuse the URL or the token. Stores nothing (the backup import checks every section first).
+esp_err_t check_config(const char *url, const char *token, char *error, size_t error_size);
+
 // tries at once instead of after the backoff, also after a rejected token
 void reconnect();
 

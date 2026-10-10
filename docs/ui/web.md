@@ -223,6 +223,15 @@ shows the log as of loading, `Refresh` loads it again (decided).
 **System.** Firmware and file system updates are uploaded here (decided), see section 8. The
 backup card sits above the update card, so the backup is seen before an update (decided).
 
+Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`, `hass`
+and the dashboard (`defaults`, `tiles`); Export all, Settings only, Dashboard only
+(`GET /api/backup.yaml[?parts=settings|dashboard]`). No password and no token is written; a Wi-Fi
+`password:` or a `hass:` `token:` added to the file by hand is used. Import and Check upload the
+file (`POST /api/backup/import[?check=1]`): the whole file is checked first, one problem and
+nothing changes; the answer lists the sections, the problems, what to know ("Office needs its
+password") and what was ignored. A network without a password is saved as "password needed" and
+not tried until it gets one. Only the main firmware: the recovery app has no backup.
+
 ```
 +--------------------------------------------+
 | hassctrl-1a2b            [Wi-Fi] [HA]  [=] |
@@ -231,8 +240,9 @@ backup card sits above the update card, so the backup is seen before an update (
 |  Firmware  0.1.0      Uptime  3 d 4 h      |
 |  Free memory  internal 84 KB, PSRAM 7 MB   |
 | +--------------------------------------+   |
-| | Backup (settings without secrets)    |   |
-| | [ Export ]           [ Import ]      |   |
+| | Backup (no passwords, no token)      |   |
+| | [ Export all ] [ Settings ] [ Dash ] |   |
+| | [ file ...  ]    [ Check ] [Import]  |   |
 | +--------------------------------------+   |
 | | Update                               |   |
 | | [ Firmware ]       [ File system ]   |   |

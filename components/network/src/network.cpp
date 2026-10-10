@@ -21,6 +21,7 @@
 #include "freertos/task.h"
 #include "mdns.h"
 
+#include "merge.hpp"
 #include "reasons.hpp"
 #include "selection.hpp"
 #include "store.hpp"
@@ -52,6 +53,7 @@ enum class MsgType : uint8_t {
     Scan,
     Hotspot,
     NewHotspotPassword,
+    Import,
     WifiEvent,
     GotIp,
 };
@@ -65,6 +67,16 @@ struct Msg {
     uint32_t ip;
     char ssid[kSsidSize];
     char password[kPasswordSize];
+    // Import: the caller's ImportJob, which waits for it
+    void *data;
+};
+
+struct ImportJob {
+    const ImportedNetwork *networks;
+    size_t count;
+    bool apply;
+    ImportResult *result;
+    SemaphoreHandle_t done;
 };
 
 enum class ScanPurpose : uint8_t {
@@ -130,7 +142,7 @@ void *g_listener_context = nullptr;
 // copies for other tasks, guarded by g_lock
 Status g_status{};
 TickType_t g_setup_hotspot_until = 0;
-char g_saved[kMaxNetworks][kSsidSize] = {};
+SavedNetworkInfo g_saved[kMaxNetworks] = {};
 size_t g_saved_count = 0;
 ScanEntry g_scan[kMaxScan] = {};
 size_t g_scan_count = 0;
@@ -176,7 +188,10 @@ void publish()
     g_setup_hotspot_until = t.setup_hotspot_until;
     g_saved_count = t.stored.count;
     for (size_t i = 0; i < t.stored.count; i++) {
-        copy_string(g_saved[i], kSsidSize, t.stored.networks[i].ssid);
+        const SavedNetwork &network = t.stored.networks[i];
+        copy_string(g_saved[i].ssid, kSsidSize, network.ssid);
+        g_saved[i].open = network.password[0] == 0 && !network.password_needed;
+        g_saved[i].password_needed = network.password_needed;
     }
     xSemaphoreGive(g_lock);
 
@@ -205,9 +220,20 @@ esp_err_t configure_hotspot()
     return esp_wifi_set_config(WIFI_IF_AP, &config);
 }
 
+// saved networks that may be tried (not waiting for their password)
+size_t usable_count()
+{
+    size_t count = 0;
+    for (size_t i = 0; i < t.stored.count; i++) {
+        count += t.stored.networks[i].password_needed ? 0 : 1;
+    }
+    return count;
+}
+
+// without a network to try, the hotspot is the way to set one up, as at the first setup
 bool hotspot_wanted()
 {
-    return t.stored.count == 0 || t.stored.hotspot_enabled || t.setup_hotspot_until != 0;
+    return usable_count() == 0 || t.stored.hotspot_enabled || t.setup_hotspot_until != 0;
 }
 
 void update_hotspot()
@@ -262,7 +288,8 @@ void connect_to(const Candidate &candidate);
 bool fast_candidate(Candidate &out)
 {
     const uint8_t index = t.stored.last_index;
-    if (!t.fast_allowed || t.fast_failed || index >= t.stored.count || (t.failed & (1u << index))) {
+    if (!t.fast_allowed || t.fast_failed || index >= t.stored.count || (t.failed & (1u << index)) ||
+        t.stored.networks[index].password_needed) {
         return false;
     }
     const LastSeen &seen = t.stored.last_seen[index];
@@ -278,9 +305,11 @@ bool fast_candidate(Candidate &out)
 
 void start_connect()
 {
-    if (t.stored.count == 0) {
+    if (usable_count() == 0) {
         t.status.state = StaState::NoNetworks;
         t.status.ssid[0] = 0;
+        std::snprintf(t.status.error, sizeof(t.status.error), "%s",
+                      t.stored.count == 0 ? "" : "every saved network needs its password");
         return;
     }
     t.connect_started = now();
@@ -589,14 +618,17 @@ void cmd_add(const Msg &msg)
         return;
     }
     // A saved network chosen again with an empty password field keeps its password: the setup
-    // pages offer the saved networks in their list, and "connect" there wiped the password.
-    const bool keep_password = index < t.stored.count && msg.password[0] == 0;
+    // pages offer the saved networks in their list, and "connect" there wiped the password. One
+    // that needs its password has none to keep: empty means an open network.
+    const bool keep_password =
+        index < t.stored.count && msg.password[0] == 0 && !t.stored.networks[index].password_needed;
     if (index == t.stored.count) {
         t.stored.count++;
     }
     copy_string(t.stored.networks[index].ssid, kSsidSize, msg.ssid);
     if (!keep_password) {
         copy_string(t.stored.networks[index].password, kPasswordSize, msg.password);
+        t.stored.networks[index].password_needed = false;
     }
     save_networks(t.stored);
     ESP_LOGI(kTag, "network '%s' saved as %u%s", msg.ssid, static_cast<unsigned>(index + 1),
@@ -647,7 +679,7 @@ void cmd_remove(uint8_t index)
     } else if (t.current > index) {
         t.current--;
     }
-    if (t.stored.count == 0) {
+    if (usable_count() == 0) {
         // back to the first setup: the hotspot comes on
         t.setup_hotspot = true;
     }
@@ -679,6 +711,50 @@ void cmd_move(uint8_t index, int8_t delta)
     }
     save_networks(t.stored);
     save_last_seen(t.stored);
+}
+
+void cmd_import(const ImportJob &job)
+{
+    const bool in_use = t.status.state == StaState::Connected || t.status.state == StaState::Connecting;
+    static Merged merged;
+    merge(t.stored.networks, t.stored.count, in_use ? t.current : -1, job.networks, job.count, merged, *job.result);
+    if (!job.apply) {
+        return;
+    }
+
+    // the access points, the network of the last connection and the one in use move along
+    LastSeen last_seen[kMaxNetworks] = {};
+    uint8_t last_index = kNoIndex;
+    int current = -1;
+    for (size_t i = 0; i < merged.count; i++) {
+        const uint8_t from = merged.from[i];
+        if (from == kNewNetwork) {
+            continue;
+        }
+        last_seen[i] = t.stored.last_seen[from];
+        last_index = (t.stored.last_index == from) ? static_cast<uint8_t>(i) : last_index;
+        current = (t.current == from) ? static_cast<int>(i) : current;
+    }
+    for (size_t i = 0; i < kMaxNetworks; i++) {
+        t.stored.networks[i] = (i < merged.count) ? merged.networks[i] : SavedNetwork{};
+    }
+    t.stored.count = merged.count;
+    std::memcpy(t.stored.last_seen, last_seen, sizeof(last_seen));
+    t.stored.last_index = last_index;
+    t.current = current;
+    t.prefer = -1;
+    save_networks(t.stored);
+    save_last_seen(t.stored);
+    ESP_LOGI(kTag, "import: %u networks saved, %u need their password, %u cut off", merged.count,
+             job.result->need_password_count, job.result->dropped_count);
+
+    reset_round();
+    if (usable_count() == 0) {
+        t.setup_hotspot = true;
+    }
+    if (!in_use) {
+        start_connect();
+    }
 }
 
 void cmd_reconnect()
@@ -754,6 +830,12 @@ void handle(const Msg &msg)
         }
         ESP_LOGI(kTag, "new hotspot password");
         break;
+    case MsgType::Import: {
+        const ImportJob &job = *static_cast<const ImportJob *>(msg.data);
+        cmd_import(job);
+        xSemaphoreGive(job.done);
+        break;
+    }
     case MsgType::WifiEvent:
         handle_wifi_event(msg.event, msg.reason);
         break;
@@ -886,7 +968,7 @@ esp_err_t start(const char *device_name, Listener listener, void *context)
     ESP_RETURN_ON_ERROR(load(t.stored), kTag, "settings");
     copy_string(t.status.hotspot_ssid, sizeof(t.status.hotspot_ssid), device_name);
     t.status.state = StaState::NoNetworks;
-    t.setup_hotspot = t.stored.count == 0;
+    t.setup_hotspot = usable_count() == 0;
     t.fast_allowed = esp_reset_reason() == ESP_RST_DEEPSLEEP;
 
     ESP_RETURN_ON_ERROR(esp_netif_init(), kTag, "netif");
@@ -948,16 +1030,14 @@ Status status()
     return copy;
 }
 
-size_t saved_networks(char (*ssids)[kSsidSize], size_t max)
+size_t saved_networks(SavedNetworkInfo *out, size_t max)
 {
     if (g_lock == nullptr) {
         return 0;
     }
     xSemaphoreTake(g_lock, portMAX_DELAY);
     const size_t count = std::min(max, g_saved_count);
-    for (size_t i = 0; i < count; i++) {
-        copy_string(ssids[i], kSsidSize, g_saved[i]);
-    }
+    std::copy(g_saved, g_saved + count, out);
     xSemaphoreGive(g_lock);
     return count;
 }
@@ -983,6 +1063,35 @@ esp_err_t add_network(const char *ssid, const char *password, bool connect_now)
                             (password[0] == 0 || std::strlen(password) >= kMinPassword),
                         ESP_ERR_INVALID_ARG, kTag, "password");
     return command(MsgType::Add, 0, connect_now ? 1 : 0, ssid, password);
+}
+
+esp_err_t import_networks(const ImportedNetwork *networks, size_t count, bool apply, ImportResult &result)
+{
+    ESP_RETURN_ON_FALSE(networks != nullptr || count == 0, ESP_ERR_INVALID_ARG, kTag, "networks");
+    ESP_RETURN_ON_FALSE(count <= kMaxImport, ESP_ERR_INVALID_SIZE, kTag, "more than %u networks",
+                        static_cast<unsigned>(kMaxImport));
+    for (size_t i = 0; i < count; i++) {
+        const ImportedNetwork &network = networks[i];
+        const size_t length = strnlen(network.password, kPasswordSize);
+        ESP_RETURN_ON_FALSE(network.ssid[0] != 0 && strnlen(network.ssid, kSsidSize) < kSsidSize, ESP_ERR_INVALID_ARG,
+                            kTag, "SSID");
+        ESP_RETURN_ON_FALSE(!network.has_password || (length < kPasswordSize && (length == 0 || length >= kMinPassword)),
+                            ESP_ERR_INVALID_ARG, kTag, "password of '%s'", network.ssid);
+    }
+    ESP_RETURN_ON_FALSE(g_queue != nullptr, ESP_ERR_INVALID_STATE, kTag, "not started");
+    SemaphoreHandle_t done = xSemaphoreCreateBinary();
+    ESP_RETURN_ON_FALSE(done != nullptr, ESP_ERR_NO_MEM, kTag, "semaphore");
+    ImportJob job{networks, count, apply, &result, done};
+    Msg msg{};
+    msg.type = MsgType::Import;
+    msg.data = &job;
+    const bool posted = xQueueSend(g_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE;
+    if (posted) {
+        // the task uses `job` until it gives the semaphore
+        xSemaphoreTake(done, portMAX_DELAY);
+    }
+    vSemaphoreDelete(done);
+    return posted ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
 esp_err_t remove_network(uint8_t index)
