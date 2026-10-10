@@ -988,7 +988,7 @@ ported before step 5.
    fixed here, and the firmware size is watched from now on.
 4. **First setup, Settings and web server**: on-screen setup pages, QR codes, captive portal, web
    UI login, the Wi-Fi part of Settings, firmware and file system update, the recovery page.
-   Measure the memory cost of HTTPS. Tested end to end: factory state, setup by screen, setup by
+   Tested end to end: factory state, setup by screen, setup by
    phone, network loss, AP on and off from Settings, an update, a broken file system.
 5. **Home Assistant connection**: URL and token from the web UI, `hass` and `hass_protocol`,
    connect, authenticate, subscribe, `call_service`. Tested with logs and the status line

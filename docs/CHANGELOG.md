@@ -2,6 +2,15 @@
 
 ## 2026-10-10
 
+- P4: the boot no longer logs `esp_lcd_panel_swap_xy: swap_xy is not supported by this panel`.
+  esp_lvgl_port (LVGL 8) sets the orientation once when the display is added, even with software
+  rotation; the board file gives the ST7701 panel a `swap_xy` that does nothing. Flashed on the P4,
+  a 20 s boot log is clean.
+- Docs: ui/web.md section 9 (HTTPS): there will be no HTTPS web server (decided by the user); TLS
+  stays as a client (wss, camera images, update by URL). Section 10 has no open points (the OTA push
+  is described in section 8). architecture.md no longer asks to measure the cost of HTTPS.
+- TODO: start orientation on the WT32 and the start screen and restart on the WT32 and JC3248W535
+  confirmed by the user; the two-empty-lines item on Wi-Fi reconnect closed without a fix.
 - Web UI: the Logs page. New component `logbuf` keeps the last 16 KB of esp_log messages in
   PSRAM (main firmware and recovery app): errors and warnings always, info messages with Debug
   on (switch on the page, stored). Filter, Refresh, Download. The console's `log` level now only

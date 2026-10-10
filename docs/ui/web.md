@@ -330,20 +330,14 @@ system has happened on earlier devices, mostly with the files still readable. So
 
 ## 9. HTTPS
 
-* HTTPS is an option in the web UI settings, plain HTTP is the default (decided). There is no
-  certificate upload (decided): the device creates its own self-signed certificate. The browser
-  warning is acceptable when the device is opened by its IP address (decided).
-* It must not cost too much internal RAM. PSRAM is fine (decided). Done for the main firmware
-  (2026-10-07, `sdkconfig.main`): `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC`. A `wss://` connection
-  with certificate check runs on the WT32 with 19 KB internal RAM left during the handshake.
-  The recovery app keeps mbedTLS in internal RAM (it must run without PSRAM).
-* Espressif's figures for one TLS connection: about 42 KB of heap with the default buffers, about
-  22 KB with dynamic buffers. `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` moves all mbedTLS allocations
-  to PSRAM. The real cost on the device is measured in step 4 of the implementation order.
-* Proposal: the certificate is created when HTTPS is turned on and kept in NVS. While HTTPS is
-  on, plain HTTP redirects to it. The captive portal and the setup pages stay plain HTTP, because
-  phones detect captive portals over HTTP. At most 2 TLS connections at a time.
+* Cancelled (decided): there will be no HTTPS web server. The web UI is plain HTTP only, with no
+  certificate and no HTTPS option in the settings.
+* TLS stays in use as a client: `wss://` to Home Assistant, camera snapshots over https and the
+  update download by URL. For this the main firmware keeps mbedTLS in PSRAM
+  (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` in `sdkconfig.main`, 2026-10-07): a `wss://` connection with
+  certificate check runs on the WT32 with 19 KB internal RAM left during the handshake. The
+  recovery app keeps mbedTLS in internal RAM (it must run without PSRAM).
 
 ## 10. Open points
 
-* The OTA push method in detail.
+* None.

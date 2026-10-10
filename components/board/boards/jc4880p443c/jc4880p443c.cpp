@@ -11,6 +11,7 @@
 #include "esp_check.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_interface.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_st7701.h"
 #include "esp_lcd_touch_gt911.h"
@@ -236,6 +237,12 @@ esp_err_t init_panel(Handles &out)
     panel_config.bits_per_pixel = 16;
     panel_config.vendor_config = &vendor_config;
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_st7701(out.io, &panel_config, &out.panel), kTag, "ST7701");
+    // esp_lvgl_port (LVGL 8) sets the panel's orientation once when the display is added, even with
+    // software rotation. The ST7701 driver has no swap_xy, which would log an error at every boot;
+    // the panel is never swapped, so the call may succeed and do nothing.
+    if (out.panel->swap_xy == nullptr) {
+        out.panel->swap_xy = [](esp_lcd_panel_t *, bool) { return ESP_OK; };
+    }
 
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(out.panel), kTag, "panel reset");
     // the table ends with sleep out and display on (11h, 29h), then the DPI video stream starts

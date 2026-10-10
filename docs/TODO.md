@@ -129,8 +129,8 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       screen and back up in 250 ms, a tap beside it closes it); fonts Montserrat 16/18/20/26/36
       instead of 12/14/16/20/28 (+117 KB firmware). Design approved by the user in the sim; tested
       on the board by the user (2026-10-08; the fade was replaced by the slide).
-- [ ] **Check the start orientation** on the WT32 leaning on the desk: it should be upright
-      within about a second after boot, without turning it.
+- [x] **Check the start orientation** on the WT32 leaning on the desk: it should be upright
+      within about a second after boot, without turning it. Working, confirmed by you 2026-10-10.
 - [x] PSRAM of the WT32: the device page says 4 MB (decided 2026-10-07), whatever the boot log
       reports.
 - [x] Test screen out of the firmware (2026-10-09): only with `CONFIG_HC_BOARD_BRING_UP=y` in the
@@ -146,7 +146,7 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       the panel off and to sleep: the cyan is gone. The runner left a dot at the top for the first
       second (a slow first frame moved it further than the redrawn stretch); it now redraws from
       where it was at the last step, the dot is gone.
-- [ ] Start screen and restart on the WT32-SC01 and the JC3248W535 (same code, not flashed yet).
+- [x] Start screen and restart on the WT32-SC01 and the JC3248W535 (same code). Confirmed by you 2026-10-10.
 
 ## Step 3: platform and network
 
@@ -520,10 +520,14 @@ Open:
   - [x] Try the Logs page in the browser (works, you, 2026-10-10).
   - [x] JC3248W535 and JC4880P443C: recovery app, main firmware and web image flashed, `/api/log`
         answers on both (2026-10-10).
-  - [ ] P4: every boot logs `E lcd_panel: esp_lcd_panel_swap_xy(60): swap_xy is not supported by
-        this panel`, now visible on the Logs page. Find who calls it and skip the call on this panel.
-  - [ ] With `log off` and Debug on, two empty lines still reach the serial port during a Wi-Fi
-        reconnect (cosmetic; probably Wi-Fi driver pieces from a second task).
+  - [x] P4: every boot logged `E lcd_panel: esp_lcd_panel_swap_xy(60): swap_xy is not supported by
+        this panel`. Caller: esp_lvgl_port (LVGL 8) sets the orientation once in `lvgl_port_add_disp_dsi`
+        even with `sw_rotate`. The ST7701 driver has no swap_xy, so the board file gives the panel a
+        swap_xy that does nothing (the panel is never swapped). Flashed on the P4 2026-10-10, 20 s
+        boot log without the error.
+  - [x] With `log off` and Debug on, two empty lines still reach the serial port during a Wi-Fi
+        reconnect (cosmetic; probably Wi-Fi driver pieces from a second task). Closed by you 2026-10-10,
+        not fixed.
 
 ## Step 5: Home Assistant connection
 
@@ -1063,15 +1067,6 @@ sim.
 - [ ] ESP-IDF 6.1 prints component validation warnings about its own `esp_wifi` and
       `wpa_supplicant` components. Not ours; nothing to do.
 
-## Toolchain cleanup (optional)
-
-- [ ] `C:\Espressif\python_env\idf6.1_py3.11_env`, `C:\Espressif\idf-env.json` and
-      `C:\Espressif\espidf.constraints.v6.1.txt` came from an extra run of ESP-IDF's
-      `install.ps1`. EIM's own environment is `C:\Espressif\tools\python\v6.1\venv`, so these can
-      be deleted.
-- [ ] `%USERPROFILE%\.espressif` still holds the ESP-IDF 4.4 tools.
-- [ ] VS Code ESP-IDF extension: its user settings still point to the removed ESP-IDF 4.4.
-
 ## Open decisions
 
 Setup and network ([architecture.md](architecture.md) section 9.2):
@@ -1095,7 +1090,7 @@ Orientation ([architecture.md](architecture.md) section 8.1):
 
 Web UI ([ui/web.md](ui/web.md) section 10):
 
-- [ ] OTA push method in detail.
+- [x] OTA push method in detail: done, see ui/web.md section 8. Section 10 of web.md has no open points now (2026-10-10).
 
 Settings export and import (2026-10-07; decided: no secrets in the export, Wi-Fi networks as
 names only, YAML like the dashboard, an import may carry passwords added by hand):
@@ -1264,7 +1259,7 @@ Not built yet (placeholders in the code or the documentation):
 - [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
 - [ ] Home Assistant events waking the screen (`ui/src/power.hpp`).
 - [ ] Trusting a self-signed Home Assistant certificate on first use (Step 5).
-- [ ] OTA push method in detail (Open decisions).
+- [x] OTA push method in detail (Open decisions).
 
 - [x] **WT32 replaced + LDR** (2026-10-07; the lux table is dropped 2026-10-10, see the two-point setup below): new WT32-SC01 flashed on COM9 (recovery app, main, web UI image).
       LDR on IO34 (ADC1_CH6) with 10k to GND, `hc::light_sensor::ldr` (ldr.hpp): pin voltage -> LDR
