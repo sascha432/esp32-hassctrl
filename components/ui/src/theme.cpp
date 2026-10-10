@@ -205,11 +205,14 @@ lv_obj_t *row(lv_obj_t *parent, const char *text, const char *value, bool opens_
     lv_obj_set_style_pad_column(obj, 8, 0);
 
     lv_obj_t *name = label(obj, "", font_medium(), kText);
-    lv_obj_set_flex_grow(name, 1);
+    // The name is as wide as its text up to 60 % of the row, the value takes all the rest: a
+    // short name leaves room for a long value (the Wi-Fi name), a long name still leaves 40 %.
+    lv_obj_set_style_max_width(name, lv_pct(60), 0);
     line_text(name, text);
 
     lv_obj_t *val = label(obj, "", font_normal(), kTextValue);
-    lv_obj_set_style_max_width(val, lv_pct(50), 0);
+    lv_obj_set_flex_grow(val, 1);
+    lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_RIGHT, 0);
     line_text(val, value != nullptr ? value : "");
 
     if (opens_page) {

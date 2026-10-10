@@ -2,6 +2,14 @@
 
 ## 2026-10-10
 
+- Recovery app screen: an update shows its progress ("Update downloading: 42 %", "receiving" for
+  an upload), green when done, red with the reason when it failed. Before, nothing showed while
+  the image was written. Confirmed by the user on the WT32 (firmware by URL).
+- Settings rows: the value takes the space the name does not need (the name at most 60 %). The
+  value stopped at 50 %, so a long Wi-Fi name on the Quick page ended in "..." with room to spare.
+  Confirmed on the WT32.
+- I2C unplug tests dropped from the TODO: the failed reads came from the starved orientation task
+  (priority), not the wiring.
 - Recovery app screen (`recovery/`), drawn without LVGL: board, firmware in flash, Wi-Fi state with
   its IP, the hotspot's name and password, and a QR code that joins the hotspot (the phone then
   opens the captive portal). 8x8 font from LVGL's unscii-8 (`tools/gen_recovery_font.py`), QR code

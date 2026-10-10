@@ -747,8 +747,9 @@ in the main firmware.
   state and address, the hotspot name and password while it is on, and the QR code of
   the hotspot, which is always on in this app (`network::force_hotspot`, not stored) with its name and
   password and a QR code that joins it (the phone then opens the captive portal at
-  `http://192.168.4.1/`); with a Wi-Fi connection its IP is a line of text. Redrawn when something
-  changes. The drivers made the app 45 KB larger, so the factory partition of the 4 MB layout is
+  `http://192.168.4.1/`); with a Wi-Fi connection its IP is a line of text. An update in progress
+  adds a line with its state and percent (`ota::status()`), and the reason when it failed. Redrawn
+  when something changes (checked once a second). The drivers made the app 45 KB larger, so the factory partition of the 4 MB layout is
   1.06 MB (ota_0 2.4 MB).
 * **Alternative**: compressed or delta OTA updates exist for ESP-IDF, but they need a custom
   bootloader or a patch component. The recovery app is simpler and also covers the recovery case.

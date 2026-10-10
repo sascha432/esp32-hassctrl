@@ -238,7 +238,9 @@ console (`swipe`, `tap`, `screenshot`) in every rotation:
 - The screens get everything through `hc::ui::Backend` (function table), filled in
   `main/ui_backend.cpp`; the UI component still only depends on LVGL.
 - Texts that do not fit end in "..." (`theme::line_text`): LVGL's `LONG_DOT` wraps at spaces
-  first, which cut "1  My network" to "1...". Hotspot and Home Assistant pages put the QR code
+  first, which cut "1  My network" to "1...". In a row the name is as wide as its text (at most
+  60 %) and the value takes the rest; the value used to stop at 50 %, which cut a long Wi-Fi
+  name beside "Wi-Fi" (fixed 2026-10-10, confirmed on the WT32). Hotspot and Home Assistant pages put the QR code
   beside the text in landscape and below it in portrait.
 - ESP32 IRAM was full (2.5 KB over) with the new LVGL widgets: `sdkconfig.main.esp32` turns off
   `CONFIG_ESP_WIFI_RX_IRAM_OPT` (Wi-Fi receive speed only matters for throughput tests).
@@ -364,6 +366,8 @@ Open:
     redirect (TLS with the common CA bundle works).
 - [ ] **Try the update page in the browser** (both boards): System part of the built-in page,
       firmware by file, then by URL. On the WT32 it goes through the recovery app too.
+      WT32 by URL works (user, 2026-10-10): download from the PC, written, started; the recovery
+      screen now shows the progress in percent. Still open: by file, and the other board.
 - **Tests on the T4** (2026-10-07), all passed after the fixes below:
   - Wi-Fi: a missing network at position 1 is skipped (connected to #2 in 3.9 s); a wrong
     password (the WT32's hotspot with a wrong one) is detected, skipped, and the T4 is back on
@@ -444,7 +448,7 @@ Open:
     screen starts in the last rotation instead of 0 degrees.
   - Your sensors are on the T4 now: I2C on the IP5306 bus (SDA 21, SCL 22), MPU6050 at 0x68,
     BH1750 at 0x23.
-- [x] The WT32 I2C failures came from the wiring while the modules were moved (your finding):
+- [x] The WT32 I2C failures were first put down to the wiring while the modules were moved (your finding, later corrected: task priority):
       rewired on the T4, both modules on the bus, no failed read in 130 s. The timeouts, the
       2 s retry and the failure count stay: they cost nothing while the bus is fine, and a loose
       wire in a wall panel must not freeze the screen.
@@ -461,16 +465,9 @@ Open:
 - [x] Once: an update to the WT32's recovery app broke off (ota_0 half written). Cause: you
       moved the device during the upload. It stayed in the recovery app as designed, the next
       two uploads went through.
-- [ ] **I2C unplug tests** (now on the T4 with MPU6050 and BH1750; the freeze itself needs the
-      WT32, where the touch shares the bus; by hand, then plug back in):
-      1. BH1750 3.3 V off and on (the case that froze);
-      2. BH1750 GND off and on;
-      3. BH1750 SDA off and on, then SCL off and on;
-      4. the same four for the MPU6050 (the rotation stops while it is off and works again after);
-      5. touch the screen during each: it may stutter for a moment, it must not freeze.
-      Expected in the log: "BH1750 does not answer, trying every 2 s" and "BH1750 answers again".
-      Your report on the WT32 after the timeout fix: no problems while playing with the cables of
-      both sensors. The list above for the T4 wiring is still open.
+- [x] I2C unplug tests: dropped (2026-10-10). The failed reads were not the wiring but the starved
+      orientation task (see "MPU6050 I2C timeouts" below); the timeouts, the 2 s retry and the failure
+      count stay and passed your cable test on the WT32.
 - [ ] Check the direction of "Rotate": it should turn the picture clockwise.
 - [x] Fades by eye (3 s down, 0.5 s up): look good (your report, 2026-10-07).
 - [x] **Board check of update images** (2026-10-07): every image carries its board name in
@@ -480,7 +477,9 @@ Open:
 - [x] **Recovery app screen** (built and tested on the WT32 by the user, 2026-10-10,
       `recovery/recovery.cpp`, architecture.md section 9.5): board, firmware in flash, Wi-Fi with
       its IP, the hotspot (always on in the recovery app, `network::force_hotspot`) and a QR code
-      that joins it, drawn without LVGL.
+      that joins it, drawn without LVGL. An update shows as "Update downloading: 42 %" (receiving
+      for an upload), green when done, red with the reason when it failed; download with
+      percent confirmed by the user on the WT32.
 - [ ] Recovery app screen on the T4, JC3248W535 and P4: not flashed yet (the P4's recovery size
       is unchecked). The 4 MB table changed (factory 1.06 MB, ota_0 at 0x120000), so a WT32 or T4
       needs `--app recovery flash` once (new table), then the main firmware again.

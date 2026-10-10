@@ -171,7 +171,7 @@ Steps:
       values like every other device of the type).
 - [ ] Check: Automatic on, cover the sensor: the screen dims within a few seconds; in the dark it
       does not climb by its own light.
-- [ ] Unplug test (a sensor on a cable): see docs/TODO.md "I2C unplug tests".
+- [x] Unplug test (a sensor on a cable): passed on the WT32; the read failures came from the task priority, see docs/TODO.md "MPU6050 I2C timeouts".
 
 ## 9. Speaker (if the board has an I2S amplifier)
 

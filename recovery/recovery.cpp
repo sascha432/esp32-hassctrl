@@ -41,6 +41,7 @@ constexpr uint16_t kCyan = 0x07ff;
 constexpr uint16_t kRed = 0xf800;
 constexpr uint16_t kGreen = 0x07e0;
 constexpr uint16_t kGrey = 0xad55;
+constexpr uint16_t kYellow = 0xffe0;
 
 constexpr uint8_t kFont[95][8] = {
 #include "font8x8.inc"
@@ -168,6 +169,22 @@ void build_page()
         add_text(y, text_x, text_w, scale, kWhite, "Firmware: %s", ota.firmware_version);
     } else {
         add_text(y, text_x, text_w, scale, kRed, "Firmware: none");
+    }
+    // an update in progress (the page or a URL), in percent, with its result afterwards
+    const hc::ota::Status update = hc::ota::status();
+    if (update.state != hc::ota::State::Idle) {
+        const bool failed = update.state == hc::ota::State::Failed;
+        const uint16_t color = failed ? kRed : update.state == hc::ota::State::Done ? kGreen : kYellow;
+        if (update.total > 0 && !failed) {
+            add_text(y, text_x, text_w, scale, color, "Update %s: %u %%", hc::ota::state_name(update.state),
+                     static_cast<unsigned>(static_cast<uint64_t>(update.done) * 100 / update.total));
+        } else {
+            add_text(y, text_x, text_w, scale, color, "Update %s: %u KB", hc::ota::state_name(update.state),
+                     static_cast<unsigned>(update.done / 1024));
+        }
+        if (failed && update.error[0] != 0) {
+            add_text(y, text_x, text_w, scale, kRed, "%s", update.error);
+        }
     }
     y += 4;
 
