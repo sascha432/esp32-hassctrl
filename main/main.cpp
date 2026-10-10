@@ -11,8 +11,11 @@
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
 #include "esp_ota_ops.h"
+#include "esp_rom_sys.h"
 #if CONFIG_HC_AUDIO
 #include "hc/audio/audio.hpp"
+#endif
+#if CONFIG_HC_VIBRATION
 #include "hc/vibration/vibration.hpp"
 #endif
 #include "hc/board/board.hpp"
@@ -54,6 +57,19 @@ void lvgl_log(const char *text)
         length--;
     }
     ESP_LOGI("lvgl", "%.*s", static_cast<int>(length), text);
+}
+
+// Every failed allocation with the state of both heaps, also with the log output off: an LVGL
+// allocation failed on the WT32 with 3.9 MB PSRAM free (2026-10-09), its size is the question.
+void on_alloc_failed(size_t size, uint32_t caps, const char *function)
+{
+    esp_rom_printf("alloc failed: %u bytes, caps 0x%x, %s; internal %u free (largest %u), PSRAM %u free "
+                   "(largest %u)\n",
+                   static_cast<unsigned>(size), static_cast<unsigned>(caps), function,
+                   static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+                   static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)),
+                   static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)),
+                   static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM)));
 }
 
 // Hands the board's panel to esp_lvgl_port, which runs the LVGL task (docs/architecture.md
@@ -347,6 +363,7 @@ const hc::webserver::DashboardAccess kDashboardAccess{
 
 extern "C" void app_main()
 {
+    heap_caps_register_failed_alloc_callback(on_alloc_failed);
     // the dashboard and the trees of an import live in PSRAM (docs/architecture.md section 11)
     hc::memory::set_large_heap(
         [](size_t size) {

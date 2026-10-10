@@ -943,6 +943,15 @@ sim.
 - [x] Working on the device, confirmed by you (2026-10-09).
 - [x] Bug (you): with both touch sounds off, letting go of the volume slider still clicked. It
       clicks now only when one of them is on.
+- [x] WT32-SC01: motor on IO27 (2026-10-09, flashed), the first board with a motor and no audio
+      (main.cpp included the vibration header only with audio). Click 50 ms on both boards (you,
+      after `vibrate 50`; the P4 had 75 ms).
+- [ ] **LVGL ran out of memory on the WT32** (your crash, 2026-10-09): the task watchdog fired every
+      5 s, the LVGL task hung in `LV_ASSERT_MALLOC` of `lv_obj_add_event_cb` (`theme::line_text`,
+      `tiles::update`, `build_page` after a page was opened). After the restart 3.9 MB PSRAM and
+      30 KB internal were free, so the size of the failed request is the question. Now every
+      failed allocation prints its size, caps and both heaps (also with the log off), and a
+      failed LVGL assert aborts (panic and restart) instead of halting. To do: catch the line.
 - [ ] Tune the click (`kClickMs`, 25 ms now) with `vibrate <ms>`: the shortest pulse that is
       felt clearly; and the alarm rhythm (500 / 500 ms).
 - [ ] Check: taps vibrate, the switch turns it off, `sound ring` vibrates until Stop or Snooze.

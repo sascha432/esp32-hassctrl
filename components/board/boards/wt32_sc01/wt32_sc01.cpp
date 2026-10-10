@@ -49,6 +49,10 @@ constexpr Info kInfo{
     .light_sensor_backlight_lux = 0.0f,
     // LDR + 10k to GND on the header, replaced unit of 2026-10-07
     .light_ldr_gpio = 34,
+    // a vibration motor on the header for testing (user, 2026-10-09)
+    .vibration_gpio = 27,
+    // the user's choice after `vibrate <ms>` (2026-10-09)
+    .vibration_click_ms = 50,
     // MPU6050 of the replaced unit, measured with `orient capture` on 2026-10-07 (gain 0.99, 0 and 90
     // 89.9 degrees apart, tilt 2.5 degrees): it reads (-0.12, -0.53, +0.21) g too much in every pose.
     // The axes are those of the measurement turned by 180 degrees: it was taken with the panel held

@@ -297,3 +297,10 @@ Vibration (docs/architecture.md section 9.7):
   the LVGL task never slept while the screen redrew and its MIPI-DSI flush did not block. The
   FreeRTOS tick is 1 ms now (`CONFIG_FREERTOS_HZ=1000` in `sdkconfig.main`, all boards).
   Confirmed fixed by the user.
+- WT32-SC01: vibration motor on IO27, the first board with a motor and no audio (`main.cpp`
+  included the vibration header only with audio). The click is 50 ms on the WT32-SC01 and the
+  JC4880P443C (the user's choice after `vibrate 50`).
+- Diagnostics for an LVGL out-of-memory hang on the WT32-SC01 (task watchdog every 5 s, the LVGL
+  task halted in `LV_ASSERT_MALLOC`): every failed allocation prints its size, caps and the free
+  and largest block of both heaps with `esp_rom_printf` (also with the log off), and a failed
+  LVGL assert calls `abort()` (panic and restart) instead of LVGL's `while(1)`.
