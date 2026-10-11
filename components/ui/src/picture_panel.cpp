@@ -6,6 +6,7 @@
 
 #include "dashboard.hpp"
 #include "lvgl_compat.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
 
@@ -95,6 +96,8 @@ void build(lv_obj_t *root, core::TileIndex tile, lv_coord_t width, lv_coord_t he
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
     lv_obj_add_event_cb(root, on_release, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(root, on_release, LV_EVENT_PRESS_LOST, nullptr);
+    // the whole screen is the back button: it clicks and vibrates like one
+    sound::tappable(root);
     // the panel takes the touches, no gesture of the screen starts on it
     lv_obj_clear_flag(root, LV_OBJ_FLAG_GESTURE_BUBBLE);
     g.image = lv_img_create(root);

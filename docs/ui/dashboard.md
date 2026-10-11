@@ -239,7 +239,7 @@ A picture tile asks for its image when the page opens and every `refresh` second
 while it is shown, but not while its last request is on its way (an image that came after a newer
 request was thrown away, and a page of slow cameras only grew the queue); after 60 s without an
 answer it asks again. A tap shows it full screen on black, refreshed the same way, and any tap goes
-back. Until the first full screen frame arrives, the tile's frame is shown enlarged.
+back (with the click and the vibration of a button: the whole screen is a tap target). Until the first full screen frame arrives, the tile's frame is shown enlarged.
 
 The image is `GET /api/camera_proxy/<entity>?width=W&height=H` with the token, W x H the size of
 the tile inside its border or of the screen. Home Assistant scales it when it can; the device
@@ -328,7 +328,8 @@ measured 18 to 22 fps with go2rtc's `-r 25` and saw no tearing with the CPU copy
 
 On the JC3248W535 (ESP32-S3, 480x320) Espressif's `esp_new_jpeg` decodes (`hass/src/new_jpeg.cpp`,
 a dependency of `hass` for the S3 only; SIMD, a 640x320 frame in 41 ms instead of TJpgDec's
-148 ms). It scales while it decodes, to sides in multiples of 8 (`core::cover_size8`): a frame
+148 ms). Its own buffers come from `hot_alloc` (internal RAM only while 32 KB stay free; it took
+them from internal RAM first, whatever was left). It scales while it decodes, to sides in multiples of 8 (`core::cover_size8`): a frame
 larger than the screen is decoded at the smallest size that covers it (800x480 at 536x320), so
 LVGL needs no zoom; the scaling costs time (800x480 107 ms), a stream in the screen's size is
 cheaper. The media task runs on the second core of every chip that has one: on the S3's first

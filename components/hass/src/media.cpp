@@ -115,11 +115,9 @@ void *psram(size_t size)
     return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
 }
 
-// the decoder's work area for one image: internal RAM where there is room (the decoder reads its
-// tables for every pixel), else PSRAM
+// the decoder's work area for one image (it reads its tables for every pixel)
 struct DecoderWork {
-    uint8_t *data = static_cast<uint8_t *>(heap_caps_malloc_prefer(
-        kDecoderWork, 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    uint8_t *data = static_cast<uint8_t *>(detail::hot_alloc(kDecoderWork, 4));
 
     DecoderWork() = default;
     DecoderWork(const DecoderWork &) = delete;
@@ -860,6 +858,23 @@ void no_task(core::EntityIndex entity, uint32_t generation, bool live)
 } // namespace
 
 namespace detail {
+
+void *hot_alloc(size_t size, size_t align)
+{
+    // what the others need while a decoder holds its buffers: the S3 had 24 KB free with the media
+    // task, the P4 239 KB
+    constexpr size_t kInternalReserve = 32 * 1024;
+    constexpr uint32_t kInternal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    align = std::max<size_t>(align, 4);
+    // the largest block too: a request that cannot fit is not even tried (the failure hook logs it)
+    if (heap_caps_get_free_size(kInternal) >= size + kInternalReserve &&
+        heap_caps_get_largest_free_block(kInternal) >= size + align) {
+        if (void *data = heap_caps_aligned_calloc(align, 1, size, kInternal)) {
+            return data;
+        }
+    }
+    return heap_caps_aligned_calloc(align, 1, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+}
 
 void frame_taken()
 {

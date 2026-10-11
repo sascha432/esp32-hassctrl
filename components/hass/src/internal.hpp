@@ -38,4 +38,9 @@ void deliver_event(core::HassEvent event);
 // the UI took a frame of the stream that plays (media.cpp decodes the next one)
 void frame_taken();
 
+// A zeroed buffer a decoder reads all the time (its tables and lines; media.cpp): internal RAM,
+// which is faster, only while it leaves 32 KB free (Wi-Fi, lwIP and TLS allocate at any moment and
+// would fail somewhere else), else PSRAM. Freed with free(). `align` a power of two.
+void *hot_alloc(size_t size, size_t align);
+
 } // namespace hc::hass::detail

@@ -2,6 +2,15 @@
 
 ## 2026-10-10
 
+- Memory: a JPEG decoder's buffers take internal RAM only while 32 KB stay free, else PSRAM
+  (`hass::detail::hot_alloc`). `esp_new_jpeg` (S3) took its work buffers from internal RAM first
+  whatever was left: 29 KB for a 176x144 camera image, which would have left a few hundred bytes to
+  Wi-Fi and lwIP (on the S3 it only failed and fell back because no block was that large, logging
+  `alloc failed` every image). Its two allocators are linked through `hot_alloc` with `--wrap`;
+  TJpgDec's 8 KB work area follows the same rule. Checked on the S3 and the WT32: no failed
+  allocation, decode times unchanged.
+- Full screen camera: the tap that goes back clicks and vibrates like a button (the screen was not
+  a tap target). Confirmed by the user.
 - Camera tiles: the cameras page of the JC4880P443C stayed empty or showed only some images.
   Three causes: the PPA's blocking scale of a hardware-decoded JPEG did not come back now and then
   and the media task waited for good (silently, the requests piled up behind it); the queue of 4

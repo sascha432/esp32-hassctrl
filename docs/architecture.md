@@ -962,6 +962,11 @@ esp32-hassctrl/
   (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` in `sdkconfig.main.esp32`; the ESP-IDF default 16 KB
   filled the WT32's internal RAM). Memory that must be internal (DMA, code that runs with the
   cache off) is asked for with `heap_caps_malloc`. The console command `mem` shows what is free.
+  A buffer that is only faster in internal RAM (a JPEG decoder's tables and lines) takes it only
+  while 32 KB stay free (`hass::detail::hot_alloc`), else PSRAM: Wi-Fi, lwIP and TLS allocate at
+  any moment and fail where nobody looks. The same goes for libraries that take internal RAM
+  first on their own: `esp_new_jpeg`'s buffers (29 KB for a 176x144 image) are linked through
+  `hot_alloc` with `--wrap` (`hass/CMakeLists.txt`).
 * The dashboard lives in PSRAM: layout, entity states and the LVGL objects of the dashboard.
   Small values that are read often (flags, state bits, pending marks) sit in a separate compact
   array in internal RAM, indexed like the tiles or entities. The old firmware worked this way.

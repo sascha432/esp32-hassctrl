@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+#include "internal.hpp"
+
 #if __has_include("esp_jpeg_dec.h")
 #define HC_NEW_JPEG 1
 #include "esp_jpeg_dec.h"
@@ -45,6 +47,23 @@ bool open(Decoder &decoder, jpeg_dec_config_t &config, const uint8_t *jpeg, size
 }
 
 } // namespace
+
+} // namespace hc::hass::new_jpeg
+
+// The library's own buffers (linked with --wrap, CMakeLists.txt). It takes them from internal RAM
+// first, whatever is left: 29 KB for a 176x144 camera image, which on the S3 would leave a few
+// hundred bytes to Wi-Fi and lwIP. The output frame (jpeg_calloc_align) is PSRAM first and stays.
+extern "C" void *__wrap_jpeg_calloc_align_inner(size_t size, int aligned)
+{
+    return hc::hass::detail::hot_alloc(size, aligned > 0 ? static_cast<size_t>(aligned) : 4);
+}
+
+extern "C" void *__wrap_jpeg_calloc_inner(size_t size)
+{
+    return hc::hass::detail::hot_alloc(size, 4);
+}
+
+namespace hc::hass::new_jpeg {
 
 bool decode(const uint8_t *jpeg, size_t size, bool swap_bytes, uint32_t box_width, uint32_t box_height,
             core::Pixels &out, uint32_t &width, uint32_t &height, uint32_t &picture_width, uint32_t &picture_height,
