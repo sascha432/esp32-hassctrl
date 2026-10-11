@@ -2,6 +2,12 @@
 
 ## 2026-10-11
 
+- Camera full screen: the pinch zooms freely (it no longer snaps to a step), the buttons go from
+  the zoom to the next step up or down. The smallest zoom shows the whole picture, its width or
+  its height filling the screen (it was 50 % of covering the screen, which could leave black on all
+  sides); a zoom kept below it goes up to it with the first frame. The largest stays 200 %.
+  Confirmed by you on the P4, flashed on all three boards.
+
 - Camera full screen: pinch to zoom on all three boards. Two fingers zoom the frame on screen
   (LVGL) and keep the spot between them under them; when a finger lifts, the nearest zoom step is
   taken and its frames asked for, as with "+" and "-". The hint reads "swipe to move, pinch to

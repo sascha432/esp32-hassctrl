@@ -22,10 +22,12 @@ namespace t = theme;
 // the frame rate of a stream is shown this often
 constexpr uint32_t kRateMs = 1000;
 constexpr lv_coord_t kSpinnerSize = 56;
-// the zoom steps in percent; 100 % covers the screen
-constexpr uint16_t kZooms[] = {50, 75, 100, 150, 200};
-constexpr size_t kZoomCount = sizeof(kZooms) / sizeof(kZooms[0]);
-constexpr size_t kDefaultZoom = 2;
+// The zoom in percent: 100 % covers the screen. A pinch zooms freely, the buttons go from step to
+// step; the smallest zoom shows the whole picture (its width or its height fills the screen), the
+// largest is kMaxZoom.
+constexpr float kSteps[] = {50, 75, 100, 150, 200};
+constexpr float kMaxZoom = 200;
+constexpr float kDefaultZoom = 100;
 // the buttons hide this long after the last touch
 constexpr uint32_t kControlsMs = 5000;
 // a finger that moved this far drags the picture
@@ -53,7 +55,7 @@ struct State {
     // the screen
     uint16_t width = 0;
     uint16_t height = 0;
-    size_t zoom = kDefaultZoom;
+    float zoom = kDefaultZoom;
     // the picture's center from the screen's, as a part of the picture's shown size: stays on
     // the same spot when the zoom or the frame's size changes
     float pan_x = 0;
@@ -63,12 +65,12 @@ struct State {
     lv_point_t last{};
     bool dragging = false;
     // Two fingers zoom by their distance and keep the spot between them under them; LVGL zooms the
-    // frame there by `pinch` times the zoom step until a finger lifts, then the nearest step is
-    // taken and asked for. The picture does not move with the finger that stays (until it lifts).
+    // frame there until a finger lifts, then the frames in that size are asked for. The picture
+    // does not move with the finger that stays (until it lifts).
     bool pinching = false;
     bool pinched = false; // since the finger came down
-    float pinch = 1;
-    float pinch_distance = 0; // the fingers' distance when `pinch` was 1
+    float pinch_zoom = 0; // the zoom and the fingers' distance when the pinch began
+    float pinch_distance = 0;
     // the spot of the picture between the fingers, from its center, as a part of its shown size
     float pinch_spot_x = 0;
     float pinch_spot_y = 0;
@@ -87,7 +89,7 @@ State g;
 // was left (also after a turn of the display).
 struct Kept {
     memory::String key;
-    size_t zoom = kDefaultZoom;
+    float zoom = kDefaultZoom;
     float pan_x = 0;
     float pan_y = 0;
 };
@@ -107,12 +109,12 @@ Kept *kept(const memory::String &key)
 // the size the frames are asked for: the screen at the zoom (100 % covers it)
 uint16_t box_width()
 {
-    return static_cast<uint16_t>(g.width * kZooms[g.zoom] / 100);
+    return static_cast<uint16_t>(std::lround(g.width * g.zoom / 100));
 }
 
 uint16_t box_height()
 {
-    return static_cast<uint16_t>(g.height * kZooms[g.zoom] / 100);
+    return static_cast<uint16_t>(std::lround(g.height * g.zoom / 100));
 }
 
 // the whole picture's shown width and height (LVGL's zoom of the frame)
@@ -142,7 +144,7 @@ void place()
     // the whole picture in the frame's pixels covers the box
     const float picture_width = g.frame_width / g.part_x;
     const float picture_height = g.frame_height / g.part_y;
-    const float scale = std::max(box_width() / picture_width, box_height() / picture_height) * g.pinch;
+    const float scale = std::max(box_width() / picture_width, box_height() / picture_height);
     // 256 is 1:1; the PPA's scale is rounded up to sixteenths (up to 1/16 larger) and its rounding
     // of the size can leave a pixel or two
     const uint16_t zoom = scale >= 0.93f && scale <= 1.01f
@@ -208,25 +210,37 @@ void on_hide(lv_timer_t *timer)
     lv_timer_pause(timer);
 }
 
+// the smallest zoom: the whole picture on the screen, its width or its height filling it; none
+// until a frame tells the picture's shape
+float min_zoom()
+{
+    if (!g.pixels) {
+        return 0;
+    }
+    const float across = g.width / (g.frame_width / g.part_x);
+    const float down = g.height / (g.frame_height / g.part_y);
+    return 100 * std::min(across, down) / std::max(across, down);
+}
+
 void update_zoom_buttons()
 {
-    if (g.zoom == 0) {
+    if (g.zoom <= min_zoom() + 1) {
         lv_obj_add_state(g.zoom_out, LV_STATE_DISABLED);
     } else {
         lv_obj_clear_state(g.zoom_out, LV_STATE_DISABLED);
     }
-    if (g.zoom + 1 == kZoomCount) {
+    if (g.zoom >= kMaxZoom - 1) {
         lv_obj_add_state(g.zoom_in, LV_STATE_DISABLED);
     } else {
         lv_obj_clear_state(g.zoom_in, LV_STATE_DISABLED);
     }
 }
 
-// another zoom step: the frame there is zoomed by LVGL at once, the frames in the new size are
-// asked for (a stream goes on in it)
-void set_zoom(size_t zoom)
+// another zoom (kept between the smallest and the largest): the frame there is zoomed by LVGL at
+// once, the frames in the new size are asked for (a stream goes on in it)
+void set_zoom(float zoom)
 {
-    g.zoom = zoom;
+    g.zoom = std::clamp(zoom, min_zoom(), kMaxZoom);
     update_zoom_buttons();
     place();
     if (g.streaming) {
@@ -239,16 +253,22 @@ void set_zoom(size_t zoom)
     }
 }
 
+// the buttons: the next step up or down from the zoom (below the smallest step the smallest zoom)
 void step_zoom(int step)
 {
-    const int zoom = static_cast<int>(g.zoom) + step;
-    if (zoom >= 0 && zoom < static_cast<int>(kZoomCount)) {
-        set_zoom(static_cast<size_t>(zoom));
+    float zoom = step > 0 ? kMaxZoom : 0;
+    for (float s : kSteps) {
+        if (step > 0 && s > g.zoom + 1) {
+            zoom = std::min(zoom, s);
+        } else if (step < 0 && s < g.zoom - 1) {
+            zoom = s;
+        }
     }
+    set_zoom(zoom);
 }
 
 // Follows two fingers on the picture; false when there are not two (any more). The pinch ends
-// with the zoom step nearest to where the fingers left it.
+// where the fingers left the zoom, and the frames in that size are asked for.
 bool follow_pinch()
 {
     Finger fingers[2];
@@ -257,18 +277,8 @@ bool follow_pinch()
     if (!two) {
         if (g.pinching) {
             g.pinching = false;
-            const float wanted = kZooms[g.zoom] * g.pinch;
-            size_t nearest = 0;
-            for (size_t i = 1; i < kZoomCount; i++) {
-                if (std::fabs(std::log(wanted / kZooms[i])) < std::fabs(std::log(wanted / kZooms[nearest]))) {
-                    nearest = i;
-                }
-            }
-            g.pinch = 1;
-            if (nearest != g.zoom) {
-                set_zoom(nearest);
-            } else {
-                place();
+            if (std::fabs(g.zoom - g.pinch_zoom) >= 0.5f) {
+                set_zoom(g.zoom);
             }
         }
         return false;
@@ -279,12 +289,12 @@ bool follow_pinch()
     const float between_y = (fingers[0].y + fingers[1].y) / 2.0f - g.height / 2.0f;
     if (!g.pinching) {
         g.pinching = g.pinched = true;
-        g.pinch_distance = distance / g.pinch;
+        g.pinch_zoom = g.zoom;
+        g.pinch_distance = distance;
         g.pinch_spot_x = between_x / shown_width() - g.pan_x;
         g.pinch_spot_y = between_y / shown_height() - g.pan_y;
     }
-    g.pinch = std::clamp(distance / g.pinch_distance, static_cast<float>(kZooms[0]) / kZooms[g.zoom],
-                         static_cast<float>(kZooms[kZoomCount - 1]) / kZooms[g.zoom]);
+    g.zoom = std::clamp(g.pinch_zoom * distance / g.pinch_distance, min_zoom(), kMaxZoom);
     place(); // the zoom, for the shown size
     g.pan_x = between_x / shown_width() - g.pinch_spot_x;
     g.pan_y = between_y / shown_height() - g.pinch_spot_y;
@@ -504,6 +514,12 @@ void on_image(const core::Image &image)
     }
     g.frames++;
     show(image.pixels, image.width, image.height, image.source_width, image.source_height);
+    // the first frame tells the picture's shape: a kept zoom below the smallest goes up to it
+    if (!g.pinching && g.zoom < min_zoom() - 1) {
+        set_zoom(min_zoom());
+    } else {
+        update_zoom_buttons();
+    }
 }
 
 void forget()

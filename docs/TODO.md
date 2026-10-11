@@ -776,7 +776,9 @@ Next:
 - [x] Camera full screen pinch to zoom (2026-10-11): two fingers measured on all three boards
       first (GT911 and AXS15231B fine, FT6336U merges them below about 3 cm), then built; the
       JC3248W535 reads two fingers itself and moved from esp_lvgl_port's reader to `touch_input`
-      in the LVGL task. Confirmed by you on all three boards.
+      in the LVGL task. Confirmed by you on all three boards. Then (your wish): the pinch zooms
+      freely, only the buttons have steps, the smallest zoom shows the whole picture; confirmed
+      by you on the P4.
 - [ ] **P4: the PPA hangs on the first camera image after most boots** (2026-10-11, also without
       the zoom change: 4 of 4 boots of the last commit, 5 of 6 with it). Always the cameras page's
       first scale (balconycam, 264x216 from a 272x224 decoder frame, block 258x169 at 3,23 to

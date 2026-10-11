@@ -276,19 +276,20 @@ full screen frame arrives, the tile's frame is shown enlarged where it lies in t
 shape), so the stream does not jump when it starts.
 
 The full screen view (`picture_panel.cpp`) shows the whole picture. At 100 % it covers the screen
-(the side that sticks out is cut off), so every camera looks the same whatever its resolution;
-the zoom steps are 50, 75, 100, 150 and 200 %. A swipe moves the picture, as far as its edges (a
-side smaller than the screen stays centered); the position is kept as a part of the picture, so it
-stays on the same spot when the zoom changes. Two fingers zoom by their distance (pinch), and the
-spot of the picture between them stays under them: LVGL zooms the frame on screen while they move,
-and when a finger lifts the nearest step is taken and asked for, as with a button. The finger left
-on the screen does not move the picture until it lifts too. On the WT32-SC01 the pinch ends when
+(the side that sticks out is cut off), so every camera looks the same whatever its resolution.
+The smallest zoom shows the whole picture (its width or its height fills the screen), the largest
+is 200 %. Two fingers zoom freely by their distance (pinch), and the spot of the picture between
+them stays under them: LVGL zooms the frame on screen while they move, and when a finger lifts the
+frames in that size are asked for. The buttons go from the zoom to the next step up or down (50,
+75, 100, 150 and 200 %; below the smallest step the smallest zoom). A swipe moves the picture, as
+far as its edges (a side smaller than the screen stays centered); the position is kept as a part
+of the picture, so it stays on the same spot when the zoom changes. The finger left on the screen
+after a pinch does not move the picture until it lifts too. On the WT32-SC01 the pinch ends when
 the fingers come closer than about 3 cm (its controller makes one point of them). A touch shows
 round buttons at the top center, "X" (back), "+" and "-" (grayed at the ends), with "swipe to move,
 pinch to zoom" below them ("swipe to move" in the Windows version, which has no second finger);
-they hide 5 s after the
-last touch, and the view opens with them shown. They sit below the pull-down zone of Settings
-(`overlay::kZoneHeight`), which lies above the panel and takes the taps there. A zoom step zooms the
+they hide 5 s after the last touch, and the view opens with them shown. They sit below the pull-down zone of Settings
+(`overlay::kZoneHeight`), which lies above the panel and takes the taps there. A new zoom zooms the
 frame on screen with LVGL at once and asks for the frames in the new size: still images anew, a
 stream goes on in it without a new connection. Zoom and position are kept per camera (entity and
 stream) while the device runs: the view opens as it was left. Each change of size, zoom or place
