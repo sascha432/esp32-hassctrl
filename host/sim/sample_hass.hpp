@@ -34,7 +34,7 @@ bool take_event(hc::core::HassEvent &out);
 void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::HistoryKind kind, uint32_t hours,
                    uint32_t generation);
 void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
-                 uint16_t height, uint32_t generation);
+                 uint16_t height, bool whole, uint32_t generation);
 // a stream plays as the same landscape, 5 frames a second, the sun moving with every frame
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
                  uint16_t height, uint32_t generation);

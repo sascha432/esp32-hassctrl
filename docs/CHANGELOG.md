@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-11
+
+- Camera full screen: zoom and move. The view shows the whole picture; 100 % covers the screen
+  whatever the camera's resolution, the steps are 50, 75, 100, 150 and 200 %, a swipe moves the
+  picture up to its edges. A touch shows the round buttons "X" (back), "+" and "-" and the hint
+  "swipe to move" at the top for 5 s; a tap no longer goes back. Requests for the view ask for the
+  whole picture (`whole`, `core::whole_block` for the P4's PPA, at most 2 M pixels), a stream
+  changes its size without a new connection. The buttons sit below the pull-down zone of Settings,
+  which took the taps at the very top. Checked on the P4 over the serial console (still image and
+  go2rtc stream through every step, about 14 fps, PSRAM 23 MB or more free).
+- Camera full screen: zoom and position are kept per camera while the device runs; a zoom out no
+  longer leaves parts of the larger picture on the black (the whole screen is redrawn).
+- Camera full screen: the tile's frame shown until the first frame arrives is placed where it lies
+  in the whole picture (it was enlarged as if it were the whole picture and the stream jumped);
+  a stream played full screen waits 30 s for its answer (go2rtc starting its source took longer
+  than 10 s and the view showed "HTTP -1"), the error says "no answer within 30 s". Flashed on
+  all three boards; confirmed by the user.
+- Measured, not fixed: the P4's PPA hangs on the first camera image after most boots (4 of 4 boots
+  of the commit before, also without the zoom), then the decoder and the PPA stay off and every
+  image is decoded in software (TODO, Step 6).
+
 ## 2026-10-10
 
 - Memory: a JPEG decoder's buffers take internal RAM only while 32 KB stay free, else PSRAM

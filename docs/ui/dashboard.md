@@ -238,13 +238,30 @@ generation. 48 hours are 576 points (4.6 KB on the large heap).
 A picture tile asks for its image when the page opens and every `refresh` seconds (default 60)
 while it is shown, but not while its last request is on its way (an image that came after a newer
 request was thrown away, and a page of slow cameras only grew the queue); after 60 s without an
-answer it asks again. A tap shows it full screen on black, refreshed the same way, and any tap goes
-back (with the click and the vibration of a button: the whole screen is a tap target). Until the first full screen frame arrives, the tile's frame is shown enlarged.
+answer it asks again. A tap shows it full screen on black, refreshed the same way. Until the first
+full screen frame arrives, the tile's frame is shown enlarged where it lies in the whole picture
+(it is the picture's middle in the tile's shape; `core::Image::source_width` tells the picture's
+shape), so the stream does not jump when it starts.
+
+The full screen view (`picture_panel.cpp`) shows the whole picture. At 100 % it covers the screen
+(the side that sticks out is cut off), so every camera looks the same whatever its resolution;
+the zoom steps are 50, 75, 100, 150 and 200 %. A swipe moves the picture, as far as its edges (a
+side smaller than the screen stays centered); the position is kept as a part of the picture, so it
+stays on the same spot when the zoom changes. A touch shows round buttons at the top center, "X"
+(back), "+" and "-" (grayed at the ends), with "swipe to move" below them; they hide 5 s after the
+last touch, and the view opens with them shown. They sit below the pull-down zone of Settings
+(`overlay::kZoneHeight`), which lies above the panel and takes the taps there. A zoom step zooms the
+frame on screen with LVGL at once and asks for the frames in the new size: still images anew, a
+stream goes on in it without a new connection. Zoom and position are kept per camera (entity and
+stream) while the device runs: the view opens as it was left. Each change of size, zoom or place
+redraws the whole screen (LVGL's own invalidation of the zoomed image left parts of the larger
+picture on the black after a zoom out).
 
 The image is `GET /api/camera_proxy/<entity>?width=W&height=H` with the token, W x H the size of
-the tile inside its border or of the screen. Home Assistant scales it when it can; the device
+the tile inside its border or of the screen at the zoom. Home Assistant scales it when it can; the device
 decodes the JPEG at the smallest scale that still covers the box (1:1 to 1:8), then cuts the middle
-to the box's aspect ratio. The frame is RGB565 in the display's byte order on the large heap,
+to the box's aspect ratio for a tile; the full screen view asks for the whole picture
+(`whole`: the decoder's output as it is, the view scales it to cover). The frame is RGB565 in the display's byte order on the large heap,
 shared between the tile and its full screen view (480x320: 300 KB).
 
 The images are fetched by the media tasks of `hass` (`media.cpp`, ESP-IDF's `esp_http_client`
@@ -266,18 +283,22 @@ freed, the DMA may still use them.
 
 A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
 from the first frame of the stream instead of Home Assistant; full screen plays the stream with the
-frame rate in the upper left corner. `stream: hass` plays Home Assistant's own MJPEG stream of the
+frame rate in the upper left corner. Full screen waits 30 s for the stream's answer (go2rtc
+answers once its first frame is there, which took longer than 10 s when it first had to start its
+source), a tile's first frame 10 s; a missing answer says "no answer within ... s" instead of
+"HTTP -1". `stream: hass` plays Home Assistant's own MJPEG stream of the
 camera (`/api/camera_proxy_stream/<entity>` with the token) full screen, and the tile keeps the
 scaled snapshots of the camera proxy (that stream has the camera's full size). One stream plays
 at a time; the still images of the page go on in the other tasks (on the ESP32 and the S3 they
 wait meanwhile). A frame is decoded once the UI took the
 one before (it takes it within 10 to 15 ms); the frames in between are read and dropped, so the
-picture never falls behind. A stream frame is shown as the decoder made it, centered, without a
-copy (the copy of 480x320 through PSRAM cost 166 ms); its scale is the largest that still shows
-3/4 of the frame (`core::stream_shift`: 704x576 on 800x480 loses a strip, 1280x960 is shown at
-1:2). A spinner turns until the first frame (its track at 50 % opacity, so the image shows
-through); any tap or swipe goes back (on the release); turning
-the display builds the view again in the new size and restarts the stream in it. `hass
+picture never falls behind. A stream frame is the whole picture as the decoder made it, without a
+copy (the copy of 480x320 through PSRAM cost 166 ms), and the view scales it to cover the screen
+at the zoom; the software decoders' scale is the largest that still shows 3/4 of the frame
+(`core::stream_shift`: 704x576 on 800x480 loses a strip, 1280x960 is decoded at 1:2). A spinner
+turns until the first frame (its track at 50 % opacity, so the image shows through); turning
+the display builds the view again in the new size and restarts the stream in it (with the kept
+zoom and position). `hass
 streamscale auto|0..3` on the console forces the decoder's scale. The decoder gets a work area of
 8 KB per image (esp_jpeg's 3100 bytes were too small for the snapshots of Home Assistant's
 `camera.balconycam`).
@@ -303,8 +324,13 @@ On the JC4880P443C (ESP32-P4) the hardware does the work (`hass/src/image_hw.cpp
 decoder decodes at full size (800x480 in 17 ms, 140 ms in software; pictures whose sides are not
 divisible by 8, often Home Assistant's snapshots in a tile's size, and progressive JPEGs go to the
 software decoder), and the PPA scales the frame to cover the request's size (`core::cover_block`,
-scale in sixteenths), so the UI shows a stream's frame 1:1: LVGL's zoom of a smaller frame took
-100 ms. A frame that already has the screen's size is not scaled. The stream reads the next frame
+scale in sixteenths; the whole picture for the full screen view, `core::whole_block`), so the UI
+shows a stream's frame 1:1: LVGL's zoom of a smaller frame took 100 ms. The view shows a frame
+up to 7 % larger than its box 1:1 (the scale rounds up to sixteenths). A whole picture is
+enlarged to at most 2 M pixels (4 MB): 200 % of a 16:9 stream on the portrait screen would be
+2880x1620, 9 MB a frame with two or three on the way, and every other frame failed for memory
+(2026-10-11); LVGL zooms the rest (150 and 200 % in portrait: still about 14 fps for go2rtc's
+800x480). A frame that already has the screen's size is not scaled. The stream reads the next frame
 while the UI draws the last one (50 ms for 800x480, software rotation) and, with the hardware
 decoder, decodes it then too; the software decoder waits for the UI first, so a frame that is
 dropped is not decoded for nothing. The UI's take wakes the stream (a semaphore; the tick of 10 ms

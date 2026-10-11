@@ -30,6 +30,10 @@ struct Image {
     uint16_t width = 0;
     uint16_t height = 0;
     Pixels pixels;        // width x height
+    // the picture the frame was cut from (only its shape counts): a tile's frame is its middle in
+    // the tile's shape, the full screen view places it where it lies in the whole picture; 0: unknown
+    uint16_t source_width = 0;
+    uint16_t source_height = 0;
     memory::String error; // empty: the frame is there
     bool live = false;    // a frame of a stream that plays (the next one is decoded once this is taken)
 };
@@ -66,6 +70,13 @@ struct CoverBlock {
 
 CoverBlock cover_block(uint32_t frame_width, uint32_t frame_height, uint32_t box_width, uint32_t box_height,
                        uint32_t steps);
+
+// The same scale as cover_block, but for the whole frame: nothing is cut off, the scaled frame
+// (`out_width` x `out_height`, at 0, 0) covers the box and sticks out of it on one side (a pixel
+// or two short with the rounding). For the full screen view, which moves the picture around. At
+// most `max_pixels` (0: any): a larger one is scaled less and does not cover the box.
+CoverBlock whole_block(uint32_t frame_width, uint32_t frame_height, uint32_t box_width, uint32_t box_height,
+                       uint32_t steps, uint32_t max_pixels = 0);
 
 // The size a decoder that scales down to sides in multiples of 8 (esp_new_jpeg, at most 1/8)
 // decodes a picture at to cover a box: the smallest such that is still as large as the box. false

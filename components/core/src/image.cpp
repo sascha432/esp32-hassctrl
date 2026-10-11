@@ -90,6 +90,28 @@ CoverBlock cover_block(uint32_t frame_width, uint32_t frame_height, uint32_t box
     return block;
 }
 
+CoverBlock whole_block(uint32_t frame_width, uint32_t frame_height, uint32_t box_width, uint32_t box_height,
+                       uint32_t steps, uint32_t max_pixels)
+{
+    CoverBlock block = cover_block(frame_width, frame_height, box_width, box_height, steps);
+    if (block.scale == 0) {
+        return block;
+    }
+    // the largest scale whose frame has at most max_pixels: scale^2 * w * h <= max * steps^2
+    while (max_pixels > 0 && block.scale > 1 &&
+           static_cast<uint64_t>(frame_width) * block.scale / steps * (static_cast<uint64_t>(frame_height) * block.scale / steps) >
+               max_pixels) {
+        block.scale--;
+    }
+    block.x = block.y = 0;
+    block.width = frame_width;
+    block.height = frame_height;
+    block.out_x = block.out_y = 0;
+    block.out_width = static_cast<uint32_t>(static_cast<uint64_t>(frame_width) * block.scale / steps);
+    block.out_height = static_cast<uint32_t>(static_cast<uint64_t>(frame_height) * block.scale / steps);
+    return block;
+}
+
 bool cover_size8(uint32_t picture_width, uint32_t picture_height, uint32_t box_width, uint32_t box_height,
                  uint32_t &width, uint32_t &height)
 {

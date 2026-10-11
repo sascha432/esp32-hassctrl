@@ -451,8 +451,9 @@ hc::core::Pixels landscape(hc::core::EntityIndex entity, uint16_t width, uint16_
 }
 
 void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
-                 uint16_t height, uint32_t generation)
+                 uint16_t height, bool whole, uint32_t generation)
 {
+    (void)whole; // the landscape is drawn in any shape: the whole picture is the box
     std::printf("[sim] image of %.*s%s, %ux%u\n", static_cast<int>(entity_id.size()), entity_id.data(),
                 stream.empty() ? "" : " (first frame of its stream)", width, height);
     hc::core::Image image;
@@ -466,6 +467,8 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
     // the sun crosses the sky once a minute
     image.width = width;
     image.height = height;
+    image.source_width = width; // drawn in the box's shape: nothing is cut
+    image.source_height = height;
     image.pixels = landscape(entity, width, height, static_cast<double>(std::time(nullptr) % 60) / 60.0);
     g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
 }
@@ -475,6 +478,13 @@ void play_stream(std::string_view entity_id, std::string_view stream, hc::core::
 {
     std::printf("[sim] stream of %.*s, %ux%u: %.*s\n", static_cast<int>(entity_id.size()), entity_id.data(), width,
                 height, static_cast<int>(stream.size()), stream.data());
+    if (g.play.generation != 0 && g.play.entity == entity) {
+        // another size of the stream that plays: it goes on
+        g.play.width = width;
+        g.play.height = height;
+        g.play.generation = generation;
+        return;
+    }
     // the first frame after a while, like a go2rtc that first starts ffmpeg
     g.play = {.entity = entity, .width = width, .height = height, .generation = generation,
               .next = lv_tick_get() + kStreamStartMs};
@@ -506,6 +516,8 @@ bool take_event(hc::core::HassEvent &out)
         image.live = true;
         image.width = g.play.width;
         image.height = g.play.height;
+        image.source_width = g.play.width;
+        image.source_height = g.play.height;
         image.pixels = landscape(g.play.entity, g.play.width, g.play.height, (g.play.frame % 100) / 100.0);
         out = std::move(image);
         return true;

@@ -29,7 +29,10 @@ struct Frame {
 bool decode(const uint8_t *jpeg, size_t size, bool swap_bytes, Frame &frame, char *error, size_t error_size);
 
 // The picture of `frame` scaled to cover `width` x `height` (centered, what sticks out cut off;
-// core::cover_block), into `out`. false with `error` set when the chip has no PPA or it failed.
-bool cover(const Frame &frame, uint32_t width, uint32_t height, core::Pixels &out, char *error, size_t error_size);
+// core::cover_block), into `out`, `out_width` x `out_height`: the box. `whole`: nothing is cut
+// off, `out` is the whole picture at that scale (core::whole_block). false with `error` set when
+// the chip has no PPA or it failed.
+bool cover(const Frame &frame, uint32_t width, uint32_t height, bool whole, core::Pixels &out, uint32_t &out_width,
+           uint32_t &out_height, char *error, size_t error_size);
 
 } // namespace hc::hass::image_hw

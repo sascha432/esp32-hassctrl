@@ -432,14 +432,14 @@ core::TileIndex panel_tile()
 
 uint32_t g_image_generation = 1;
 
-uint32_t fetch_image(core::TileIndex tile, uint16_t width, uint16_t height)
+uint32_t fetch_image(core::TileIndex tile, uint16_t width, uint16_t height, bool whole)
 {
     if (!g.layout || tile >= g.layout->tiles.size() || g.backend->fetch_image == nullptr) {
         return 0;
     }
     const core::Tile &t = g.layout->tiles[tile];
     const uint32_t generation = g_image_generation++;
-    g.backend->fetch_image(g.layout->entity_id(t), t.stream, t.entity, width, height, generation);
+    g.backend->fetch_image(g.layout->entity_id(t), t.stream, t.entity, width, height, whole, generation);
     return generation;
 }
 

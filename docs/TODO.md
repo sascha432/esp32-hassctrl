@@ -770,6 +770,16 @@ Next:
 - [ ] Review the dashboard in the Windows version (`python tools/sim.py`, your dashboard with
       `--dashboard docs/.retracted/dashboard/hass.yaml`); the open points are in
       `docs/ui/dashboard.md` section 5.
+- [x] Camera full screen zoom and move (2026-10-11): "+", "-", "X", swiping, kept zoom and
+      position, the preview in the stream's place and the 30 s wait for a stream; confirmed by you.
+      Flashed on all three boards.
+- [ ] **P4: the PPA hangs on the first camera image after most boots** (2026-10-11, also without
+      the zoom change: 4 of 4 boots of the last commit, 5 of 6 with it). Always the cameras page's
+      first scale (balconycam, 264x216 from a 272x224 decoder frame, block 258x169 at 3,23 to
+      226x148, scale 14/16); no answer even after 3.5 s. A warm-up scale of 64x64 before it works
+      and changes nothing; even offsets and sizes change nothing; the DIG-734 workaround of the
+      driver does not apply to it by its formula. Then decoder and PPA stay off until the restart
+      and every image is decoded in software (doorspy 1280x960: 315 ms a frame instead of 55 + 21).
 - [ ] Panels: light, climate, sensor history (statistics), camera image. Your first test of the
       Windows version (2026-10-07): tapping a sensor, a dimmer and a climate tile does nothing,
       because these panels are not built yet (the taps are reserved for them). Order (your

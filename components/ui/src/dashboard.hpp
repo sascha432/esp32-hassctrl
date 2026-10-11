@@ -52,10 +52,11 @@ void close_panel();
 core::TileIndex panel_tile();
 
 // Asks for the camera image of the picture `tile` (from Home Assistant, or the first frame of its
-// stream) as a `width` x `height` frame; returns the generation the answer will carry
-// (tiles::show_image, the picture panel).
-uint32_t fetch_image(core::TileIndex tile, uint16_t width, uint16_t height);
-// plays the `stream` of the picture `tile` until stop_stream(); returns the frames' generation
+// stream) as a `width` x `height` frame, or `whole`: the whole picture about as large as covers
+// it; returns the generation the answer will carry (tiles::show_image, the picture panel).
+uint32_t fetch_image(core::TileIndex tile, uint16_t width, uint16_t height, bool whole = false);
+// plays the `stream` of the picture `tile` (whole frames about as large as cover `width` x
+// `height`) until stop_stream(); the same stream in another size goes on. Returns the frames' generation
 uint32_t play_stream(core::TileIndex tile, uint16_t width, uint16_t height);
 void stop_stream();
 // the view of `tile` on the page, nullptr when it is not there

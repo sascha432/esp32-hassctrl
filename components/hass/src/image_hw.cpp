@@ -164,6 +164,10 @@ namespace {
 
 // the PPA's scale is a whole number and sixteenths
 constexpr uint32_t kScaleSteps = 16;
+// A whole picture is enlarged to at most this (4 MB): a stream has two or three frames on the way,
+// and 200 % of a 16:9 camera on the portrait screen (2880x1620, 9 MB each) failed every other
+// frame for memory (2026-10-11). The view zooms the rest; it adds no detail anyway.
+constexpr uint32_t kMaxWholePixels = 2000000;
 // the output's start and size in whole lines of both caches (the driver drops them afterwards)
 constexpr size_t kLine = CONFIG_CACHE_L2_CACHE_LINE_SIZE > CONFIG_CACHE_L1_CACHE_LINE_SIZE ? CONFIG_CACHE_L2_CACHE_LINE_SIZE
                                                                                             : CONFIG_CACHE_L1_CACHE_LINE_SIZE;
@@ -212,16 +216,23 @@ bool scaler()
 
 } // namespace
 
-bool cover(const Frame &frame, uint32_t width, uint32_t height, core::Pixels &out, char *error, size_t error_size)
+bool cover(const Frame &frame, uint32_t width, uint32_t height, bool whole, core::Pixels &out, uint32_t &out_width,
+           uint32_t &out_height, char *error, size_t error_size)
 {
     if (!scaler()) {
         std::snprintf(error, error_size, "no PPA");
         return false;
     }
-    const core::CoverBlock block = core::cover_block(frame.picture_width, frame.picture_height, width, height, kScaleSteps);
+    const core::CoverBlock block =
+        whole ? core::whole_block(frame.picture_width, frame.picture_height, width, height, kScaleSteps, kMaxWholePixels)
+              : core::cover_block(frame.picture_width, frame.picture_height, width, height, kScaleSteps);
     if (block.out_width == 0 || block.out_height == 0) {
         std::snprintf(error, error_size, "nothing to scale");
         return false;
+    }
+    if (whole) {
+        width = block.out_width;
+        height = block.out_height;
     }
     const size_t bytes = static_cast<size_t>(width) * height * 2;
     const size_t allocated = (bytes + kLine - 1) / kLine * kLine;
@@ -274,12 +285,15 @@ bool cover(const Frame &frame, uint32_t width, uint32_t height, core::Pixels &ou
         return false;
     }
     out = std::move(pixels);
+    out_width = width;
+    out_height = height;
     return true;
 }
 
 #else
 
-bool cover(const Frame &, uint32_t, uint32_t, core::Pixels &, char *error, size_t error_size)
+bool cover(const Frame &, uint32_t, uint32_t, bool, core::Pixels &, uint32_t &, uint32_t &, char *error,
+           size_t error_size)
 {
     std::snprintf(error, error_size, "no PPA");
     return false;

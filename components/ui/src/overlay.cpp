@@ -15,9 +15,8 @@ namespace {
 namespace t = theme;
 
 // the touch panel often reports a finger from the edge only some pixels down: the zone is high
-// enough to catch it there
+// enough to catch it there (kZoneHeight)
 constexpr lv_coord_t kZoneWidth = 160;
-constexpr lv_coord_t kZoneHeight = 40;
 constexpr lv_coord_t kDragDistance = 24;
 constexpr uint32_t kUpdateMs = 500;
 constexpr lv_opa_t kStripOpacity = LV_OPA_60;

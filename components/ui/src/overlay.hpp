@@ -16,6 +16,9 @@
 
 namespace hc::ui::overlay {
 
+// the height of the pull-down zone: what lies below it at the top center takes taps
+constexpr lv_coord_t kZoneHeight = 40;
+
 void init(const Backend &backend);
 
 // hides or shows the zone and the strip at once (the edit mode of the dashboard starts or ends),

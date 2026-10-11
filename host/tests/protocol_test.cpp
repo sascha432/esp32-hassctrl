@@ -508,6 +508,15 @@ TEST(core_image_cover)
     CHECK(odd.scale == 19 && odd.out_width <= 800 && odd.out_width >= 798 && odd.out_height <= 480 && odd.out_height >= 478);
     // a tile from a large picture: at least 1/16
     CHECK(cover_block(4000, 3000, 100, 50, 16).scale == 1);
+    // the whole of 1280x960 at 10/16: 800x600, nothing cut; twice the screen: 1600x1200
+    CoverBlock whole = whole_block(1280, 960, 800, 480, 16);
+    CHECK(whole.scale == 10 && whole.x == 0 && whole.width == 1280 && whole.height == 960);
+    CHECK(whole.out_width == 800 && whole.out_height == 600 && whole.out_y == 0);
+    whole = whole_block(1280, 960, 1600, 960, 16);
+    CHECK(whole.scale == 20 && whole.out_width == 1600 && whole.out_height == 1200);
+    // at most 2 M pixels: 640x360 for 200 % of 480x800 would be 2880x1620 (72/16), 1880x1057 at 47/16
+    whole = whole_block(640, 360, 960, 1600, 16, 2000000);
+    CHECK(whole.scale == 47 && whole.out_width == 1880 && whole.out_height == 1057);
 
     // esp_new_jpeg's scale (multiples of 8) to cover the S3's 480x320
     uint32_t sw = 0;

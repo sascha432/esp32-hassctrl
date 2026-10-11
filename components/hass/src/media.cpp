@@ -39,6 +39,9 @@ namespace {
 constexpr const char *kTag = "media";
 // a request waits at most this long for the camera; HA asks the camera itself
 constexpr int kTimeoutMs = 10000;
+// a stream played full screen: go2rtc answers once its first frame is there, which took longer
+// than 10 s when it first had to start its source ("HTTP -1", 2026-10-11); the view shows a spinner
+constexpr int kStreamTimeoutMs = 30000;
 // the largest JPEG taken: HA scales to the size asked for when it can, a camera that cannot be
 // scaled sends its full snapshot (a 1080p one is a few hundred KB)
 constexpr size_t kMaxJpeg = 512 * 1024;
@@ -75,6 +78,9 @@ struct Request {
     uint16_t width = 0;
     uint16_t height = 0;
     bool swap_bytes = false;
+    // the whole picture, scaled to cover the box but not cut to it (the full screen view moves it
+    // around); a stream's frames always are
+    bool whole = false;
     uint32_t generation = 0;
 };
 
@@ -174,12 +180,12 @@ struct Connection {
 
 // Opens a GET of `url` and reads its headers; false with `error` set unless the answer is 200.
 // `authorize`: with the token of Home Assistant.
-bool open(Context &ctx, Connection &c, const char *url, bool authorize, int64_t &length, char *error,
-          size_t error_size)
+bool open(Context &ctx, Connection &c, const char *url, bool authorize, int timeout_ms, int64_t &length,
+          char *error, size_t error_size)
 {
     esp_http_client_config_t config{};
     config.url = url;
-    config.timeout_ms = kTimeoutMs;
+    config.timeout_ms = timeout_ms;
     config.crt_bundle_attach = detail::tls_attach;
     // the token goes into a header longer than the default send buffer
     config.buffer_size_tx = 1024;
@@ -198,6 +204,15 @@ bool open(Context &ctx, Connection &c, const char *url, bool authorize, int64_t 
         return false;
     }
     length = esp_http_client_fetch_headers(c.client);
+    if (length < 0) {
+        // else the status of a response that never came reads "HTTP -1"
+        if (length == -ESP_ERR_HTTP_EAGAIN) {
+            std::snprintf(error, error_size, "no answer within %d s", timeout_ms / 1000);
+        } else {
+            std::snprintf(error, error_size, "no answer (the connection broke off or timed out)");
+        }
+        return false;
+    }
     const int status = esp_http_client_get_status_code(c.client);
     if (status != 200) {
         std::snprintf(error, error_size, status == 401 ? "the token was rejected" : "HTTP %d", status);
@@ -396,9 +411,8 @@ bool decode_hardware(const Request &request, const uint8_t *jpeg, size_t size, b
     const bool fits = frame.width == request.width && frame.height == request.height &&
                       frame.picture_width == frame.width && frame.picture_height == frame.height;
     if (shift_wanted < 0 && !fits) {
-        if (image_hw::cover(frame, request.width, request.height, decoded, error, sizeof(error))) {
-            width = request.width;
-            height = request.height;
+        if (image_hw::cover(frame, request.width, request.height, live || request.whole, decoded, width, height, error,
+                            sizeof(error))) {
             times.scaled = true;
             times.copy_us = esp_timer_get_time() - decoded_at;
             return true;
@@ -508,10 +522,10 @@ bool decode_software(const Request &request, const uint8_t *jpeg, size_t size, b
 }
 
 // The JPEG into a frame, in hardware where the chip has a decoder, else in software. A still image
-// is cut to the request's size (the tile keeps a small frame); a stream's frame (`live`) is the
-// decoder's output as it is: the UI centers it and the screen cuts off what sticks out
-// (core::stream_shift keeps that small), which saves a copy of the whole frame through PSRAM
-// (166 ms at 480x320 on the ESP32).
+// is cut to the request's size (the tile keeps a small frame); a stream's frame (`live`) and a
+// whole picture are the decoder's output as it is: the UI scales it to cover its box and the
+// screen cuts off what sticks out, which saves a copy of the whole frame through PSRAM (166 ms at
+// 480x320 on the ESP32).
 bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live, int shift_wanted, core::Image &image,
             DecodeTimes &times, char *error, size_t error_size)
 {
@@ -524,8 +538,10 @@ bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live,
         !decode_software(request, jpeg, size, live, shift_wanted, decoded, width, height, times, error, error_size)) {
         return false;
     }
-    if (live || times.scaled) {
-        // a stream's frame as it is; one the PPA made the request's size needs no cut either
+    image.source_width = times.source_width;
+    image.source_height = times.source_height;
+    if (live || request.whole || times.scaled) {
+        // a stream's frame or a whole picture as it is; the PPA's needs no cut either
         image.width = static_cast<uint16_t>(width);
         image.height = static_cast<uint16_t>(height);
         image.pixels = std::move(decoded);
@@ -588,7 +604,7 @@ void snapshot(Context &ctx, const Request &request)
         int64_t length = 0;
         if (own_stream(request)) {
             size_t part = 0;
-            if (open(ctx, c, request.stream.c_str(), false, length, error, sizeof(error))) {
+            if (open(ctx, c, request.stream.c_str(), false, kTimeoutMs, length, error, sizeof(error))) {
                 StreamReader reader(c);
                 if (reader.next_part(part, error, sizeof(error))) {
                     if (part > kMaxJpeg || !jpeg.reserve(part)) {
@@ -605,7 +621,7 @@ void snapshot(Context &ctx, const Request &request)
             const size_t used = std::strlen(ctx.request_url);
             std::snprintf(ctx.request_url + used, sizeof(ctx.request_url) - used, "?width=%u&height=%u", request.width,
                           request.height);
-            fetched = open(ctx, c, ctx.request_url, true, length, error, sizeof(error)) &&
+            fetched = open(ctx, c, ctx.request_url, true, kTimeoutMs, length, error, sizeof(error)) &&
                       read_body(c, length, jpeg, error, sizeof(error));
         }
     }
@@ -648,8 +664,24 @@ bool decode_frame(const Request &request, const uint8_t *jpeg, size_t size, core
     return decode(request, jpeg, size, true, g_stream_shift, image, times, error, error_size);
 }
 
-// Plays the stream until another one is wanted or it is stopped.
-void play(Context &ctx, const Request &request)
+// The stream that is wanted now is the one that plays in another size (the full screen view
+// zoomed): `request` takes its size and generation, the next frames have them, the connection
+// stays.
+bool resized(Request &request)
+{
+    std::lock_guard lock(g_mutex);
+    if (g_play.generation == 0 || g_play.generation != g_play_generation || g_play.entity != request.entity ||
+        g_play.stream != request.stream || g_play.entity_id != request.entity_id) {
+        return false;
+    }
+    ESP_LOGI(kTag, "stream of %s now into %ux%u", request.entity_id.c_str(), g_play.width, g_play.height);
+    request = g_play;
+    return true;
+}
+
+// Plays the stream until another one is wanted or it is stopped; `request` follows a new size of
+// the same stream (resized).
+void play(Context &ctx, Request &request)
 {
     char error[96] = {};
     Connection c;
@@ -662,7 +694,7 @@ void play(Context &ctx, const Request &request)
     }
     const char *url = hass ? ctx.request_url : request.stream.c_str();
     ESP_LOGI(kTag, "stream of %s into %ux%u: %s", request.entity_id.c_str(), request.width, request.height, url);
-    if (!open(ctx, c, url, hass, length, error, sizeof(error))) {
+    if (!open(ctx, c, url, hass, kStreamTimeoutMs, length, error, sizeof(error))) {
         stream_failed(request, error);
         return;
     }
@@ -681,7 +713,7 @@ void play(Context &ctx, const Request &request)
     int64_t wait_us = 0;
     DecodeTimes times;
 
-    while (g_play_generation == request.generation) {
+    while (g_play_generation == request.generation || resized(request)) {
         size_t part = 0;
         const int64_t wait_start = esp_timer_get_time();
         if (!reader->next_part(part, error, sizeof(error))) {
@@ -891,20 +923,21 @@ void frame_taken()
 } // namespace detail
 
 void fetch_image(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
-                 uint16_t height, bool swap_bytes, uint32_t generation)
+                 uint16_t height, bool whole, bool swap_bytes, uint32_t generation)
 {
     if (width == 0 || height == 0) {
         return;
     }
     Request request{.entity_id = memory::String(entity_id), .stream = memory::String(stream), .entity = entity,
-                    .width = width, .height = height, .swap_bytes = swap_bytes, .generation = generation};
+                    .width = width, .height = height, .swap_bytes = swap_bytes, .whole = whole,
+                    .generation = generation};
     {
         std::lock_guard lock(g_mutex);
         // one request per source waits: the newest one (tiles of one camera with different
         // streams or sizes are different sources)
         auto same = std::find_if(g_queue.begin(), g_queue.end(), [&](const Request &r) {
             return r.entity == request.entity && r.stream == request.stream && r.width == request.width &&
-                   r.height == request.height;
+                   r.height == request.height && r.whole == request.whole;
         });
         if (same != g_queue.end()) {
             *same = std::move(request);
@@ -938,7 +971,8 @@ void play_stream(std::string_view entity_id, std::string_view stream, core::Enti
     {
         std::lock_guard lock(g_mutex);
         g_play = {.entity_id = memory::String(entity_id), .stream = memory::String(stream), .entity = entity,
-                  .width = width, .height = height, .swap_bytes = swap_bytes, .generation = generation};
+                  .width = width, .height = height, .swap_bytes = swap_bytes, .whole = true,
+                  .generation = generation};
         g_play_generation = generation;
         if (!start_worker()) {
             g_play = {};

@@ -202,9 +202,9 @@ bool time_text(char *out, size_t size)
 
 // the frames in lv_color_t's byte order
 void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
-                 uint16_t height, uint32_t generation)
+                 uint16_t height, bool whole, uint32_t generation)
 {
-    hc::hass::fetch_image(entity_id, stream, entity, width, height, LV_COLOR_16_SWAP != 0, generation);
+    hc::hass::fetch_image(entity_id, stream, entity, width, height, whole, LV_COLOR_16_SWAP != 0, generation);
 }
 
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,

@@ -191,10 +191,14 @@ struct Backend {
     // The camera image of `entity_id` as a `width` x `height` frame in the display's pixel format
     // (lv_color_t); it comes back through take_event as a core::Image stamped with `generation`.
     // `stream`: the tile's MJPEG stream, whose first frame is the image; empty: Home Assistant's.
+    // `whole`: the whole picture instead, about as large as covers the box (the frame says its
+    // size), not cut to it.
     void (*fetch_image)(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
-                        uint16_t height, uint32_t generation);
-    // Plays the MJPEG `stream` as `width` x `height` frames (core::Image with `live`, stamped with
-    // `generation`) until stop_stream() or the next play_stream(); one plays at a time.
+                        uint16_t height, bool whole, uint32_t generation);
+    // Plays the MJPEG `stream` as frames of the whole picture, about as large as covers `width` x
+    // `height` (core::Image with `live`, stamped with `generation`) until stop_stream() or the next
+    // play_stream(); one plays at a time, the same one in another size goes on without a new
+    // connection.
     void (*play_stream)(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
                         uint16_t height, uint32_t generation);
     void (*stop_stream)();

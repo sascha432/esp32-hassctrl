@@ -736,6 +736,8 @@ void show_image(View &view, const core::Image &image)
         compat::image_forget(view.image_dsc);
     }
     view.pixels = image.pixels;
+    view.source_width = image.source_width;
+    view.source_height = image.source_height;
     compat::image_dsc(view.image_dsc, view.pixels.get(), image.width, image.height);
     lv_img_set_src(view.image, &view.image_dsc);
     lv_obj_invalidate(view.image);
