@@ -62,6 +62,16 @@ struct State {
     lv_point_t pressed_at{};
     lv_point_t last{};
     bool dragging = false;
+    // Two fingers zoom by their distance and keep the spot between them under them; LVGL zooms the
+    // frame there by `pinch` times the zoom step until a finger lifts, then the nearest step is
+    // taken and asked for. The picture does not move with the finger that stays (until it lifts).
+    bool pinching = false;
+    bool pinched = false; // since the finger came down
+    float pinch = 1;
+    float pinch_distance = 0; // the fingers' distance when `pinch` was 1
+    // the spot of the picture between the fingers, from its center, as a part of its shown size
+    float pinch_spot_x = 0;
+    float pinch_spot_y = 0;
     uint32_t generation = 0;
     bool streaming = false;
     lv_timer_t *refresh = nullptr;
@@ -105,6 +115,17 @@ uint16_t box_height()
     return static_cast<uint16_t>(g.height * kZooms[g.zoom] / 100);
 }
 
+// the whole picture's shown width and height (LVGL's zoom of the frame)
+float shown_width()
+{
+    return g.frame_width / g.part_x * lv_img_get_zoom(g.image) / 256.0f;
+}
+
+float shown_height()
+{
+    return g.frame_height / g.part_y * lv_img_get_zoom(g.image) / 256.0f;
+}
+
 void request()
 {
     g.generation = dashboard::fetch_image(g.tile, box_width(), box_height(), true);
@@ -121,7 +142,7 @@ void place()
     // the whole picture in the frame's pixels covers the box
     const float picture_width = g.frame_width / g.part_x;
     const float picture_height = g.frame_height / g.part_y;
-    const float scale = std::max(box_width() / picture_width, box_height() / picture_height);
+    const float scale = std::max(box_width() / picture_width, box_height() / picture_height) * g.pinch;
     // 256 is 1:1; the PPA's scale is rounded up to sixteenths (up to 1/16 larger) and its rounding
     // of the size can leave a pixel or two
     const uint16_t zoom = scale >= 0.93f && scale <= 1.01f
@@ -201,15 +222,11 @@ void update_zoom_buttons()
     }
 }
 
-// one zoom step in or out: the frame there is zoomed by LVGL at once, the frames in the new size
-// are asked for (a stream goes on in it)
-void step_zoom(int step)
+// another zoom step: the frame there is zoomed by LVGL at once, the frames in the new size are
+// asked for (a stream goes on in it)
+void set_zoom(size_t zoom)
 {
-    const int zoom = static_cast<int>(g.zoom) + step;
-    if (zoom < 0 || zoom >= static_cast<int>(kZoomCount)) {
-        return;
-    }
-    g.zoom = static_cast<size_t>(zoom);
+    g.zoom = zoom;
     update_zoom_buttons();
     place();
     if (g.streaming) {
@@ -222,7 +239,60 @@ void step_zoom(int step)
     }
 }
 
-// a touch on the picture shows the buttons; a finger that moves drags the picture
+void step_zoom(int step)
+{
+    const int zoom = static_cast<int>(g.zoom) + step;
+    if (zoom >= 0 && zoom < static_cast<int>(kZoomCount)) {
+        set_zoom(static_cast<size_t>(zoom));
+    }
+}
+
+// Follows two fingers on the picture; false when there are not two (any more). The pinch ends
+// with the zoom step nearest to where the fingers left it.
+bool follow_pinch()
+{
+    Finger fingers[2];
+    const auto count_fingers = dashboard::backend().touch_fingers;
+    const bool two = g.pixels && count_fingers != nullptr && count_fingers(fingers) == 2;
+    if (!two) {
+        if (g.pinching) {
+            g.pinching = false;
+            const float wanted = kZooms[g.zoom] * g.pinch;
+            size_t nearest = 0;
+            for (size_t i = 1; i < kZoomCount; i++) {
+                if (std::fabs(std::log(wanted / kZooms[i])) < std::fabs(std::log(wanted / kZooms[nearest]))) {
+                    nearest = i;
+                }
+            }
+            g.pinch = 1;
+            if (nearest != g.zoom) {
+                set_zoom(nearest);
+            } else {
+                place();
+            }
+        }
+        return false;
+    }
+    const float distance = std::max(1.0f, std::hypot(static_cast<float>(fingers[0].x - fingers[1].x),
+                                                     static_cast<float>(fingers[0].y - fingers[1].y)));
+    const float between_x = (fingers[0].x + fingers[1].x) / 2.0f - g.width / 2.0f;
+    const float between_y = (fingers[0].y + fingers[1].y) / 2.0f - g.height / 2.0f;
+    if (!g.pinching) {
+        g.pinching = g.pinched = true;
+        g.pinch_distance = distance / g.pinch;
+        g.pinch_spot_x = between_x / shown_width() - g.pan_x;
+        g.pinch_spot_y = between_y / shown_height() - g.pan_y;
+    }
+    g.pinch = std::clamp(distance / g.pinch_distance, static_cast<float>(kZooms[0]) / kZooms[g.zoom],
+                         static_cast<float>(kZooms[kZoomCount - 1]) / kZooms[g.zoom]);
+    place(); // the zoom, for the shown size
+    g.pan_x = between_x / shown_width() - g.pinch_spot_x;
+    g.pan_y = between_y / shown_height() - g.pinch_spot_y;
+    place();
+    return true;
+}
+
+// a touch on the picture shows the buttons; a finger that moves drags the picture, two zoom it
 void on_touch(lv_event_t *event)
 {
     const lv_event_code_t code = lv_event_get_code(event);
@@ -234,8 +304,15 @@ void on_touch(lv_event_t *event)
     lv_indev_get_point(indev, &point);
     if (code == LV_EVENT_PRESSED) {
         g.pressed_at = g.last = point;
-        g.dragging = false;
+        g.dragging = g.pinched = false;
         show_controls();
+        return;
+    }
+    if (follow_pinch()) {
+        show_controls();
+        return;
+    }
+    if (g.pinched) {
         return;
     }
     // the release brings the last point of a fast swipe
@@ -316,7 +393,10 @@ void build_controls(lv_obj_t *root)
     round_button(buttons, "X", 0);
     g.zoom_in = round_button(buttons, "+", 1);
     g.zoom_out = round_button(buttons, "-", -1);
-    lv_obj_t *hint = t::label(g.controls, "swipe to move", t::font_normal(), t::kText);
+    lv_obj_t *hint = t::label(g.controls,
+                              dashboard::backend().touch_fingers != nullptr ? "swipe to move, pinch to zoom"
+                                                                            : "swipe to move",
+                              t::font_normal(), t::kText);
     lv_obj_set_style_bg_opa(hint, LV_OPA_60, 0);
     lv_obj_set_style_bg_color(hint, lv_color_black(), 0);
     lv_obj_set_style_radius(hint, LV_RADIUS_CIRCLE, 0);

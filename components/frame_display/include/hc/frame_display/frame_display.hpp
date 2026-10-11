@@ -7,8 +7,8 @@
 // LVGL renders in direct mode: only what changed, at its place in one screen-sized frame in PSRAM.
 // After each refresh the frame goes to the panel top to bottom in bands, turned to the panel's
 // orientation while they are copied into two DMA buffers in internal RAM: one band is copied while
-// the other is sent. Rotation is therefore software (lv_disp_set_rotation), touch comes from
-// esp_lvgl_port's reader in the LVGL task (hc::board::Info::touch_in_panel).
+// the other is sent. Rotation is therefore software (lv_disp_set_rotation), touch is read in the
+// LVGL task (hc::touch_input, hc::board::Info::touch_in_panel).
 
 #include <cstdint>
 

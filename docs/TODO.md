@@ -773,6 +773,10 @@ Next:
 - [x] Camera full screen zoom and move (2026-10-11): "+", "-", "X", swiping, kept zoom and
       position, the preview in the stream's place and the 30 s wait for a stream; confirmed by you.
       Flashed on all three boards.
+- [x] Camera full screen pinch to zoom (2026-10-11): two fingers measured on all three boards
+      first (GT911 and AXS15231B fine, FT6336U merges them below about 3 cm), then built; the
+      JC3248W535 reads two fingers itself and moved from esp_lvgl_port's reader to `touch_input`
+      in the LVGL task. Confirmed by you on all three boards.
 - [ ] **P4: the PPA hangs on the first camera image after most boots** (2026-10-11, also without
       the zoom change: 4 of 4 boots of the last commit, 5 of 6 with it). Always the cameras page's
       first scale (balconycam, 264x216 from a 272x224 decoder frame, block 258x169 at 3,23 to
@@ -1033,7 +1037,10 @@ Your report of the second version (2026-10-09):
 - [ ] Open: why the AXS15231B's touch does not work from a task of its own. Ideas: it may need its
       reads paced (30 ms worked, 10 ms not), or the reads collide with the panel's QSPI traffic in
       a way a lock around whole frames does not cover. Until then quick taps during a long render
-      can still be lost on the JC3248W535.
+      can still be lost on the JC3248W535. New since 2026-10-11: the controller's answers include
+      shifted records and garbage after a lift (docs/devices/JC3248W535), which Espressif's driver
+      took for touches; the board's own read drops them now. Worth trying the task again
+      (`touch_input::Config::in_lvgl_task` false).
 - [x] The JC3248W535's touch works again, all clicks play (your report).
 - [x] A click about a second after the last sound (800 to 1200 ms) was quieter: the channel
       stopped 1 s after a sound and the NS4168 was caught going to sleep or waking. The channel

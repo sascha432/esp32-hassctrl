@@ -11,10 +11,13 @@
 // The coordinates are the controller's (the panel's own orientation), as with esp_lvgl_port:
 // LVGL turns them with the display's rotation.
 //
-// Not for a touch controller inside the panel controller (hc::board::Info::touch_in_panel, the
-// AXS15231B of the JC3248W535): read by this task it reported points all over the screen, and
-// with the reads kept between frames none at all (2026-10-09). That board keeps esp_lvgl_port's
-// reader.
+// A touch controller inside the panel controller (hc::board::Info::touch_in_panel, the AXS15231B
+// of the JC3248W535) is read in the LVGL task instead (Config::in_lvgl_task), as esp_lvgl_port's
+// reader did: read by this task it reported points all over the screen, and with the reads kept
+// between frames none at all (2026-10-09).
+//
+// LVGL's pointer is one finger, the one that came down first. The UI asks for both fingers of a
+// two-finger gesture with fingers() (the camera's pinch to zoom).
 
 #include "esp_err.h"
 #include "esp_lcd_touch.h"
@@ -29,11 +32,17 @@ struct Config {
     // them is a misread and dropped
     uint16_t max_x;
     uint16_t max_y;
+    // read in LVGL's read callback instead of a task of its own (every 30 ms, none during a render)
+    bool in_lvgl_task = false;
 };
 
 // Adds the pointer and starts the sampling task. Call with the LVGL lock held, once. nullptr when
 // it could not.
 lv_indev_t *add(const Config &config);
+
+// The fingers on the screen now (0 to 2), in the display's coordinates (turned as LVGL's pointer
+// is). Call from the LVGL task.
+uint8_t fingers(lv_point_t out[2]);
 
 // Prints every sample of the controller that differs from the one before and every failed read
 // (console `touch log`), for finding out what a controller reports.

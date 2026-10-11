@@ -18,6 +18,7 @@
 #include "hc/platform/device.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/time_sync.hpp"
+#include "hc/touch_input/touch_input.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "lvgl.h"
 #include "ui_sound.hpp"
@@ -277,6 +278,16 @@ bool ambient_lux(float &out)
     return true;
 }
 
+uint8_t touch_fingers(hc::ui::Finger out[2])
+{
+    lv_point_t points[2];
+    const uint8_t count = hc::touch_input::fingers(points);
+    for (uint8_t i = 0; i < count; i++) {
+        out[i] = {static_cast<int16_t>(points[i].x), static_cast<int16_t>(points[i].y)};
+    }
+    return count;
+}
+
 bool hint_seen()
 {
     if (g_hint_seen < 0) {
@@ -352,6 +363,7 @@ const hc::ui::Backend g_backend{
     .vibration = ui_sound::vibration,
     .set_vibration = ui_sound::set_vibration_setting,
     .vibrate_click = ui_sound::vibrate_click,
+    .touch_fingers = touch_fingers,
     .alarm_settings = ui_sound::alarm_settings,
     .set_alarm_settings = ui_sound::set_alarm_settings,
     .alarm_sounds = ui_sound::alarm_sounds,

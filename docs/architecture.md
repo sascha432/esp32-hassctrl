@@ -511,8 +511,15 @@ const Info &info();                    // name, resolution, has_touch, psram
   and not while LVGL rendered, so quick taps during a long render were lost. Points outside the
   panel are dropped. Not where touch and panel are one chip (`Info::touch_in_panel`, the
   AXS15231B of the JC3248W535): read by the task the touch reported points all over the screen,
-  and with the reads kept between frames none at all; that board keeps esp_lvgl_port's reader in
-  the LVGL task (open: why, see docs/TODO.md). Console `touch log` prints the samples.
+  and with the reads kept between frames none at all; that board is read in LVGL's read callback
+  (`Config::in_lvgl_task`, every 30 ms, as esp_lvgl_port's reader did; open: why, see
+  docs/TODO.md). Console `touch log` prints the samples.
+  Up to two fingers are read: LVGL's pointer follows the one that came down first (by the
+  controller's track id), `touch_input::fingers()` gives both to a two-finger gesture (the camera's
+  pinch to zoom). The JC3248W535's driver reads one finger only and takes misread answers as
+  touches; its board file reads two, takes a bad header for no finger and drops shifted records.
+  Measured 2026-10-11: the GT911 and the AXS15231B keep two fingers apart down to 15 and 7 mm, the
+  FT6336U of the WT32-SC01 merges them into one point below about 3 cm.
 * `board` also owns the shared buses, such as the I2C bus of the touch controller, and hands out
   their handles, so a sensor on the same bus does not open it a second time.
 

@@ -5,6 +5,8 @@ LVGL. Design: [docs/architecture.md](docs/architecture.md), UI: [docs/ui/](docs/
 new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 [docs/TODO.md](docs/TODO.md).
 
+![docs/ui/images/jc4880p443c_dashboard1.jpg](docs/ui/images/jc4880p443c_dashboard1.jpg)
+
 ## Build
 
 Open a PowerShell prepared with the ESP-IDF activation script of EIM, then use the build script.

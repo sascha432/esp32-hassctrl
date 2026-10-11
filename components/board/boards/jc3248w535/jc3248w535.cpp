@@ -216,6 +216,61 @@ esp_err_t init_i2c(Handles &out)
     return i2c_new_master_bus(&bus, &out.i2c);
 }
 
+// The touch answer of the AXS15231B: gesture, count of fingers, then 6 bytes per finger (x high
+// nibble with the event in bits 6-7, x low, y high nibble with the finger's id in bits 4-7, y low,
+// two bytes that count up by one). Asked for two fingers (pinch). Without a finger the header is
+// anything else (0x30 throughout after a lift). About one answer in 40 during a touch came with a
+// good header but records shifted by a few bytes (2026-10-11, 330 good records): every good
+// record's last two bytes counted up by one and no shifted one's did, so such an answer is a
+// failed read (hc::touch_input keeps the last sample), not a lift or a touch somewhere else.
+constexpr uint8_t kTouchFingers = 2;
+
+esp_err_t read_touch(esp_lcd_touch_handle_t tp)
+{
+    uint8_t data[2 + kTouchFingers * 6]{};
+    const uint8_t command[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x00, 0x00, 0x00, sizeof(data), 0x00, 0x00, 0x00};
+    esp_err_t err = esp_lcd_panel_io_tx_param(tp->io, -1, command, sizeof(command));
+    if (err == ESP_OK) {
+        err = esp_lcd_panel_io_rx_param(tp->io, -1, data, sizeof(data));
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    // no finger: the controller answers anything after a lift (0x30 throughout, ...), and the
+    // driver took every answer it did not understand for none
+    const uint8_t count = data[0] == 0 && data[1] <= kTouchFingers ? data[1] : 0;
+    esp_lcd_touch_point_data_t points[kTouchFingers]{};
+    for (uint8_t i = 0; i < count; i++) {
+        const uint8_t *record = data + 2 + i * 6;
+        const uint16_t x = static_cast<uint16_t>((record[0] & 0x0f) << 8 | record[1]);
+        const uint16_t y = static_cast<uint16_t>((record[2] & 0x0f) << 8 | record[3]);
+        if (x > tp->config.x_max || y > tp->config.y_max || record[5] != static_cast<uint8_t>(record[4] + 1)) {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+        points[i].track_id = record[2] >> 4;
+        points[i].x = x;
+        points[i].y = y;
+    }
+    portENTER_CRITICAL(&tp->data.lock);
+    tp->data.points = count;
+    for (uint8_t i = 0; i < count; i++) {
+        tp->data.coords[i] = points[i];
+    }
+    portEXIT_CRITICAL(&tp->data.lock);
+    return ESP_OK;
+}
+
+// the driver has none: the ids read_touch keeps with the points
+esp_err_t touch_track_ids(esp_lcd_touch_handle_t tp, uint8_t *track_id, uint8_t point_num)
+{
+    portENTER_CRITICAL(&tp->data.lock);
+    for (uint8_t i = 0; i < point_num && i < kTouchFingers; i++) {
+        track_id[i] = tp->data.coords[i].track_id;
+    }
+    portEXIT_CRITICAL(&tp->data.lock);
+    return ESP_OK;
+}
+
 esp_err_t init_touch(Handles &out)
 {
     // ESP_LCD_TOUCH_IO_I2C_AXS15231B_CONFIG_EX, which is C only
@@ -237,7 +292,11 @@ esp_err_t init_touch(Handles &out)
     config.y_max = kNativeHeight - 1;
     config.rst_gpio_num = GPIO_NUM_NC;
     config.int_gpio_num = GPIO_NUM_NC;
-    return esp_lcd_touch_new_i2c_axs15231b(io, &config, &out.touch);
+    ESP_RETURN_ON_ERROR(esp_lcd_touch_new_i2c_axs15231b(io, &config, &out.touch), kTag, "touch");
+    // the driver's read asks for one finger and drops a touch of two
+    out.touch->read_data = read_touch;
+    out.touch->get_track_id = touch_track_ids;
+    return ESP_OK;
 }
 
 } // namespace

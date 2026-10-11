@@ -2,6 +2,25 @@
 
 ## 2026-10-11
 
+- Camera full screen: pinch to zoom on all three boards. Two fingers zoom the frame on screen
+  (LVGL) and keep the spot between them under them; when a finger lifts, the nearest zoom step is
+  taken and its frames asked for, as with "+" and "-". The hint reads "swipe to move, pinch to
+  zoom". Measured first over the serial console with your fingers: the GT911 (P4) and the
+  AXS15231B (JC3248W535) keep two fingers apart down to 15 and 7 mm, the FT6336U (WT32) merges
+  them into one point below about 3 cm, where the pinch ends. Confirmed by you on all three boards.
+- `touch_input` reads up to two fingers: LVGL's pointer follows the first one by its track id (the
+  FT6336U's list changes its order), `touch_input::fingers()` gives both to the UI
+  (`Backend::touch_fingers`, nullptr in the Windows version). New `Config::in_lvgl_task`: read in
+  LVGL's read callback instead of the task.
+- JC3248W535: touch through `touch_input` in the LVGL task instead of esp_lvgl_port's reader, with
+  the board's own read of the AXS15231B (`read_touch`): two fingers (the driver asks for one and
+  drops a touch of two) and their ids. An answer with a bad header is no finger (the controller
+  answers garbage such as 0x30 throughout after a lift); one with a good header but shifted records
+  (about one in 40 during a touch) is dropped as a misread, where the driver took it for a touch at
+  a wrong place. The first version took the bad header for a misread too and kept every touch
+  pressed (your report: a touch became a long press and the dashboard's edit mode).
+- README: a picture of the dashboard on the JC4880P443C (`docs/ui/images/`).
+
 - `lock.*` is a tile of its own (`core::TileKind::Lock`, `lock` in the web editor), no longer a
   sensor: the state in words, filled green while unlocked, orange while locked, red while jammed
   (your choice; tile, panel and timeline); a tap opens the lock panel and never locks or unlocks

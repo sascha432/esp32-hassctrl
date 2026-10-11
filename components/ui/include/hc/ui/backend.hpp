@@ -114,6 +114,12 @@ struct AlarmSettings {
     char sound[kSoundNameSize];
 };
 
+// a finger on the screen, in the display's coordinates
+struct Finger {
+    int16_t x;
+    int16_t y;
+};
+
 struct Backend {
     void (*wifi_info)(WifiInfo &out);
     // `password_needed` (may be nullptr): bit i set when network i was imported without its
@@ -155,6 +161,9 @@ struct Backend {
     void (*set_vibration)(bool on);
     // the pulse for a tap, whatever the switch says
     void (*vibrate_click)();
+    // The fingers on the screen now (0 to 2), for a gesture of two that LVGL's single pointer does
+    // not see (the camera's pinch to zoom); nullptr without (the Windows version).
+    uint8_t (*touch_fingers)(Finger out[2]);
 
     // The alarm: nullptr without it (CONFIG_HC_AUDIO_ALARM), and then Settings have no Alarm page.
     void (*alarm_settings)(AlarmSettings &out);
