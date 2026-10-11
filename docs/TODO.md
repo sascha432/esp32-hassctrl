@@ -751,17 +751,19 @@ Dashboard screen (2026-10-07, in the Windows version and on the T4 with your das
 
 Next:
 
-- [ ] **Camera page on the JC4880P443C** (2026-10-10): the tiles stayed empty. Three causes, fixed:
+- [x] **Camera page on the JC4880P443C** (2026-10-10): the tiles stayed empty. Three causes, fixed:
       the PPA's blocking scale did not come back now and then (right after a JPEG of the hardware
       decoder) and the only media task waited for good; the requests queued behind it and the
       fifth fell out of the queue of 4 silently; a tile threw away an image that came after its
       next request (15 s refresh, printercam takes 3-9 s). Now: up to 3 media tasks fetch at the
-      same time (1 on the ESP32), one decode at a time; a tile asks again only once its image
+      same time on the P4 (1 on the ESP32 and the S3: three left the S3 without internal RAM for a
+      socket), one decode at a time; a tile asks again only once its image
       came (or after 60 s); a request that falls out of the queue is answered with an error; the
       PPA has 500 ms, then decoder and PPA stay off until the restart (software decoding, 25-30 ms
       a tile). Checked by me on the P4 over the serial console: 4 cameras every 15 s for 100 s,
-      one PPA timeout caught. Open:
-  - [ ] Your check on the P4; the S3 and the WT32 built, not flashed.
+      one PPA timeout caught; JC3248W535 and WT32 flashed and checked the same way. Open points
+      below.
+  - [x] Confirmed by you on the P4 (2026-10-10).
   - [ ] Why the PPA hangs (DMA2D, like the display's memory corruption of 2026-10-08).
   - [ ] "Balcony Stream" (camera.balconycam with a `stream`): its https URL is not reached
         (`esp-tls: select() timeout` every round, 10 s); the tile shows only its icon, no error.
