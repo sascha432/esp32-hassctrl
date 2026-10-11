@@ -38,7 +38,7 @@ SIZES = ((24, 4), (48, 2))
 
 # drawn by the screens, not named by tiles
 UI_GLYPHS = ("arrow-left", "plus", "minus", "creation", "fire", "snowflake", "sun-snowflake-variant",
-             "thermostat-auto", "record")
+             "thermostat-auto", "record", "chart-timeline-variant")
 
 ICON_LIST = ROOT / "components" / "core" / "src" / "icons.cpp"
 OUT_FONTS = ROOT / "components" / "ui" / "src" / "fonts"

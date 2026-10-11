@@ -6,7 +6,9 @@
 #include "climate_panel.hpp"
 #include "dashboard.hpp"
 #include "icons.hpp"
+#include "history_view.hpp"
 #include "light_panel.hpp"
+#include "lock_panel.hpp"
 #include "picture_panel.hpp"
 #include "sensor_panel.hpp"
 #include "sound.hpp"
@@ -33,6 +35,18 @@ constexpr lv_coord_t kNameGap = 12;
 // landscape: between the left column and the control, twice the grid's gap (the arc and the lists
 // looked glued to the buttons with 4 px)
 constexpr lv_coord_t kControlSide = 2 * kGap;
+// the buttons of the options: at most this tall in the landscape column, this far apart
+constexpr lv_coord_t kOptionHeight = 40;
+constexpr lv_coord_t kOptionGap = 6;
+// the sliders: at most this wide, the track rounded like this
+constexpr lv_coord_t kSliderWidth = 113;
+// the slider of a large frame (the P4's dialog), wider. Portrait: this part of the height,
+// centered; landscape: this far above the bottom of the control.
+constexpr lv_coord_t kSliderWidthLarge = 160;
+constexpr int kSliderHeightLargePct = 80;
+constexpr lv_coord_t kSliderWidthLargeLandscape = 140;
+constexpr lv_coord_t kSliderBottomLarge = 16;
+constexpr lv_coord_t kSliderRadius = 24;
 // the items of a list and the room for its scrollbar
 constexpr lv_coord_t kItemHeight = 42;
 constexpr lv_coord_t kItemGap = 4;
@@ -176,6 +190,7 @@ void on_root_delete(lv_event_t *)
     light_panel::forget();
     climate_panel::forget();
     sensor_panel::forget();
+    lock_panel::forget();
     picture_panel::forget();
 }
 
@@ -184,7 +199,7 @@ void on_root_delete(lv_event_t *)
 bool has_panel(const core::Tile &tile)
 {
     return (tile.kind == core::TileKind::Light && tile.dimmer) || tile.kind == core::TileKind::Climate ||
-           tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Picture;
+           tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Lock || tile.kind == core::TileKind::Picture;
 }
 
 lv_obj_t *card(lv_obj_t *parent, const lv_area_t &a)
@@ -202,6 +217,79 @@ lv_obj_t *card(lv_obj_t *parent, const lv_area_t &a)
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
     sound::tappable(obj);
     return obj;
+}
+
+void layout_options(const Frame &frame, lv_obj_t *const *buttons, int count, uint32_t shown)
+{
+    int visible_count = 0;
+    for (int i = 0; i < count; i++) {
+        visible_count += static_cast<int>((shown >> i) & 1);
+    }
+    const lv_area_t &options = frame.options;
+    const lv_coord_t aw = lv_area_get_width(&options);
+    const lv_coord_t ah = lv_area_get_height(&options);
+    lv_coord_t w = aw;
+    lv_coord_t h = ah;
+    if (visible_count > 0) {
+        if (frame.portrait) {
+            w = static_cast<lv_coord_t>((aw - (visible_count - 1) * kOptionGap) / visible_count);
+        } else {
+            h = std::min<lv_coord_t>(kOptionHeight, static_cast<lv_coord_t>((ah - (visible_count - 1) * kOptionGap) / visible_count));
+        }
+    }
+    int placed = 0;
+    for (int i = 0; i < count; i++) {
+        lv_obj_t *button = buttons[i];
+        const bool visible = visible_count > 1 && ((shown >> i) & 1) != 0;
+        set_hidden(button, !visible);
+        if (!visible) {
+            continue;
+        }
+        const lv_coord_t x = frame.portrait ? static_cast<lv_coord_t>(options.x1 + placed * (w + kOptionGap)) : options.x1;
+        const lv_coord_t y = frame.portrait ? options.y1 : static_cast<lv_coord_t>(options.y1 + placed * (h + kOptionGap));
+        lv_obj_set_pos(button, x, y);
+        lv_obj_set_size(button, w, h);
+        placed++;
+    }
+}
+
+void mark_option(lv_obj_t *button, bool selected)
+{
+    lv_obj_set_style_bg_color(button, t::color(selected ? t::kText : t::kCard), 0);
+    lv_obj_set_style_text_color(lv_obj_get_child(button, 0), t::color(selected ? t::kBackground : t::kTextLabel), 0);
+}
+
+SliderPlace slider_place(const Frame &frame, lv_coord_t room, lv_coord_t h)
+{
+    if (!frame.large) {
+        return {std::min(kSliderWidth, room), h, 0};
+    }
+    if (frame.portrait) {
+        const auto slider_h = static_cast<lv_coord_t>(h * kSliderHeightLargePct / 100);
+        return {std::min(kSliderWidthLarge, room), slider_h, static_cast<lv_coord_t>((h - slider_h) / 2)};
+    }
+    return {std::min(kSliderWidthLargeLandscape, room), static_cast<lv_coord_t>(h - kSliderBottomLarge), 0};
+}
+
+lv_obj_t *slider_track(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h)
+{
+    lv_obj_t *track = t::plain(parent);
+    lv_obj_set_pos(track, x, y);
+    lv_obj_set_size(track, w, h);
+    lv_obj_set_style_radius(track, std::min<lv_coord_t>(kSliderRadius, w / 2), 0);
+    lv_obj_set_style_clip_corner(track, true, 0);
+    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(track, t::color(t::kCardAlt), 0);
+    lv_obj_set_style_border_width(track, 1, 0);
+    lv_obj_set_style_border_color(track, t::color(t::kBorder), 0);
+    lv_obj_set_style_border_post(track, true, 0);
+    lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(track, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(track);
+    sound::draggable(track);
+    // the drag does not bubble up as a gesture of the screen
+    lv_obj_clear_flag(track, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    return track;
 }
 
 lv_obj_t *step_button(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t size, const char *glyph,
@@ -422,6 +510,8 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         light_panel::build(frame, tile);
     } else if (kind == core::TileKind::Climate) {
         climate_panel::build(frame, tile);
+    } else if (kind == core::TileKind::Lock) {
+        lock_panel::build(frame, tile);
     } else {
         sensor_panel::build(frame, tile);
     }
@@ -466,6 +556,8 @@ void update(core::EntityIndex entity)
         light_panel::update();
     } else if (tile.kind == core::TileKind::Climate) {
         climate_panel::update();
+    } else if (tile.kind == core::TileKind::Lock) {
+        lock_panel::update();
     } else {
         sensor_panel::update();
     }
@@ -481,7 +573,7 @@ void on_image(const core::Image &image)
 void on_history(core::History history)
 {
     if (g.root != nullptr && history.entity == g.entity) {
-        sensor_panel::on_history(std::move(history));
+        history_view::on_history(std::move(history));
     }
 }
 

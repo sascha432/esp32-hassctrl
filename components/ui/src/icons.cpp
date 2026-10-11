@@ -96,7 +96,8 @@ const char *by_domain(std::string_view domain, const core::EntityState &state, b
         return "camera";
     }
     if (domain == "lock") {
-        return state.state == "locked" ? "lock" : "lock-open";
+        const std::string_view s = state.state;
+        return s == "jammed" ? "lock-alert" : s == "locked" || s == "locking" ? "lock" : "lock-open";
     }
     if (domain == "binary_sensor") {
         return pick(binary_sensor(device_class));

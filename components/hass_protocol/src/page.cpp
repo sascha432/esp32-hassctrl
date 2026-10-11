@@ -62,6 +62,7 @@ constexpr FieldSpec kFields[] = {
     {Field::PresetModes, "pl", "preset_modes", Kind::List},
     {Field::FanMode, "f", "fan_mode", Kind::Text},
     {Field::FanModes, "fl", "fan_modes", Kind::List},
+    {Field::Features, "sf", "supported_features", Kind::Number},
 };
 static_assert(std::size(kFields) == static_cast<size_t>(Field::Count));
 
@@ -225,6 +226,11 @@ void decode_field(const FieldSpec &spec, const cJSON *item, core::EntityState &t
     case Field::FanModes:
         to.fan_modes = list_of(item);
         break;
+    case Field::Features: {
+        const float value = number_of(item);
+        to.features = std::isnan(value) ? 0 : static_cast<int32_t>(value);
+        break;
+    }
     case Field::Count:
         break;
     }
@@ -275,6 +281,12 @@ FieldMask fields_of(const core::Tile &tile, bool panel)
         fields |= kClimate;
         if (panel) {
             fields |= kClimatePanel;
+        }
+        break;
+    case TileKind::Lock:
+        // the open button
+        if (panel) {
+            fields |= bit(Field::Features);
         }
         break;
     default:

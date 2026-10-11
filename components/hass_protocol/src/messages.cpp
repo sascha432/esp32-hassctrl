@@ -84,6 +84,11 @@ Call service_of(const core::Intent &intent, std::string_view domain)
             return {"climate", "set_fan_mode"};
         }
         break;
+    case IntentKind::SetLock:
+        if (domain == "lock") {
+            return {"lock", intent.value == core::kOpen ? "open" : intent.value == core::kUnlock ? "unlock" : "lock"};
+        }
+        break;
     case IntentKind::SetEffect:
     case IntentKind::SetColor:
     case IntentKind::SetColorTemp:

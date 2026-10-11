@@ -12,11 +12,11 @@ constexpr std::string_view kIcons[] = {
     "door-open",         "eye",               "fan",               "fan-off",           "flash",
     "flash-off",         "folder",            "gauge",             "gesture-tap-button", "home",
     "home-assistant",    "lightbulb",         "lightbulb-off",     "lightbulb-on",      "lightning-bolt",
-    "lock",              "lock-open",         "molecule-co2",      "motion-sensor",     "motion-sensor-off",
-    "palette",           "power",             "power-plug",        "power-plug-off",    "radiator",
-    "radiobox-blank",    "remote",            "robot",             "robot-off",         "script-text",
-    "sine-wave",         "thermometer",       "thermostat",        "toggle-switch",     "toggle-switch-off",
-    "water-percent",     "window-closed",     "window-open",
+    "lock",              "lock-alert",        "lock-open",         "molecule-co2",      "motion-sensor",
+    "motion-sensor-off", "palette",           "power",             "power-plug",        "power-plug-off",
+    "radiator",          "radiobox-blank",    "remote",            "robot",             "robot-off",
+    "script-text",       "sine-wave",         "thermometer",       "thermostat",        "toggle-switch",
+    "toggle-switch-off", "water-percent",     "window-closed",     "window-open",
 };
 
 } // namespace

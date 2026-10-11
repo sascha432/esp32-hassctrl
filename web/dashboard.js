@@ -134,6 +134,7 @@ window.hcEditor = (() => {
     if (["button", "input_button", "scene", "script"].includes(d)) return "button";
     if (d === "climate") return "climate";
     if (d === "camera") return "picture";
+    if (d === "lock") return "lock";
     return "sensor";
   }
   function defaultSpan(t) {

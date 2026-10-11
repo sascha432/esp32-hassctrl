@@ -11,7 +11,6 @@
   tiles:
     - entity: lock.stardust_gate
       name: Front Gate
-      icon: lock
     - entity: binary_sensor.owl_motion
       name: Motion
       icon: motion-sensor

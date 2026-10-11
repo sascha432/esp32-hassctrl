@@ -2,6 +2,22 @@
 
 ## 2026-10-11
 
+- `lock.*` is a tile of its own (`core::TileKind::Lock`, `lock` in the web editor), no longer a
+  sensor: the state in words, filled green while unlocked, orange while locked, red while jammed
+  (your choice; tile, panel and timeline); a tap opens the lock panel and never locks or unlocks
+  by itself. Tested by the user on the WT32: lock, open and the timeline; the colors confirmed
+  by the user on the WT32 (the JC3248W535 and the P4 have the panel with the first colors).
+- Lock panel (`ui/src/lock_panel.cpp`): a slider with two places like Home Assistant's (drag or
+  tap the other half: `lock.lock` / `lock.unlock`), a round open button that asks for a second tap
+  (`lock.open`, only with `supported_features` OPEN, the new `core::Field::Features`), and the
+  timeline of the lock behind the second option button.
+- The history graph of the sensor panel is `ui/src/history_view.cpp`, used by both panels. A
+  timeline knows a problem state (a jammed lock, red; in the legend only while the window has
+  one) and takes its colors from the panel (`history_view::Legend`); the history decodes the lock states
+  (`hass_protocol/src/history.cpp`). The binary sensor class `lock` reads `Unlocked`/`Locked`.
+- `core::IntentKind::SetLock` (lock, unlock, open). Shared panel parts out of the light panel:
+  `panel::slider_track`, `panel::slider_place`, `panel::layout_options`, `panel::mark_option`.
+- Glyphs `lock-alert` and `chart-timeline-variant` (fonts and `web/icons.svg` generated again).
 - MJPEG streams no longer drift behind without limit (your report: Doorspy 10 s behind on the P4
   after a few minutes, 30 s on the WT32). go2rtc queued up to 64 frames for a board whose Wi-Fi
   reads slower than the source sends (Doorspy 370 KB/s). A stream whose next frame is already

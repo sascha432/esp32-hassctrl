@@ -82,6 +82,8 @@ bool copy(EntityState &to, const EntityState &from, Field field)
         return assign(to.fan_mode, from.fan_mode);
     case Field::FanModes:
         return assign(to.fan_modes, from.fan_modes);
+    case Field::Features:
+        return assign(to.features, from.features);
     case Field::Count:
         break;
     }

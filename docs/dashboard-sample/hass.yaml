@@ -44,7 +44,9 @@ defaults:
 #   button.* input_button.* scene.* script.*        button: a tap presses
 #   climate.*                                       thermostat, 1x2
 #   camera.*                                        camera picture, 2x2
-#   everything else (sensor.*, binary_sensor.*, lock.*, ...)
+#   lock.*                                          lock: a tap opens the panel (lock, unlock,
+#                                                   open, the timeline); the tile does not unlock
+#   everything else (sensor.*, binary_sensor.*, ...)
 #                                                   shows the state, a tap opens the history
 # Only `area` and `spacer` have a `type`. Every key except `entity` is optional.
 tiles:

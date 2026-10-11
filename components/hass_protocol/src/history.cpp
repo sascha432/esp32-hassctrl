@@ -49,6 +49,19 @@ bool epoch_of(const cJSON *item, double divisor, uint32_t &out)
     return true;
 }
 
+// the value of a state in the timeline; a lock that is not locked counts as on (HA's lock
+// binary sensor), the words are the lock's own so no domain is needed
+float state_value(std::string_view s)
+{
+    if (s == "on" || s == "unlocked" || s == "unlocking" || s == "open" || s == "opening") {
+        return 1.0f;
+    }
+    if (s == "off" || s == "locked" || s == "locking") {
+        return 0.0f;
+    }
+    return s == "jammed" ? core::kProblem : core::kUnknown;
+}
+
 } // namespace
 
 void iso_time(uint32_t epoch, char *out, size_t size)
@@ -115,8 +128,7 @@ bool decode_history(const cJSON *result, core::HistoryKind kind, std::string_vie
                 return false;
             }
             const char *state = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(item, "s"));
-            const std::string_view s = state != nullptr ? state : "";
-            point.value = s == "on" ? 1.0f : s == "off" ? 0.0f : core::kUnknown;
+            point.value = state_value(state != nullptr ? state : "");
         }
         out.push_back(point);
     }

@@ -51,7 +51,7 @@ TEST(layout_kind_follows_the_domain)
     CHECK(kind_of_entity("camera.a") == TileKind::Picture);
     CHECK(kind_of_entity("sensor.a") == TileKind::Sensor);
     CHECK(kind_of_entity("binary_sensor.a") == TileKind::Sensor);
-    CHECK(kind_of_entity("lock.front_door") == TileKind::Sensor);
+    CHECK(kind_of_entity("lock.front_door") == TileKind::Lock);
 }
 
 TEST(layout_checks_entity_ids)

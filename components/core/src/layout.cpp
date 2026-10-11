@@ -341,6 +341,8 @@ const char *kind_name(TileKind kind)
         return "picture";
     case TileKind::Sensor:
         return "sensor";
+    case TileKind::Lock:
+        return "lock";
     }
     return "?";
 }
@@ -362,6 +364,9 @@ TileKind kind_of_entity(std::string_view entity_id)
     }
     if (domain == "camera") {
         return TileKind::Picture;
+    }
+    if (domain == "lock") {
+        return TileKind::Lock;
     }
     return TileKind::Sensor;
 }

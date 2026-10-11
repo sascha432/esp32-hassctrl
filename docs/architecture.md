@@ -232,7 +232,8 @@ reassembly path described in section 6.
 ### Intents
 
 The UI turns gestures into intents: `Toggle`, `Press`, `SetLevel`, `SetTemperature`,
-`SetHvacMode`, `SetPreset`, `SetFanMode`, `SetEffect`, `SetColor`, `SetColorTemp`. Each holds an
+`SetHvacMode`, `SetPreset`, `SetFanMode`, `SetEffect`, `SetColor`, `SetColorTemp`, `SetLock`
+(lock, unlock or open). Each holds an
 `EntityRef` plus its value. `PendingTracker` records the optimistic value and `hass_protocol` turns
 the intent into a `call_service` message. Gesture rules (double tap window, drag release) stay in
 `ui`. What an intent means stays in `core`.
@@ -347,6 +348,7 @@ Tile format, details (decided 2026-10-07):
   | `button`, `input_button`, `scene`, `script` | button, 1x1 | press, `turn_on` for scene and script |
   | `climate` | climate, 1x2 (1x1 with `size`) | as before |
   | `camera` | picture, 2x2 (`size` 2x1 or 1x1) | as before |
+  | `lock` | lock, 1x1 (the state in words) | opens the lock panel (lock, unlock, open, the timeline); never unlocks by itself |
   | `sensor`, `binary_sensor`, every other domain | sensor, 1x1 (read only) | opens the panel with the history |
 
 * `type:` exists only for `area` and `spacer`; on any other tile it is an error.

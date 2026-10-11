@@ -178,6 +178,8 @@ EntityState make_sample(std::string_view id, size_t i)
         s.device_class = contains(id, "motion") ? "motion" : contains(id, "door") || contains(id, "gate") ? "door" : "";
     } else if (domain == "lock") {
         s.state = "locked";
+        // the gate can open (unlatch)
+        s.features = hc::core::kLockOpen;
     } else if (domain == "camera") {
         s.state = "idle";
     } else if (domain == "script") {
@@ -343,6 +345,20 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
     case IntentKind::SetFanMode:
         s.fan_mode = intent.text;
         break;
+    case IntentKind::SetLock: {
+        // like a real lock: locking or unlocking for a second, an opened door locks again
+        const bool open = intent.value == hc::core::kOpen;
+        const bool lock = intent.value == hc::core::kLock;
+        s.state = open ? "opening" : lock ? "locking" : "unlocking";
+        queue_values({intent.entity}, g_action_ms);
+        s.state = open ? "open" : lock ? "locked" : "unlocked";
+        queue_values({intent.entity}, g_action_ms + 1000);
+        if (open) {
+            s.state = "locked";
+            queue_values({intent.entity}, g_action_ms + 4000);
+        }
+        return;
+    }
     default:
         return;
     }
@@ -398,6 +414,20 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
                     on = false;
                 }
                 history.points.push_back({t, on ? 1.0f : 0.0f});
+            }
+            if (entity_id.starts_with("lock.")) {
+                // jammed for half an hour 20 hours ago
+                const uint32_t jammed = history.end - 20 * 3600;
+                auto &points = history.points;
+                points.erase(std::remove_if(points.begin(), points.end(),
+                                            [jammed](const hc::core::HistoryPoint &p) {
+                                                return p.time >= jammed && p.time <= jammed + 1800;
+                                            }),
+                             points.end());
+                auto at = std::find_if(points.begin(), points.end(),
+                                       [jammed](const hc::core::HistoryPoint &p) { return p.time > jammed; });
+                at = points.insert(at, {jammed, hc::core::kProblem});
+                points.insert(at + 1, {jammed + 1800, 0.0f});
             }
         }
     }

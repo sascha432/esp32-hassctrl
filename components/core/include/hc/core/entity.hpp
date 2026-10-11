@@ -49,6 +49,7 @@ enum class Field : uint8_t {
     PresetModes,
     FanMode,
     FanModes,
+    Features,     // supported_features
     Count,
 };
 
@@ -94,6 +95,7 @@ struct EntityState {
     memory::Vector<memory::String> preset_modes;
     memory::String fan_mode;
     memory::Vector<memory::String> fan_modes;
+    int32_t features = 0; // supported_features, 0 until it arrived
 
     bool has(Field field) const
     {
@@ -109,6 +111,9 @@ struct EntityState {
         return state == "on";
     }
 };
+
+// supported_features of a lock: it can open (unlatch) the door (LockEntityFeature.OPEN)
+constexpr int32_t kLockOpen = 1;
 
 // The values of `fields` for one entity, from one template result.
 struct EntityUpdate {
@@ -138,7 +143,10 @@ enum class HistoryKind : uint8_t {
 };
 
 // Statistics: the start of a 5 minute bucket and its mean. States: the time of a change and the
-// state from then on: 1 on, 0 off, NaN unknown or unavailable.
+// state from then on: 1 on (a lock: unlocked or open), 0 off (locked), kProblem (a jammed lock),
+// NaN unknown or unavailable.
+constexpr float kProblem = 2;
+
 struct HistoryPoint {
     uint32_t time = 0; // epoch seconds
     float value = kUnknown;
@@ -204,7 +212,13 @@ enum class IntentKind : uint8_t {
     SetEffect,      // light, text
     SetColor,       // light, value = hue (0 to 360), value2 = saturation (0 to 100)
     SetColorTemp,   // light, value = kelvin
+    SetLock,        // lock, value = kLock, kUnlock or kOpen
 };
+
+// the values of IntentKind::SetLock
+constexpr float kLock = 0;
+constexpr float kUnlock = 1;
+constexpr float kOpen = 2;
 
 struct Intent {
     IntentKind kind = IntentKind::Toggle;

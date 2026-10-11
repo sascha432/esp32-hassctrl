@@ -76,6 +76,11 @@ TEST(protocol_fields_follow_the_tile)
     sensor.icon.clear();
     CHECK((fields_of(sensor, false) & (bit(Field::Name) | bit(Field::Icon))) == (bit(Field::Name) | bit(Field::Icon)));
 
+    // a lock's features only for the open button of its panel
+    Tile lock = entity_tile(layout, "lock.front_door");
+    CHECK(fields_of(lock, false) == bit(Field::State));
+    CHECK(fields_of(lock, true) == (bit(Field::State) | bit(Field::Features)));
+
     Tile climate = entity_tile(layout, "climate.hall");
     CHECK((fields_of(climate, false) & bit(Field::Target)) != 0);
     CHECK((fields_of(climate, false) & bit(Field::PresetModes)) == 0);
@@ -257,6 +262,19 @@ TEST(protocol_messages)
     REQUIRE(call_service_message(8, intent, "light.forge_lamp", out, error));
     CHECK(out.find(R"("service":"turn_off","service_data":{})") != std::string::npos);
     CHECK(!call_service_message(8, intent, "climate.hearth", out, error));
+
+    intent.kind = IntentKind::SetLock;
+    intent.value = hc::core::kUnlock;
+    REQUIRE(call_service_message(9, intent, "lock.front_door", out, error));
+    CHECK_STR(out.c_str(), R"({"id":9,"type":"call_service","domain":"lock","service":"unlock","service_data":{},)"
+                           R"("target":{"entity_id":"lock.front_door"}})");
+    intent.value = hc::core::kLock;
+    REQUIRE(call_service_message(9, intent, "lock.front_door", out, error));
+    CHECK(out.find(R"("domain":"lock","service":"lock")") != std::string::npos);
+    intent.value = hc::core::kOpen;
+    REQUIRE(call_service_message(9, intent, "lock.front_door", out, error));
+    CHECK(out.find(R"("domain":"lock","service":"open")") != std::string::npos);
+    CHECK(!call_service_message(9, intent, "switch.anvil_fan", out, error));
 
     intent.kind = IntentKind::SetTemperature;
     intent.value = 21.549f;
@@ -470,6 +488,16 @@ TEST(protocol_history_decode)
     CHECK(points[1].value == 1.0f);
     CHECK(points[2].time == 1791374500 && std::isnan(points[2].value));
     cJSON_Delete(states);
+
+    // a lock: not locked counts as on, jammed is a problem
+    points.clear();
+    cJSON *lock = cJSON_Parse(R"({"lock.d":[{"s":"locked","lu":1.0},{"s":"unlocking","lu":2.0},{"s":"unlocked","lu":3.0},)"
+                              R"({"s":"jammed","lu":4.0},{"s":"locking","lu":5.0},{"s":"open","lu":6.0}]})");
+    REQUIRE(decode_history(lock, HistoryKind::States, "lock.d", points, error));
+    REQUIRE(points.size() == 6);
+    CHECK(points[0].value == 0.0f && points[1].value == 1.0f && points[2].value == 1.0f);
+    CHECK(points[3].value == hc::core::kProblem && points[4].value == 0.0f && points[5].value == 1.0f);
+    cJSON_Delete(lock);
 
     cJSON *broken = cJSON_Parse(R"({"sensor.t":[{"mean":1}]})");
     CHECK(!decode_history(broken, HistoryKind::Statistics, "sensor.t", points, error) && !error.empty());

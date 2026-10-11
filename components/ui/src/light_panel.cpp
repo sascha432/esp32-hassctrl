@@ -27,22 +27,10 @@ constexpr uint8_t bit(Mode mode)
     return static_cast<uint8_t>(1u << static_cast<int>(mode));
 }
 
-// the buttons of the modes: at most this tall in the landscape column, this far apart
-constexpr lv_coord_t kButtonHeight = 40;
-constexpr lv_coord_t kButtonGap = 6;
-// the gap between the steppers and the slider
+// the gap between the steppers and the slider; in a large landscape frame (the P4's dialog) further
 using panel::kStepGap;
 constexpr lv_coord_t kSliderStepGap = 20;
-// the sliders: at most this wide, the track rounded like this
-constexpr lv_coord_t kSliderWidth = 113;
-// the level slider of a large frame (the P4's dialog), wider. Portrait: this part of the height,
-// centered; landscape: further from the steppers and this far above the bottom of the control.
-constexpr lv_coord_t kSliderWidthLarge = 160;
-constexpr int kSliderHeightLargePct = 80;
-constexpr lv_coord_t kSliderWidthLargeLandscape = 140;
 constexpr lv_coord_t kSliderStepGapLarge = 40;
-constexpr lv_coord_t kSliderBottomLarge = 16;
-constexpr lv_coord_t kSliderRadius = 24;
 // the marker of the color temperature: a white bar this tall, this far from the track's sides
 constexpr lv_coord_t kMarkerHeight = 12;
 constexpr lv_coord_t kMarkerInset = 6;
@@ -270,22 +258,7 @@ Slider make_slider(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, l
     s.min = min;
     s.max = max;
     s.on_release = on_release;
-    s.track = t::plain(parent);
-    lv_obj_set_pos(s.track, x, y);
-    lv_obj_set_size(s.track, w, h);
-    lv_obj_set_style_radius(s.track, std::min<lv_coord_t>(kSliderRadius, w / 2), 0);
-    lv_obj_set_style_clip_corner(s.track, true, 0);
-    lv_obj_set_style_bg_opa(s.track, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(s.track, t::color(t::kCardAlt), 0);
-    lv_obj_set_style_border_width(s.track, 1, 0);
-    lv_obj_set_style_border_color(s.track, t::color(t::kBorder), 0);
-    lv_obj_set_style_border_post(s.track, true, 0);
-    lv_obj_clear_flag(s.track, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(s.track, LV_OBJ_FLAG_CLICKABLE);
-    sound::tappable(s.track);
-    sound::draggable(s.track);
-    // the drag does not bubble up as a gesture of the screen
-    lv_obj_clear_flag(s.track, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    s.track = panel::slider_track(parent, x, y, w, h);
     return s;
 }
 
@@ -304,24 +277,10 @@ lv_obj_t *slider_label(Slider &s, uint32_t color)
     return s.value;
 }
 
-// The size of a slider in a control of `h` with `room` for its width, and its place from the
-// top; the level and the color temperature sliders look the same.
-struct SliderPlace {
-    lv_coord_t w;
-    lv_coord_t h;
-    lv_coord_t y;
-};
-
-SliderPlace slider_place(lv_coord_t room, lv_coord_t h)
+// the level and the color temperature sliders look the same
+panel::SliderPlace slider_place(lv_coord_t room, lv_coord_t h)
 {
-    if (!g.frame.large) {
-        return {std::min(kSliderWidth, room), h, 0};
-    }
-    if (g.frame.portrait) {
-        const auto slider_h = static_cast<lv_coord_t>(h * kSliderHeightLargePct / 100);
-        return {std::min(kSliderWidthLarge, room), slider_h, static_cast<lv_coord_t>((h - slider_h) / 2)};
-    }
-    return {std::min(kSliderWidthLargeLandscape, room), static_cast<lv_coord_t>(h - kSliderBottomLarge), 0};
+    return panel::slider_place(g.frame, room, h);
 }
 
 // ------------------------------------------------------------------------------- level
@@ -385,7 +344,7 @@ void build_level(lv_coord_t w, lv_coord_t h)
     }
     const lv_coord_t step = std::min<lv_coord_t>(panel::step_size(g.frame), (h - kStepGap) / 2);
     const lv_coord_t gap = g.frame.large && !g.frame.portrait ? kSliderStepGapLarge : kSliderStepGap;
-    const SliderPlace place = slider_place(static_cast<lv_coord_t>(w - gap - step), h);
+    const panel::SliderPlace place = slider_place(static_cast<lv_coord_t>(w - gap - step), h);
     const lv_coord_t slider_w = place.w;
     const lv_coord_t slider_h = place.h;
     const lv_coord_t x = (w - (slider_w + gap + step)) / 2;
@@ -591,7 +550,7 @@ void build_temp(lv_coord_t w, lv_coord_t h)
     const core::EntityState &s = state();
     float min = !std::isnan(s.min_color_temp) && s.min_color_temp > 0 ? s.min_color_temp : kDefaultMinKelvin;
     float max = !std::isnan(s.max_color_temp) && s.max_color_temp > min ? s.max_color_temp : kDefaultMaxKelvin;
-    const SliderPlace place = slider_place(w, h);
+    const panel::SliderPlace place = slider_place(w, h);
     g.temp = make_slider(g.control, static_cast<lv_coord_t>((w - place.w) / 2), place.y, place.w, place.h, min, max, [](float value) {
         // HA works in mireds underneath, steps of 10 K are as fine as it goes
         const float kelvin = std::round(value / 10) * 10;
@@ -741,36 +700,7 @@ void on_mode(lv_event_t *event)
 void layout_buttons(uint8_t offered)
 {
     g.offered = offered;
-    int count = 0;
-    for (int i = 0; i < kModes; i++) {
-        count += (offered >> i) & 1;
-    }
-    const lv_area_t &area = g.frame.options;
-    const lv_coord_t aw = lv_area_get_width(&area);
-    const lv_coord_t ah = lv_area_get_height(&area);
-    lv_coord_t w = aw;
-    lv_coord_t h = ah;
-    if (count > 0) {
-        if (g.frame.portrait) {
-            w = static_cast<lv_coord_t>((aw - (count - 1) * kButtonGap) / count);
-        } else {
-            h = std::min<lv_coord_t>(kButtonHeight, static_cast<lv_coord_t>((ah - (count - 1) * kButtonGap) / count));
-        }
-    }
-    int shown = 0;
-    for (int i = 0; i < kModes; i++) {
-        lv_obj_t *button = g.buttons[i];
-        const bool visible = count > 1 && ((offered >> i) & 1) != 0;
-        set_hidden(button, !visible);
-        if (!visible) {
-            continue;
-        }
-        const lv_coord_t x = g.frame.portrait ? static_cast<lv_coord_t>(area.x1 + shown * (w + kButtonGap)) : area.x1;
-        const lv_coord_t y = g.frame.portrait ? area.y1 : static_cast<lv_coord_t>(area.y1 + shown * (h + kButtonGap));
-        lv_obj_set_pos(button, x, y);
-        lv_obj_set_size(button, w, h);
-        shown++;
-    }
+    panel::layout_options(g.frame, g.buttons, kModes, offered);
 }
 
 void on_power(lv_event_t *)
@@ -801,9 +731,7 @@ void update_power(const core::EntityState &s, const core::Expectation *pending, 
 void update_buttons()
 {
     for (int i = 0; i < kModes; i++) {
-        const bool selected = static_cast<int>(g.mode) == i;
-        lv_obj_set_style_bg_color(g.buttons[i], t::color(selected ? t::kText : t::kCard), 0);
-        lv_obj_set_style_text_color(lv_obj_get_child(g.buttons[i], 0), t::color(selected ? t::kBackground : t::kTextLabel), 0);
+        panel::mark_option(g.buttons[i], static_cast<int>(g.mode) == i);
     }
 }
 

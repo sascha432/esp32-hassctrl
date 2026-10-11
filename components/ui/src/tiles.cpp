@@ -241,7 +241,9 @@ void on_click(lv_event_t *event)
     }
     case TileKind::Climate:
     case TileKind::Sensor:
+    case TileKind::Lock:
     case TileKind::Picture:
+        // a lock is never locked or unlocked by a tap on its tile, only in its panel
         dashboard::open_panel(view.tile);
         break;
     default:
@@ -409,13 +411,14 @@ struct Look {
     bool active = false;      // filled with the active color
     bool pending = false;     // the border of an action on its way
     bool unavailable = false;
+    uint32_t color = t::kActive; // the fill while active (a lock: the color of its state)
 };
 
 void apply_look(View &view, const Look &look)
 {
-    const uint32_t background = look.active ? t::kActive : look.unavailable ? t::kCardAlt : t::kCard;
+    const uint32_t background = look.active ? look.color : look.unavailable ? t::kCardAlt : t::kCard;
     lv_obj_set_style_bg_color(view.card, t::color(background), 0);
-    lv_obj_set_style_border_color(view.card, t::color(look.active ? t::kActive : t::kBorder), 0);
+    lv_obj_set_style_border_color(view.card, t::color(look.active ? look.color : t::kBorder), 0);
     runner::set(view.card, look.pending);
     set_color(view.icon, look.active ? t::kText : t::kTextLabel);
     // the name of a dimmer stands on its fill
@@ -521,6 +524,9 @@ const char *binary_words(std::string_view device_class, bool on)
     }
     if (device_class == "connectivity") {
         return on ? "Connected" : "Disconnected";
+    }
+    if (device_class == "lock") {
+        return on ? "Unlocked" : "Locked";
     }
     return on ? "On" : "Off";
 }
@@ -683,7 +689,7 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
 
     lv_obj_t *col = column(view.card);
     // without a value the icon is the large one
-    const bool has_value = tile.kind == TileKind::Sensor;
+    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock;
     const bool big_icon = !has_value && view.large;
     view.icon = t::label(col, "", big_icon ? icons::large() : icons::small(), t::kTextLabel);
     if (has_value) {
@@ -794,6 +800,19 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
         set_value(view, !known ? std::string("...") : !available ? std::string("--")
                                                                       : sensor_text(tile, layout.entity_id(tile), state));
         break;
+    case TileKind::Lock: {
+        // the state in words ("Unlocking"), the expected one at once, filled in the color of the
+        // state: unlocked green, locked orange, jammed red
+        const std::string_view shown = pending != nullptr && !pending->state.empty() ? std::string_view(pending->state)
+                                                                                      : std::string_view(state.state);
+        const bool unlocked = shown == "unlocked" || shown == "unlocking" || shown == "open" || shown == "opening";
+        const bool locked = shown == "locked" || shown == "locking";
+        const bool jammed = shown == "jammed";
+        look.active = available && (unlocked || locked || jammed);
+        look.color = jammed ? t::kLockJammed : unlocked ? t::kLockUnlocked : t::kLockLocked;
+        set_value(view, !known ? std::string("...") : !available ? std::string("--") : words(shown));
+        break;
+    }
     default:
         break;
     }

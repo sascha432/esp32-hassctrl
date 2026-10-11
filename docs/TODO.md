@@ -893,6 +893,18 @@ Next:
       confirmed by you together with the light panel (2026-10-07). The cyan border you saw is the pending
       look (docs/ui/dashboard.md section 3): the action is on its way until HA reports it.
 
+- [x] **Lock tile and panel** (2026-10-11, your request: `lock.front_door` showed as a sensor
+      without a graph). `lock.*` is its own kind; the tile opens the lock panel (never unlocks
+      by a tap): HA's two-place slider (drag or tap the other half), the open button with a
+      second tap (only with supported_features OPEN), and the timeline behind the second option
+      button. The sensor panel's graph is shared (`history_view`). Checked in the Windows version
+      (unlock with locking/unlocking, the timeline with a jammed stretch, the armed open button,
+      landscape, portrait, the P4 dialog). Flashed on all three boards.
+  - [x] Tested by you on the WT32: open, lock and the timeline (2026-10-11).
+  - [x] Your colors (2026-10-11): unlocked green, locked orange, jammed red in the tile, the
+        panel and the timeline; `Jammed` in the legend only while the window has a jam. Checked
+        on the WT32 over the serial console (flashed there only), confirmed by you.
+
 ## Your reports of 2026-10-07 (afternoon)
 
 - [x] Bug: a network that failed with "network security not supported" was tried again and

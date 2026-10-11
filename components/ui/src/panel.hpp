@@ -50,8 +50,8 @@ struct Frame {
     bool large = false;       // a dialog (the P4): the larger buttons, see step_size()
 };
 
-// true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a picture: its image
-// full screen)
+// true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a lock, a picture: its
+// image full screen)
 bool has_panel(const core::Tile &tile);
 
 // Builds the panel of `tile` over the page in `parent` (the dashboard's root); a panel that is open
@@ -66,7 +66,7 @@ void destroy();
 // draws the panel again when it shows `entity`
 void update(core::EntityIndex entity);
 
-// a history answer for the sensor panel
+// a history answer for the history of the sensor or the lock panel
 void on_history(core::History history);
 // a camera image for the picture panel
 void on_image(const core::Image &image);
@@ -90,6 +90,25 @@ constexpr uint32_t kPendingBorder = 0x00ffff;
 
 // a card of the panel in `area`, pressed a shade lighter
 lv_obj_t *card(lv_obj_t *parent, const lv_area_t &area);
+
+// The buttons of a panel's controls in `frame.options`: a column in landscape (at most 40 px tall
+// each), a row in portrait. Only those with their bit in `shown`; with one or none there is nothing
+// to choose, and no button.
+void layout_options(const Frame &frame, lv_obj_t *const *buttons, int count, uint32_t shown);
+// the button of the control that is shown white, the others as cards
+void mark_option(lv_obj_t *button, bool selected);
+
+// The size of a vertical slider (the level and color temperature of a light, the lock) in a
+// control of `h` with `room` for its width, and its place from the top.
+struct SliderPlace {
+    lv_coord_t w;
+    lv_coord_t h;
+    lv_coord_t y;
+};
+SliderPlace slider_place(const Frame &frame, lv_coord_t room, lv_coord_t h);
+// the track of a vertical slider at x, y: rounded, clipping its fill, dragged without starting a
+// gesture of the screen
+lv_obj_t *slider_track(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h);
 
 // A round stepper of `size` at x, y with an MDI glyph; `callback` gets LV_EVENT_SHORT_CLICKED and
 // LV_EVENT_LONG_PRESSED_REPEAT (throttle the repeat with kStepRepeatMs).

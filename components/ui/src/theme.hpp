@@ -22,6 +22,10 @@ constexpr uint32_t kTextMuted = 0x4d6274;
 constexpr uint32_t kActive = 0xff8000;
 constexpr uint32_t kAlert = 0xff8000;
 constexpr uint32_t kError = 0xff0000;
+// a lock in the tile, the panel and the timeline (your choice, 2026-10-11)
+constexpr uint32_t kLockUnlocked = 0x4caf50;
+constexpr uint32_t kLockLocked = kActive;
+constexpr uint32_t kLockJammed = kError;
 
 constexpr lv_coord_t kStatusBarHeight = 36;
 constexpr lv_coord_t kRowHeight = 44;

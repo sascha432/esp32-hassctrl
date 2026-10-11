@@ -42,6 +42,7 @@ Any other page change (a new layout, turning the display) has no slide.
 | switch, light without `dimmer` | icon (48 px), name | toggles |
 | button, scene, script | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
+| lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | opens the lock panel; a tap on the tile never locks or unlocks |
 | dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel (section 6) |
 | climate 1x2 | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
 | climate 1x1 | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
@@ -65,6 +66,7 @@ long ends in `...`.
 | no value yet | value `...` |
 | dimmer | the fill is the indicator, the card stays dark |
 | climate | the bars are orange while the mode is not `off`, the action is orange |
+| lock | filled in the color of its state (your choice, 2026-10-11): unlocked, unlocking, open, opening green (`0x4caf50`), locked and locking orange (`0xff8000`), jammed red (`0xff0000`); `theme::kLock*` |
 
 A light that is switched on shows the level it had before (HA turns it on at that level), not
 100 %; the store keeps the last level while the light is off. A light not seen on since the start
@@ -75,15 +77,16 @@ setpoint within 0.05), when the call fails, or after 5 s; then the tile shows th
 again.
 
 Texts: binary sensors in the words of their device class (`Open`/`Closed`, `Detected`/`Clear`,
-`Wet`/`Dry`), other states with a capital and spaces (`heat_cool` is `Heat cool`), numbers with
+`Wet`/`Dry`, `Unlocked`/`Locked`), other states with a capital and spaces (`heat_cool` is `Heat cool`), numbers with
 the tile's `decimals` or HA's display precision. A state of several lines shows its first line.
 
 ## 4. Icons
 
 The tile's `icon`; else the entity's `icon` attribute when the glyph is in the firmware; else the
 default of the domain and device class (light `lightbulb`/`lightbulb-off`, outlet `power-plug`,
-motion `motion-sensor`, temperature `thermometer`, ...; `icons.cpp`). The glyphs are the 43 names
-of `core` plus `arrow-left`, `plus` and `minus`, in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
+motion `motion-sensor`, temperature `thermometer`, lock `lock`/`lock-open`/`lock-alert` (jammed),
+...; `icons.cpp`). The glyphs are the 44 names of `core` plus the ones the screens draw themselves
+(`UI_GLYPHS`: `arrow-left`, `plus`, `minus`, `chart-timeline-variant`, ...), in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
 web editor from the same names).
 
 ## 5. Open points
@@ -109,7 +112,8 @@ web editor from the same names).
 A tap opens the panel of a tile over the page; the back tile closes it, opening another page or a
 new layout closes it, turning the display builds it again. While it is open the page's
 subscription carries the panel's fields as well (`hass_protocol::fields_of`). Code: `panel.cpp`
-(the frame), `light_panel.cpp`, `climate_panel.cpp`, `sensor_panel.cpp`, `picture_panel.cpp`.
+(the frame), `light_panel.cpp`, `climate_panel.cpp`, `sensor_panel.cpp`, `lock_panel.cpp`,
+`picture_panel.cpp`; the history graph of the sensor and the lock panel is `history_view.cpp`.
 
 ```
 landscape (480x320, 320x240)            portrait (320x480)
@@ -149,7 +153,7 @@ longer one scrolls, and when it opens with the value that is set out of view, th
 middle (no further than the end of the list).
 
 Boards with `Info::ui_panel_dialogs` (the JC4880P443C, `hc::ui::Options::panel_dialogs`): the
-panels of a dimmer, a climate and a sensor are a dialog of 620x420 (440x600 in portrait),
+panels of a dimmer, a climate, a sensor and a lock are a dialog of 620x420 (440x600 in portrait),
 centered over the page. The page behind it is dimmed by a black veil of 50 %, the dialog is opaque,
 radius 12, 1 px border. The veil darkens at once; the dialog slides down from above the screen into
 the middle (250 ms, easing out) and back up when it closes (easing in). Only these boards animate
@@ -222,7 +226,7 @@ History                         [48 h][24 h][12 h]
 | header | the tile's icon (48 px; orange while an on/off entity is on), the name (16 px) above the live value (28 px, the tile's text) |
 | range buttons | 48, 24 and 12 hours, round 52x26 px, the selected one white; the panel opens with the range used last |
 | graph (statistics) | the 5 minute means of the long term statistics as a 2 px line in the accent color (`0x00ffff`), a bucket without a value is a gap; three value lines with round labels (steps of 1, 2, 2.5 or 5 times a power of ten) and the unit above them |
-| timeline (on/off) | a binary sensor, or an entity that reports `on`/`off`: a 40 px strip of the state changes, 16 px from the card's edges left and right, centered in the card above the time labels, the legend centered in the space above it (on orange, off `0x2b3844`, unknown/unavailable the background), each pixel column taking the most important state of its time, so a short motion stays visible; the legend in the words of the device class |
+| timeline (on/off) | a binary sensor, an entity that reports `on`/`off`, or a lock (section "Lock panel"): a 40 px strip of the state changes, 16 px from the card's edges left and right, centered in the card above the time labels, the legend centered in the space above it (on orange, off `0x2b3844`, unknown/unavailable the background), each pixel column taking the most important state of its time, so a short motion stays visible; the legend in the words of the device class |
 | time axis | lines at whole local hours, 1 to 24 hours apart so the labels keep 44 px; `HH:00` under each line whose label fits in the card |
 | message | `Loading...`, `No statistics for this sensor`, `No values in this time`, or the error of the request (`The clock is not set yet`, `Not connected to Home Assistant`); a refresh that fails keeps the graph |
 
@@ -232,6 +236,34 @@ other (`recorder/statistics_during_period` with `period: 5minute`, or `history/h
 with `minimal_response`), and hands the whole window to the UI as one `core::History`; a new
 request replaces one that is still running, an answer to an older one is dropped by its
 generation. 48 hours are 576 points (4.6 KB on the large heap).
+
+### Lock panel
+
+Like the light panel: two buttons in the options choose the control (`lock`) or the timeline
+(`chart-timeline-variant`); the panel opens on the control. No header action.
+
+```
++--------+------------------------+
+|  back  | Front Door             |
++--------+------------------------+
+| [lock] |    +---------+         |
+| [time] |    | (lock)  |   (door)|   the open button only with
+|        |    | Locked  |  Tap    |   supported_features OPEN;
+|        |    +---------+  again  |   the note while it is armed
+|        |    |         |  to open|
+|        |    +---------+         |
++--------+------------------------+
+```
+
+| Part | Content | Touch |
+| --- | --- | --- |
+| slider | the track of the light's level slider (113 px wide at most, as large in the P4's dialog), a thumb half its height 6 px inside it: at the top while locked or locking, at the bottom while unlocked, unlocking or open, in the middle while jammed or unavailable; the glyph (`lock`, `lock-open`, `lock-alert`) and the state in words on it; orange while locked, green while unlocked, red while jammed (the tile's colors); the expected state at once | drag the thumb (it follows the finger) or tap a half: when that half differs from the state, `lock.lock` or `lock.unlock` is sent on release, else the thumb goes back |
+| open | a round 64 px button with `door-open` right of the slider, only when `supported_features` has OPEN (1); subscribed only while the panel is open | the first tap arms it (orange, `Tap again to open` under it) for 3 s; a second tap sends `lock.open` |
+| timeline | `history_view` with the states of the lock: `unlocked`, `unlocking`, `open`, `opening` count as on (green), `locked` and `locking` as off (orange), `jammed` as a problem (red, ranked above on so a short jam stays visible), the rest unknown; legend `Unlocked`, `Locked`, `Unknown`, and `Jammed` only while the window has a jam | the range buttons as in the sensor panel |
+
+A lock that asks for a code (`code_format`) is not supported: HA refuses the call, and the pending
+look ends with the error. The action is pending until HA reports `locked` or `unlocked` (`locking`
+does not end it); `open` waits for nothing, the lock locks again by itself.
 
 ### Camera image
 
