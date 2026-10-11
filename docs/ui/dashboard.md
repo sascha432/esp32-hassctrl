@@ -291,8 +291,17 @@ camera (`/api/camera_proxy_stream/<entity>` with the token) full screen, and the
 scaled snapshots of the camera proxy (that stream has the camera's full size). One stream plays
 at a time; the still images of the page go on in the other tasks (on the ESP32 and the S3 they
 wait meanwhile). A frame is decoded once the UI took the
-one before (it takes it within 10 to 15 ms); the frames in between are read and dropped, so the
-picture never falls behind. A stream frame is the whole picture as the decoder made it, without a
+one before (it takes it within 10 to 15 ms); the frames in between are read and dropped. A
+stream that sends more than the board reads falls behind: the sender queues the rest (go2rtc up to
+64 frames per client, 10 to 40 s of Doorspy's 370 KB/s, 2026-10-11). When the next frame is
+already waiting in the socket after every frame for 10 s, the stream is opened again (the new
+connection before the old one is closed, so go2rtc keeps its source running): the picture never
+drifts more than about 10 s behind. The stream carries no timestamp (part headers and JPEG
+markers checked), so the delay cannot be measured exactly. This is a fallback: Wi-Fi is what it
+is, and a stream that comes faster than the board reads should get a lower bit rate at the source
+(go2rtc: a higher `-q:v`, a smaller size or fewer fps; not every source has that option). A
+stream the board can take plays without delay. A frame that cannot be decoded is skipped; three in
+a row end the stream. A stream frame is the whole picture as the decoder made it, without a
 copy (the copy of 480x320 through PSRAM cost 166 ms), and the view scales it to cover the screen
 at the zoom; the software decoders' scale is the largest that still shows 3/4 of the frame
 (`core::stream_shift`: 704x576 on 800x480 loses a strip, 1280x960 is decoded at 1:2). A spinner

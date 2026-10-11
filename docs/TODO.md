@@ -780,6 +780,22 @@ Next:
       and changes nothing; even offsets and sizes change nothing; the DIG-734 workaround of the
       driver does not apply to it by its formula. Then decoder and PPA stay off until the restart
       and every image is decoded in software (doorspy 1280x960: 315 ms a frame instead of 55 + 21).
+- [x] **Bug (your report): MJPEG streams fall behind over time** (2026-10-11): Doorspy (go2rtc,
+      460x600, `-q:v 5 -r 10`, 37 KB frames, 370 KB/s) was 10 s behind on the P4 after a few
+      minutes and 30 s on the WT32. go2rtc queues up to 64 frames per client that reads slower
+      than the source sends (its API showed 2.4 MB queued and drops for all three boards); the
+      boards read 7.5 (P4), 6.8 (S3) and 1.5 fps (WT32). Now a stream whose next frame is already
+      waiting in the socket after every frame for 10 s is opened again (the new connection before
+      the old one closes, so go2rtc keeps its source running); a frame that cannot be decoded is
+      skipped (3 in a row end the stream, one came in a minute on the WT32). Checked by me with
+      2 s over the serial console, Doorspy full screen: S3 5.2-6.1 fps shown, WT32 1.2-1.5, P4 4.9
+      (software decoding after the PPA hang above); go2rtc keeps one client per board with 3 to 7
+      frames queued, the same ffmpeg. Skipping frames to catch up was tried and dropped: the
+      boards read this stream slower than it comes even without decoding (the S3 9.5 of 10 fps).
+      The stream carries no timestamp (part headers and JPEG markers checked) to measure the delay
+      exactly. 10 s tested and confirmed by you on the P4 (a single stream, it goes on after a
+      reconnect). The real fix for a stream too large for the Wi-Fi is a lower bit rate at the
+      source; the reconnect is the fallback for streams without that option.
 - [ ] Panels: light, climate, sensor history (statistics), camera image. Your first test of the
       Windows version (2026-10-07): tapping a sensor, a dimmer and a climate tile does nothing,
       because these panels are not built yet (the taps are reserved for them). Order (your

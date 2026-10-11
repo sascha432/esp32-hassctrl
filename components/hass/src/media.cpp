@@ -6,7 +6,8 @@
 // An image comes from Home Assistant's camera proxy, or from an MJPEG stream (a tile's `stream`):
 // a still image is the first frame of the stream, and one stream at a time can play, frame after
 // frame, until it is stopped. A frame is only decoded once the UI took the one before; the frames
-// in between are read and dropped, so the stream never falls behind. On the P4 up to kMaxWorkers
+// in between are read and dropped. A stream that sends more than the device reads falls behind
+// (the sender queues the rest): it is opened again (play). On the P4 up to kMaxWorkers
 // tasks fetch at the same time, as the browser does: Home Assistant needs seconds for some
 // cameras. They decode one at a time (one JPEG engine and PPA).
 
@@ -31,6 +32,7 @@
 #include "image_hw.hpp"
 #include "new_jpeg.hpp"
 #include "jpeg_decoder.h"
+#include "lwip/sockets.h"
 
 namespace hc::hass {
 
@@ -66,6 +68,22 @@ constexpr size_t kMaxLine = 256;
 constexpr int kTakeWaitMs = 100;
 // the statistics of a stream that plays are logged this often
 constexpr int64_t kStatsUs = 5 * 1000 * 1000;
+// A frame read with this much of the stream already waiting behind it is not the newest: the
+// stream is behind (more than the next part's header and the line ending of a frame).
+constexpr size_t kBehindBytes = 512;
+// A stream that stayed behind this long is opened again: the sender's queue (go2rtc: 64 frames,
+// 10 s on the P4 and 40 s on the WT32 for 37 KB at 10 fps, 2026-10-11) is dropped with the
+// connection, so the picture does not drift further behind. The stream has no timestamp to measure
+// the delay exactly; a lower bit rate at the source is the fix. Skipping frames to catch up did
+// not help: the boards read go2rtc's doorspy (370 KB/s) slower than it sends even without
+// decoding (the S3 9.5 of 10 fps, the WT32 reads about 140 KB/s).
+constexpr int64_t kBehindUs = 10 * 1000 * 1000;
+// A frame that cannot be decoded is skipped (go2rtc's doorspy sent one in a minute to the WT32,
+// 2026-10-11); this many in a row end the stream.
+constexpr int kMaxBrokenFrames = 3;
+// the second connection is opened before the first is closed (go2rtc stops a source without
+// consumers and starting it again takes seconds) while this much internal RAM is free
+constexpr size_t kReconnectInternal = 16 * 1024;
 // TJpgDec's work area: esp_jpeg's own 3100 bytes hold the usual tables only, a snapshot of Home
 // Assistant (camera.balconycam) needed more (JDR_MEM1); with all four quantization and Huffman
 // tables at their largest it takes about 6.2 KB
@@ -171,9 +189,14 @@ struct Connection {
     Connection &operator=(const Connection &) = delete;
     ~Connection()
     {
+        close();
+    }
+    void close()
+    {
         if (client != nullptr) {
             esp_http_client_close(client);
             esp_http_client_cleanup(client);
+            client = nullptr;
         }
     }
 };
@@ -326,6 +349,26 @@ struct StreamReader {
             size -= n;
         }
         return true;
+    }
+
+    // The bytes that arrived and are not read yet: in the buffer and in the socket (TLS and chunked
+    // encoding count their own bytes, enough to tell a waiting frame).
+    size_t waiting() const
+    {
+        size_t n = len - pos;
+        const int fd = esp_http_client_get_socket(c.client);
+        if (fd >= 0) {
+            uint8_t peek[kBehindBytes];
+            const int queued = recv(fd, peek, sizeof(peek), MSG_PEEK | MSG_DONTWAIT);
+            n += queued > 0 ? static_cast<size_t>(queued) : 0;
+        }
+        return n;
+    }
+
+    // after a new connection: what was buffered belongs to the old one
+    void clear()
+    {
+        pos = len = 0;
     }
 
     // The length of the next part's JPEG. The boundary line is not compared: the parts of the
@@ -679,6 +722,24 @@ bool resized(Request &request)
     return true;
 }
 
+// The stream opened again, the new connection replaces `c` (the reader keeps it). The old one stays
+// open meanwhile when there is RAM for two.
+bool reconnect(Context &ctx, Connection &c, StreamReader &reader, const char *url, bool authorize, char *error,
+               size_t error_size)
+{
+    int64_t length = 0;
+    Connection fresh;
+    reader.clear();
+    if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) >= kReconnectInternal &&
+        open(ctx, fresh, url, authorize, kStreamTimeoutMs, length, error, error_size)) {
+        std::swap(c.client, fresh.client);
+        return true;
+    }
+    fresh.close();
+    c.close();
+    return open(ctx, c, url, authorize, kStreamTimeoutMs, length, error, error_size);
+}
+
 // Plays the stream until another one is wanted or it is stopped; `request` follows a new size of
 // the same stream (resized).
 void play(Context &ctx, Request &request)
@@ -702,11 +763,15 @@ void play(Context &ctx, Request &request)
     StreamReader *reader = &reader_data;
     Buffer jpeg;
     g_frame_taken = true;
+    // the last frame read with nothing behind it
+    int64_t caught_up_at = esp_timer_get_time();
+    int broken_frames = 0; // in a row
 
     // the statistics of the last kStatsUs
     int64_t window_start = esp_timer_get_time();
     unsigned received = 0;
     unsigned shown = 0;
+    unsigned reconnects = 0; // since the start
     size_t bytes = 0;
     int64_t decode_us = 0;
     int64_t copy_us = 0;
@@ -733,9 +798,26 @@ void play(Context &ctx, Request &request)
             stream_failed(request, "the stream broke off");
             return;
         }
-        wait_us += esp_timer_get_time() - wait_start;
+        const int64_t read_at = esp_timer_get_time();
+        wait_us += read_at - wait_start;
         received++;
         bytes += part;
+        // With the next frame already waiting this one is old. A stream that stays behind reads
+        // slower than its source sends, the sender's queue grows: opened again.
+        const bool behind = reader->waiting() >= kBehindBytes;
+        if (!behind) {
+            caught_up_at = read_at;
+        } else if (read_at - caught_up_at >= kBehindUs) {
+            ESP_LOGI(kTag, "stream of %s behind for %lld s, opened again", request.entity_id.c_str(),
+                     static_cast<long long>(kBehindUs / 1000000));
+            if (!reconnect(ctx, c, *reader, url, hass, error, sizeof(error))) {
+                stream_failed(request, error);
+                return;
+            }
+            reconnects++;
+            caught_up_at = esp_timer_get_time();
+            continue;
+        }
         // The frame is read while the UI draws the last one (the P4 takes 50 ms for 800x480). The
         // frame of the P4's hardware decoder (17 ms) or of esp_new_jpeg on the S3 is decoded then
         // too, before the UI is waited for; TJpgDec's (300 ms on the ESP32) only once the UI took
@@ -747,24 +829,28 @@ void play(Context &ctx, Request &request)
         image.generation = request.generation;
         image.entity = request.entity;
         image.live = true;
-        if (decode_first && !decode_frame(request, jpeg.data, part, image, times, error, sizeof(error))) {
-            stream_failed(request, error);
-            return;
-        }
+        bool broken = decode_first && !decode_frame(request, jpeg.data, part, image, times, error, sizeof(error));
         const TickType_t wait_until = xTaskGetTickCount() + pdMS_TO_TICKS(kTakeWaitMs);
-        while (!g_frame_taken) {
+        while (!broken && !g_frame_taken) {
             const TickType_t now_ticks = xTaskGetTickCount();
             if (static_cast<int32_t>(wait_until - now_ticks) <= 0) {
                 break;
             }
             xSemaphoreTake(g_taken_signal, wait_until - now_ticks);
         }
-        const bool wanted = g_frame_taken;
+        const bool wanted = !broken && g_frame_taken;
         if (wanted && g_play_generation == request.generation) {
-            if (!decode_first && !decode_frame(request, jpeg.data, part, image, times, error, sizeof(error))) {
+            broken = !decode_first && !decode_frame(request, jpeg.data, part, image, times, error, sizeof(error));
+        }
+        if (broken) {
+            if (++broken_frames >= kMaxBrokenFrames) {
                 stream_failed(request, error);
                 return;
             }
+            ESP_LOGW(kTag, "stream of %s: %s, frame of %u bytes skipped", request.entity_id.c_str(), error,
+                     static_cast<unsigned>(part));
+        } else if (wanted && g_play_generation == request.generation) {
+            broken_frames = 0;
             decode_us += times.decode_us;
             copy_us += times.copy_us;
             shown++;
@@ -777,10 +863,10 @@ void play(Context &ctx, Request &request)
         if (now - window_start >= kStatsUs) {
             const double seconds = (now - window_start) / 1e6;
             ESP_LOGI(kTag,
-                     "stream %ux%u 1:%u %s: %.1f fps in, %.1f decoded, %u KB/frame, decode %lld ms, copy %lld ms, "
-                     "waiting for data %.0f %%, UI took a frame after %lld ms, free internal %u KB, PSRAM %u KB, stack left %u",
+                     "stream %ux%u 1:%u %s: %.1f fps in, %.1f decoded, opened again %u times (behind), "
+                     "%u KB/frame, decode %lld ms, copy %lld ms, waiting for data %.0f %%, UI took a frame after %lld ms, free internal %u KB, PSRAM %u KB, stack left %u",
                      times.source_width, times.source_height, 1u << times.shift, decoder_name(times),
-                     received / seconds, shown / seconds,
+                     received / seconds, shown / seconds, reconnects,
                      static_cast<unsigned>(received > 0 ? bytes / received / 1024 : 0),
                      static_cast<long long>(shown > 0 ? decode_us / shown / 1000 : 0),
                      static_cast<long long>(shown > 0 ? copy_us / shown / 1000 : 0), wait_us / 1e4 / seconds,

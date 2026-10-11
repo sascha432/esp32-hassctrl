@@ -2,6 +2,14 @@
 
 ## 2026-10-11
 
+- MJPEG streams no longer drift behind without limit (your report: Doorspy 10 s behind on the P4
+  after a few minutes, 30 s on the WT32). go2rtc queued up to 64 frames for a board whose Wi-Fi
+  reads slower than the source sends (Doorspy 370 KB/s). A stream whose next frame is already
+  waiting after every frame for 10 s is opened again (the new connection first, so go2rtc keeps
+  its source running), which drops the queue. This is the fallback for streams that cannot be made
+  smaller; the recommendation is a lower bit rate at the source, and a stream the board can take
+  plays without delay. A frame that cannot be decoded is skipped instead of ending the stream
+  (three in a row end it). Flashed on all three boards; confirmed by the user on the P4.
 - Camera full screen: zoom and move. The view shows the whole picture; 100 % covers the screen
   whatever the camera's resolution, the steps are 50, 75, 100, 150 and 200 %, a swipe moves the
   picture up to its edges. A touch shows the round buttons "X" (back), "+" and "-" and the hint
