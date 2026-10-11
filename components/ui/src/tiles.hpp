@@ -45,6 +45,7 @@ struct View {
     uint16_t image_width = 0;  // the frame that is asked for
     uint16_t image_height = 0;
     uint32_t image_generation = 0;
+    uint32_t image_asked = 0; // the tick of the request on its way, 0: none
     lv_timer_t *image_timer = nullptr;
 
     // gestures

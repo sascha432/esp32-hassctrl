@@ -2,6 +2,17 @@
 
 ## 2026-10-10
 
+- Camera tiles: the cameras page of the JC4880P443C stayed empty or showed only some images.
+  Three causes: the PPA's blocking scale of a hardware-decoded JPEG did not come back now and then
+  and the media task waited for good (silently, the requests piled up behind it); the queue of 4
+  dropped the fifth camera without a word; a tile threw away an image that came after its next
+  request (15 s refresh, Home Assistant needs up to 5 s for some cameras, one after the other
+  longer). Now a tile asks again only once its image came (or after 60 s); on the P4 up to three
+  media tasks fetch at the same time (one on the ESP32 and the S3: three left the S3 without
+  internal RAM for a socket), one decode at a time; a request that falls out of the queue (now 8)
+  is answered with an error; the PPA has 500 ms, then the decoder and the PPA stay off until the
+  restart (software decoding). Checked on all three boards over the serial console (cameras every
+  15 s, the P4 caught one PPA timeout); confirmed by the user on the P4.
 - Web UI dashboard editor: the real MDI icons instead of the hand-drawn stand-ins. `tools/build_icons.py`
   also writes `web/icons.svg` (one `<symbol id="mdi-<name>">` per icon, 18 KB, 6.5 KB gzipped, MDI
   7.4.47); the editor loads it once and draws every tile and the icon picker with `<use>`. Needs the

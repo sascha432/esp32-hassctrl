@@ -15,7 +15,10 @@
 #endif
 #if SOC_PPA_SUPPORTED
 #include "driver/ppa.h"
+#include "esp_attr.h"
 #include "esp_cache.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #endif
 
 namespace hc::hass::image_hw {
@@ -23,6 +26,9 @@ namespace hc::hass::image_hw {
 #if SOC_JPEG_DECODE_SUPPORTED || SOC_PPA_SUPPORTED
 namespace {
 constexpr const char *kTag = "image_hw";
+// The PPA did not answer a scale (cover): the 2D-DMA that both use is not trusted any more, the
+// decoder and the PPA are left alone until the restart.
+bool g_stuck = false;
 } // namespace
 #endif
 
@@ -41,6 +47,9 @@ bool g_no_decoder = false;
 
 bool decoder()
 {
+    if (g_stuck) {
+        return false;
+    }
     if (g_decoder == nullptr && !g_no_decoder) {
         jpeg_decode_engine_cfg_t config{};
         config.timeout_ms = kTimeoutMs;
@@ -159,16 +168,40 @@ constexpr uint32_t kScaleSteps = 16;
 constexpr size_t kLine = CONFIG_CACHE_L2_CACHE_LINE_SIZE > CONFIG_CACHE_L1_CACHE_LINE_SIZE ? CONFIG_CACHE_L2_CACHE_LINE_SIZE
                                                                                             : CONFIG_CACHE_L1_CACHE_LINE_SIZE;
 
+// A scale takes a millisecond. The PPA's blocking call did not come back now and then (2026-10-10,
+// right after a JPEG of the decoder, the cause inside the 2D-DMA not found) and the media tasks
+// waited for it for good; a scale that did not end within this is given up.
+constexpr int kScaleTimeoutMs = 500;
+
 ppa_client_handle_t g_scaler = nullptr;
 bool g_no_scaler = false;
+SemaphoreHandle_t g_scaled = nullptr; // given by on_scaled
+// the buffers of the scale that did not end: the 2D-DMA may still read and write them, so they
+// are never freed
+core::Pixels g_stuck_in;
+core::Pixels g_stuck_out;
+
+bool IRAM_ATTR on_scaled(ppa_client_handle_t, ppa_event_data_t *, void *)
+{
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR(g_scaled, &woken);
+    return woken == pdTRUE;
+}
 
 bool scaler()
 {
+    if (g_stuck) {
+        return false;
+    }
     if (g_scaler == nullptr && !g_no_scaler) {
         ppa_client_config_t config{};
         config.oper_type = PPA_OPERATION_SRM;
         config.max_pending_trans_num = 1;
-        if (ppa_register_client(&config, &g_scaler) != ESP_OK) {
+        ppa_event_callbacks_t callbacks{};
+        callbacks.on_trans_done = on_scaled;
+        g_scaled = xSemaphoreCreateBinary();
+        if (g_scaled == nullptr || ppa_register_client(&config, &g_scaler) != ESP_OK ||
+            ppa_client_register_event_callbacks(g_scaler, &callbacks) != ESP_OK) {
             g_scaler = nullptr;
             g_no_scaler = true;
             ESP_LOGW(kTag, "no PPA, frames are scaled by LVGL");
@@ -223,10 +256,21 @@ bool cover(const Frame &frame, uint32_t width, uint32_t height, core::Pixels &ou
     config.rotation_angle = PPA_SRM_ROTATION_ANGLE_0;
     config.scale_x = static_cast<float>(block.scale) / kScaleSteps;
     config.scale_y = config.scale_x;
-    config.mode = PPA_TRANS_MODE_BLOCKING;
+    config.mode = PPA_TRANS_MODE_NON_BLOCKING;
+    xSemaphoreTake(g_scaled, 0); // a late answer of an earlier scale
     if (ppa_do_scale_rotate_mirror(g_scaler, &config) != ESP_OK) {
         std::snprintf(error, error_size, "the PPA could not scale %ux%u", static_cast<unsigned>(frame.picture_width),
                       static_cast<unsigned>(frame.picture_height));
+        return false;
+    }
+    if (xSemaphoreTake(g_scaled, pdMS_TO_TICKS(kScaleTimeoutMs)) != pdTRUE) {
+        g_stuck = true;
+        g_stuck_in = frame.pixels;
+        g_stuck_out = std::move(pixels);
+        ESP_LOGE(kTag, "the PPA did not scale %ux%u within %d ms: decoder and PPA off until the restart",
+                 static_cast<unsigned>(frame.picture_width), static_cast<unsigned>(frame.picture_height),
+                 kScaleTimeoutMs);
+        std::snprintf(error, error_size, "the PPA did not answer");
         return false;
     }
     out = std::move(pixels);

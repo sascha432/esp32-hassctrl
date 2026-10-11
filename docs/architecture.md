@@ -417,7 +417,8 @@ What changes:
 * JSON is parsed with cJSON from the component registry (ESP-IDF 6 no longer bundles it),
   allocating from PSRAM through `cJSON_InitHooks`. Messages are capped at 16 KB.
 * Camera images use `esp_http_client` and a JPEG decoder (`esp_new_jpeg` in software, the
-  hardware JPEG driver on the P4), in the media worker.
+  hardware JPEG driver on the P4), in the media worker: three tasks on the P4, one on the ESP32
+  and the S3 (internal RAM), see ui/dashboard.md "Camera image".
 
 ---
 

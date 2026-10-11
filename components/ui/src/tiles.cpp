@@ -29,6 +29,9 @@ constexpr lv_coord_t kDragStart = 10;
 constexpr uint32_t kDoubleTapMs = 300;
 // the steps of a climate tile are sent once the taps pause this long
 constexpr uint32_t kStepSendMs = 700;
+// a camera image that did not come within this time is asked for again (its answer was lost); the
+// slow cameras of a page take their turns meanwhile
+constexpr uint32_t kImageWaitMs = 60000;
 constexpr float kDefaultClimateStep = 0.5f;
 
 const lv_font_t &value_font(const View &view)
@@ -360,7 +363,8 @@ void on_step(lv_event_t *event)
 } // namespace
 
 // the next camera image of a picture tile; not while a panel covers the page (a stream that plays
-// full screen would wait for it)
+// full screen would wait for it), not while the last one is on its way: an image that took longer
+// than the refresh would be thrown away for the newer request, and the queue would only grow
 void request_image(View &view)
 {
     if (view.image == nullptr) {
@@ -369,7 +373,11 @@ void request_image(View &view)
     if (dashboard::panel_tile() != core::kNone) {
         return;
     }
+    if (view.image_asked != 0 && lv_tick_elaps(view.image_asked) < kImageWaitMs) {
+        return;
+    }
     view.image_generation = dashboard::fetch_image(view.tile, view.image_width, view.image_height);
+    view.image_asked = view.image_generation != 0 ? lv_tick_get() | 1 : 0;
 }
 
 namespace {
@@ -718,6 +726,7 @@ void show_image(View &view, const core::Image &image)
     if (view.image == nullptr || image.generation != view.image_generation) {
         return;
     }
+    view.image_asked = 0;
     if (!image.error.empty() || !image.pixels) {
         // the last image stays; the camera icon while there is none
         LV_LOG_WARN("camera: %s", image.error.c_str());

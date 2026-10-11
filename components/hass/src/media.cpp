@@ -6,7 +6,9 @@
 // An image comes from Home Assistant's camera proxy, or from an MJPEG stream (a tile's `stream`):
 // a still image is the first frame of the stream, and one stream at a time can play, frame after
 // frame, until it is stopped. A frame is only decoded once the UI took the one before; the frames
-// in between are read and dropped, so the stream never falls behind.
+// in between are read and dropped, so the stream never falls behind. On the P4 up to kMaxWorkers
+// tasks fetch at the same time, as the browser does: Home Assistant needs seconds for some
+// cameras. They decode one at a time (one JPEG engine and PPA).
 
 #include <algorithm>
 #include <atomic>
@@ -40,8 +42,16 @@ constexpr int kTimeoutMs = 10000;
 // the largest JPEG taken: HA scales to the size asked for when it can, a camera that cannot be
 // scaled sends its full snapshot (a 1080p one is a few hundred KB)
 constexpr size_t kMaxJpeg = 512 * 1024;
-// the requests that wait: one per entity, the newest wins
-constexpr size_t kMaxQueued = 4;
+// the requests that wait: one per tile (a tile asks again once its image came), the newest of a
+// source wins
+constexpr size_t kMaxQueued = 8;
+// the tasks that fetch at the same time: three on the P4; the internal RAM of the ESP32 and the S3
+// has room for one HTTP client (on the S3 three left 19 bytes, a socket could not be created)
+#if CONFIG_IDF_TARGET_ESP32P4
+constexpr int kMaxWorkers = 3;
+#else
+constexpr int kMaxWorkers = 1;
+#endif
 // The task's stack: esp_http_client, and with https the TLS handshake (like the WebSocket
 // client's task). The decoder's work buffer is allocated per image.
 constexpr uint32_t kStackHttp = 6144;
@@ -71,7 +81,13 @@ struct Request {
 std::mutex g_mutex;
 std::deque<Request> g_queue;
 Request g_play;           // under g_mutex; the stream that is wanted, generation 0: none
-TaskHandle_t g_task = nullptr;
+int g_workers = 0;        // under g_mutex: the tasks started
+int g_busy = 0;           // under g_mutex: the tasks that fetch or play
+bool g_streaming = false; // under g_mutex: a task plays the stream
+// given for every request; the tasks wait on it
+SemaphoreHandle_t g_work = nullptr;
+// one decoder at a time
+std::mutex g_decode_mutex;
 // the generation of the stream that is wanted, read by the loop between two frames
 std::atomic<uint32_t> g_play_generation{0};
 // the UI took the last frame of the stream (take_event), the next one may be decoded
@@ -85,12 +101,14 @@ std::atomic<uint32_t> g_takes{0};
 // the scale of the stream's frames: -1 the smallest that covers the box, else 0..3 (1:1..1:8)
 std::atomic<int> g_stream_shift{-1};
 
-// the task's own buffers for the settings, the header and the address of a request, not on its
+// a task's own buffers for the settings, the header and the address of a request, not on its
 // stack: the token is 512 bytes
-char g_url[kUrlSize];
-char g_token[kTokenSize];
-char g_authorization[kTokenSize + 8];
-char g_request_url[kUrlSize + 160];
+struct Context {
+    char url[kUrlSize];
+    char token[kTokenSize];
+    char authorization[kTokenSize + 8];
+    char request_url[kUrlSize + 160];
+};
 
 void *psram(size_t size)
 {
@@ -158,7 +176,8 @@ struct Connection {
 
 // Opens a GET of `url` and reads its headers; false with `error` set unless the answer is 200.
 // `authorize`: with the token of Home Assistant.
-bool open(Connection &c, const char *url, bool authorize, int64_t &length, char *error, size_t error_size)
+bool open(Context &ctx, Connection &c, const char *url, bool authorize, int64_t &length, char *error,
+          size_t error_size)
 {
     esp_http_client_config_t config{};
     config.url = url;
@@ -173,8 +192,8 @@ bool open(Connection &c, const char *url, bool authorize, int64_t &length, char 
         return false;
     }
     if (authorize) {
-        std::snprintf(g_authorization, sizeof(g_authorization), "Bearer %s", g_token);
-        esp_http_client_set_header(c.client, "Authorization", g_authorization);
+        std::snprintf(ctx.authorization, sizeof(ctx.authorization), "Bearer %s", ctx.token);
+        esp_http_client_set_header(c.client, "Authorization", ctx.authorization);
     }
     if (esp_http_client_open(c.client, 0) != ESP_OK) {
         std::snprintf(error, error_size, authorize ? "Home Assistant cannot be reached" : "the stream cannot be reached");
@@ -530,9 +549,9 @@ bool decode(const Request &request, const uint8_t *jpeg, size_t size, bool live,
 
 // ------------------------------------------------------------------------------- requests
 
-void credentials()
+void credentials(Context &ctx)
 {
-    detail::credentials(g_url, sizeof(g_url), g_token, sizeof(g_token));
+    detail::credentials(ctx.url, sizeof(ctx.url), ctx.token, sizeof(ctx.token));
 }
 
 // a stream of its own (http://), not one of Home Assistant
@@ -541,22 +560,22 @@ bool own_stream(const Request &request)
     return !request.stream.empty() && request.stream != core::kHassStream;
 }
 
-// g_request_url: `path` of Home Assistant for the request's camera; false with `error` set when
+// ctx.request_url: `path` of Home Assistant for the request's camera; false with `error` set when
 // Home Assistant is not set up
-bool hass_url(const Request &request, const char *path, char *error, size_t error_size)
+bool hass_url(Context &ctx, const Request &request, const char *path, char *error, size_t error_size)
 {
-    credentials();
-    if (g_url[0] == 0 || g_token[0] == 0) {
+    credentials(ctx);
+    if (ctx.url[0] == 0 || ctx.token[0] == 0) {
         std::snprintf(error, error_size, "Home Assistant is not set up");
         return false;
     }
-    std::snprintf(g_request_url, sizeof(g_request_url), "%s%s%s", g_url, path, request.entity_id.c_str());
+    std::snprintf(ctx.request_url, sizeof(ctx.request_url), "%s%s%s", ctx.url, path, request.entity_id.c_str());
     return true;
 }
 
 // one still image: of the camera proxy, or the first frame of the stream (Home Assistant's own
 // stream is not asked for a still image: the camera proxy scales it to the tile)
-void snapshot(const Request &request)
+void snapshot(Context &ctx, const Request &request)
 {
     core::Image image;
     image.generation = request.generation;
@@ -571,7 +590,7 @@ void snapshot(const Request &request)
         int64_t length = 0;
         if (own_stream(request)) {
             size_t part = 0;
-            if (open(c, request.stream.c_str(), false, length, error, sizeof(error))) {
+            if (open(ctx, c, request.stream.c_str(), false, length, error, sizeof(error))) {
                 StreamReader reader(c);
                 if (reader.next_part(part, error, sizeof(error))) {
                     if (part > kMaxJpeg || !jpeg.reserve(part)) {
@@ -584,15 +603,20 @@ void snapshot(const Request &request)
                     }
                 }
             }
-        } else if (hass_url(request, "/api/camera_proxy/", error, sizeof(error))) {
-            const size_t used = std::strlen(g_request_url);
-            std::snprintf(g_request_url + used, sizeof(g_request_url) - used, "?width=%u&height=%u", request.width,
+        } else if (hass_url(ctx, request, "/api/camera_proxy/", error, sizeof(error))) {
+            const size_t used = std::strlen(ctx.request_url);
+            std::snprintf(ctx.request_url + used, sizeof(ctx.request_url) - used, "?width=%u&height=%u", request.width,
                           request.height);
-            fetched = open(c, g_request_url, true, length, error, sizeof(error)) &&
+            fetched = open(ctx, c, ctx.request_url, true, length, error, sizeof(error)) &&
                       read_body(c, length, jpeg, error, sizeof(error));
         }
     }
-    if (fetched && decode(request, jpeg.data, jpeg.size, false, -1, image, times, error, sizeof(error))) {
+    bool decoded = false;
+    if (fetched) {
+        std::lock_guard lock(g_decode_mutex);
+        decoded = decode(request, jpeg.data, jpeg.size, false, -1, image, times, error, sizeof(error));
+    }
+    if (decoded) {
         ESP_LOGI(kTag, "%s%s: %u bytes, %ux%u 1:%u into %ux%u, %lld ms (decode %lld %s, copy %lld), %u bytes of stack left",
                  request.entity_id.c_str(), own_stream(request) ? " (stream)" : "", static_cast<unsigned>(jpeg.size),
                  times.source_width, times.source_height, 1u << times.shift, request.width, request.height,
@@ -618,21 +642,29 @@ void stream_failed(const Request &request, const char *error)
     detail::deliver_event(std::move(image));
 }
 
+// a frame of the stream, with the decoder to itself
+bool decode_frame(const Request &request, const uint8_t *jpeg, size_t size, core::Image &image, DecodeTimes &times,
+                  char *error, size_t error_size)
+{
+    std::lock_guard lock(g_decode_mutex);
+    return decode(request, jpeg, size, true, g_stream_shift, image, times, error, error_size);
+}
+
 // Plays the stream until another one is wanted or it is stopped.
-void play(const Request &request)
+void play(Context &ctx, const Request &request)
 {
     char error[96] = {};
     Connection c;
     int64_t length = 0;
     // Home Assistant's stream has the camera's full size: it cannot be scaled like a snapshot
     const bool hass = !own_stream(request);
-    if (hass && !hass_url(request, "/api/camera_proxy_stream/", error, sizeof(error))) {
+    if (hass && !hass_url(ctx, request, "/api/camera_proxy_stream/", error, sizeof(error))) {
         stream_failed(request, error);
         return;
     }
-    const char *url = hass ? g_request_url : request.stream.c_str();
+    const char *url = hass ? ctx.request_url : request.stream.c_str();
     ESP_LOGI(kTag, "stream of %s into %ux%u: %s", request.entity_id.c_str(), request.width, request.height, url);
-    if (!open(c, url, hass, length, error, sizeof(error))) {
+    if (!open(ctx, c, url, hass, length, error, sizeof(error))) {
         stream_failed(request, error);
         return;
     }
@@ -685,7 +717,7 @@ void play(const Request &request)
         image.generation = request.generation;
         image.entity = request.entity;
         image.live = true;
-        if (decode_first && !decode(request, jpeg.data, part, true, g_stream_shift, image, times, error, sizeof(error))) {
+        if (decode_first && !decode_frame(request, jpeg.data, part, image, times, error, sizeof(error))) {
             stream_failed(request, error);
             return;
         }
@@ -699,8 +731,7 @@ void play(const Request &request)
         }
         const bool wanted = g_frame_taken;
         if (wanted && g_play_generation == request.generation) {
-            if (!decode_first &&
-                !decode(request, jpeg.data, part, true, g_stream_shift, image, times, error, sizeof(error))) {
+            if (!decode_first && !decode_frame(request, jpeg.data, part, image, times, error, sizeof(error))) {
                 stream_failed(request, error);
                 return;
             }
@@ -738,66 +769,81 @@ void play(const Request &request)
     ESP_LOGI(kTag, "stream of %s stopped", request.entity_id.c_str());
 }
 
-void task(void *)
+void task(void *arg)
 {
+    Context &ctx = *static_cast<Context *>(arg);
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        xSemaphoreTake(g_work, portMAX_DELAY);
         for (;;) {
             Request request;
             bool streaming = false;
             {
                 std::lock_guard lock(g_mutex);
-                if (g_play.generation != 0 && g_play.generation == g_play_generation) {
+                // one task plays the stream; a new one waits until the last one stopped
+                if (!g_streaming && g_play.generation != 0 && g_play.generation == g_play_generation) {
                     request = g_play;
-                    streaming = true;
+                    streaming = g_streaming = true;
                 } else if (!g_queue.empty()) {
                     request = std::move(g_queue.front());
                     g_queue.pop_front();
                 } else {
                     break;
                 }
+                g_busy++;
             }
             if (streaming) {
-                play(request);
-                std::lock_guard lock(g_mutex);
+                play(ctx, request);
+            } else {
+                snapshot(ctx, request);
+            }
+            std::lock_guard lock(g_mutex);
+            g_busy--;
+            if (streaming) {
+                g_streaming = false;
                 // a stream that ended by itself is not started again until it is asked for
                 if (g_play.generation == request.generation) {
                     g_play = {};
                     g_play_generation = 0;
                 }
-            } else {
-                snapshot(request);
             }
         }
     }
 }
 
-// starts the task with the first request; false when there is no memory for it
-bool start_task()
+// Under g_mutex: one more task when every task is busy and work waits; false when there is no task
+// and no memory for one.
+bool start_worker()
 {
-    if (g_task != nullptr) {
-        return true;
+    const int waiting = static_cast<int>(g_queue.size()) + (g_play.generation != 0 && !g_streaming ? 1 : 0);
+    if (g_workers >= kMaxWorkers || g_workers - g_busy >= waiting) {
+        return g_workers > 0;
+    }
+    if (g_taken_signal == nullptr) {
+        g_taken_signal = xSemaphoreCreateBinary();
+    }
+    if (g_work == nullptr) {
+        g_work = xSemaphoreCreateCounting(32, 0);
+    }
+    auto *ctx = static_cast<Context *>(psram(sizeof(Context)));
+    if (g_taken_signal == nullptr || g_work == nullptr || ctx == nullptr) {
+        std::free(ctx);
+        ESP_LOGE(kTag, "no memory for a task");
+        return g_workers > 0;
     }
     char url[kUrlSize];
     char token[8];
     detail::credentials(url, sizeof(url), token, sizeof(token));
     const uint32_t stack = std::strncmp(url, "https:", 6) == 0 ? kStackHttps : kStackHttp;
-    if (g_taken_signal == nullptr) {
-        g_taken_signal = xSemaphoreCreateBinary();
-        if (g_taken_signal == nullptr) {
-            ESP_LOGE(kTag, "no memory for the task's semaphore");
-            return false;
-        }
-    }
     // on the second core where there is one: Wi-Fi runs on the first, and with LVGL and a stream's
     // decoding both there the S3's first core was busy for seconds (task watchdog)
     const BaseType_t core = portNUM_PROCESSORS > 1 ? 1 : tskNO_AFFINITY;
-    if (xTaskCreatePinnedToCore(task, "media", stack, nullptr, 3, &g_task, core) != pdPASS) {
-        g_task = nullptr;
-        ESP_LOGE(kTag, "no memory for the task (%u bytes of stack)", static_cast<unsigned>(stack));
-        return false;
+    if (xTaskCreatePinnedToCore(task, "media", stack, ctx, 3, nullptr, core) != pdPASS) {
+        std::free(ctx);
+        ESP_LOGE(kTag, "no memory for a task (%u bytes of stack)", static_cast<unsigned>(stack));
+        return g_workers > 0;
     }
-    ESP_LOGI(kTag, "started (%u bytes of stack)", static_cast<unsigned>(stack));
+    g_workers++;
+    ESP_LOGI(kTag, "task %d started (%u bytes of stack)", g_workers, static_cast<unsigned>(stack));
     return true;
 }
 
@@ -840,25 +886,35 @@ void fetch_image(std::string_view entity_id, std::string_view stream, core::Enti
     {
         std::lock_guard lock(g_mutex);
         // one request per source waits: the newest one (tiles of one camera with different
-        // streams are different sources)
+        // streams or sizes are different sources)
         auto same = std::find_if(g_queue.begin(), g_queue.end(), [&](const Request &r) {
-            return r.entity == request.entity && r.stream == request.stream;
+            return r.entity == request.entity && r.stream == request.stream && r.width == request.width &&
+                   r.height == request.height;
         });
         if (same != g_queue.end()) {
             *same = std::move(request);
         } else {
             if (g_queue.size() >= kMaxQueued) {
+                // its tile hears of it, or it would wait for the image
+                const Request &dropped = g_queue.front();
+                ESP_LOGW(kTag, "%s: dropped, %u requests wait", dropped.entity_id.c_str(),
+                         static_cast<unsigned>(g_queue.size()));
+                core::Image image;
+                image.generation = dropped.generation;
+                image.entity = dropped.entity;
+                image.error = "too many cameras wait";
+                detail::deliver_event(std::move(image));
                 g_queue.pop_front();
             }
             g_queue.push_back(std::move(request));
         }
-        if (!start_task()) {
+        if (!start_worker()) {
             g_queue.clear();
             no_task(entity, generation, false);
             return;
         }
     }
-    xTaskNotifyGive(g_task);
+    xSemaphoreGive(g_work);
 }
 
 void play_stream(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
@@ -869,14 +925,14 @@ void play_stream(std::string_view entity_id, std::string_view stream, core::Enti
         g_play = {.entity_id = memory::String(entity_id), .stream = memory::String(stream), .entity = entity,
                   .width = width, .height = height, .swap_bytes = swap_bytes, .generation = generation};
         g_play_generation = generation;
-        if (!start_task()) {
+        if (!start_worker()) {
             g_play = {};
             g_play_generation = 0;
             no_task(entity, generation, true);
             return;
         }
     }
-    xTaskNotifyGive(g_task);
+    xSemaphoreGive(g_work);
 }
 
 void stop_stream()

@@ -236,7 +236,9 @@ generation. 48 hours are 576 points (4.6 KB on the large heap).
 ### Camera image
 
 A picture tile asks for its image when the page opens and every `refresh` seconds (default 60)
-while it is shown; a tap shows it full screen on black, refreshed the same way, and any tap goes
+while it is shown, but not while its last request is on its way (an image that came after a newer
+request was thrown away, and a page of slow cameras only grew the queue); after 60 s without an
+answer it asks again. A tap shows it full screen on black, refreshed the same way, and any tap goes
 back. Until the first full screen frame arrives, the tile's frame is shown enlarged.
 
 The image is `GET /api/camera_proxy/<entity>?width=W&height=H` with the token, W x H the size of
@@ -245,10 +247,20 @@ decodes the JPEG at the smallest scale that still covers the box (1:1 to 1:8), t
 to the box's aspect ratio. The frame is RGB565 in the display's byte order on the large heap,
 shared between the tile and its full screen view (480x320: 300 KB).
 
-The images are fetched one at a time by the media task of `hass` (`media.cpp`, ESP-IDF's
-`esp_http_client` and `esp_jpeg`), so a slow camera never holds up the values of the page. The
-task is created with the first image (6 KB of stack, 8 KB with https); one request per camera
-waits, the newest. A JPEG of more than 512 KB is refused.
+The images are fetched by the media tasks of `hass` (`media.cpp`, ESP-IDF's `esp_http_client`
+and `esp_jpeg`), so a slow camera never holds up the values of the page. On the P4 up to three
+tasks fetch at the same time, as the browser does (Home Assistant takes 2 to 5 s for some cameras);
+the internal RAM of the ESP32 and the S3 has room for one (on the S3 three left 19 bytes and a
+socket could not be created). A task is created when a request finds every task busy (6 KB of
+stack, 8 KB with https); the images are decoded one at a time. One request per camera, stream and
+size waits, the newest; one that falls out of the full queue (8) is answered with an error. A JPEG
+of more than 512 KB is refused.
+
+On the P4 the hardware decoder's frame is scaled to the box by the PPA. Its blocking call did not
+come back now and then (2026-10-10, cause in the 2D-DMA not found) and the media task waited for
+good: the scale now has 500 ms, after that the decoder and the PPA stay off until the restart and
+the images are decoded in software (25 to 30 ms for a tile). The buffers of that scale are never
+freed, the DMA may still use them.
 
 ### MJPEG stream (test, 2026-10-08)
 
@@ -257,7 +269,8 @@ from the first frame of the stream instead of Home Assistant; full screen plays 
 frame rate in the upper left corner. `stream: hass` plays Home Assistant's own MJPEG stream of the
 camera (`/api/camera_proxy_stream/<entity>` with the token) full screen, and the tile keeps the
 scaled snapshots of the camera proxy (that stream has the camera's full size). One stream plays
-at a time; the still images of the page wait meanwhile. A frame is decoded once the UI took the
+at a time; the still images of the page go on in the other tasks (on the ESP32 and the S3 they
+wait meanwhile). A frame is decoded once the UI took the
 one before (it takes it within 10 to 15 ms); the frames in between are read and dropped, so the
 picture never falls behind. A stream frame is shown as the decoder made it, centered, without a
 copy (the copy of 480x320 through PSRAM cost 166 ms); its scale is the largest that still shows

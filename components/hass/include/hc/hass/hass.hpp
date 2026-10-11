@@ -123,14 +123,15 @@ bool take_event(HassEvent &out);
 // The camera image of `entity_id` as a frame of `width` x `height` (core::Image, through
 // take_event), cut to cover the box: from Home Assistant's camera proxy, or the first frame of the
 // MJPEG `stream` when one is given. `swap_bytes`: RGB565 with the bytes swapped (LVGL's
-// LV_COLOR_16_SWAP). The images are fetched one at a time by a task of their own (media.cpp),
-// created with the first request; one request per entity waits, the newest.
+// LV_COLOR_16_SWAP). The images are fetched by up to three tasks of their own at the same time (one
+// on the ESP32 and the S3, media.cpp), created as the requests come; one request per entity, stream and size
+// waits, the newest. A request that falls out of the full queue is answered with an error.
 void fetch_image(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
                  uint16_t height, bool swap_bytes, uint32_t generation);
 
 // Plays the MJPEG `stream` of `entity_id` as frames of `width` x `height` (core::Image with `live`)
-// until stop_stream() or another play_stream(); one stream plays at a time, the still images wait
-// meanwhile. A frame is decoded once the UI took the one before.
+// until stop_stream() or another play_stream(); one stream plays at a time, the still images go on
+// in the other tasks (on the ESP32 and the S3 they wait meanwhile). A frame is decoded once the UI took the one before.
 void play_stream(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
                  uint16_t height, bool swap_bytes, uint32_t generation);
 void stop_stream();
