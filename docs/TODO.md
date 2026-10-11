@@ -1070,6 +1070,11 @@ sim.
       button buzzes at once, the click sounds on release, one pulse per touch. Confirmed by you on
       the WT32, which now has a 15 ms click (`Info::vibration_click_ms`); the P4 keeps its own.
 
+## Battery remote (2026-10-11, cancelled)
+
+- [x] ~~Deep sleep on the JC3248W535~~: cancelled by you. The board takes 30 to 40 mA in deep sleep
+      (see [devices/JC3248W535](devices/JC3248W535/JC3248W535.md), "Deep sleep"); the code was removed.
+
 ## Known issues
 
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the
