@@ -201,7 +201,8 @@ async function importDashboard(checkOnly) {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || response.statusText);
     dashMessage((checkOnly ? "valid: " : "imported, revision " + body.revision + ": ") +
-                body.pages + " pages, " + body.tiles + " tiles" + (body.ignored ? " (ignored: " + body.ignored + ")" : ""));
+                body.pages + " pages, " + body.tiles + " tiles" + (body.settings ? ", settings: " + body.settings : "") +
+                (body.notes ? ". " + body.notes : "") + (body.ignored ? " (ignored: " + body.ignored + ")" : ""));
     if (!checkOnly) loadDashboard();
   } catch (e) { dashMessage(e.message); }
 }

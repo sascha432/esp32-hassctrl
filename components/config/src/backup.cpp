@@ -49,9 +49,10 @@ void check_header(const yaml::Node &root, Report &report)
     }
 }
 
-// one pass over the file: every section and the dashboard read it with `apply`
+// one pass over the file: every section and the dashboard read it with `apply`; `dashboard_elsewhere`:
+// `defaults` and `tiles` are read by the caller, neither read nor named here
 void pass(const yaml::Node &root, std::string_view text, std::span<const Section> sections,
-          const Dashboard *dashboard, bool apply, Report &report)
+          const Dashboard *dashboard, bool dashboard_elsewhere, bool apply, Report &report)
 {
     bool has_dashboard = false;
     for (const yaml::Entry &entry : root.map) {
@@ -81,7 +82,7 @@ void pass(const yaml::Node &root, std::string_view text, std::span<const Section
         report.sections.push_back(section.name);
         section.read(*value, apply, report);
     }
-    if (!has_dashboard) {
+    if (!has_dashboard || dashboard_elsewhere) {
         return;
     }
     if (dashboard == nullptr) {
@@ -336,7 +337,10 @@ memory::String write(const Device &device, std::span<const Section> sections, co
     return out;
 }
 
-Report read(std::string_view text, std::span<const Section> sections, const Dashboard *dashboard, bool apply)
+namespace {
+
+Report read_file(std::string_view text, std::span<const Section> sections, const Dashboard *dashboard,
+                 bool dashboard_elsewhere, bool apply)
 {
     Report report;
     auto root = yaml::parse(text);
@@ -354,14 +358,26 @@ Report read(std::string_view text, std::span<const Section> sections, const Dash
     if (!report.problems.empty()) {
         return report;
     }
-    pass(*root, text, sections, dashboard, false, report);
+    pass(*root, text, sections, dashboard, dashboard_elsewhere, false, report);
     if (!apply || !report.problems.empty()) {
         return report;
     }
     // the same again, applied; its report replaces the one of the check
     Report applied;
-    pass(*root, text, sections, dashboard, true, applied);
+    pass(*root, text, sections, dashboard, dashboard_elsewhere, true, applied);
     return applied;
+}
+
+} // namespace
+
+Report read(std::string_view text, std::span<const Section> sections, const Dashboard *dashboard, bool apply)
+{
+    return read_file(text, sections, dashboard, false, apply);
+}
+
+Report read_settings(std::string_view text, std::span<const Section> sections, bool apply)
+{
+    return read_file(text, sections, nullptr, true, apply);
 }
 
 } // namespace hc::config::backup

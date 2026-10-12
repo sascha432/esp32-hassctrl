@@ -14,3 +14,6 @@
 - **Docs with every change.** Update the affected `docs/*.md` (architecture, adding-a-board, CHANGELOG, the
   pages under `docs/ui` and `docs/devices`) in the same commit as the code. Check `docs/TODO.md`: mark items
   done or changed, add new open points, update the state lines.
+- **Sample config with every change.** `docs/dashboard-sample/` documents the file format and where
+  every setting, password and token goes. Update it whenever the format, a key, or the place a
+  setting lives changes (`tools/host_test.py` imports it).

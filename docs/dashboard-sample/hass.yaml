@@ -4,9 +4,10 @@
 # Everything in this folder is made up (entity ids, names), so replace them with yours. It is
 # also a test file: tools/host_test.py imports it, so it always matches the firmware.
 #
-# This is the format of the YAML import and export of the web UI (Dashboard page); the device
-# keeps the dashboard in its own file and the web UI edits it. Import takes the whole folder at
-# once (all files together), the export writes one file with everything in it.
+# This is the format of the YAML import of the web UI (Dashboard page, Import & export); the
+# device keeps the dashboard in its own file and the web UI edits it. Import takes the whole
+# folder at once (all files together). The export writes one file with everything in it, the
+# backup file (System page) the settings as well.
 #
 #   hass.yaml            this file: the settings of the dashboard and the main page
 #   rooms.yaml           an area, pulled in with `include`
@@ -19,13 +20,86 @@
 # an error with the file and the line, never silently ignored.
 # ----------------------------------------------------------------------------------------------
 
-# The connection to Home Assistant. Optional: the web UI (Home Assistant page) sets it as well.
-# An import changes it only when this block is there. Better leave the token out of files you
-# keep or share, the stored one stays when the file has none.
-hass:
-  url: http://homeassistant.local:8123
-  # token: paste-a-long-lived-access-token-here
+# ---------------------------------------------------------------------------------- settings
+# Besides the dashboard (`defaults`, `tiles`), this file may carry the settings sections of the
+# backup file (System page, Backup): `hass`, `network`, `display`, `sound`, `alarm`, `camera`,
+# `webui`.
+# They are checked together with the dashboard, a problem in either refuses the whole import,
+# and applied after it. A section that is not here stays as it is, and so does a field that is
+# not in its section. The tokens and passwords below work in both files; an export never writes
+# them (it writes a comment where they go).
+#
+# Commented out here: this folder is imported onto test devices (tools/test_dashboard.py), and
+# made-up addresses and passwords would replace their real ones. Remove the `#` of a section to
+# use it.
+#
 
+# The connection to Home Assistant (the web UI's Home Assistant page sets it as well).
+#hass:
+#  url: http://homeassistant.local:8123
+#  # a long-lived access token (Home Assistant: your profile, Security). Without it the stored
+#  # token stays.
+#  token: paste-a-long-lived-access-token-here
+#  # only for https with a self-signed certificate: its SHA-256, trusted on the device
+#  certificate: "AB:CD:..."
+
+# The web UI login (import only: no export writes it). Replaces the login there is and ends every
+# session, so the browser that imports the file has to sign in again. Without the section the
+# login stays; the browser setup creates the first one.
+#webui:
+#  user: admin              # 1 to 32 letters, digits, '.', '_' or '-'
+#  password: 8-to-64-characters
+
+# Wi-Fi. The networks of the file come first, then the saved ones that are not in it.
+#network:
+#  policy: order            # order (of the list) or strongest (signal)
+#  hotspot_on: false
+#  networks:
+#    - name: Office
+#      password: the-wi-fi-password    # 8 to 64 characters; without it a saved one keeps its own
+#    - name: Guest
+#      open: true                      # no password
+
+# The device's own camera stream, for boards with a camera (Settings, Camera on the screen or
+# the web UI). The stream needs a login; a new `stream_user` drops the stored password.
+#camera:
+#  stream: true
+#  stream_size: full        # full or half
+#  stream_fps: 10           # 5, 10, 15 or 30
+#  stream_quality: 80       # 30 to 95
+#  stream_user: viewer      # at most 32 characters
+#  stream_password: at-most-32-characters
+#  # the picture: mains_hz (50, 60), auto_exposure, brightness (-50 to 50), exposure_us, gain
+#  # (16 to 248, 16 = 1x), mirror, flip
+
+# The screen.
+#display:
+#  brightness: 80           # 1 to 100
+#  dim_brightness: 20       # 1 to 100
+#  dim_after_s: 60          # 0 to 3600
+#  off_after_s: 600         # 0 to 86400
+#  automatic: true          # brightness from the light sensor
+#  rotation: 0              # 0, 90, 180, 270
+#  rotation_locked: false
+
+# Sounds and vibration, on boards that have them.
+#sound:
+#  volume: 50               # 0 to 100
+#  tap_sound: true
+#  slider_sound: true
+#  vibration: true
+
+# The alarm clock, on boards with a speaker.
+#alarm:
+#  on: true
+#  time: "07:00"
+#  days: [mon, tue, wed, thu, fri]   # [] for once, then it turns itself off
+#  snooze_min: 9            # 1 to 60
+
+# A camera tile's `stream:` URL (below) cannot carry a login yet: `http://user:password@host/`
+# is not sent to the server (docs/TODO.md).
+
+# --------------------------------------------------------------------------------- dashboard
 # Defaults for the whole dashboard. Only the grid for now.
 defaults:
   # columns x rows of every page, 1x1 to 8x8. Default 4x2. A cell is the unit of every size
@@ -95,6 +169,8 @@ tiles:
     name: Owl
     size: 2x1
     refresh: 30
+    # full screen plays Home Assistant's MJPEG stream of the camera
+    stream: hass
 
   # An area is a page of its own. The first cell of its page is the back tile. The name is
   # required. `tiles` is the list of its page; `include` takes it from another file.

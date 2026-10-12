@@ -328,10 +328,16 @@ YAML import and export (decided 2026-10-07, kept simple):
   4 levels; a cycle is an error. No globs (the order would come from the file names) and no
   variables in the first version.
 * The parser accepts any consistent indentation and any key order.
-* A `hass:` block is accepted: `url` and `token` go to the settings, like a save on the Home
-  Assistant page. A file without a token is the preferred way (the stored token stays). The
-  import does not read the block itself: it hands the keys it does not know to their owners
-  (`hass`, `network`, `display` of the backup file).
+* The main file may carry the settings sections of the backup file (`hass`, `network`,
+  `display`, `sound`, `alarm`, `camera`, `webui`), with the tokens and passwords added by hand
+  (`hass:` `token:`, a network's `password:`, `camera:` `stream_password:`, `webui:` `user:` and
+  `password:`, the web UI login, which no export writes). The dashboard import does not
+  read them itself: `main` hands the main file to the backup's readers
+  (`config::backup::read_settings`, the section table of `main/backup.cpp`). They are checked
+  with the dashboard, a problem in either refuses the import, and applied after the dashboard
+  was stored (2026-10-12; before, `hass:` was only reported as ignored). The answer names the
+  applied sections, the notes and the ignored keys. A file without a token is fine: the stored
+  token stays.
 * The export dumps everything into one file, for backup: `hass.url` without the token, and
   without the comments of the import. Splitting it into files is up to the user. It is the same
   file as the settings backup (decided): optional sections `hass`, `network`, `display`,

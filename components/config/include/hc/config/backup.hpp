@@ -163,4 +163,9 @@ memory::String write(const Device &device, std::span<const Section> sections, co
 // empty: it was (or would be) imported.
 Report read(std::string_view text, std::span<const Section> sections, const Dashboard *dashboard, bool apply);
 
+// The settings sections only, for the main file of a dashboard import (hass.yaml with `hass:`,
+// `camera:`, ...): like read(), but `defaults` and `tiles` are left to the dashboard import and
+// not reported. A file without sections gives an empty report.
+Report read_settings(std::string_view text, std::span<const Section> sections, bool apply);
+
 } // namespace hc::config::backup

@@ -657,7 +657,9 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
   dashboard loads again (revision 5, 24 pages, 133 tiles). Memory: 55 KB internal RAM free
   (was 56), about 30 KB PSRAM for your dashboard; the stored JSON is 10.8 KB.
 - Not done: the web UI page for it (the Dashboard page still says "comes later"), the combined
-  backup file with the settings sections, and `hass:` of an import is only reported as ignored.
+  backup file with the settings sections, and `hass:` of an import is only reported as ignored
+  (2026-10-12: the settings sections of an import are applied, see "Settings sections in a
+  dashboard import").
 - [ ] **Dashboard editing** (planned 2026-10-08, [ui/web/web-dashboard-editor.md](ui/web/web-dashboard-editor.md), demo
       `docs/ui/web/web-dashboard-editor-demo.html` reviewed by you): tile positions per orientation in the
       format, edit mode on the screen (1000 ms long press, drag with push aside, long press on a
@@ -1273,7 +1275,7 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
   | `network/last_seen`, `last_index` | no | state of this device's radio, not a setting |
   | `ui/display` | yes, as named fields | brightness, dim, off, automatic, rotation, lock |
   | `ui/hint` | no | state ("hint seen") |
-  | `webui/*` | no | the login is a secret, the new device keeps its own |
+  | `webui/*` | no; since 2026-10-12 an import may set it (`webui:` `user`, `password`) | the login is a secret, the new device keeps its own |
   | `light/scale`, `light/ldr_points` | no | per device, the developer's calibration |
   | `console/log_level` | no | development |
   | `logbuf/debug` | no | diagnosis of this device |
@@ -1410,6 +1412,37 @@ Dashboard ([architecture.md](architecture.md) section 14):
       reference in code, tools and docs points to the new files and sections (the changelog's
       old entries keep their names). design-system.md was out of date: fonts (no 24/32, the large
       set), icons 24/48 (not 20/48), no `lv_dpx()` scaling (the board options instead).
+- [x] Sample config (2026-10-12, your question): `docs/dashboard-sample/hass.yaml` said an import
+      sets the Home Assistant connection from `hass:`; the dashboard import only reports it as
+      ignored. The header now says where each password and token goes (backup file, web UI,
+      screen) with a backup example. Rule: the sample is updated with every change of the format
+      or of where a setting lives (CLAUDE.md).
+- [x] **Settings sections in a dashboard import** (2026-10-12, your request "add those password
+      fields to the config"): `hass.yaml` may carry `hass`, `network`, `display`, `sound`,
+      `alarm`, `camera` like the backup file, tokens and passwords included. `main` hands the
+      main file to `config::backup::read_settings` (the backup's section table); checked with the
+      dashboard, applied after it; the answer has `settings`, `notes`, `ignored`. The sample shows
+      every section commented out (`tools/test_dashboard.py` imports it onto test devices) and
+      got `stream:` examples (and `webui:`, see below). Host tests: 91 (2 new: `read_settings`, the sample's sections
+      uncommented parse). On the WT32, check only (your dashboard stays): the sample, `display`
+      with an unknown `weather`, `display.brightness: 101` refused, `hass` with a token,
+      `camera` "not on this device", a network without password (note). Confirmed working by
+      you (2026-10-12).
+- [ ] **Login of a tile's `stream:` URL** (2026-10-12): `http://user:password@host/...` is parsed
+      by esp_http_client, but `media.cpp` opens with `esp_http_client_open`, which sends no
+      Basic auth (auth_type stays none, only `perform` answers a 401), so a go2rtc with a login
+      answers 401. Fix: Basic auth when the URL has a user. Open: the password then sits in the
+      dashboard JSON and in every export, against "no secrets in the export"; alternative a
+      `stream_user`/`stream_password` per tile, left out of the export like the token.
+- [x] **Web UI login from a file** (2026-10-12, your decision: import yes, export no): a `webui:`
+      section (`user`, `password`, both or neither) in the backup file and in `hass.yaml`. Checked
+      like the setup page (`hc::webserver::import_login`), stored as a hash, every session ends
+      (the note says "sign in again"). The export writes only a commented hint. On the WT32:
+      short password, bad user and a user alone refused with the field named, a valid one
+      checked; the export hint; an applied backup import with the same login: the old cookie
+      is logged out, signing in again works. Confirmed working by you (2026-10-12).
+- [ ] **Change password in the web UI**: there is none (reset on the screen + setup again, or a
+      file with `webui:`). Proposal: a form on the System page (current password, new one twice).
 - [ ] The accent cyan `0x00ffff` is defined three times (`panel::kPendingBorder`, `runner.cpp`,
       `history_view.cpp`); proposal: `theme::kAccent` (lvgl-design.md section 10).
 

@@ -98,6 +98,10 @@ other side is not told (decided).
   needed.
 * **Anything that changes ends all tokens** (decided): the username, the password, or a counter
   stored in NVS. The counter is increased by "log out everywhere" in the menu.
+* **From a file** (2026-10-12): a `webui:` section with `user` and `password` in the backup file or
+  in a dashboard import's `hass.yaml` replaces the login (same rules as the setup page; every
+  session ends, the browser that imported signs in again). Import only: the device stores a
+  hash, the export writes a commented hint where the section goes.
 * How (decided): the signing key is derived from the stored login record and the counter,
   `key = HMAC(stored password hash, counter)`. The stored hash is `hash(salt, username,
   password)` with PBKDF2. A new password or username gives a new hash, a new counter gives a new
@@ -191,7 +195,7 @@ whole log as text. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` 
 backup card sits above the update card, so the backup is seen before an update (decided).
 
 Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`,
-`camera` (2026-10-12), `hass` and the dashboard (`defaults`, `tiles`); Export all, Settings only,
+`camera` (2026-10-12), `hass`, `webui` (import only, section 3; 2026-10-12) and the dashboard (`defaults`, `tiles`); Export all, Settings only,
 Dashboard only (`GET /api/backup.yaml[?parts=settings|dashboard]`). A section of something the
 device does not have (`sound`, `alarm`, `camera`) is not written, and in a file from another
 device it is ignored ("camera (not on this device)"). No password and no token is written; a
@@ -206,6 +210,11 @@ nothing changes; the answer lists the sections, the problems, what to know ("Off
 password") and what was ignored. A network without a password is saved as "password needed" and
 not tried until it gets one. Only the main firmware: the recovery app has no backup (404), and
 its System page shows no Backup card.
+
+The dashboard import (Dashboard page, Import & export) reads the same settings sections from
+`hass.yaml` (2026-10-12): checked with the dashboard, applied after it, the message names them
+("settings: hass, camera"), the notes and what was ignored. `docs/dashboard-sample/hass.yaml`
+shows every section, commented out.
 
 ```
 +--------------------------------------------+

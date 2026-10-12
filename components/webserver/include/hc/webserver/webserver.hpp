@@ -93,8 +93,14 @@ struct DashboardInfo {
     uint32_t revision;
     uint32_t pages;
     uint32_t tiles;
-    // top-level keys of an import that the dashboard does not read ("hass"), comma separated
+    // top-level keys of hass.yaml that neither the dashboard nor a settings section reads
+    // ("weather"), comma separated
     char other_keys[96];
+    // the settings sections of hass.yaml that were (or would be) applied ("hass, camera")
+    char settings[96];
+    // what the user should know about them ("camera: the stream stays off until it has a login"),
+    // "; " between two
+    char notes[256];
 };
 
 // What the web server needs of the dashboard, filled in `main` (the recovery app has no
@@ -182,5 +188,11 @@ esp_err_t start(const Config &config);
 // Removes the web UI login (Settings on the screen, docs/ui/lvgl/lvgl-settings.md section 3): the web UI is
 // open in setup mode until a new login is created.
 esp_err_t reset_login();
+
+// The web UI login from a file (the backup file and the dashboard import, docs/ui/web/web-app.md
+// section 4): checks `username` and `password` like the setup page, and with `apply` stores them
+// in place of the login there is. That ends every session, the browser that sent the file
+// included. false with `error` filled when they are not usable or cannot be stored.
+bool import_login(const char *username, const char *password, bool apply, char *error, size_t error_size);
 
 } // namespace hc::webserver

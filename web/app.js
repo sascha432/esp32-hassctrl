@@ -400,7 +400,8 @@ async function dashboardFiles(box) {
     try {
       const r = await api("/api/dashboard/import" + (checkOnly ? "?check=1" : ""), form);
       $("#dash-message").textContent = (checkOnly ? "valid: " : `imported as revision ${r.revision}: `) +
-        `${r.pages} pages, ${r.tiles} tiles` + (r.ignored ? ` (ignored: ${r.ignored})` : "");
+        `${r.pages} pages, ${r.tiles} tiles` + (r.settings ? `, settings: ${r.settings}` : "") +
+        (r.notes ? `. ${r.notes}` : "") + (r.ignored ? ` (ignored: ${r.ignored})` : "");
     } catch (e) {
       $("#dash-message").textContent = "";
       throw e;

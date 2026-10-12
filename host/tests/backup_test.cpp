@@ -255,6 +255,21 @@ TEST(backup_without_a_dashboard_names_its_keys)
     CHECK_STR(joined(report.ignored), "defaults, tiles (this firmware has no dashboard)");
 }
 
+TEST(backup_settings_of_a_dashboard_file_leave_the_dashboard_alone)
+{
+    g = {};
+    const backup::Report report = backup::read_settings(
+        "light:\n  level: 20\ndefaults:\n  grid: 4x3\ntiles:\n  - entity: light.a\nweather: 1\n", kSections, true);
+    CHECK_STR(joined(report.problems), "");
+    CHECK_STR(joined(report.sections), "light");
+    CHECK_STR(joined(report.ignored), "weather");
+    CHECK(g.applied_light.level == 20);
+    CHECK(!g.dashboard_applied);
+
+    const backup::Report none = backup::read_settings("tiles:\n  - entity: light.a\n", kSections, true);
+    CHECK_STR(joined(none.problems) + joined(none.sections) + joined(none.ignored), "");
+}
+
 TEST(backup_writes_lists_on_one_line)
 {
     String out;

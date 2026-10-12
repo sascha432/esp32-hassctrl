@@ -298,12 +298,32 @@ hc::webserver::DashboardResult to_web(hc::dashboard::Result result)
     return DashboardResult::Failed;
 }
 
-void to_info(const hc::dashboard::ImportReport &report, hc::webserver::DashboardInfo &out)
+// `lines` joined with `separator` into `out`, cut at its end
+template <size_t N>
+void join(const hc::memory::Vector<hc::memory::String> &lines, const char *separator, char (&out)[N])
+{
+    size_t used = 0;
+    out[0] = 0;
+    for (const auto &line : lines) {
+        const int n = std::snprintf(out + used, N - used, "%s%s", used > 0 ? separator : "", line.c_str());
+        if (n < 0 || static_cast<size_t>(n) >= N - used) {
+            break;
+        }
+        used += static_cast<size_t>(n);
+    }
+}
+
+// the dashboard's other keys are the settings sections and what nobody reads: the report of
+// the sections names the second
+void to_info(const hc::dashboard::ImportReport &report, const hc::config::backup::Report &settings,
+             hc::webserver::DashboardInfo &out)
 {
     out.revision = report.revision;
     out.pages = report.pages;
     out.tiles = report.tiles;
-    std::snprintf(out.other_keys, sizeof(out.other_keys), "%s", report.other_keys);
+    join(settings.ignored, ", ", out.other_keys);
+    join(settings.sections, ", ", out.settings);
+    join(settings.notes, "; ", out.notes);
 }
 
 const hc::webserver::DashboardAccess kDashboardAccess{
@@ -340,10 +360,31 @@ const hc::webserver::DashboardAccess kDashboardAccess{
                 uploaded.push_back({std::string_view(files[i].path, files[i].path_length),
                                     std::string_view(files[i].text, files[i].text_length)});
             }
+            // the settings sections of hass.yaml are checked with the dashboard and applied after it,
+            // so a refused file changes nothing
+            const auto main_file = std::find_if(uploaded.begin(), uploaded.end(),
+                                                [](const hc::config::File &f) { return f.path == "hass.yaml"; });
+            const std::string_view main_text = main_file != uploaded.end() ? main_file->text : std::string_view();
+            hc::config::backup::Report settings = import_dashboard_settings(main_text, false);
+            if (!settings.problems.empty()) {
+                std::snprintf(error, error_size, "hass.yaml: %s", settings.problems.front().c_str());
+                return hc::webserver::DashboardResult::Invalid;
+            }
             hc::dashboard::ImportReport report{};
             const auto result = hc::dashboard::import_yaml(uploaded, check_only, report, error, error_size);
+            if (result != hc::dashboard::Result::Ok) {
+                return to_web(result);
+            }
+            if (!check_only && !main_text.empty()) {
+                settings = import_dashboard_settings(main_text, true);
+                if (!settings.problems.empty()) {
+                    std::snprintf(error, error_size, "dashboard imported, settings not: %s",
+                                  settings.problems.front().c_str());
+                    return hc::webserver::DashboardResult::Failed;
+                }
+            }
             out = {};
-            to_info(report, out);
+            to_info(report, settings, out);
             return to_web(result);
         },
     .icon_name = [](size_t index) -> const char * {

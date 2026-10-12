@@ -2,6 +2,15 @@
 
 ## 2026-10-12
 
+- Dashboard import: `hass.yaml` may carry the settings sections of the backup file (`hass`,
+  `network`, `display`, `sound`, `alarm`, `camera`), with the Home Assistant token, Wi-Fi
+  passwords and the camera stream password. They are checked with the dashboard and applied
+  after it; the message names them. Before, `hass:` was accepted but ignored.
+- Web UI login from a file: a `webui:` section (`user`, `password`) in the backup file or in
+  `hass.yaml` sets it, with the rules of the setup page; every session ends. Import only, the
+  export writes a commented hint.
+- Sample dashboard (`docs/dashboard-sample/`): every settings section with its fields
+  (commented out), `webui:` included, `stream:` examples.
 - Docs: the UI documents are split into `docs/ui/lvgl/` (the touch screen: design guide, touch,
   dashboard, panels, camera, Settings and first setup) and `docs/ui/web/` (design guide, web app,
   dashboard editor, recovery); the file names start with `lvgl-` or `web-`. Two design guides

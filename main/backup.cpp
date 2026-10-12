@@ -13,6 +13,7 @@
 #include "hc/hass/hass.hpp"
 #include "hc/network/network.hpp"
 #include "hc/ui/ui.hpp"
+#include "hc/webserver/webserver.hpp"
 #include "ui_backend.hpp"
 
 namespace {
@@ -445,6 +446,49 @@ void read_hass(const Node &value, bool apply, backup::Report &report)
     }
 }
 
+// ------------------------------------------------------------------------------------ webui
+
+// The web UI login (docs/ui/web/web-app.md section 3): import only. The export writes a hint in
+// comments, never the section: the device stores a hash, the password is not there to write.
+void write_webui(backup::Writer &out)
+{
+    out.comment("the web UI login is not exported; added by hand, an import sets it (and ends every session):", 0);
+    out.comment("webui:", 0);
+    out.comment("  user: admin", 0);
+    out.comment("  password: 8-to-64-characters", 0);
+}
+
+void read_webui(const Node &value, bool apply, backup::Report &report)
+{
+    backup::Fields fields(value, "webui", report);
+    String user;
+    String password;
+    const bool has_user = fields.text("user", 32, user);
+    const bool has_password = fields.text("password", 64, password);
+    fields.finish();
+    if (!has_user && !has_password) {
+        return;
+    }
+    if (!has_user || !has_password) {
+        fields.problem(has_user ? "password" : "user", "user and password go together");
+        return;
+    }
+    char error[64] = {};
+    if (!hc::webserver::import_login(user.c_str(), password.c_str(), apply, error, sizeof(error))) {
+        // "user: ..." and "password: ..." name their field
+        const std::string_view text = error;
+        const size_t colon = text.find(": ");
+        const std::string_view key = colon == std::string_view::npos ? "" : text.substr(0, colon);
+        if (key == "user" || key == "password") {
+            fields.problem(key, text.substr(colon + 2));
+        } else {
+            report.problem("webui", text);
+        }
+        return;
+    }
+    report.note("webui", apply ? "new login, sign in again" : "the login will be replaced, sign in again afterwards");
+}
+
 // ----------------------------------------------------------------------------------- camera
 
 // Settings, Camera (docs/architecture.md section 9.8). Only on a device with a camera: the
@@ -567,6 +611,7 @@ const backup::Section kSections[] = {
     {"network", write_network, read_network}, {"display", write_display, read_display},
     {"sound", write_sound, read_sound},       {"alarm", write_alarm, read_alarm, has_alarm},
     {"camera", write_camera, read_camera, has_camera}, {"hass", write_hass, read_hass},
+    {"webui", write_webui, read_webui},
 };
 
 const backup::Dashboard kDashboard{write_dashboard, read_dashboard};
@@ -603,4 +648,14 @@ const hc::webserver::BackupAccess &backup_access()
 void backup_ui_started()
 {
     g_ui_started = true;
+}
+
+backup::Report import_dashboard_settings(std::string_view text, bool apply)
+{
+    backup::Report report = backup::read_settings(text, kSections, apply);
+    if (apply && report.problems.empty() && !report.sections.empty() && g_ui_started) {
+        UiLock lock;
+        hc::ui::settings_imported();
+    }
+    return report;
 }

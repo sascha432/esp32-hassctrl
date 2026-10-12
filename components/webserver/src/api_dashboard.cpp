@@ -16,7 +16,10 @@
 //   POST /api/dashboard/import[?check=1]  multipart/form-data with the files of a dashboard
 //                                       folder (the filename of every part is its path inside
 //                                       the folder, hass.yaml is the main file); check=1 only
-//                                       validates
+//                                       validates. hass.yaml may carry settings sections of the
+//                                       backup file (hass:, camera:, ...), applied with it.
+//                                       Answer: {"checked", "revision", "pages", "tiles",
+//                                       "settings", "notes", "ignored"}
 //
 // Only in the main firmware: the recovery app has no dashboard and does not register these.
 
@@ -68,13 +71,15 @@ esp_err_t send_text(httpd_req_t *req, char *text, size_t length, const char *typ
 
 esp_err_t send_info(httpd_req_t *req, const DashboardInfo &info, bool checked)
 {
-    char buffer[256];
+    char buffer[640];
     JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .boolean("checked", checked)
         .number("revision", info.revision)
         .number("pages", info.pages)
         .number("tiles", info.tiles)
+        .string("settings", info.settings)
+        .string("notes", info.notes)
         .string("ignored", info.other_keys)
         .end_object();
     return send_json(req, json);

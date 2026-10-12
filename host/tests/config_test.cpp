@@ -1,5 +1,6 @@
 // components/config: the YAML import with includes, the stored JSON and the YAML export.
 
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -90,6 +91,48 @@ void check_round_trips(const Layout &layout)
 
 } // namespace
 
+namespace {
+
+// The sample's settings sections without their `#`: a line "#name:" starts one, the lines
+// after it that start with "#  " belong to it.
+std::string uncomment_sections(const std::string &text)
+{
+    std::istringstream in(text);
+    std::string out, line;
+    bool inside = false;
+    while (std::getline(in, line)) {
+        const bool starts = line.size() > 2 && line[0] == '#' && std::islower(static_cast<unsigned char>(line[1])) &&
+                            line.back() == ':';
+        inside = starts || (inside && line.rfind("#  ", 0) == 0);
+        out += (inside ? line.substr(1) : line) + "\n";
+    }
+    return out;
+}
+
+} // namespace
+
+TEST(config_sample_settings_sections_are_valid_yaml)
+{
+    // uncommented, the sections of the sample are read as the settings of the import
+    FileSet files;
+    REQUIRE(load_folder(kRoot / "docs/dashboard-sample", files));
+    for (auto &[path, text] : files.contents) {
+        if (path == "hass.yaml") {
+            text = uncomment_sections(text);
+        }
+    }
+    const auto imported = hc::config::import_yaml(files.view(), "hass.yaml");
+    if (!imported) {
+        hc::test::fail(__FILE__, __LINE__, std::string(imported.error()));
+        return;
+    }
+    std::string keys;
+    for (const auto &key : imported->other_keys) {
+        keys += std::string(key.c_str()) + " ";
+    }
+    CHECK_STR(keys, "hass webui network camera display sound alarm ");
+}
+
 TEST(config_imports_the_documented_sample)
 {
     // docs/dashboard-sample is the guide of the file format: it has to stay valid
@@ -101,8 +144,7 @@ TEST(config_imports_the_documented_sample)
         return;
     }
     const Layout &layout = imported->layout;
-    REQUIRE(imported->other_keys.size() == 1);
-    CHECK(imported->other_keys[0] == "hass");
+    CHECK(imported->other_keys.empty()); // the settings sections are commented out
     CHECK(layout.grid == (Span{4, 3}));
     CHECK(layout.pages.size() == 3);
     CHECK(layout.tiles.size() == 18);

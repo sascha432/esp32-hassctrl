@@ -339,4 +339,22 @@ esp_err_t reset_login()
     return detail::auth::remove_user();
 }
 
+bool import_login(const char *username, const char *password, bool apply, char *error, size_t error_size)
+{
+    namespace auth = detail::auth;
+    const size_t length = strnlen(password, auth::kMaxPassword + 1);
+    const char *problem = !auth::valid_username(username)                            ? "user: 1 to 32 letters, digits, '.', '_' or '-'"
+                          : length < auth::kMinPassword || length > auth::kMaxPassword ? "password: 8 to 64 characters"
+                          : apply && auth::set_user(username, password) != ESP_OK   ? "the login could not be stored"
+                                                                                     : nullptr;
+    if (problem != nullptr) {
+        std::snprintf(error, error_size, "%s", problem);
+        return false;
+    }
+    if (apply) {
+        ESP_LOGI(kTag, "web UI login '%s' imported", username);
+    }
+    return true;
+}
+
 } // namespace hc::webserver
