@@ -5,7 +5,7 @@ TTGO T4 and the WT32-SC01. Work through it in order: each step relies on the one
 screen of the main firmware (`components/ui`, tabs "Display" and "Backlight") is the tool for
 steps 4 to 7. It is only in the firmware while the board is in bring-up:
 `CONFIG_HC_BOARD_BRING_UP=y` in `boards/<name>/sdkconfig.defaults` (step 2) shows it over the
-start screen until a dashboard is drawn; step 9 removes the line again.
+start screen until a dashboard is drawn; step 12 removes the line again.
 
 ## 1. Collect the facts
 
@@ -24,12 +24,14 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | Wi-Fi in the chip, or on a companion chip (ESP32-P4 + C6: esp_hosted, its bus and pins, and the companion's firmware version, which has to match the host side) | `boards/<name>/sdkconfig.defaults`, `components/network/idf_component.yml` |
 | shared I2C bus and the sensors on it (MPU6050 address) | board source file, `Info::imu_address` |
 | speaker amplifier on I2S (often missing from the datasheet: look at working configurations of the module) | `Info::audio_*`, `select HC_BOARD_HAS_AUDIO` (step 9) |
+| vibration motor and its GPIO | `Info::vibration_gpio`, `select HC_BOARD_HAS_VIBRATION` (step 10) |
+| camera connector (MIPI-CSI): lanes, SCCB bus and address, power enable and reset pins, a clock from the chip or on the module, the MIPI PHY supply; the sensor on the module (chip ID) | device page, `select HC_BOARD_HAS_CAMERA` (step 11) |
 
 ## 2. Create the files
 
 | File | Content |
 | --- | --- |
-| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 9), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
+| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 12), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
 | `components/board/Kconfig` | a `HC_BOARD_<NAME>` entry in the board choice, `depends on IDF_TARGET_...` |
 | `components/board/CMakeLists.txt` | `if(CONFIG_HC_BOARD_<NAME>)` adds `boards/<name>/<name>.cpp` |
 | `components/board/boards/<name>/<name>.cpp` | `Info`, `init()` and the backlight functions, like the existing boards |
@@ -205,7 +207,40 @@ Steps:
       for a brownout while the motor starts (section Power below).
 - [ ] Settings, Sound shows "Vibrate"; taps vibrate, the switch turns it off.
 
-## 11. Record the results
+## 11. Camera (if the board has a MIPI-CSI connector)
+
+Only the ESP32-P4 has a CSI controller and an ISP. The `camera` component knows one sensor, the
+OV02C10 of the JC4880P443C (docs/devices/JC4880P443C, "Camera", and architecture.md section 9.8).
+
+- [ ] From the schematic, on the device page: the connector's pinout, the lanes, where SCCB goes
+      (the JC4880P443C: the touch bus), whether the module's power enable and reset reach the
+      chip, whether the chip supplies a clock, and which LDO channel feeds the MIPI PHY (the
+      JC4880P443C: channel 3 at 2.5 V, held by the display, so `dont_init_ldo`). Read the
+      sensor's chip ID over SCCB before anything else; a sensor other than the OV02C10 needs
+      its driver in `components/camera` (esp_cam_sensor's, or the vendor's with its changes in
+      a README) and its tuning file.
+- [ ] The board's Kconfig choice entry gets `select HC_BOARD_HAS_CAMERA`, and its
+      `sdkconfig.defaults` the esp_video options of the JC4880P443C's (ISP pipeline controller
+      on, DVP off). `board::Handles::i2c` must be the bus the sensor is on; `main` starts the
+      camera with it.
+- [ ] The boot log names the sensor and its format; console `camera` shows the capture.
+      Measure the frame rate (30 fps on the OV02C10) and that it keeps it with the screen busy.
+- [ ] The capture task runs on the core that created the display's DMA channels (core 0 on
+      the JC4880P443C: they share the DW-GDMA interrupt group; from core 1 the allocation
+      fails). Check this first if the capture fails to start.
+- [ ] Settings, Camera, Preview: the picture fills the box, colors right (a wrong Bayer order
+      gives magenta and green), no tearing. The preview draws into the panel's second frame
+      buffer: a DPI panel needs `num_fbs = 2`; an SPI or QSPI panel has none, the preview then
+      needs another way.
+- [ ] Mirror and flip on the sensor (`camera mirror on`, `camera flip on`): the picture turns,
+      the colors stay right (a window moved by one pixel keeps the Bayer order), the frames keep
+      coming. Auto exposure: point it at a lamp and away, the picture settles within a second,
+      no flicker at the mains frequency.
+- [ ] The web stream: a login on Settings, Camera, then `/api/camera.jpg` and
+      `/api/camera.mjpg` in a browser (frame rate, both sizes). Watch the boot log for a
+      brownout while the camera and the Wi-Fi run (section Power below).
+
+## 12. Record the results
 
 - [ ] Every constant found above is in the board's `Info`; remove `CONFIG_HC_BOARD_BRING_UP=y`
       from `boards/<name>/sdkconfig.defaults`, rebuild: the firmware starts with the start screen

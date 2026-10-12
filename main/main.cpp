@@ -186,9 +186,8 @@ void start_audio(const hc::board::Info &board)
 }
 #endif
 
-// The orientation sensor turns the display unless the rotation is locked in Settings. Until the
-// UI has its mailbox (docs/architecture.md section 4) the UI is called under the LVGL lock
-// (0: waits as long as it takes).
+// The orientation sensor turns the display unless the rotation is locked in Settings. The UI is
+// called under the LVGL lock (docs/architecture.md section 4; 0: waits as long as it takes).
 void on_rotation(hc::orientation::Rotation rotation, void *)
 {
     if (lvgl_port_lock(0)) {

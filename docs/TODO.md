@@ -1,8 +1,9 @@
 # TODO
 
-State as of 2026-10-07: steps 1 and 2 of [architecture.md](architecture.md) section 13 run on
-the TTGO T4 (COM13, the test device for the hotspot and web server work) and the WT32-SC01
-(COM9); step 3 runs on the T4. The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
+State as of 2026-10-12: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+WT32-SC01 (COM9), the JC3248W535 (COM10) and the JC4880P443C (COM11); the TTGO T4 (COM13) is a
+test device only. Step 7 (LVGL 9) has not started. What is next is in "Next steps" at the end.
+The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
 
 ## Step 1: first boot
 
@@ -1392,10 +1393,13 @@ Dashboard ([architecture.md](architecture.md) section 14):
 
 - [ ] Read [architecture.md](architecture.md) and [ui/](ui/README.md) once from top to bottom.
       Everything not marked as decided is a proposal; mark disagreements as comments or in chat.
+      architecture.md checked against the code on 2026-10-12: section 4 now describes the
+      queues as built (no typed mailbox, no `ReloadConfig`: the UI polls the current layout),
+      the components, partitions, repository layout and section 13 brought up to date.
 
 ## Next steps
 
-State as of 2026-10-10. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-12. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01, the JC3248W535 and the JC4880P443C; what is left of them is listed in their sections
 above. In order:
 

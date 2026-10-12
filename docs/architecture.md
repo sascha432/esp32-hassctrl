@@ -1,9 +1,11 @@
 # esp32-hassctrl - architecture
 
-Status: **proposal, nothing implemented yet.** Review this before code is written on top of it.
+Status (2026-10-12): steps 1 to 6 of section 13 run on the WT32-SC01, the JC3248W535 and the
+JC4880P443C. What is marked as decided or running describes the code; what is marked as a
+proposal or as later is not built.
 
 A Home Assistant touch panel for ESP32 / ESP32-S3 / ESP32-P4, written in C++ on native ESP-IDF
-with LVGL 9. It is a port of the Home Assistant dashboard of the `weather_station2` plugin in
+with LVGL 8.4 (LVGL 9 later, section 7.1). It is a port of the Home Assistant dashboard of the `weather_station2` plugin in
 `kfc_fw` (Arduino, LovyanGFX, LVGL 8.4, WT32-SC01). The behavior of that dashboard carries over,
 and its `hass.yaml` format stays as the import and export format; its internal structure does not.
 
@@ -74,13 +76,13 @@ agents.
 ```
                  +-------------------------------------------+
                  |  main/   composition root (app_main)       |
-                 |  creates everything, wires the mailboxes   |
+                 |  creates everything, wires the components |
                  +-------------------------------------------+
                     |            |              |           |
                     v            v              v           v
               +---------+  +----------+  +-----------+  +-----------+
               |   ui    |  |   hass   |  |   board   |  | platform  |
-              | LVGL 9  |  | WS + API |  | lcd/touch |  | wifi, fs, |
+              | LVGL    |  | WS + API |  | lcd/touch |  | wifi, fs, |
               | screens |  | session  |  | backlight |  | time, log |
               +---------+  +----------+  +-----------+  +-----------+
                   |   \        |    \
@@ -111,7 +113,11 @@ agents.
 | `platform` | `littlefs`, `esp_sntp`, `nvs_flash` | no | LittleFS mount, NVS, time sync, log setup |
 | `network` | `esp_wifi`, `esp_netif` | no | Station and access point state machine, scans, stored credentials (section 9) |
 | `webserver` | `esp_http_server`, `network` | no | Captive portal and the setup pages for the phone path (section 9) |
-| `main` | everything | no | `app_main`: start order, mailboxes, error policy at boot |
+| `dashboard` | `config`, `core`, `platform` | no | The stored dashboard (`/fs/dashboard.json`): loads it, hands out the current `core::Layout`, saves with a revision check, imports and exports (section 5, "Storage") |
+| `main` | everything | no | `app_main`: start order, the function tables between the components, error policy at boot |
+
+The other components (`light_sensor`, `orientation`, `touch_input`, `frame_display`, `ota`,
+`audio`, `vibration`, `camera`, `logbuf`, `devconsole`, `uidebug`) are listed in section 9.4.
 
 Rules:
 
@@ -132,36 +138,45 @@ Two actors own all state. Everything between them is a message.
 | Task | Created by | Owns |
 | --- | --- | --- |
 | **UI task** | `esp_lvgl_port` | LVGL, all widgets, `core::EntityStore`, `core::PendingTracker`, navigation state |
-| **hass task** | `hass` | the WebSocket client, request ids, subscriptions, reconnect and ping timers, statistics chunking |
+| **hass task** | `hass` | the WebSocket client, request ids, subscriptions, reconnect and ping timers, history chunking |
 | WebSocket task | `esp_websocket_client` | socket I/O only; its event handler reassembles frames and forwards complete messages to the hass task |
-| media worker (later) | `hass` | camera fetch and JPEG decode, so a 50 KB image never delays a state update |
+| media tasks | `hass` (`media.cpp`) | camera fetch and JPEG decode, so an image never delays a state update; created with the first request, up to three on the P4, one on the ESP32 and the S3 |
 
 ```
- touch -> [UI task] --intent--> PendingTracker --HassCommand--> mailbox --> [hass task] --> esp_websocket_client
-                ^                                                                  |
-                |                                                                  v
-          apply to store <---- mailbox <---- HassEvent (already decoded) <---- reassemble + decode
+ touch -> [UI task] --intent--> PendingTracker --Backend::call_service--> queue --> [hass task] --> esp_websocket_client
+                ^                                                                        |
+                |                                                                        v
+          apply to store <-- take_event (lv_timer, 20 ms) <-- HassEvent (decoded) <-- reassemble + decode
           update widgets
 ```
 
 * The **core lives in the UI task.** The UI is the only consumer of entity state, so putting the
-  store there removes every lock around the model. The UI task drains its inbound mailbox from an
-  `lv_timer` every 20 ms.
+  store there removes every lock around the model. The dashboard screen takes the waiting events
+  from an `lv_timer` every 20 ms (`Backend::take_event`).
 * **Decoding happens in the hass task.** The UI task receives typed values
-  (`PageValues{subscription, std::vector<EntityUpdate>}`), never JSON. Parsing a few KB never
-  blocks rendering.
+  (`PageValues{generation, updates}`), never JSON. Parsing a few KB never blocks rendering.
 * **Sending never blocks the UI.** `esp_websocket_client_send_text` takes a lock and can block up
   to its timeout on a bad link, so only the hass task calls it.
-* **Mailbox** is a small typed queue (`std::mutex` + ring buffer + task notification). FreeRTOS
-  queues copy raw bytes, which is wrong for `std::variant` with strings and vectors in it.
+* **To the hass task**: `subscribe_page`, `call_service`, `fetch_history` and the web UI's entity
+  queries post a command to the task's FreeRTOS queue (16 entries), which carries the event type
+  and a pointer to the heap-allocated `std::variant` (a FreeRTOS queue copies raw bytes, which is
+  wrong for a variant with strings in it). The socket's events (opened, message, closed), the network's
+  and a changed URL or token go through the same queue, so the task waits on one thing. Images go to the media tasks' own
+  queue (`fetch_image`, `play_stream`).
+* **To the UI**: a `std::deque` of `HassEvent` under a mutex, at most 16; when nobody takes them
+  the oldest go. The connection state is not an event: the UI reads it with `Backend::hass_info`
+  (the status bar and Settings).
+* The **dashboard** does not send a message either: `Backend::dashboard()` returns the current
+  layout (a `shared_ptr` to an immutable `core::Layout`), and the screen checks it on its timer.
+  A new pointer is a new dashboard (a save in the web UI, an import, an edit on the screen).
+* Other tasks that call the UI (the orientation sensor, the backup import) take the LVGL lock
+  (`lvgl_port_lock`).
 
 ```cpp
-// ui -> hass
-using HassCommand = std::variant<SubscribePage, CallService, FetchStatistics, FetchHistory,
-                                 FetchImage, Resync>;
-// hass -> ui
-using HassEvent   = std::variant<ConnectionChanged, PageValues, ServiceFailed,
-                                 StatisticsResult, ImageReady>;
+// ui -> hass (hass.cpp, private to the task)
+using Command   = std::variant<Subscribe, Call, FetchHistory, Query>;
+// hass -> ui (core/entity.hpp)
+using HassEvent = std::variant<PageValues, ServiceFailed, History, Image>;
 ```
 
 ### Stale results
@@ -259,8 +274,8 @@ Decided (2026-10-07):
   editor in the same commit, and the web image goes onto the devices together with the firmware
   (README, "Flash"). The device's check stays the truth: a forgotten copy shows as a problem in
   the editor, not as a broken dashboard.
-* No reload by file size. A change made in the web UI, on the screen or by an import posts
-  `ReloadConfig` to the UI mailbox.
+* No reload by file size. A change made in the web UI, on the screen or by an import makes a new
+  layout, which the screen picks up (section 4).
 * The full resync of the visible page is a fixed 60 seconds. After an error or a reconnect the
   page is subscribed again immediately.
 
@@ -393,7 +408,7 @@ What is kept from the old client, because it works:
   added while a panel is open. Home Assistant only sends a result when the rendered text changed;
 * `call_service` over the same connection, with failures reported per entity;
 * statistics and history in 6 hour chunks, one request at a time;
-* a full resync every `hass.poll` seconds as a safety net;
+* a full resync every 60 seconds as a safety net (section 5);
 * an application-level ping and a silence timeout to detect half-open connections.
 
 What changes:
@@ -431,8 +446,10 @@ What changes:
 * **Tile views**: one class per tile type, one file each, behind a small interface
   (`create`, `update(const EntityState&, PendingState)`, gesture callbacks). The old screen was a
   single 5,500 line file.
-* **Panels**: climate, light, sensor graph, each its own screen class.
-* **Theme**: the color and font constants of `behavior.md` section 8 in one header. Fonts and
+* **Panels**: climate, light, sensor graph, lock, each its own screen class; the sensor and the
+  lock panel share the graph (`history_view`).
+* **Theme**: the color and font constants of [ui/design-system.md](ui/design-system.md) in one
+  place (`theme.hpp`). Fonts and
   Material Design Icons are generated with `lv_font_conv` for each supported LVGL version.
 * **Updates are incremental**: the store reports which entities changed, and only their tile
   views update. Nothing rebuilds the grid because a value changed.
@@ -494,17 +511,20 @@ const Info &info();                    // name, resolution, has_touch, psram
   perceptual curve, the inverse of the CIE lightness (decided: it feels smooth down to the
   lowest levels, a linear curve gets choppy there).
 * **Minimum brightness** (decided): the lowest PWM duty at which the screen is still readable is
-  a calibration of each device, like the orientation sensor. 1 % is that minimum and 100 % is
-  full brightness, so no setting can make the screen unreadable. It is found with the backlight
-  tab of the test screen and later with the calibration in Settings, System; the screen returns
-  to the normal brightness after 10 seconds without a touch while the test runs. Stored in NVS
-  with the other calibration values (step 3).
+  a constant of the board type (`Info::backlight_min_duty`), like the orientation sensor's
+  calibration: found by the developer when the board is added, never on the device or by the
+  user. 1 % is that minimum and 100 % is full brightness, so no setting can make the screen
+  unreadable. It is found with the backlight tab of the test screen
+  ([adding-a-board.md](adding-a-board.md)); the screen returns to the normal brightness after 10
+  seconds without a touch while the test runs.
 * A speaker amplifier on I2S is part of the board too: its pins are in `Info` (`audio_*`), and the
   board's Kconfig option selects `HC_BOARD_HAS_AUDIO`, which offers the `audio` component
   (section 9.6).
 * A vibration motor works the same way: its GPIO is `Info::vibration_gpio`, and the board's
   Kconfig option selects `HC_BOARD_HAS_VIBRATION`, which offers the `vibration` component
   (section 9.7).
+* A MIPI-CSI camera: the board's Kconfig option selects `HC_BOARD_HAS_CAMERA`, which builds the
+  `camera` component; the sensor is found on the board's I2C bus (`Handles::i2c`, section 9.8).
 * **Touch input** (`touch_input`, since 2026-10-09): a task samples the touch controller every
   10 ms (priority 5) and queues every change; LVGL's read takes them in order, all waiting ones in
   one read (`continue_reading`). esp_lvgl_port read the controller in the LVGL task every 30 ms
@@ -537,8 +557,8 @@ const Info &info();                    // name, resolution, has_touch, psram
   away from lying flat. The old firmware treated the panel as flat as soon as the part into the
   panel was the largest, so a panel leaning back on a desk got no orientation at boot and
   started upside down (seen on the WT32-SC01: gravity x 0.66, z 0.76, about 49 degrees from
-  upright). Near a diagonal one axis has to win by 30 %, so the screen does not flip. Until the UI mailbox exists, `main` applies the rotation under the LVGL lock; later it
-  posts `OrientationChanged` to the UI mailbox.
+  upright). Near a diagonal one axis has to win by 30 %, so the screen does not flip. `main` hands a new
+  orientation to the UI under the LVGL lock (section 4).
 * Proposal: SPI panels rotate in the panel controller (`esp_lcd_panel_swap_xy` and
   `esp_lcd_panel_mirror`), which costs nothing at runtime, and the touch coordinates rotate
   with the same flags of `esp_lcd_touch`. RGB and MIPI-DSI panels rotate in software, on the
@@ -583,7 +603,7 @@ or continues where the last one ended) and cannot rotate a frame. The board sets
 renders in direct mode into one frame in PSRAM, and after each refresh the frame is sent from the
 top down to the lowest changed row, in bands that are turned to the panel's orientation while
 they are copied into two internal DMA buffers (copying one overlaps sending the other). Rotation
-is software for this board; touch still comes from esp_lvgl_port.
+is software for this board; touch is read by `touch_input` in the LVGL task (section 8).
 
 The ST7701S of the JC4880P443C is a MIPI-DSI video panel: the DPI controller scans a frame buffer
 in PSRAM and nothing can rotate it. The board sets `Info::mipi_dsi`, and `main` uses
@@ -641,7 +661,8 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 
 * **Fast reconnect** (decided): each network stores the access point (BSSID) and channel of its
   last connection. Only when waking from deep sleep the device goes straight to the network of
-  the last connection without a scan (decided); only when that fails it scans. A normal boot and
+  the last connection without a scan (decided); only when that fails it scans. Nothing sleeps
+  since the battery remote was cancelled (2026-10-11), so this path is kept but not taken. A normal boot and
   a lost connection always scan, so the network order is followed, and the 30 s signal check
   handles moving around. DHCP skips the ARP probe
   of the offered address and asks for the last address again. Measured on the T4 with a WPA3
@@ -713,21 +734,24 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 
 | Component | First version | Responsibility |
 | --- | --- | --- |
-| `platform` | yes | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes). SNTP and log levels later |
-| `network` | yes | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, changes go to a listener (later the UI mailbox), readers get copies. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
-| `webserver` | yes | captive portal DNS and redirect (running), the status API and the built-in page (running), the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web.md](ui/web.md) section 7). Later: the dashboard API (read and write the layout, YAML import and export), which posts `ReloadConfig` to the UI mailbox instead of the old "file size changed" polling |
-| `ui` | yes | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, system; running), the pull-down zone and the alert strip on `lv_layer_top` (running), the dashboard later. Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
+| `platform` | yes | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP and the time zone (`time_sync.cpp`; the zone's name from Home Assistant, its POSIX rule from `timezones.inc`, built by `tools/build_timezones.py`) |
+| `network` | yes | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
+| `webserver` | yes | captive portal DNS and redirect (running), the status API and the built-in page (running), the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web.md](ui/web.md) section 7). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component (running) |
+| `ui` | yes | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, system; running), the pull-down zone and the alert strip on `lv_layer_top` (running), the dashboard with its tiles, panels and edit mode (running). Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
 | `light_sensor` | yes, optional per device | BH1750 ambient light on the board's I2C bus (looked for at 0x23 and 0x5C), averaged over a second, for the automatic brightness of `ui` (running on the WT32-SC01) |
 | `hass` | yes | the Home Assistant connection of section 6 (running, step 5 first part): URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 16 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. URL parsing (`url.cpp`) is plain C++ for host tests |
 | `ota` | yes | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web.md](ui/web.md) section 8), restart into the recovery app and back, partition layout of section 9.5 (running) |
-| `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset. Used until the setup screens exist |
+| `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
 | `audio` | yes, per board, removable | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
 | `vibration` | yes, per board, removable | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
 | `camera` | yes, per board | the MIPI-CSI camera of the JC4880P443C: capture, its settings, the web stream (section 9.8, `CONFIG_HC_BOARD_HAS_CAMERA`) |
 | `touch_input` | yes | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
+| `orientation` | yes, optional per device | the MPU6050 on the board's I2C bus, the screen's rotation (section 8.1) |
+| `frame_display` | per board | the LVGL display of a panel that takes whole frames only (the AXS15231B, section 8) |
+| `logbuf` | yes | the log in a ring buffer for the web UI's log page |
 | `uidebug` | yes, removable | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Over the network later |
 
-### 9.5 Partition layout and the recovery app (proposal)
+### 9.5 Partition layout and the recovery app (running)
 
 Two equal OTA partitions on a 4 MB board leave about 1.9 MB per firmware image. The proposal is a
 second, small firmware: the **recovery app**. It is the ESP-IDF factory app, built from the same
@@ -737,11 +761,12 @@ in the main firmware.
 
 | Partition | 4 MB boards | 16 MB boards |
 | --- | --- | --- |
-| nvs, otadata, phy | 36 KB | 36 KB |
+| nvs, otadata, phy | 28 KB | 28 KB |
 | factory: recovery app | 1.06 MB | 1.25 MB |
 | ota_0: main firmware | about 2.4 MB | 5.75 MB |
 | ota_1: main firmware | none | 6 MB |
-| LittleFS | about 512 KB | the rest |
+| LittleFS | 448 KB | 2.9 MB |
+| settings (the firmware's NVS) | 64 KB | 64 KB |
 
 * **Update on a 4 MB board**: the main firmware cannot overwrite itself, so it reboots into the
   recovery app, which receives the new image, writes it to ota_0 and boots it. On a 16 MB board
@@ -965,36 +990,38 @@ it the component has no sources and the Backend entries are nullptr.
 esp32-hassctrl/
   CMakeLists.txt                 ESP-IDF project
   sdkconfig.defaults             shared Kconfig defaults
+  sdkconfig.main, sdkconfig.recovery (+ .esp32, .esp32p4)   per application and target
   partitions/                    4mb.csv, 16mb.csv
   boards/<name>/sdkconfig.defaults   target, flash, PSRAM, board choice
   boards/jc4880p443c/c6/         ESP-IDF project of the board's ESP32-C6 (esp_hosted coprocessor)
-  main/                          app_main, wiring only
+  main/                          app_main and the wiring: ui_backend, ui_sound, backup, camera_preview
   recovery/                      the recovery app (section 9.5): its own app_main, same components
   components/
-    memory/      include/hc/memory/*.hpp src/
-    formats/     include/hc/formats/*.hpp src/
-    core/        include/hc/core/*.hpp   src/
-    config/      include/hc/config/*.hpp src/
-    hass_protocol/ ...
-    hass/        ...
-    ui/          screens/ tiles/ panels/ settings/ theme/ fonts/
-    board/       include/hc/board.hpp  boards/<name>/
-    platform/    ...
-    network/     ...
-    webserver/   ...
+    <name>/      include/hc/<name>/*.hpp  src/   one per component of sections 3 and 9.4
+    ui/          src/ flat: one file per screen, tile view, panel, Settings page; src/fonts/
+    board/       include/hc/board/board.hpp  boards/<name>/
+    camera/      ov02c10/ the vendor's sensor driver with its changes (README)
   host/
     CMakeLists.txt  the host build (MSVC), python tools/host_test.py builds and runs it
-    tests/       unit tests for formats, core, config, hass_protocol; data/ holds sample files
+    tests/       unit tests for formats, core, config, hass_protocol, network's choice, the backup;
+                 stubs/ of ESP-IDF headers
     sim/         the Windows version of the UI (section 1): its own CMake project (build/sim), the
                  stub Backend with the scenarios, lv_conf.h, the Windows driver; python tools/sim.py
-  sounds/                        the alarm sounds (MP3, AOSP, Apache 2.0, NOTICE), tools/build_sounds.py
-  tools/build.py, host_test.py, sim.py, msvc.py (finds MSVC, cmake, ninja for the last two)
+  web/                           the web UI (index.html, app.js, dashboard.js, icons.svg)
+  sounds/                        the alarm sounds (MP3, AOSP, Apache 2.0, NOTICE)
+  tools/
+    build.py, build_fs.py, update.py   firmware, file system image, update over the network
+    host_test.py, sim.py, msvc.py      host tests, Windows version (msvc.py finds MSVC, cmake, ninja)
+    test_dashboard.py, test_web.py     tests against a device
+    screenshot.py                      the screen over the serial console (uidebug)
+    build_icons.py, build_logo.py, build_sounds.py, build_timezones.py, gen_recovery_font.py
+                                       generated files, committed
   docs/
     architecture.md              this file
+    TODO.md, CHANGELOG.md
     ui/                          screen and web UI layouts, design system (see ui/README.md)
     adding-a-board.md            bring-up procedure for a new board
-    hass_config.md               user reference of the hass.yaml import (carried over, updated)
-    behavior.md                  tile behavior spec (carried over)
+    dashboard-sample/            the dashboard format as YAML, a guide and a test file
     devices/<board>/             pins and datasheets
 ```
 
@@ -1034,18 +1061,21 @@ esp32-hassctrl/
 | `Tile::value` / `TileValue` | `core::EntityStore` | redesign: keyed by entity, not by tile |
 | `hass_dashboard.{h,cpp}` | `core` (store, pending, intents) + `ui` (status line) | split |
 | `hass_client.{h,cpp}` template builder | `hass_protocol` + tile descriptors | redesign: one table drives template and decoding |
-| `hass_client.{h,cpp}` task, queue, images, stats | `hass` session task + media worker | rewrite on mailboxes |
+| `hass_client.{h,cpp}` task, queue, images, stats | `hass` session task + media tasks | rewrite on queues (section 4) |
 | `hass_socket.{h,cpp}` framing, auth, statistics parser | `esp_websocket_client` + `hass_protocol` | replace the framing, port the parsers |
-| `ws2_screen_hass.cpp` | `ui/screens`, `ui/tiles`, `ui/panels` | split by screen, tile type and panel; LVGL 9 API |
+| `ws2_screen_hass.cpp` | `ui/screens`, `ui/tiles`, `ui/panels` | split by screen, tile type and panel |
 | `lvgl_ui.{h,cpp}` theme and widgets | `ui/theme`, `ui/widgets` | port |
-| `docs/hass_config.md`, `docs/hass_layout/behavior.md` | `docs/` | copy, keep as the spec |
+| `docs/hass_config.md`, `docs/hass_layout/behavior.md` | `docs/ui/dashboard.md`, `docs/dashboard-sample/` | carried over and rewritten for the new format; the old files stay the reference |
 
 ---
 
 ## 13. Implementation order
 
 Each step ends with something that runs and is tested on hardware. No Home Assistant code is
-ported before step 5.
+ported before step 5. State as of 2026-10-12: steps 1 to 6 run on the WT32-SC01, the
+JC3248W535 and the JC4880P443C (what is left of them is in docs/TODO.md); step 7 has not
+started; step 8: the JC3248W535 and the JC4880P443C are added, with audio, vibration and the
+camera of section 9.
 
 1. **Toolchain**: ESP-IDF 6.x via EIM, empty `app_main` builds and boots on the WT32-SC01.
 2. **Board**: display, touch and backlight through `esp_lvgl_port`, an LVGL 8.4 test screen.
@@ -1060,12 +1090,10 @@ ported before step 5.
 5. **Home Assistant connection**: URL and token from the web UI, `hass` and `hass_protocol`,
    connect, authenticate, subscribe, `call_service`. Tested with logs and the status line
    before any dashboard UI exists. Host tests for template building and decoding.
-   Running since 2026-10-07: URL and token, connect, authenticate, ping, reconnect (`hass`).
-   Since 2026-10-07 also `hass_protocol`, the subscription of a page and `call_service`
-   (tested from the console, before the dashboard screen).
+   Running since 2026-10-07.
 6. **Dashboard**: `core` and `config` (JSON storage, YAML import and export, placement, host
    tests), then the `ui` grid, tiles, panels, graph and picture tiles, and the dashboard editor
-   of the web UI.
+   of the web UI. Running.
 7. **LVGL 9**: build and measure against LVGL 8.4, then remove LVGL 8 if LVGL 9 works well.
 8. **More boards**, then the later components of section 9.
 
@@ -1074,5 +1102,5 @@ ported before step 5.
 ## 14. Open questions
 
 * The dashboard configuration: what is decided and what is proposed is in section 5,
-  "Dashboard configuration". Open: the details of the JSON storage.
+  "Dashboard configuration"; the JSON storage is built (`dashboard`).
 * The open points of the setup design, listed in section 9.2.
