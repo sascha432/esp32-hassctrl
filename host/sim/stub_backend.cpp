@@ -16,6 +16,9 @@ namespace sim {
 namespace {
 
 using hc::ui::AlarmSettings;
+using hc::ui::CameraInfo;
+using hc::ui::CameraPicture;
+using hc::ui::CameraStream;
 using hc::ui::DeviceInfo;
 using hc::ui::DisplaySettings;
 using hc::ui::HassInfo;
@@ -99,6 +102,11 @@ struct State {
     SoundSettings sound{.volume = 50, .tap_sound = true, .slider_sound = true};
     // and a vibration motor
     bool vibration = true;
+    // the camera of the JC4880P443C, without a picture here
+    CameraPicture camera_picture{.auto_exposure = true, .brightness = 0, .exposure_us = 10000, .gain = 16,
+                                 .mirror = false, .flip = false, .mains_hz = 60};
+    CameraStream camera_stream{.enabled = false, .half = false, .max_fps = 30, .quality = 70, .username = {},
+                               .password = {}};
     AlarmSettings alarm{.on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = "Argon"};
     bool hint_seen = true;
     bool clock_set = true;
@@ -479,6 +487,23 @@ void set_sound_settings(const SoundSettings &settings)
     g.sound = settings;
 }
 
+bool camera_info(CameraInfo &out)
+{
+    out = {.width = 1288, .height = 728, .max_exposure_us = 33161};
+    return true;
+}
+
+void set_camera_stream(const CameraStream &stream)
+{
+    g.camera_stream = stream;
+    // as the firmware: on only with a login
+    g.camera_stream.enabled = stream.enabled && stream.username[0] != 0 && stream.password[0] != 0;
+    char text[96];
+    std::snprintf(text, sizeof(text), "%s, %s, %u fps, quality %u, login '%s'", g.camera_stream.enabled ? "on" : "off",
+                  stream.half ? "half" : "full", stream.max_fps, stream.quality, stream.username);
+    print("camera stream", text);
+}
+
 bool vibration(bool &on)
 {
     on = g.vibration;
@@ -684,6 +709,13 @@ const hc::ui::Backend kBackend{
     .factory_reset = factory_reset,
     .hint_seen = hint_seen,
     .set_hint_seen = set_hint_seen,
+    .camera_info = camera_info,
+    .camera_picture = [](CameraPicture &out) { out = g.camera_picture; },
+    .set_camera_picture = [](const CameraPicture &picture) { g.camera_picture = picture; },
+    .camera_stream = [](CameraStream &out) { out = g.camera_stream; },
+    .set_camera_stream = set_camera_stream,
+    .camera_preview_start = nullptr,
+    .camera_preview_stop = nullptr,
 };
 
 } // namespace

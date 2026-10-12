@@ -19,6 +19,10 @@
 #include "hc/vibration/vibration.hpp"
 #endif
 #include "hc/board/board.hpp"
+#if CONFIG_HC_BOARD_HAS_CAMERA
+#include "camera_preview.hpp"
+#include "hc/camera/camera.hpp"
+#endif
 #include "hc/config/dashboard.hpp"
 #include "hc/core/icons.hpp"
 #include "hc/dashboard/dashboard.hpp"
@@ -434,6 +438,12 @@ extern "C" void app_main()
 #else
             hc::ui::start(disp, ui_backend(), imu, ui_options);
 #endif
+#if CONFIG_HC_BOARD_HAS_CAMERA
+            // the camera of Settings, Camera and the web stream; the preview draws past LVGL
+            if (handles.i2c != nullptr && hc::camera::start(handles.i2c) == ESP_OK) {
+                init_camera_preview(disp, handles.panel);
+            }
+#endif
 #if CONFIG_HC_DEV_CONSOLE
             hc::uidebug::init(disp);
 #endif
@@ -455,7 +465,11 @@ extern "C" void app_main()
         if (hc::webserver::start({.device_name = hc::platform::device_name(),
                                   .hass = &kHassAccess,
                                   .dashboard = &kDashboardAccess,
-                                  .backup = &backup_access()}) != ESP_OK) {
+                                  .backup = &backup_access(),
+#if CONFIG_HC_BOARD_HAS_CAMERA
+                                  .add_routes = hc::camera::register_routes,
+#endif
+                                  }) != ESP_OK) {
             ESP_LOGE(kTag, "web server did not start");
         }
         if (hc::hass::start() != ESP_OK) {
@@ -474,6 +488,9 @@ extern "C" void app_main()
     }
 
 #if CONFIG_HC_DEV_CONSOLE
+#if CONFIG_HC_BOARD_HAS_CAMERA
+    hc::camera::register_console();
+#endif
     hc::devconsole::ready();
 #endif
 }

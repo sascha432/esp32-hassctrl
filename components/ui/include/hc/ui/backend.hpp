@@ -114,6 +114,35 @@ struct AlarmSettings {
     char sound[kSoundNameSize];
 };
 
+// Settings, Camera (docs/ui/screen.md section 5): the camera's picture, applied at once.
+struct CameraPicture {
+    bool auto_exposure;
+    int8_t brightness;    // auto exposure: -50 to 50, moves the brightness it aims at
+    uint16_t exposure_us; // manual
+    uint8_t gain;         // manual: the analog gain in 1/16, 16 (1x) to 248
+    bool mirror;
+    bool flip;            // upside down
+    uint8_t mains_hz;     // 50 or 60
+};
+
+constexpr size_t kCameraLoginSize = 33;
+
+// Settings, Camera: the web stream (/api/camera.jpg and .mjpg); on only with a login.
+struct CameraStream {
+    bool enabled;
+    bool half;            // half the width and height
+    uint8_t max_fps;      // 5, 10, 15 or 30
+    uint8_t quality;      // JPEG, 30 to 95
+    char username[kCameraLoginSize];
+    char password[kCameraLoginSize];
+};
+
+struct CameraInfo {
+    uint16_t width; // the sensor's frame
+    uint16_t height;
+    uint16_t max_exposure_us;
+};
+
 // a finger on the screen, in the display's coordinates
 struct Finger {
     int16_t x;
@@ -229,6 +258,22 @@ struct Backend {
     // the one-time hint "Swipe down from the top for Settings" was used (stored)
     bool (*hint_seen)();
     void (*set_hint_seen)();
+
+    // The camera: nullptr without one (CONFIG_HC_BOARD_HAS_CAMERA), and then Settings have no
+    // Camera page; false when no sensor answered.
+    bool (*camera_info)(CameraInfo &out);
+    void (*camera_picture)(CameraPicture &out);
+    // applies at once, stores a few seconds after the last change
+    void (*set_camera_picture)(const CameraPicture &picture);
+    void (*camera_stream)(CameraStream &out);
+    // stores at once; the stream stays off without a username and a password
+    void (*set_camera_stream)(const CameraStream &stream);
+    // The preview: the camera's picture in the box x1, y1 to x2, y2 (inclusive, LVGL's
+    // coordinates), drawn past LVGL so a moving picture does not tear; LVGL draws only outside
+    // the box until camera_preview_stop(). A new start moves the box. nullptr without a preview
+    // (the Windows version).
+    void (*camera_preview_start)(int16_t x1, int16_t y1, int16_t x2, int16_t y2);
+    void (*camera_preview_stop)();
 };
 
 } // namespace hc::ui

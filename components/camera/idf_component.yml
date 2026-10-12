@@ -1,0 +1,12 @@
+## The MIPI-CSI camera of the JC4880P443C (components/camera/CMakeLists.txt). esp_video brings the
+## sensor drivers (esp_cam_sensor) and the ISP pipeline; esp_ipa is its exposure control, whose
+## tuning camera.cpp changes (brightness, mains frequency).
+dependencies:
+  espressif/esp_video:
+    version: "*"
+    rules:
+      - if: "target == esp32p4"
+  espressif/esp_ipa:
+    version: "*"
+    rules:
+      - if: "target == esp32p4"

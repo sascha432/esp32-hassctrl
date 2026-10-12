@@ -22,6 +22,9 @@ enum class Page : uint8_t {
     HomeAssistant,
     Display,
     Sound,
+    Camera,
+    CameraLogin,
+    CameraPreview,
     Alarm,
     System,
 };

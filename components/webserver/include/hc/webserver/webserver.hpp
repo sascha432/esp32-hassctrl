@@ -146,6 +146,9 @@ struct Config {
     const HassAccess *hass = nullptr;
     const DashboardAccess *dashboard = nullptr;
     const BackupAccess *backup = nullptr;
+    // registers more routes on the server (an httpd_handle_t), before the files take the rest:
+    // the camera's routes (components/camera); up to 2
+    void (*add_routes)(void *server) = nullptr;
 };
 
 // Starts the server and the DNS responder. The network component has to be started.

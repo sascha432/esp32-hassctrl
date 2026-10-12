@@ -1123,6 +1123,82 @@ sim.
 - [x] ~~Deep sleep on the JC3248W535~~: cancelled by you. The board takes 30 to 40 mA in deep sleep
       (see [devices/JC3248W535](devices/JC3248W535/JC3248W535.md), "Deep sleep"); the code was removed.
 
+## Camera (2026-10-11 test, a feature since 2026-10-12)
+
+Component `camera` (P4 only, `CONFIG_HC_BOARD_HAS_CAMERA`, docs/architecture.md section 9.8):
+Settings, Camera with its preview, and `/api/camera.jpg`, `/api/camera.mjpg`. Until 2026-10-12 a
+test: the picture over the dashboard and a fixed login guest / password.
+
+- [x] Sensor: an OV02C10 (chip ID 0x5602 at 0x36 on the touch bus). esp_cam_sensor 2.6 has no
+      driver for it; the vendor demo's driver (Apache-2.0) is in `components/camera/ov02c10`, with
+      `tline_ns` added (esp_video 2.x failed the auto exposure without it). 1 lane, 1288x728 RAW10,
+      30 fps through the ISP as RGB565.
+- [x] The capture task runs on core 0: the CSI's DMA interrupt shares the DW-GDMA group with the
+      display's DPI channel, created on core 0; from core 1 its allocation failed.
+- [x] Checked over serial and the network: capture 30.1 fps; picture on the screen (screenshot);
+      snapshot 48 KB in 0.2 s; stream about 10.6 fps (500 KB/s over the C6's Wi-Fi); two streams
+      at once, a third gets 503; 401 without or with a wrong login; internal RAM (247 KB) and
+      PSRAM unchanged after the streams.
+- [x] Your first test: the stream in the browser was fine, but the picture on the screen tore and
+      the exposure flickered between bright and dark at a threshold.
+- [x] Tearing on the screen (not in the MJPEG, so the display): LVGL redrew the full screen
+      picture in bands with software rotation, about 50 ms (three refreshes) into the frame
+      buffer the panel scans. Now the DPI panel has two frame buffers; while the picture is shown,
+      LVGL's flush does nothing and a task scales and rotates each camera frame in one pass into
+      the buffer not scanned, which the DPI driver takes at the end of a frame. Measured: 30 fps on
+      the screen, a frame drawn in about 33 ms; the dashboard is drawn again after the tap.
+- [x] Exposure flicker: the vendor's AE tuning had a frame delay of 1 for exposure and gain
+      (OmniVision sensors take 2; the AE read stale frames and overshot) and anti-flicker for 50 Hz,
+      which snaps the exposure to 10 ms steps, a factor of 2 at the bottom, wider than the target
+      window (62..105). Now delay 2 and 60 Hz (Vancouver). No exposure change in 30 s here.
+- [x] Your second test: smooth and without tearing; the 60 Hz flicker of the lights is gone; the
+      exposure still jumped between bright and dark once a movement changed the light enough.
+- [x] Cause: the vendor's gain table. It took the analog gain register 0x3508 = 1..6 for 1, 2,
+      4 ... 32x and stepped the digital gain 1.5..2x in between, so the exposure control believed
+      in steps of 3 %; on the sensor 0x3508 is the whole analog gain (1..6x, as the Linux driver
+      writes it), so index 31 -> 32 made the picture 52 % brighter (1.98x -> 3x) and two later
+      steps made it darker. Now the analog gain alone, 1x to 15.5x in 1/16 (0x3508 whole part,
+      0x3509 sixteenths), the digital gain at 1x; each gain change is logged for now.
+- [x] The picture stays as it is: the sensor is 1288x728 (not square), cut to the screen (you).
+- [x] Your test of the exposure: much smoother now, about what this camera can do (you). The log
+      (23:41 to 23:51): the gain ramps in steps of one frame or two (41 -> 211/16 when the view got
+      dark, back to 41 in 0.5 s) and then holds; small corrections of a few 1/16, no back and forth.
+- [x] The test was successful, the camera stays (you, 2026-10-12): Settings, Camera below Sound;
+      no dashboard tile; no picture over the dashboard any more.
+- [x] Settings, Camera (docs/ui/screen.md section 5): Preview; Mains 50 / 60 Hz; Stream on/off,
+      Login, Size (1288x728 / 644x364), Frames/s (5 / 10 / 15 / 30), Quality (30 to 95). The stream
+      starts off and goes on only with a login (your decision); the login form is the Wi-Fi
+      password page's (username, password, eye). The preview: the whole picture (portrait: above
+      the controls; landscape: beside them), Auto exposure with Brightness, or Exposure and Gain by
+      hand (your decision: gain too), Mirror, Flip.
+- [x] Checked over serial and the network: the page and the login form typed with the
+      keyboard; 404 while off, 401 without or with a wrong login, 200 with it; half size
+      644x364; 5 fps gave 50 frames in 10 s, 30 fps half size 25 over the Wi-Fi; a snapshot that
+      starts the capture waits half a second (the first frame was dark and green); the layout in
+      the Windows version in landscape.
+- [x] Mirror and flip of the vendor driver (bit 1 of 0x3821 / 0x3820) broke the readout. Measured
+      with the new console commands `camreg` and `camera`: mirror is bit 3 of 0x3820, flip bit 4;
+      both shift the color filter (magenta), so the window starts a pixel further: x 7 -> 8 for
+      mirror, y 4 -> 3 for flip (y 5 gave one frame and then none). Written while the sensor
+      streams, a mirror or flip stopped the frames for good; now only in standby (a change
+      restarts the capture), and a capture without a frame for 1 s starts again. All four states
+      stream at 15 fps (3 s, over the Wi-Fi) with the right colors.
+- [x] A snapshot after the capture had stopped got the JPEG of minutes before (the cache was
+      only checked against the caller's frame); now only the newest frame's counts.
+- [x] OK and Enter on the keyboard: Enter did nothing on the forms (LVGL sends its
+      LV_EVENT_READY to the text field, OK to the keyboard and the field); the forms listen on
+      their fields now (`set_form`), also the Wi-Fi password page.
+- [x] Your test on the device: the settings and the preview work (2026-10-12).
+- [x] The camera's settings in the backup file (docs/ui/web.md section 6): a `camera:` section
+      on a device with a camera, ignored as "not on this device" elsewhere; the stream's password
+      is not written, a `stream_password:` added by hand is used (your decision). Checked: the
+      P4's export (only comments mention passwords), a check with a `stream_password:`, an import
+      of mirror and 10 fps and back (seen on the device), the P4's file checked on the WT32
+      (camera ignored, no problems; its own export has no `camera:`). Not applied: a new
+      password (yours stays).
+- [ ] Each gain change of the exposure control is still logged (`ov02c10: set gain`); remove
+      once the camera is settled.
+
 ## Known issues
 
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the

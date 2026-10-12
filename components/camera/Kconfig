@@ -1,0 +1,26 @@
+# The OV02C10 driver (ov02c10/, from the vendor's esp_cam_sensor) reads these options; they are
+# fixed to what the vendor demo ran on the board: 1 lane, 1288x728 RAW10 at 30 fps.
+config CAMERA_OV02C10
+    bool
+    default y if HC_BOARD_HAS_CAMERA
+
+if CAMERA_OV02C10
+    config CAMERA_OV02C10_AUTO_DETECT_MIPI_INTERFACE_SENSOR
+        bool
+        default y
+    config CAMERA_OV02C10_MIPI_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 0
+    config CAMERA_OV02C10_CSI_LINESYNC_ENABLE
+        bool
+        default y
+    config CAMERA_OV02C10_ISP_AF_ENABLE
+        bool
+        default y
+    config CAMERA_OV02C10_ABSOLUTE_GAIN_LIMIT
+        int
+        default 66016
+    config CAMERA_OV02C10_ANA_GAIN_PRIORITY
+        bool
+        default y
+endif

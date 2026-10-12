@@ -44,3 +44,9 @@ CONFIG_LWIP_TCP_RECVMBOX_SIZE=64
 # default 10 KB took 6 lines, each piece landing in the portrait frame buffer as 800 rows of 12
 # bytes; a whole band at once (47 KB, PSRAM) made a camera stream's 800x480 frame cost less
 CONFIG_LV_DISP_ROT_MAX_BUF=49152
+
+# The MIPI-CSI camera, a test (components/camera): esp_video with the ISP and its controller
+# (auto exposure, white balance). The module is an OV02C10 (chip ID 0x5602 at 0x36), whose driver
+# comes with components/camera (esp_cam_sensor has none): no sensor of esp_cam_sensor is probed.
+CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=n
+CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y

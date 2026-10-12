@@ -232,6 +232,9 @@ Built quick(lv_obj_t *content)
     if (sound::page_available()) {
         t::row(col, "Sound", "", true, [](lv_event_t *) { push(Page::Sound); });
     }
+    if (camera_available()) {
+        t::row(col, "Camera", "", true, [](lv_event_t *) { push(Page::Camera); });
+    }
     g_quick_alarm = nullptr;
     if (alarm::available()) {
         g_quick_alarm = t::row(col, "Alarm", "", true, [](lv_event_t *) { push(Page::Alarm); });
@@ -420,17 +423,31 @@ lv_obj_t *g_password_area = nullptr;
 lv_obj_t *g_keyboard = nullptr;
 char g_password_ssid[kSsidSize] = {};
 
+// the keyboard and the fields of the form shown (set_form)
+lv_obj_t *g_form_keyboard = nullptr;
+lv_obj_t *g_form_areas[2] = {};
+lv_event_cb_t g_form_ready = nullptr;
+
+} // namespace
+
+void set_form(lv_obj_t *keyboard, lv_obj_t *first, lv_obj_t *second, lv_event_cb_t on_ready)
+{
+    g_form_ready = on_ready;
+    g_form_keyboard = keyboard;
+    g_form_areas[0] = first;
+    g_form_areas[1] = second;
+}
+
 void focus_area(lv_obj_t *area)
 {
-    lv_obj_t *const areas[] = {g_name_area, g_password_area};
-    for (lv_obj_t *other : areas) {
+    for (lv_obj_t *other : g_form_areas) {
         if (other != nullptr && other != area) {
             lv_obj_clear_state(other, LV_STATE_FOCUSED);
         }
     }
     lv_obj_add_state(area, LV_STATE_FOCUSED);
     lv_event_send(area, LV_EVENT_FOCUSED, nullptr); // starts the cursor blinking
-    lv_keyboard_set_textarea(g_keyboard, area);
+    lv_keyboard_set_textarea(g_form_keyboard, area);
 }
 
 lv_obj_t *text_area(lv_obj_t *parent, const char *placeholder, bool password)
@@ -452,8 +469,18 @@ lv_obj_t *text_area(lv_obj_t *parent, const char *placeholder, bool password)
     lv_obj_add_event_cb(area, [](lv_event_t *event) { focus_area(lv_event_get_target(event)); }, LV_EVENT_CLICKED,
                         nullptr);
     lv_obj_add_event_cb(area, [](lv_event_t *) { set_form_dirty(true); }, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_event_cb(
+        area,
+        [](lv_event_t *event) {
+            if (g_form_ready != nullptr) {
+                g_form_ready(event);
+            }
+        },
+        LV_EVENT_READY, nullptr);
     return area;
 }
+
+namespace {
 
 void on_connect(lv_event_t *)
 {
@@ -511,10 +538,10 @@ Built password(lv_obj_t *content, const char *ssid)
 
     g_keyboard = keyboard::create(content);
     lv_obj_set_size(g_keyboard, lv_pct(100), lv_pct(55));
+    set_form(g_keyboard, g_name_area, g_password_area, on_connect);
     focus_area(g_name_area != nullptr ? g_name_area : g_password_area);
-    // OK and Enter connect (or go from the name to the password); leaving the page is `<`, which
-    // asks before it drops the input
-    lv_obj_add_event_cb(g_keyboard, on_connect, LV_EVENT_READY, nullptr);
+    // OK and Enter connect (or go from the name to the password, set_form); leaving the page is
+    // `<`, which asks before it drops the input
     return {ssid[0] != 0 ? ssid : "Other network", nullptr};
 }
 
@@ -920,8 +947,21 @@ lv_obj_t *section(lv_obj_t *parent, const char *text)
 // past the slider in every direction: more than the card around it, which limits it
 constexpr lv_coord_t kCardTouchReach = 200;
 
+// the value label of a slider card; its user data is the card's ValueText
+static void value_text(lv_obj_t *label, int32_t value)
+{
+    const auto format = reinterpret_cast<ValueText>(lv_obj_get_user_data(label));
+    char text[24];
+    if (format != nullptr) {
+        format(value, text, sizeof(text));
+    } else {
+        std::snprintf(text, sizeof(text), "%d %%", static_cast<int>(value));
+    }
+    lv_label_set_text(label, text);
+}
+
 lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t max, int32_t value,
-                      lv_event_cb_t on_change)
+                      lv_event_cb_t on_change, ValueText format)
 {
     lv_obj_t *card = t::plain(parent);
     lv_obj_set_size(card, lv_pct(100), LV_SIZE_CONTENT);
@@ -940,7 +980,8 @@ lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t m
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     t::label(head, name, t::font_medium(), t::kText);
     lv_obj_t *value_label = t::label(head, "", t::font_normal(), t::kTextValue);
-    lv_label_set_text_fmt(value_label, "%d %%", static_cast<int>(value));
+    lv_obj_set_user_data(value_label, reinterpret_cast<void *>(format));
+    value_text(value_label, value);
 
     // The knob reaches past the ends of the track by half its height plus its padding (theme).
     // The whole card is the slider's touch area: a strip around the slider was too thin for a
@@ -960,8 +1001,8 @@ lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t m
     lv_obj_add_event_cb(
         slider,
         [](lv_event_t *event) {
-            lv_label_set_text_fmt(static_cast<lv_obj_t *>(lv_event_get_user_data(event)), "%d %%",
-                                  static_cast<int>(lv_slider_get_value(lv_event_get_target(event))));
+            value_text(static_cast<lv_obj_t *>(lv_event_get_user_data(event)),
+                       lv_slider_get_value(lv_event_get_target(event)));
         },
         LV_EVENT_VALUE_CHANGED, value_label);
     lv_obj_add_event_cb(slider, on_change, LV_EVENT_VALUE_CHANGED, nullptr);
@@ -994,6 +1035,12 @@ Built build(Page page, lv_obj_t *content, const char *text, int index)
         return display(content);
     case Page::Sound:
         return sound_page(content);
+    case Page::Camera:
+        return camera_page(content);
+    case Page::CameraLogin:
+        return camera_login_page(content);
+    case Page::CameraPreview:
+        return camera_preview_page(content);
     case Page::Alarm:
         return alarm_page(content);
     case Page::System:

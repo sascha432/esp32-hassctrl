@@ -158,6 +158,17 @@ const Page kPages[] = {
     {"home-assistant", "Settings, Home Assistant", [] { ui::settings::open(ui::settings::Page::HomeAssistant); }},
     {"display", "Settings, Display", [] { ui::settings::open(ui::settings::Page::Display); }},
     {"sound", "Settings, Sound", [] { ui::settings::open(ui::settings::Page::Sound); }},
+    {"camera", "Settings, Camera", [] { ui::settings::open(ui::settings::Page::Camera); }},
+    {"camera-login", "Settings, Camera, its login",
+     [] {
+         ui::settings::open(ui::settings::Page::Camera);
+         ui::settings::push(ui::settings::Page::CameraLogin);
+     }},
+    {"camera-preview", "Settings, Camera, Preview (the picture's box stays empty here)",
+     [] {
+         ui::settings::open(ui::settings::Page::Camera);
+         ui::settings::push(ui::settings::Page::CameraPreview);
+     }},
     {"alarm", "Settings, Alarm", [] { ui::settings::open(ui::settings::Page::Alarm); }},
     {"ringing", "the alarm screen (the alarm rings now)", [] { ui::ring_alarm(); }},
     {"system", "Settings, System", [] { ui::settings::open(ui::settings::Page::System); }},

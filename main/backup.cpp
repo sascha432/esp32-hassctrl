@@ -445,6 +445,95 @@ void read_hass(const Node &value, bool apply, backup::Report &report)
     }
 }
 
+// ----------------------------------------------------------------------------------- camera
+
+// Settings, Camera (docs/architecture.md section 9.8). Only on a device with a camera: the
+// section of another device's file is ignored there (backup::Section::available).
+constexpr std::string_view kMains[] = {"50", "60"};
+constexpr std::string_view kSizes[] = {"full", "half"};
+constexpr std::string_view kFrameRates[] = {"5", "10", "15", "30"};
+
+bool has_camera()
+{
+    hc::ui::CameraInfo info{};
+    return ui_backend().camera_info != nullptr && ui_backend().camera_info(info);
+}
+
+void write_camera(backup::Writer &out)
+{
+    const hc::ui::Backend &be = ui_backend();
+    hc::ui::CameraPicture p{};
+    hc::ui::CameraStream s{};
+    be.camera_picture(p);
+    be.camera_stream(s);
+    out.section("camera");
+    out.number("mains_hz", p.mains_hz);
+    out.boolean("auto_exposure", p.auto_exposure);
+    out.number("brightness", p.brightness);
+    out.comment("by hand (auto_exposure: false); the gain in 1/16, 16 = 1x");
+    out.number("exposure_us", p.exposure_us);
+    out.number("gain", p.gain);
+    out.boolean("mirror", p.mirror);
+    out.boolean("flip", p.flip);
+    out.boolean("stream", s.enabled);
+    out.text("stream_size", kSizes[s.half ? 1 : 0]);
+    out.number("stream_fps", s.max_fps);
+    out.number("stream_quality", s.quality);
+    out.comment("the password is not exported: add \"stream_password: ...\" by hand, or enter it on the device");
+    out.text("stream_user", s.username);
+}
+
+void read_camera(const Node &value, bool apply, backup::Report &report)
+{
+    const hc::ui::Backend &be = ui_backend();
+    hc::ui::CameraInfo info{};
+    hc::ui::CameraPicture p{};
+    hc::ui::CameraStream s{};
+    be.camera_info(info);
+    be.camera_picture(p);
+    be.camera_stream(s);
+    backup::Fields fields(value, "camera", report);
+    size_t index = 0;
+    if (fields.choice("mains_hz", kMains, index)) {
+        p.mains_hz = index == 0 ? 50 : 60;
+    }
+    fields.boolean("auto_exposure", p.auto_exposure);
+    fields.number("brightness", -50, 50, p.brightness);
+    fields.number("exposure_us", 100, info.max_exposure_us, p.exposure_us);
+    fields.number("gain", 16, 248, p.gain);
+    fields.boolean("mirror", p.mirror);
+    fields.boolean("flip", p.flip);
+    fields.boolean("stream", s.enabled);
+    if (fields.choice("stream_size", kSizes, index)) {
+        s.half = index == 1;
+    }
+    if (fields.choice("stream_fps", kFrameRates, index)) {
+        constexpr uint8_t kRates[] = {5, 10, 15, 30};
+        s.max_fps = kRates[index];
+    }
+    fields.number("stream_quality", 30, 95, s.quality);
+    String user;
+    String password;
+    if (fields.text("stream_user", hc::ui::kCameraLoginSize - 1, user)) {
+        // another name drops the stored password: it belonged to the old name
+        if (user != s.username) {
+            s.password[0] = 0;
+        }
+        std::snprintf(s.username, sizeof(s.username), "%s", user.c_str());
+    }
+    if (fields.text("stream_password", hc::ui::kCameraLoginSize - 1, password) && !password.empty()) {
+        std::snprintf(s.password, sizeof(s.password), "%s", password.c_str());
+    }
+    fields.finish();
+    if (s.enabled && (s.username[0] == 0 || s.password[0] == 0)) {
+        report.note("camera", "the stream stays off until it has a login (Settings, Camera)");
+    }
+    if (apply) {
+        be.set_camera_picture(p);
+        be.set_camera_stream(s);
+    }
+}
+
 // --------------------------------------------------------------------------------- dashboard
 
 String write_dashboard()
@@ -477,7 +566,7 @@ bool read_dashboard(std::string_view text, bool apply, String &error)
 const backup::Section kSections[] = {
     {"network", write_network, read_network}, {"display", write_display, read_display},
     {"sound", write_sound, read_sound},       {"alarm", write_alarm, read_alarm, has_alarm},
-    {"hass", write_hass, read_hass},
+    {"camera", write_camera, read_camera, has_camera}, {"hass", write_hass, read_hass},
 };
 
 const backup::Dashboard kDashboard{write_dashboard, read_dashboard};

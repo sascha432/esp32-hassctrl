@@ -723,6 +723,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset. Used until the setup screens exist |
 | `audio` | yes, per board, removable | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
 | `vibration` | yes, per board, removable | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
+| `camera` | yes, per board | the MIPI-CSI camera of the JC4880P443C: capture, its settings, the web stream (section 9.8, `CONFIG_HC_BOARD_HAS_CAMERA`) |
 | `touch_input` | yes | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
 | `uidebug` | yes, removable | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Over the network later |
 
@@ -914,6 +915,45 @@ JC4880P443C, GPIO 28 of the expansion header.
 * **Setting**: one switch, "Vibrate" on Settings, Sound (on by default); off means no vibration
   at all, also none with the alarm. Stored in the settings NVS (`ui` / `vibrate`) a few seconds
   after the change. The Sound page is there with audio or a motor.
+
+### 9.8 Camera
+
+The JC4880P443C's camera, an OV02C10 (2 MP) on the 15-pin MIPI-CSI connector
+([devices/JC4880P443C](devices/JC4880P443C/JC4880P443C.md), "Camera"); a test on 2026-10-11, a
+feature since 2026-10-12. Board option `HC_BOARD_HAS_CAMERA` (selected by the JC4880P443C); without
+it the component has no sources and the Backend entries are nullptr.
+
+* **Capture**: `esp_video` (V4L2) with the CSI controller and the ISP, which turns the sensor's
+  RAW10 into RGB565 (1288x728, 30 fps), and esp_ipa's exposure, white balance and colour control
+  with the OV02C10's tuning. The sensor driver is the vendor demo's (`components/camera/ov02c10`,
+  Apache-2.0, its README lists the changes). A task on core 0 (the CSI's DMA interrupt shares the
+  DW-GDMA interrupt group with the display's DPI channel, created on core 0) runs while someone
+  holds the capture (`acquire` / `release`): three buffers, the newest frame kept dequeued so
+  readers use it where the ISP wrote it. A frame that does not come for 1 s starts the capture
+  again.
+* **Settings** (`camera` namespace of the settings NVS): the picture (auto exposure, brightness,
+  manual exposure and gain, mirror, flip, mains frequency), stored a few seconds after the last
+  change, and the stream (on, size, frame rate, quality, login), stored at once. Mirror and flip
+  move the sensor's readout window, so they are written only in standby: a change while it
+  streams restarts the capture. The brightness and the mains frequency change a copy of the
+  exposure control's tuning (`esp_video_isp_pipeline_set_ipa_config`). In the backup file as
+  `camera:` (`main/backup.cpp`, only on a device with a camera; the stream's password is read,
+  never written).
+* **Web**: `/api/camera.jpg` and `/api/camera.mjpg` (HTTP Basic auth with the stream's login, 404
+  while the stream is off; [ui/web.md](ui/web.md) section 6), registered through
+  `webserver::Config::add_routes`, so the web server does not depend on the camera. JPEGs come
+  from the P4's encoder, made at most once per frame and shared; at half size the CPU shrinks the
+  frame first. An MJPEG stream runs in a task of its own (`httpd_req_async_handler_begin`), at
+  most two.
+* **Preview** (Settings, Camera, Preview; `main/camera_preview.cpp`): LVGL redraws a full screen
+  picture in bands with software rotation, about 50 ms into the frame buffer the panel scans, so a
+  moving picture tore. The DPI panel has two frame buffers; while the preview runs, LVGL's flush
+  writes its bands into both (around the picture's box) and a task scales and turns each camera
+  frame in one pass into the box of the buffer not scanned and hands it over with `draw_bitmap`,
+  which the DPI driver takes at the end of a frame. 30 fps without tearing; LVGL keeps running
+  around it (the controls).
+* **Console** (developer): `camera [mirror|flip on|off]`, `camreg <reg> [<value>]` (a sensor
+  register, hex).
 
 ---
 

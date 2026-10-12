@@ -1,6 +1,39 @@
 # Changelog
 
+## 2026-10-12
+
+- Camera (JC4880P443C): the test of yesterday is a feature. Settings, Camera below Sound: a
+  preview of the picture with Auto exposure and Brightness, or Exposure and Gain by hand, Mirror
+  and Flip; the mains frequency; the web stream on or off with its own login (off until there is
+  one), its size, frame rate and quality. The picture over the dashboard and the fixed test login
+  are gone. Mirror and flip fixed in the sensor driver (the vendor's registers broke the picture);
+  the preview draws past LVGL into a second frame buffer, 30 fps without tearing. A snapshot no
+  longer returns an old picture, and a capture that stops delivering frames starts again.
+  Console: `camera`, `camreg`. OK and Enter on the keyboard of the Settings forms work the same
+  now (Enter did nothing). Flashed on all three boards.
+- Backup: the camera's settings as a `camera:` section, only on a device with a camera (a file
+  from the P4 imports on the other boards with the section ignored). The stream's password is not
+  exported; a `stream_password:` added by hand is imported. Flashed on all three boards.
+
 ## 2026-10-11
+
+- Camera test on the JC4880P443C: the picture of the CSI camera (an OV02C10) full screen over the
+  dashboard (a tap hides it, console `camera` shows it again) and over the web server as
+  `/api/camera.jpg` and `/api/camera.mjpg` (HTTP Basic auth, guest / password). New component
+  `camera` with esp_video (ISP, auto exposure) and the vendor demo's OV02C10 driver (Apache-2.0,
+  `components/camera/ov02c10`); JPEG from the P4's encoder. The web server takes extra routes
+  (`Config::add_routes`). Capture 30 fps, stream about 10 fps over Wi-Fi. Firmware 2.6 MB (was
+  1.9 MB). A test, to be removed. Flashed on all three boards.
+- Camera test, after your first test: the picture on the screen no longer tears. The P4's DPI
+  panel has two frame buffers; while the picture is shown, LVGL's flush does nothing and the
+  camera frames are drawn (scaled and rotated in one pass) into the buffer the panel does not
+  scan, taken over at the end of a frame: 30 fps. The exposure no longer jumps back and forth:
+  the AE tuning's frame delays 2 instead of 1, anti-flicker for 60 Hz instead of 50. Flashed on
+  the P4.
+- Camera test: the exposure no longer jumps at one brightness. The vendor driver's gain table
+  did not match the sensor (one step of it made the picture 52 % brighter where the exposure
+  control expected 1.6 %); the gain is now the analog gain alone, 1x to 15.5x in steps of 1/16.
+  Flashed on the P4.
 
 - Display defaults: the screen dims after 5 minutes (was 1 minute) and turns off after an hour
   (was never). Only for a device without stored display settings; a device that has them keeps

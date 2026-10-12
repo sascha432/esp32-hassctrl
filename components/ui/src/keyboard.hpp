@@ -6,7 +6,8 @@
 // "cancel" and lost what was typed. The left arrow takes the corner, a miss there only moves the
 // cursor.
 //
-// LV_SYMBOL_OK and Enter send LV_EVENT_READY to the keyboard.
+// LV_SYMBOL_OK sends LV_EVENT_READY to the keyboard and then to its text area, Enter to the text
+// area only: a form listens on its text areas (settings::pages::set_form).
 
 #include "lvgl.h"
 

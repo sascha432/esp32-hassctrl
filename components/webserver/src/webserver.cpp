@@ -286,7 +286,7 @@ esp_err_t start(const Config &config)
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.uri_match_fn = httpd_uri_match_wildcard;
-    server_config.max_uri_handlers = 44;
+    server_config.max_uri_handlers = 46;
     // browsers keep connections open; with all sessions taken the oldest is closed (LRU). Sessions
     // + 2 of the server + the captive DNS must stay within CONFIG_LWIP_MAX_SOCKETS (16).
     server_config.max_open_sockets = 12;
@@ -314,6 +314,9 @@ esp_err_t start(const Config &config)
     detail::register_hass_routes(server, config.hass);
     detail::register_dashboard_routes(server, config.dashboard);
     detail::register_backup_routes(server, config.backup, config.device_name);
+    if (config.add_routes != nullptr) {
+        config.add_routes(server);
+    }
     for (const auto &route : routes) {
         ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &route), kTag, "route %s", route.uri);
     }

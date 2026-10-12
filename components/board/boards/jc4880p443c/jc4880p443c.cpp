@@ -209,13 +209,15 @@ esp_err_t init_panel(Handles &out)
     io_config.lcd_param_bits = 8;
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_dbi(bus, &io_config, &out.io), kTag, "panel IO");
 
-    // one frame buffer in PSRAM, which the DPI controller scans continuously
+    // frame buffers in PSRAM, which the DPI controller scans continuously. LVGL draws into the
+    // current one; the second is for the camera's preview (main/camera_preview.cpp), which draws its
+    // frames into the one not scanned and switches at the end of a frame (no tearing)
     esp_lcd_dpi_panel_config_t dpi_config{};
     dpi_config.virtual_channel = 0;
     dpi_config.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
     dpi_config.dpi_clock_freq_mhz = kDpiClockMhz;
     dpi_config.in_color_format = LCD_COLOR_FMT_RGB565;
-    dpi_config.num_fbs = 1;
+    dpi_config.num_fbs = 2;
     dpi_config.video_timing.h_size = kNativeWidth;
     dpi_config.video_timing.v_size = kNativeHeight;
     dpi_config.video_timing.hsync_pulse_width = 12;

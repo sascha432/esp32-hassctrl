@@ -240,10 +240,16 @@ whole log as text. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` 
 **System.** Firmware and file system updates are uploaded here (decided), see section 8. The
 backup card sits above the update card, so the backup is seen before an update (decided).
 
-Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`, `hass`
-and the dashboard (`defaults`, `tiles`); Export all, Settings only, Dashboard only
-(`GET /api/backup.yaml[?parts=settings|dashboard]`). No password and no token is written; a Wi-Fi
-`password:` or a `hass:` `token:` added to the file by hand is used. A trusted self-signed
+Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`,
+`camera` (2026-10-12), `hass` and the dashboard (`defaults`, `tiles`); Export all, Settings only,
+Dashboard only (`GET /api/backup.yaml[?parts=settings|dashboard]`). A section of something the
+device does not have (`sound`, `alarm`, `camera`) is not written, and in a file from another
+device it is ignored ("camera (not on this device)"). No password and no token is written; a
+Wi-Fi `password:`, a `hass:` `token:` or a `camera:` `stream_password:` added to the file by hand
+is used. `camera:` holds `mains_hz`, `auto_exposure`, `brightness`, `exposure_us`, `gain` (in
+1/16), `mirror`, `flip`, `stream`, `stream_size` (full, half), `stream_fps`, `stream_quality`,
+`stream_user`; another `stream_user` without a `stream_password` drops the stored password, and
+the stream stays off without a login (a note says so). A trusted self-signed
 certificate is written as `hass:` `certificate:` (its SHA-256) and trusted again on import. Import and Check upload the
 file (`POST /api/backup/import[?check=1]`): the whole file is checked first, one problem and
 nothing changes; the answer lists the sections, the problems, what to know ("Office needs its
@@ -270,6 +276,20 @@ not tried until it gets one. Only the main firmware: the recovery app has no bac
 | +--------------------------------------+   |
 +--------------------------------------------+
 ```
+
+### Camera stream
+
+Only on a board with a camera (docs/architecture.md section 9.8), set up on the screen (Settings,
+Camera, docs/ui/screen.md section 5); the web UI has no page for it yet.
+
+* `GET /api/camera.mjpg`: the MJPEG stream (`multipart/x-mixed-replace`), at most the frame rate
+  of the settings, at most two at a time (a third gets 503).
+* `GET /api/camera.jpg`: one picture; when no capture runs, it starts one and waits half a second
+  for the exposure.
+* Both answer 404 while the stream is off and ask for the stream's own login with HTTP Basic auth
+  (not the web UI login), so a player or Home Assistant's MJPEG camera can open them:
+  `http://user:password@<device>/api/camera.mjpg`. Plain HTTP: the login crosses the network
+  readable.
 
 ## 7. Web files and recovery
 

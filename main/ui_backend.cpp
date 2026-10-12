@@ -22,6 +22,10 @@
 #include "hc/webserver/webserver.hpp"
 #include "lvgl.h"
 #include "ui_sound.hpp"
+#if CONFIG_HC_BOARD_HAS_CAMERA
+#include "camera_preview.hpp"
+#include "hc/camera/camera.hpp"
+#endif
 
 namespace {
 
@@ -327,6 +331,62 @@ void hass_info(hc::ui::HassInfo &out)
     out.retry_in_s = s.retry_in_s;
 }
 
+#if CONFIG_HC_BOARD_HAS_CAMERA
+// the camera (components/camera) in the UI's terms
+bool camera_info(hc::ui::CameraInfo &out)
+{
+    out = {.width = hc::camera::width(),
+           .height = hc::camera::height(),
+           .max_exposure_us = hc::camera::max_exposure_us()};
+    return hc::camera::available();
+}
+
+void camera_picture(hc::ui::CameraPicture &out)
+{
+    const hc::camera::Picture p = hc::camera::picture();
+    out = {.auto_exposure = p.auto_exposure,
+           .brightness = p.brightness,
+           .exposure_us = p.exposure_us,
+           .gain = p.gain,
+           .mirror = p.mirror,
+           .flip = p.flip,
+           .mains_hz = p.mains_hz};
+}
+
+void set_camera_picture(const hc::ui::CameraPicture &in)
+{
+    hc::camera::Picture p;
+    p.auto_exposure = in.auto_exposure;
+    p.brightness = in.brightness;
+    p.exposure_us = in.exposure_us;
+    p.gain = in.gain;
+    p.mirror = in.mirror;
+    p.flip = in.flip;
+    p.mains_hz = in.mains_hz;
+    hc::camera::set_picture(p);
+}
+
+void camera_stream(hc::ui::CameraStream &out)
+{
+    const hc::camera::Stream s = hc::camera::stream();
+    out = {.enabled = s.enabled, .half = s.half, .max_fps = s.max_fps, .quality = s.quality, .username = {}, .password = {}};
+    copy(out.username, s.username);
+    copy(out.password, s.password);
+}
+
+void set_camera_stream(const hc::ui::CameraStream &in)
+{
+    hc::camera::Stream s;
+    s.enabled = in.enabled;
+    s.half = in.half;
+    s.max_fps = in.max_fps;
+    s.quality = in.quality;
+    copy(s.username, in.username);
+    copy(s.password, in.password);
+    hc::camera::set_stream(s);
+}
+#endif
+
 const hc::ui::Backend g_backend{
     .wifi_info = wifi_info,
     .saved_networks =
@@ -398,6 +458,23 @@ const hc::ui::Backend g_backend{
         },
     .hint_seen = hint_seen,
     .set_hint_seen = set_hint_seen,
+#if CONFIG_HC_BOARD_HAS_CAMERA
+    .camera_info = camera_info,
+    .camera_picture = camera_picture,
+    .set_camera_picture = set_camera_picture,
+    .camera_stream = camera_stream,
+    .set_camera_stream = set_camera_stream,
+    .camera_preview_start = camera_preview_start,
+    .camera_preview_stop = camera_preview_stop,
+#else
+    .camera_info = nullptr,
+    .camera_picture = nullptr,
+    .set_camera_picture = nullptr,
+    .camera_stream = nullptr,
+    .set_camera_stream = nullptr,
+    .camera_preview_start = nullptr,
+    .camera_preview_stop = nullptr,
+#endif
 };
 
 } // namespace
