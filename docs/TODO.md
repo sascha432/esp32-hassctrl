@@ -263,9 +263,10 @@ Open:
       on to the password.
 - [x] **Display settings** (your request): dim after an idle time to a dimmed brightness of its
       own, screen off after an idle time. Stored in NVS (`ui/display`) 5 s after the last
-      change (`platform::set_blob_later`, written at a restart too). Defaults: dim after 1 min to
-      20 %, never off. Tested on the WT32: dims at 30 s, off at 60 s, the waking touch does not
-      reach the screen, a touch on the dimmed screen does.
+      change (`platform::set_blob_later`, written at a restart too). Defaults: dim after 5 min to
+      20 %, off after 1 h (were 1 min and never off until 2026-10-11). Tested on the WT32: dims
+      at 30 s, off at 60 s, the waking touch does not reach the screen, a touch on the dimmed
+      screen does.
 - [x] **Ambient light sensor** (2026-10-07): BH1750 on the WT32 found at 0x23 (ADDR open).
       `components/light_sensor` looks at 0x23 and 0x5C (optional per device, no board setting),
       averages a second. Display page: "Automatic" with lux and the backlight level; the curve

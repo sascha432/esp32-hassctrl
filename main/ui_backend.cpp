@@ -35,11 +35,11 @@ constexpr const char *kUiNamespace = "ui";
 constexpr const char *kHintKey = "hint";
 
 constexpr const char *kDisplayKey = "display";
-// dims after a minute, never turns off
+// dims after 5 minutes, turns off after an hour
 constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
                                                    .dim_brightness = 20,
-                                                   .dim_after_s = 60,
-                                                   .off_after_s = 0,
+                                                   .dim_after_s = 300,
+                                                   .off_after_s = 3600,
                                                    .auto_brightness = true,
                                                    .rotation = 0,
                                                    .rotation_locked = false,

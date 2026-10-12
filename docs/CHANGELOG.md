@@ -2,6 +2,10 @@
 
 ## 2026-10-11
 
+- Display defaults: the screen dims after 5 minutes (was 1 minute) and turns off after an hour
+  (was never). Only for a device without stored display settings; a device that has them keeps
+  its times. Not flashed.
+
 - Camera full screen: the pinch zooms freely (it no longer snaps to a step), the buttons go from
   the zoom to the next step up or down. The smallest zoom shows the whole picture, its width or
   its height filling the screen (it was 50 % of covering the screen, which could leave black on all

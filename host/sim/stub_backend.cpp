@@ -35,8 +35,8 @@ constexpr const char *kIp = "192.168.0.206";
 // the same defaults as main/ui_backend.cpp
 constexpr DisplaySettings kDisplayDefaults{.brightness = 100,
                                            .dim_brightness = 20,
-                                           .dim_after_s = 60,
-                                           .off_after_s = 0,
+                                           .dim_after_s = 300,
+                                           .off_after_s = 3600,
                                            .auto_brightness = true,
                                            .rotation = 0,
                                            .rotation_locked = false};
