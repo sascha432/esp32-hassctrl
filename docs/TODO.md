@@ -922,8 +922,8 @@ Next:
       tested only that both boards still connect.
 - [x] Bug: the time zone was never taken from Home Assistant (it was not built yet). Now `hass`
       sends `get_config` after every authentication and hands `time_zone` ("America/Vancouver")
-      to `platform::set_time_zone()`, which turns it into a POSIX rule (table of 461 zones,
-      `tools/build_timezones.py` from posix_tz_db, MIT) and stores the name in the settings
+      to `platform::set_time_zone()`, which turns it into a POSIX rule (table of 598 zones,
+      `tools/build_timezones.py` from the IANA tzdata on PyPI; was posix_tz_db, stuck at 2025b) and stores the name in the settings
       (`time`/`zone`) only when it changed. At start the stored zone is set before the network:
       on the T4 at 2.4 s after boot, before Home Assistant answered.
 - [x] NTP took 2 minutes after a restart: SNTP started before the station had an address, and

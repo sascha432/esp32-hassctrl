@@ -2,6 +2,11 @@
 
 ## 2026-10-12
 
+- Time zones from tzdata 2026e (was 2025b: posix_tz_db is no longer updated;
+  `tools/build_timezones.py` now reads the IANA data of the tzdata package on PyPI). British
+  Columbia stays on -07 after 2026-11-01 (`MST7`, was `PST8PDT`); likewise Alberta, the Northwest
+  Territories (-06), Manitoba (-05), Morocco (+00 since 2026-09-20) and Moldova's transition
+  times. 598 zones (was 461), the old names like `US/Pacific` included.
 - Camera on the web UI: a Camera page (only on a board with a camera) with the stream's
   settings: on or off, size, frame rate, quality, username and password (never shown; empty keeps
   it), and the stream's addresses. The picture's settings stay on the screen with the preview.
