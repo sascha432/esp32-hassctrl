@@ -91,7 +91,7 @@ const wifiIcon = '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentC
 
 const menuPages = [
   ["status", "Status"], ["ha", "Home Assistant"], ["wifi", "Wi-Fi"], ["hotspot", "Hotspot"],
-  ["dashboard", "Dashboard"], ["logs", "Logs"], ["system", "System"],
+  ["camera", "Camera"], ["dashboard", "Dashboard"], ["logs", "Logs"], ["system", "System"],
 ];
 
 function frame(loggedIn, step) {
@@ -111,6 +111,8 @@ function closeMenuOnPhone() {
 async function updateHeader() {
   const s = await api("/api/status");
   $("#device-name").textContent = s.device.name;
+  // only a board with a camera has the page
+  $('#menu-pages a[data-page="camera"]').hidden = !s.camera;
   document.title = s.device.name;
   const icon = $("#icon-wifi");
   icon.innerHTML = wifiIcon;
@@ -592,6 +594,85 @@ const views = {
     };
     await draw();
     refresh(draw, 5000);
+  },
+
+  // The camera's web stream (docs/ui/web.md section 6). The picture itself (exposure, mirror, flip,
+  // mains frequency) is set on the device, next to its preview.
+  async camera() {
+    render(`<h1>Camera</h1><div id="camera">Loading ...</div>`);
+    let c;
+    try {
+      c = await api("/api/camera");
+    } catch (e) {
+      if (e.status !== 404) throw e;
+      render(`<h1>Camera</h1>${card("Camera", '<p class="text-body-secondary mb-0">This device has no camera.</p>')}`);
+      return;
+    }
+    const base = `${location.origin}/api/camera`;
+    const draw = () => {
+      $("#camera").innerHTML = card("Stream", `
+        <form id="camera-form" autocomplete="off">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="camera-on" ${c.enabled ? "checked" : ""}>
+            <label class="form-check-label" for="camera-on">Stream on</label>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="camera-size">Size</label>
+              <select id="camera-size" class="form-select">
+                <option value="full" ${c.size === "full" ? "selected" : ""}>${c.width} x ${c.height}</option>
+                <option value="half" ${c.size === "half" ? "selected" : ""}>${c.width / 2} x ${c.height / 2}</option>
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="camera-fps">Frames per second (at most)</label>
+              <select id="camera-fps" class="form-select">
+                ${[5, 10, 15, 30].map((f) => `<option ${c.fps === f ? "selected" : ""}>${f}</option>`).join("")}
+              </select>
+            </div>
+          </div>
+          <label class="form-label" for="camera-quality">Quality <span id="camera-quality-value" class="text-body-secondary">${c.quality}</span></label>
+          <input id="camera-quality" type="range" class="form-range mb-3" min="30" max="95" value="${c.quality}">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="camera-user">Username</label>
+              <input id="camera-user" class="form-control" value="${esc(c.username)}" maxlength="32" spellcheck="false" autocapitalize="off">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="camera-password">Password</label>
+              <input id="camera-password" class="form-control" type="password" maxlength="32"
+                placeholder="${c.password_set ? "stored - leave empty to keep it" : "not set"}">
+            </div>
+          </div>
+          <div class="form-text mb-3">The stream's own login, not the one of this web UI. The stream is only on with both;
+            another username needs its password again, an empty one removes the login. The device never shows the password.</div>
+          <div class="d-flex justify-content-end"><button class="btn btn-primary" type="submit">Save</button></div>
+        </form>`) +
+        card("Addresses", `
+          <p class="mb-1"><code>${esc(base)}.mjpg</code> plays the stream (MJPEG),</p>
+          <p class="mb-3"><code>${esc(base)}.jpg</code> is one picture.</p>
+          <p class="small text-body-secondary mb-0">Both ask for the login (HTTP Basic auth): a browser asks for it, a player
+            or Home Assistant's MJPEG IP camera takes it with the address. Plain HTTP: the login crosses the network
+            readable. A smaller size, fewer frames or a lower quality need less of the Wi-Fi.</p>`) +
+        '<p class="small text-body-secondary">The picture (exposure, mirror, flip, mains frequency) is set on the device, next to its preview: Settings, Camera.</p>';
+      $("#camera-quality").oninput = (e) => ($("#camera-quality-value").textContent = e.target.value);
+      $("#camera-form").onsubmit = (e) => {
+        e.preventDefault();
+        busy(e.submitter || $("#camera-form button"), async () => {
+          c = await api("/api/camera", {
+            enabled: $("#camera-on").checked ? "1" : "0",
+            size: $("#camera-size").value,
+            fps: $("#camera-fps").value,
+            quality: $("#camera-quality").value,
+            username: $("#camera-user").value.trim(),
+            password: $("#camera-password").value,
+          });
+          toast("saved", "success");
+          draw();
+        });
+      };
+    };
+    draw();
   },
 
   async ha() {

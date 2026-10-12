@@ -408,7 +408,6 @@ static const uint32_t ov02c10_total_gain_val_map[] = {
     esp_err_t ret;
     struct ov02c10_cam *cam_ov02c10 = (struct ov02c10_cam *)dev->priv;
     const uint32_t gain = OV02C10_ANALOG_GAIN_MIN + MIN(u32_val, ARRAY_SIZE(ov02c10_total_gain_val_map) - 1);
-    ESP_LOGI(TAG, "set gain %" PRIu32 "/16", gain);
 
     ret = ov02c10_write(dev->sccb_handle, OV02C10_REG_ANG_COARSE_GAIN, gain >> 4);
     ret |= ov02c10_write(dev->sccb_handle, OV02C10_REG_ANG_FINE_GAIN, (gain & 0x0f) << 4);

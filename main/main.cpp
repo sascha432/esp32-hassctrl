@@ -361,6 +361,49 @@ const hc::webserver::DashboardAccess kDashboardAccess{
         },
 };
 
+#if CONFIG_HC_BOARD_HAS_CAMERA
+// the camera's stream for the web UI (the picture is set on the screen, it needs the preview)
+const hc::webserver::CameraAccess kCameraAccess{
+    .stream =
+        [](hc::webserver::CameraStream &out) {
+            const hc::camera::Stream s = hc::camera::stream();
+            out = {.enabled = s.enabled,
+                   .half = s.half,
+                   .max_fps = s.max_fps,
+                   .quality = s.quality,
+                   .username = {},
+                   .password_set = s.password[0] != 0,
+                   .width = hc::camera::width(),
+                   .height = hc::camera::height()};
+            std::snprintf(out.username, sizeof(out.username), "%s", s.username);
+        },
+    .set_stream =
+        [](const hc::webserver::CameraStream &in, const char *password, char *error, size_t error_size) {
+            hc::camera::Stream s = hc::camera::stream();
+            // another name drops the stored password: it belonged to the old name
+            if (std::strcmp(in.username, s.username) != 0) {
+                s.password[0] = 0;
+            }
+            std::snprintf(s.username, sizeof(s.username), "%s", in.username);
+            if (s.username[0] == 0) {
+                s.password[0] = 0;
+            } else if (password != nullptr) {
+                std::snprintf(s.password, sizeof(s.password), "%s", password);
+            }
+            if (in.enabled && (s.username[0] == 0 || s.password[0] == 0)) {
+                std::snprintf(error, error_size, "the stream needs a username and a password");
+                return false;
+            }
+            s.enabled = in.enabled;
+            s.half = in.half;
+            s.max_fps = in.max_fps;
+            s.quality = in.quality;
+            hc::camera::set_stream(s);
+            return true;
+        },
+};
+#endif
+
 } // namespace
 
 extern "C" void app_main()
@@ -467,6 +510,7 @@ extern "C" void app_main()
                                   .dashboard = &kDashboardAccess,
                                   .backup = &backup_access(),
 #if CONFIG_HC_BOARD_HAS_CAMERA
+                                  .camera = hc::camera::available() ? &kCameraAccess : nullptr,
                                   .add_routes = hc::camera::register_routes,
 #endif
                                   }) != ESP_OK) {

@@ -941,7 +941,9 @@ it the component has no sources and the Backend entries are nullptr.
   never written).
 * **Web**: `/api/camera.jpg` and `/api/camera.mjpg` (HTTP Basic auth with the stream's login, 404
   while the stream is off; [ui/web.md](ui/web.md) section 6), registered through
-  `webserver::Config::add_routes`, so the web server does not depend on the camera. JPEGs come
+  `webserver::Config::add_routes`, so the web server does not depend on the camera. The web UI's
+  Camera page sets the stream through `/api/camera` and `webserver::CameraAccess` (filled in
+  `main`, nullptr without a camera); the picture's settings stay on the screen. JPEGs come
   from the P4's encoder, made at most once per frame and shared; at half size the CPU shrinks the
   frame first. An MJPEG stream runs in a task of its own (`httpd_req_async_handler_begin`), at
   most two.

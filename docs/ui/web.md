@@ -29,6 +29,8 @@ Main pages                after login
   Home Assistant          URL, token, test connection
   Wi-Fi                   saved networks (up to 5), add, forget, reconnect
   Hotspot                 on or off, name, password, new password
+  Camera                  only with a camera: the web stream (on, size, frame rate, quality,
+                          login) and its addresses
   Dashboard               areas and tiles editor, YAML import (with includes) and export,
                           validation errors
   Logs                    view and filter, debug mode
@@ -279,8 +281,23 @@ not tried until it gets one. Only the main firmware: the recovery app has no bac
 
 ### Camera stream
 
-Only on a board with a camera (docs/architecture.md section 9.8), set up on the screen (Settings,
-Camera, docs/ui/screen.md section 5); the web UI has no page for it yet.
+Only on a board with a camera (docs/architecture.md section 9.8). The stream is set on the screen
+(Settings, Camera, docs/ui/screen.md section 5) or on the web UI's Camera page (2026-10-12); the
+picture (exposure, gain, mirror, flip, mains frequency) only on the screen, next to its preview.
+
+**Camera page** (in the menu only when `/api/status` says `"camera": true`): one form with "Stream
+on", "Size" (1288 x 728 or 644 x 364), "Frames per second (at most)" 5, 10, 15 or 30, "Quality" 30 to
+95 (a slider, default 50), "Username" and "Password" (the stream's own login; the password is never shown, an
+empty field keeps it), Save; then the two addresses with the browser's host name. Saving with the
+stream on and no complete login is refused ("the stream needs a username and a password").
+Another username drops the stored password (it needs its password again), an empty username
+removes the login and the stream goes off.
+
+* `GET /api/camera` (web UI login): `{"enabled", "size": "full"|"half", "width", "height", "fps",
+  "quality", "username", "password_set"}`. `POST /api/camera` with any of `enabled=1|0`,
+  `size=full|half`, `fps=5|10|15|30`, `quality=30..95`, `username`, `password` (empty or missing
+  keeps the stored one); answers like GET, 400 with `error` for a wrong value. 404 without a
+  camera.
 
 * `GET /api/camera.mjpg`: the MJPEG stream (`multipart/x-mixed-replace`), at most the frame rate
   of the settings, at most two at a time (a third gets 503).

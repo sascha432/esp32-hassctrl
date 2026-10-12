@@ -32,6 +32,7 @@ constexpr size_t kChunkSize = 1024;
 
 const char *g_device_name = "";
 const HassAccess *g_hass = nullptr;
+const CameraAccess *g_camera = nullptr;
 uint32_t g_hotspot_ip = 0; // network byte order
 char g_hotspot_host[16] = {};
 char g_local_host[40] = {};
@@ -206,7 +207,8 @@ esp_err_t get_status(httpd_req_t *req)
         .string("state", fs_state_name(fs.fs))
         .number("used_kb", fs.fs_used / 1024)
         .number("total_kb", fs.fs_total / 1024)
-        .end_object();
+        .end_object()
+        .boolean("camera", g_camera != nullptr);
     if (g_hass != nullptr) {
         HassStatus hass{};
         g_hass->status(hass);
@@ -280,13 +282,14 @@ esp_err_t start(const Config &config)
 {
     g_device_name = config.device_name;
     g_hass = config.hass;
+    g_camera = config.camera;
     ESP_RETURN_ON_ERROR(detail::auth::init(), kTag, "login");
     std::snprintf(g_local_host, sizeof(g_local_host), "%s.local", config.device_name);
     prepare_portal();
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.uri_match_fn = httpd_uri_match_wildcard;
-    server_config.max_uri_handlers = 46;
+    server_config.max_uri_handlers = 48;
     // browsers keep connections open; with all sessions taken the oldest is closed (LRU). Sessions
     // + 2 of the server + the captive DNS must stay within CONFIG_LWIP_MAX_SOCKETS (16).
     server_config.max_open_sockets = 12;
@@ -314,6 +317,7 @@ esp_err_t start(const Config &config)
     detail::register_hass_routes(server, config.hass);
     detail::register_dashboard_routes(server, config.dashboard);
     detail::register_backup_routes(server, config.backup, config.device_name);
+    detail::register_camera_routes(server, config.camera);
     if (config.add_routes != nullptr) {
         config.add_routes(server);
     }

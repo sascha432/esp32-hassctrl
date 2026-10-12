@@ -105,7 +105,7 @@ struct State {
     // the camera of the JC4880P443C, without a picture here
     CameraPicture camera_picture{.auto_exposure = true, .brightness = 0, .exposure_us = 10000, .gain = 16,
                                  .mirror = false, .flip = false, .mains_hz = 60};
-    CameraStream camera_stream{.enabled = false, .half = false, .max_fps = 30, .quality = 70, .username = {},
+    CameraStream camera_stream{.enabled = false, .half = false, .max_fps = 30, .quality = 50, .username = {},
                                .password = {}};
     AlarmSettings alarm{.on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = "Argon"};
     bool hint_seen = true;

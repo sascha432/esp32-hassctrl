@@ -12,6 +12,7 @@ namespace hc::webserver {
 struct HassAccess;
 struct DashboardAccess;
 struct BackupAccess;
+struct CameraAccess;
 }
 
 namespace hc::webserver::detail {
@@ -57,5 +58,7 @@ void register_hass_routes(httpd_handle_t server, const HassAccess *hass);
 void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *dashboard);
 // nothing without a backup (the recovery app)
 void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, const char *device_name);
+// nullptr: no routes
+void register_camera_routes(httpd_handle_t server, const CameraAccess *camera);
 
 } // namespace hc::webserver::detail

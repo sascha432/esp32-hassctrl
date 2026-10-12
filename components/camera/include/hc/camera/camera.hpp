@@ -40,7 +40,7 @@ struct Stream {
     bool enabled = false;
     bool half = false;     // half the sensor's width and height
     uint8_t max_fps = 30;  // 5, 10, 15 or 30
-    uint8_t quality = 70;  // JPEG, 30 to 95
+    uint8_t quality = 50;  // JPEG, 30 to 95
     char username[kLoginSize] = {};
     char password[kLoginSize] = {};
 };

@@ -1195,9 +1195,16 @@ test: the picture over the dashboard and a fixed login guest / password.
       P4's export (only comments mention passwords), a check with a `stream_password:`, an import
       of mirror and 10 fps and back (seen on the device), the P4's file checked on the WT32
       (camera ignored, no problems; its own export has no `camera:`). Not applied: a new
-      password (yours stays).
-- [ ] Each gain change of the exposure control is still logged (`ov02c10: set gain`); remove
-      once the camera is settled.
+      password (yours stays). The import of a stream password tested by you: it works.
+- [x] The log line of each gain change (`ov02c10: set gain`) removed (you).
+- [x] The stream on the web UI (your request): a Camera page with Stream on, Size, Frames per
+      second, Quality, Username, Password and the addresses; `GET/POST /api/camera` behind the web
+      UI login, the password never sent back. The picture's settings stay on the screen (they
+      need the preview). Checked: the answer without the password; a change of frame rate and
+      quality and back; another username without a password while the stream is on refused
+      (nothing changed); a wrong frame rate refused; the P4 reports the camera, the WT32 not (no
+      menu entry, `/api/camera` 404).
+- [ ] Your look at the web UI's Camera page (layout, saving).
 
 ## Known issues
 

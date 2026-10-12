@@ -141,11 +141,36 @@ struct BackupAccess {
     BackupReport (*import_file)(std::string_view text, bool check_only);
 };
 
+// The camera's web stream as the web UI sees it (docs/ui/web.md section 6, Camera); the picture
+// itself is set on the screen, it needs the preview.
+constexpr size_t kCameraLoginSize = 33;
+
+struct CameraStream {
+    bool enabled;
+    bool half;            // half the sensor's width and height
+    uint8_t max_fps;      // 5, 10, 15 or 30
+    uint8_t quality;      // JPEG, 30 to 95
+    char username[kCameraLoginSize];
+    bool password_set;
+    uint16_t width;       // the sensor's frame
+    uint16_t height;
+};
+
+// What the web server needs of the camera, filled in `main` on a board with one (nullptr: no
+// camera, and no Camera page).
+struct CameraAccess {
+    void (*stream)(CameraStream &out);
+    // `password` nullptr keeps the stored one; an empty username removes the login. false with
+    // `error` set: the stream cannot be on without a username and a password.
+    bool (*set_stream)(const CameraStream &stream, const char *password, char *error, size_t error_size);
+};
+
 struct Config {
     const char *device_name;
     const HassAccess *hass = nullptr;
     const DashboardAccess *dashboard = nullptr;
     const BackupAccess *backup = nullptr;
+    const CameraAccess *camera = nullptr;
     // registers more routes on the server (an httpd_handle_t), before the files take the rest:
     // the camera's routes (components/camera); up to 2
     void (*add_routes)(void *server) = nullptr;

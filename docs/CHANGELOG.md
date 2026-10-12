@@ -2,6 +2,14 @@
 
 ## 2026-10-12
 
+- Camera on the web UI: a Camera page (only on a board with a camera) with the stream's
+  settings: on or off, size, frame rate, quality, username and password (never shown; empty keeps
+  it), and the stream's addresses. The picture's settings stay on the screen with the preview.
+  `GET/POST /api/camera`. The log line of every gain change of the camera is gone. Flashed
+  (firmware and web image) on all three boards.
+- Camera: the stream's quality is 50 by default (was 70), for a device without stored stream
+  settings; stored settings keep theirs.
+
 - Camera (JC4880P443C): the test of yesterday is a feature. Settings, Camera below Sound: a
   preview of the picture with Auto exposure and Brightness, or Exposure and Gain by hand, Mirror
   and Flip; the mains frequency; the web stream on or off with its own login (off until there is
