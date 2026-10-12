@@ -887,7 +887,29 @@ Next:
         The UI's 50 ms per 800x480 frame (LVGL 8's software rotation) is the next limit
         (about 20 fps). Checked by you: no tearing with the CPU copy, 18-22 fps with
         `-r 25`; finalized by you (2026-10-08). The fps label and `hass streamscale` stay as
-        test aids.
+        test aids (the fps label is gone since 2026-10-12, the media log has the rate).
+  - [x] **Stream reconnect** (2026-10-12, your request; confirmed working on the P4 by you): a
+        full screen stream that stopped (ended, broke off, 30 s without data) is tried again after
+        2 s. "Stream stopped, retrying" while a try connects, "Stream loading ..." from the TCP
+        connection on (go2rtc answers only with the first picture) until the first picture; when
+        a try fails "⟳ Stream failed: <reason>" until the next try. A try starts every 10 s, the
+        connection gives up after 5 s (a restarting server answered nothing for 18 s), so the
+        stream comes back by itself after a server restart; a tap tries at once. The media task
+        reports the connection (`Image::opened`) and the cause (`StreamProblem`). Your design
+        after confusing first versions (the reason in a centered popup that did not fit on the
+        P4, endless retries, "Loading" that did not mean connected, 27 s to come back). Checked in
+        the Windows version (new steps `stream down|up`, a server that times out and starts slow)
+        at 480x800, 800x480 and 320x480 before flashing. The fps label is gone.
+  - [x] **Alert strip slides, event messages** (2026-10-12, your request: alerts slide down from
+        the top, errors never in a popup; confirmed working on the P4 by you): the strip slides
+        down in 250 ms and back up; `overlay::show()` puts an event message into it (5 s, or
+        until its code clears it; with a tap action for "Stream failed"). Used by the stream and
+        the edit mode ("Changes not saved", "Tile not removed", "Order not reset", "Edit
+        dropped"), which used the popup too. One short line each (your review: no 160 character
+        errors on the screen); the reasons go to the log. The camera view's buttons move down
+        with the strip (two lines in portrait covered them by 10 px, seen in the Windows version
+        before flashing). Rules in lvgl-design.md section 8. Only the P4 flashed (your
+        instruction); the WT32 and the JC3248W535 get it with their next update.
   - [x] **S3 streams** (2026-10-08, your request, JC3248W535 on COM10): `esp_new_jpeg` for the
         S3, media task on the second core, TCP window 23 KB. 640x320 at 10 fps shows all frames
         (was 4.6), `_xl` 800x480 6.6 fps (scaling in the decoder). The pinning tested on the P4
@@ -1444,7 +1466,7 @@ Dashboard ([architecture.md](architecture.md) section 14):
 - [ ] **Change password in the web UI**: there is none (reset on the screen + setup again, or a
       file with `webui:`). Proposal: a form on the System page (current password, new one twice).
 - [ ] The accent cyan `0x00ffff` is defined three times (`panel::kPendingBorder`, `runner.cpp`,
-      `history_view.cpp`); proposal: `theme::kAccent` (lvgl-design.md section 10).
+      `history_view.cpp`); proposal: `theme::kAccent` (lvgl-design.md section 11).
 
 ## Next steps
 

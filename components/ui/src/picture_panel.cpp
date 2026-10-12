@@ -19,8 +19,21 @@ namespace {
 
 namespace t = theme;
 
-// the frame rate of a stream is shown this often
-constexpr uint32_t kRateMs = 1000;
+// A stream that stopped while it played is tried again after kRetryMs; when that try fails too it
+// is "failed" and a try starts every kFailedRetryMs (counted from the start of the last one; the
+// connection gives up after 5 s), so it comes back by itself after a restart of its server; a tap
+// on the alert strip tries at once (docs/ui/lvgl/lvgl-camera.md section 2)
+constexpr uint32_t kRetryMs = 2000;
+constexpr uint32_t kFailedRetryMs = 10000;
+
+// What a stream is doing, and what the alert strip says about it
+enum class Phase : uint8_t {
+    Opening,  // the view opened it: the spinner turns until the first frame, no strip
+    Playing,  // frames come, no strip
+    Retrying, // it stopped: "Stream stopped, retrying" through the wait and while a try connects
+    Loading,  // a try is connected, its first frame is on the way: "Stream loading ..."
+    Failed,   // the try failed: "Stream failed: <reason>" until the next try (every 10 s, or a tap)
+};
 constexpr lv_coord_t kSpinnerSize = 56;
 // The zoom in percent: 100 % covers the screen. A pinch zooms freely, the buttons go from step to
 // step; the smallest zoom shows the whole picture (its width or its height fills the screen), the
@@ -37,7 +50,6 @@ constexpr lv_coord_t kButtonGap = 12;
 
 struct State {
     lv_obj_t *image = nullptr;
-    lv_obj_t *info = nullptr; // a stream: its frame rate, or why it stopped
     lv_obj_t *spinner = nullptr; // until the first frame of the full screen size arrives
     lv_obj_t *controls = nullptr; // the buttons and the hint at the top
     lv_obj_t *zoom_in = nullptr;
@@ -76,10 +88,11 @@ struct State {
     float pinch_spot_y = 0;
     uint32_t generation = 0;
     bool streaming = false;
-    lv_timer_t *refresh = nullptr;
-    // the frames shown since the rate was shown last
-    uint32_t frames = 0;
-    uint32_t rate_since = 0;
+    bool playing = false; // a stream: asked for, not stopped
+    Phase phase = Phase::Opening;
+    uint32_t try_started = 0; // lv_tick_get() of the last play()
+    lv_timer_t *refresh = nullptr; // a still image: asked for again
+    lv_timer_t *retry = nullptr;   // a stream that stopped: played again
     memory::String key; // the camera's entity and stream (Kept)
 };
 
@@ -244,8 +257,9 @@ void set_zoom(float zoom)
     update_zoom_buttons();
     place();
     if (g.streaming) {
-        if (g.refresh != nullptr) {
-            // a stream that stopped stays stopped
+        // a stream that plays or is being opened goes on in the new size; a stopped one takes the
+        // size with its next try (the strip does not change)
+        if (g.playing) {
             g.generation = dashboard::play_stream(g.tile, box_width(), box_height());
         }
     } else {
@@ -383,8 +397,17 @@ lv_obj_t *round_button(lv_obj_t *parent, const char *text, int action)
     return button;
 }
 
-// "X" "+" "-" and the hint, centered at the top below the pull-down zone of Settings (it lies
-// above the panel and takes the taps there); the stream's rate keeps the upper left corner
+// The controls below the pull-down zone of Settings (it lies above the panel and takes the taps
+// there) and below the alert strip, which may be taller (two lines in portrait): they move down
+// with it while it slides in, and back up when it goes.
+void place_controls()
+{
+    if (g.controls != nullptr) {
+        lv_obj_align(g.controls, LV_ALIGN_TOP_MID, 0, LV_MAX(overlay::kZoneHeight, overlay::strip_bottom()) + t::kPad);
+    }
+}
+
+// "X" "+" "-" and the hint, centered at the top (place_controls())
 void build_controls(lv_obj_t *root)
 {
     g.controls = t::plain(root);
@@ -392,7 +415,8 @@ void build_controls(lv_obj_t *root)
     lv_obj_set_flex_flow(g.controls, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(g.controls, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(g.controls, t::kPad, 0);
-    lv_obj_align(g.controls, LV_ALIGN_TOP_MID, 0, overlay::kZoneHeight + t::kPad);
+    place_controls();
+    overlay::on_strip_moved(place_controls);
     // a touch beside the buttons is one on the picture
     lv_obj_clear_flag(g.controls, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *buttons = t::plain(g.controls);
@@ -424,14 +448,86 @@ void hide_spinner()
     }
 }
 
-void on_rate(lv_timer_t *)
+void play()
 {
-    const uint32_t elapsed = lv_tick_elaps(g.rate_since);
-    char text[24];
-    std::snprintf(text, sizeof(text), "%.1f fps", g.frames * 1000.0 / std::max<uint32_t>(elapsed, 1));
-    lv_label_set_text(g.info, text);
-    g.frames = 0;
-    g.rate_since = lv_tick_get();
+    g.playing = true;
+    g.try_started = lv_tick_get();
+    g.generation = dashboard::play_stream(g.tile, box_width(), box_height());
+}
+
+void show_retrying()
+{
+    g.phase = Phase::Retrying;
+    overlay::show(LV_SYMBOL_WARNING "  Stream stopped, retrying", t::kAlert, 0);
+}
+
+void on_retry(lv_timer_t *timer)
+{
+    lv_timer_del(timer);
+    g.retry = nullptr;
+    if (g.phase == Phase::Failed) {
+        show_retrying(); // a try of the failed stream: retrying while it connects
+    }
+    play();
+}
+
+// a tap on "Stream failed": one more try, at once
+void on_reload()
+{
+    if (g.phase != Phase::Failed) {
+        return;
+    }
+    if (g.retry != nullptr) {
+        lv_timer_del(g.retry);
+        g.retry = nullptr;
+    }
+    show_retrying();
+    play();
+}
+
+// the reason of a failed stream in a word or two (the whole text is in the log)
+const char *reason(const core::Image &image, char *out, size_t size)
+{
+    switch (image.problem) {
+    case core::StreamProblem::Unreachable:
+        return "unreachable";
+    case core::StreamProblem::NoAnswer:
+        return "no answer";
+    case core::StreamProblem::Http:
+        std::snprintf(out, size, "HTTP %d", image.http_status);
+        return out;
+    case core::StreamProblem::Ended:
+        return "ended";
+    case core::StreamProblem::BrokeOff:
+        return "broke off";
+    case core::StreamProblem::NotMjpeg:
+        return "not MJPEG";
+    case core::StreamProblem::NoMemory:
+        return "no memory";
+    default:
+        return "error";
+    }
+}
+
+// The stream stopped. While it played: a try after kRetryMs. When that try (or the view's first
+// opening, or a try while failed) failed: "Stream failed", tried again every kFailedRetryMs (the
+// text stays until the server answers) or at once by a tap.
+void stream_stopped(const core::Image &image)
+{
+    g.playing = false;
+    if (g.phase == Phase::Playing) {
+        show_retrying();
+        g.retry = lv_timer_create(on_retry, kRetryMs, nullptr);
+        return;
+    }
+    g.phase = Phase::Failed;
+    char status[16];
+    char text[64];
+    std::snprintf(text, sizeof(text), LV_SYMBOL_REFRESH "  Stream failed: %s", reason(image, status, sizeof(status)));
+    overlay::show(text, t::kError, 0, on_reload);
+    // the next try kFailedRetryMs after the start of this one
+    const uint32_t elapsed = lv_tick_elaps(g.try_started);
+    g.retry = lv_timer_create(on_retry, elapsed >= kFailedRetryMs ? 1 : kFailedRetryMs - elapsed, nullptr);
 }
 
 } // namespace
@@ -474,18 +570,9 @@ void build(lv_obj_t *root, core::TileIndex tile, lv_coord_t width, lv_coord_t he
     lv_obj_set_style_arc_opa(g.spinner, LV_OPA_50, LV_PART_MAIN); // the image shows through the track
     lv_obj_clear_flag(g.spinner, LV_OBJ_FLAG_CLICKABLE);
     if (!config.stream.empty()) {
-        // live: the frames come as fast as the device decodes them; the rate in the corner
+        // live: the frames come as fast as the device decodes them
         g.streaming = true;
-        g.info = t::label(root, "", t::font_normal(), t::kText);
-        lv_obj_set_style_bg_opa(g.info, LV_OPA_60, 0);
-        lv_obj_set_style_bg_color(g.info, lv_color_black(), 0);
-        lv_obj_set_style_pad_hor(g.info, 6, 0);
-        lv_obj_set_style_pad_ver(g.info, 2, 0);
-        lv_obj_align(g.info, LV_ALIGN_TOP_LEFT, 0, 0);
-        lv_label_set_text(g.info, "connecting...");
-        g.rate_since = lv_tick_get();
-        g.generation = dashboard::play_stream(tile, box_width(), box_height());
-        g.refresh = lv_timer_create(on_rate, kRateMs, nullptr);
+        play();
     } else {
         request();
         const uint32_t seconds = config.refresh_s > 0 ? config.refresh_s : core::kDefaultRefresh;
@@ -501,18 +588,29 @@ void on_image(const core::Image &image)
     if (g.image == nullptr || image.generation != g.generation) {
         return;
     }
-    hide_spinner();
-    if (!image.error.empty() || !image.pixels) {
-        // the last frame stays; a stream that stopped says why
-        LV_LOG_WARN("camera: %s", image.error.c_str());
-        if (g.streaming && g.refresh != nullptr) {
-            lv_timer_del(g.refresh);
-            g.refresh = nullptr;
-            lv_label_set_text(g.info, image.error.c_str());
+    if (image.opened) {
+        // a try is connected: its first frame is on the way (the first opening has the spinner)
+        if (g.phase == Phase::Retrying) {
+            g.phase = Phase::Loading;
+            overlay::show(LV_SYMBOL_VIDEO "  Stream loading ...", t::kTextValue, 0);
         }
         return;
     }
-    g.frames++;
+    hide_spinner();
+    if (!image.error.empty() || !image.pixels) {
+        // the last frame stays; a stream that stopped says so (the reason is in the log)
+        LV_LOG_WARN("camera: %s", image.error.c_str());
+        if (g.streaming && g.playing) {
+            stream_stopped(image);
+        }
+        return;
+    }
+    if (g.streaming && g.phase != Phase::Playing) {
+        if (g.phase != Phase::Opening) {
+            overlay::clear();
+        }
+        g.phase = Phase::Playing;
+    }
     show(image.pixels, image.width, image.height, image.source_width, image.source_height);
     // the first frame tells the picture's shape: a kept zoom below the smallest goes up to it
     if (!g.pinching && g.zoom < min_zoom() - 1) {
@@ -537,6 +635,9 @@ void forget()
     if (g.refresh != nullptr) {
         lv_timer_del(g.refresh);
     }
+    if (g.retry != nullptr) {
+        lv_timer_del(g.retry);
+    }
     if (g.hide != nullptr) {
         lv_timer_del(g.hide);
     }
@@ -545,6 +646,10 @@ void forget()
     }
     if (g.pixels) {
         compat::image_forget(g.dsc);
+    }
+    overlay::on_strip_moved(nullptr);
+    if (g.streaming && g.phase != Phase::Playing && g.phase != Phase::Opening) {
+        overlay::clear();
     }
     // the objects go with the panel's root
     g = {};

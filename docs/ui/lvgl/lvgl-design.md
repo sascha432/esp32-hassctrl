@@ -27,7 +27,7 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
   `lvgl_compat.hpp` ([architecture.md](../../architecture.md) section 7.1).
 * **Large buffers on the large heap** (`hc::memory`, PSRAM where the board has it): images, the
   color wheel, histories. They are freed when their control goes. LVGL's own heap holds widgets.
-* **English only** (decided), texts as in section 8.
+* **English only** (decided), texts as in section 9.
 
 ## 2. Colors
 
@@ -169,7 +169,8 @@ writing its own.
 | `pages::slider_card(...)` | name and value in one line, the slider over the full width below |
 | `pages::text_area()`, `set_form()`, `focus_area()` | form fields with the on-screen keyboard |
 | `settings::confirm(title, text, action, danger, ...)` | the modal question: Cancel left, the action right |
-| `settings::popup(title, timeout_ms, on_close)` | a small square window at the center that closes by a tap outside or a timeout |
+| `settings::popup(title, timeout_ms, on_close)` | a small square window with controls at the center that closes by a tap outside or a timeout; not for messages (section 8) |
+| `overlay::show(text, color, ms)` | an event message in the alert strip (section 8) |
 | `panel::card`, `step_button`, `slider_track`, `list`, `list_fill`, `layout_options` | the parts of the panels (`panel.hpp`) |
 
 How a Settings page is built (`settings_pages.hpp`): a builder fills `content` and returns
@@ -184,7 +185,48 @@ alarm lie on `lv_layer_top()`; the wake blocker of a dark screen on `lv_layer_sy
 Every tap target is either an LVGL input widget or a plain object marked with
 `sound::tappable()`, so it clicks and vibrates ([lvgl-touch.md](lvgl-touch.md) section 3).
 
-## 8. Texts
+## 8. Messages
+
+Every message on the screen has one place (decided 2026-10-12):
+
+| What | Where | How |
+| --- | --- | --- |
+| an error or a note that needs no answer: a state (Wi-Fi, Home Assistant, the hint) or an event (a stream stopped, an edit not saved) | the **alert strip** at the top center | `overlay::show(text)` for an event; the states are picked by `overlay.cpp` itself |
+| a question before an action | the **confirmation dialog**: Cancel left, the action right (red when it destroys something) | `settings::confirm()` |
+| a few controls that belong together (the rotation) | the **popup**, a small square at the center | `settings::popup()`, never for a message |
+| the state of a Settings page (connecting, a wrong password) | a line in the page itself | `pages::text_block()`, updated by the page's refresh |
+
+The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
+
+* Black at 60 % with rounded bottom corners, as wide as its text up to 90 % of the display, the
+  text in `font_normal()`, wrapped and centered. It starts with a symbol: `LV_SYMBOL_WARNING`
+  for an error, `LV_SYMBOL_WIFI` while connecting, `LV_SYMBOL_DOWN` for the hint. The text color
+  says its weight: `kAlert` for problems, `kTextValue` for progress, `kTextLabel` for the hint.
+* **It slides down from the top** when it appears (250 ms, easing out) and back up when it goes
+  (easing in). A new text on a strip that is there replaces the old one without a slide.
+* One message at a time: an event message before the state messages, a newer event replaces
+  the older one (no new slide, only the text changes); then Wi-Fi problems, connecting, Home
+  Assistant problems, the hint. An event message stays 5 s, or, for something that goes on,
+  until its code clears it (`overlay::show(text, color, 0)`, `overlay::clear()`): the strip
+  follows the state ("Stream stopped, retrying", "Stream loading ...") and slides away when it
+  is over. No second indicator (spinner) for the same thing.
+* A failed action the user can repeat stays in the strip, red, starting with the reload icon
+  (`LV_SYMBOL_REFRESH`): "⟳ Stream failed: unreachable". A tap on it repeats the action
+  (`overlay::show(..., on_tap)`) at once. Meanwhile the code keeps trying by itself (the
+  stream: every 10 s), so the failure ends without a tap when its cause is gone.
+* A tap on any other event message closes it; a tap on a state message opens its Settings page;
+  a drag down from it opens Settings like the pull-down zone.
+* It lies on `lv_layer_top()` over the dashboard, the panels and the camera view. Controls at the
+  top center stay below `max(overlay::kZoneHeight, overlay::strip_bottom())` and follow it with
+  `overlay::on_strip_moved()` (the camera view's buttons): a message of two lines must not cover
+  them. While the dashboard is edited it shows event messages only, over the edit bar; with
+  Settings or the first setup open it is gone.
+* **An event message is one short line** (decided 2026-10-12): what happened, at most 28
+  characters after the symbol, so it fits on one line at 320 px ("Stream stopped, retrying",
+  "Changes not saved"). Never the technical reason: that goes into the log (`LV_LOG_WARN`, on
+  the web UI's Logs page). No period, sentence case (section 9).
+
+## 9. Texts
 
 * Sentence case: "Choose Wi-Fi", "Add network", not "Add Network". Titles without a period.
 * The terms of [README](../README.md): Wi-Fi, Hotspot, Settings, Home Assistant. Never AP or STA
@@ -201,7 +243,7 @@ Every tap target is either an LVGL input widget or a plain object marked with
 * States of Home Assistant as words with a capital (`heat_cool` is "Heat cool"); binary sensors in
   the words of their device class (lvgl-dashboard.md section 4).
 
-## 9. Checklist for a new or changed screen
+## 10. Checklist for a new or changed screen
 
 1. Wireframe or description in the screen's document (README "How to read the wireframes").
 2. Built from section 7 and the colors and fonts of `theme`; new values added to `theme.hpp` and
@@ -210,12 +252,14 @@ Every tap target is either an LVGL input widget or a plain object marked with
    (`python tools/sim.py`, every `--size`, the rotate key) and on the boards.
 4. Every tap target 44 px, marked tappable; drags do not start the pull-down
    ([lvgl-touch.md](lvgl-touch.md)).
-5. Texts as section 8; long texts cut with `line_text()` or wrapped.
+5. Texts as section 9; long texts cut with `line_text()` or wrapped. Errors and notes in the
+   alert strip (section 8) as one short line, the reason in the log; rendered at every size: the
+   strip must not cover a control.
 6. On the board under test: a screenshot with `tools/screenshot.py`, and the free internal RAM in
    the log before and after.
 7. The screen's document and [TODO](../../TODO.md) updated in the same commit.
 
-## 10. Open points
+## 11. Open points
 
 * The accent cyan is defined three times (`panel::kPendingBorder`, `runner.cpp`,
   `history_view.cpp`). Proposal: `theme::kAccent`.

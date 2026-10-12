@@ -44,6 +44,10 @@ constexpr int kTimeoutMs = 10000;
 // a stream played full screen: go2rtc answers once its first frame is there, which took longer
 // than 10 s when it first had to start its source ("HTTP -1", 2026-10-11); the view shows a spinner
 constexpr int kStreamTimeoutMs = 30000;
+// A stream's server that does not take the connection within this is not reachable (a server that
+// restarts answers nothing at all: the connect waited 18 s). The UI tries every 10 s
+// (docs/ui/lvgl/lvgl-camera.md section 2); the answer and the data still get kStreamTimeoutMs.
+constexpr int kStreamConnectMs = 5000;
 // the largest JPEG taken: HA scales to the size asked for when it can, a camera that cannot be
 // scaled sends its full snapshot (a 1080p one is a few hundred KB)
 constexpr size_t kMaxJpeg = 512 * 1024;
@@ -183,6 +187,9 @@ struct Buffer {
 
 struct Connection {
     esp_http_client_handle_t client = nullptr;
+    // why open() failed, for the screen's short text
+    core::StreamProblem problem = core::StreamProblem::None;
+    int status = 0;
 
     Connection() = default;
     Connection(const Connection &) = delete;
@@ -201,14 +208,19 @@ struct Connection {
     }
 };
 
+// the UI learns that a stream is connected and waits for its answer (defined below)
+void stream_connected(const Request &request);
+
 // Opens a GET of `url` and reads its headers; false with `error` set unless the answer is 200.
-// `authorize`: with the token of Home Assistant.
+// `authorize`: with the token of Home Assistant. `connect_ms` (0: `timeout_ms`): the connection
+// itself; the answer then gets `timeout_ms`. `announce`: the stream whose UI is told once the
+// connection is up and the request sent (go2rtc answers only with its first frame).
 bool open(Context &ctx, Connection &c, const char *url, bool authorize, int timeout_ms, int64_t &length,
-          char *error, size_t error_size)
+          char *error, size_t error_size, int connect_ms = 0, const Request *announce = nullptr)
 {
     esp_http_client_config_t config{};
     config.url = url;
-    config.timeout_ms = timeout_ms;
+    config.timeout_ms = connect_ms > 0 ? connect_ms : timeout_ms;
     config.crt_bundle_attach = detail::tls_attach;
     // the token goes into a header longer than the default send buffer
     config.buffer_size_tx = 1024;
@@ -224,7 +236,12 @@ bool open(Context &ctx, Connection &c, const char *url, bool authorize, int time
     }
     if (esp_http_client_open(c.client, 0) != ESP_OK) {
         std::snprintf(error, error_size, authorize ? "Home Assistant cannot be reached" : "the stream cannot be reached");
+        c.problem = core::StreamProblem::Unreachable;
         return false;
+    }
+    esp_http_client_set_timeout_ms(c.client, timeout_ms);
+    if (announce != nullptr) {
+        stream_connected(*announce);
     }
     length = esp_http_client_fetch_headers(c.client);
     if (length < 0) {
@@ -234,11 +251,14 @@ bool open(Context &ctx, Connection &c, const char *url, bool authorize, int time
         } else {
             std::snprintf(error, error_size, "no answer (the connection broke off or timed out)");
         }
+        c.problem = core::StreamProblem::NoAnswer;
         return false;
     }
     const int status = esp_http_client_get_status_code(c.client);
     if (status != 200) {
         std::snprintf(error, error_size, status == 401 ? "the token was rejected" : "HTTP %d", status);
+        c.problem = core::StreamProblem::Http;
+        c.status = status;
         return false;
     }
     return true;
@@ -289,6 +309,8 @@ struct StreamReader {
     uint8_t *buffer = static_cast<uint8_t *>(psram(kReadBuffer));
     size_t pos = 0;
     size_t len = 0;
+    // why the last read gave nothing: no data in time, the server closed, or the connection failed
+    core::StreamProblem problem = core::StreamProblem::None;
 
     explicit StreamReader(Connection &connection) : c(connection) {}
     StreamReader(const StreamReader &) = delete;
@@ -306,6 +328,13 @@ struct StreamReader {
         }
         const int read = esp_http_client_read(c.client, reinterpret_cast<char *>(buffer), static_cast<int>(kReadBuffer));
         len = read > 0 ? static_cast<size_t>(read) : 0;
+        if (read == -ESP_ERR_HTTP_EAGAIN) {
+            problem = core::StreamProblem::NoAnswer;
+        } else if (read == 0) {
+            problem = core::StreamProblem::Ended;
+        } else if (read < 0) {
+            problem = core::StreamProblem::BrokeOff;
+        }
         return len > 0;
     }
 
@@ -380,7 +409,12 @@ struct StreamReader {
         bool have_length = false;
         for (int lines = 0; lines < 16; lines++) {
             if (!line(text, sizeof(text))) {
-                std::snprintf(error, error_size, "the stream ended");
+                if (problem == core::StreamProblem::NoAnswer) {
+                    std::snprintf(error, error_size, "no data within %d s", kStreamTimeoutMs / 1000);
+                } else {
+                    std::snprintf(error, error_size, "the stream ended");
+                    problem = problem == core::StreamProblem::None ? core::StreamProblem::Ended : problem;
+                }
                 return false;
             }
             if (!boundary) {
@@ -390,6 +424,7 @@ struct StreamReader {
             if (text[0] == 0) {
                 if (!have_length) {
                     std::snprintf(error, error_size, "the stream sends no Content-Length per frame");
+                    problem = core::StreamProblem::NotMjpeg;
                     return false;
                 }
                 return true;
@@ -397,6 +432,7 @@ struct StreamReader {
             have_length = have_length || core::mjpeg_content_length(text, length);
         }
         std::snprintf(error, error_size, "not an MJPEG stream");
+        problem = core::StreamProblem::NotMjpeg;
         return false;
     }
 };
@@ -688,7 +724,7 @@ void snapshot(Context &ctx, const Request &request)
     detail::deliver_event(std::move(image));
 }
 
-void stream_failed(const Request &request, const char *error)
+void stream_failed(const Request &request, const char *error, core::StreamProblem problem, int status = 0)
 {
     ESP_LOGW(kTag, "stream of %s: %s", request.entity_id.c_str(), error);
     core::Image image;
@@ -696,6 +732,19 @@ void stream_failed(const Request &request, const char *error)
     image.entity = request.entity;
     image.live = true;
     image.error = error;
+    image.problem = problem;
+    image.http_status = status;
+    detail::deliver_event(std::move(image));
+}
+
+// The stream is connected and its request sent: the UI shows that it waits for the first frame now
+// (not live: it is no frame the stream waits to be taken)
+void stream_connected(const Request &request)
+{
+    core::Image image;
+    image.generation = request.generation;
+    image.entity = request.entity;
+    image.opened = true;
     detail::deliver_event(std::move(image));
 }
 
@@ -731,13 +780,13 @@ bool reconnect(Context &ctx, Connection &c, StreamReader &reader, const char *ur
     Connection fresh;
     reader.clear();
     if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) >= kReconnectInternal &&
-        open(ctx, fresh, url, authorize, kStreamTimeoutMs, length, error, error_size)) {
+        open(ctx, fresh, url, authorize, kStreamTimeoutMs, length, error, error_size, kStreamConnectMs)) {
         std::swap(c.client, fresh.client);
         return true;
     }
     fresh.close();
     c.close();
-    return open(ctx, c, url, authorize, kStreamTimeoutMs, length, error, error_size);
+    return open(ctx, c, url, authorize, kStreamTimeoutMs, length, error, error_size, kStreamConnectMs);
 }
 
 // Plays the stream until another one is wanted or it is stopped; `request` follows a new size of
@@ -750,13 +799,13 @@ void play(Context &ctx, Request &request)
     // Home Assistant's stream has the camera's full size: it cannot be scaled like a snapshot
     const bool hass = !own_stream(request);
     if (hass && !hass_url(ctx, request, "/api/camera_proxy_stream/", error, sizeof(error))) {
-        stream_failed(request, error);
+        stream_failed(request, error, core::StreamProblem::Other);
         return;
     }
     const char *url = hass ? ctx.request_url : request.stream.c_str();
     ESP_LOGI(kTag, "stream of %s into %ux%u: %s", request.entity_id.c_str(), request.width, request.height, url);
-    if (!open(ctx, c, url, hass, kStreamTimeoutMs, length, error, sizeof(error))) {
-        stream_failed(request, error);
+    if (!open(ctx, c, url, hass, kStreamTimeoutMs, length, error, sizeof(error), kStreamConnectMs, &request)) {
+        stream_failed(request, error, c.problem, c.status);
         return;
     }
     StreamReader reader_data(c);
@@ -782,20 +831,20 @@ void play(Context &ctx, Request &request)
         size_t part = 0;
         const int64_t wait_start = esp_timer_get_time();
         if (!reader->next_part(part, error, sizeof(error))) {
-            stream_failed(request, error);
+            stream_failed(request, error, reader->problem);
             return;
         }
         if (part > kMaxJpeg) {
             std::snprintf(error, sizeof(error), "a frame of %u KB is too large", static_cast<unsigned>(part / 1024));
-            stream_failed(request, error);
+            stream_failed(request, error, core::StreamProblem::NotMjpeg);
             return;
         }
         if (!jpeg.reserve(part)) {
-            stream_failed(request, "no memory for a frame");
+            stream_failed(request, "no memory for a frame", core::StreamProblem::NoMemory);
             return;
         }
         if (!reader->bytes(jpeg.data, part)) {
-            stream_failed(request, "the stream broke off");
+            stream_failed(request, "the stream broke off", core::StreamProblem::BrokeOff);
             return;
         }
         const int64_t read_at = esp_timer_get_time();
@@ -811,7 +860,7 @@ void play(Context &ctx, Request &request)
             ESP_LOGI(kTag, "stream of %s behind for %lld s, opened again", request.entity_id.c_str(),
                      static_cast<long long>(kBehindUs / 1000000));
             if (!reconnect(ctx, c, *reader, url, hass, error, sizeof(error))) {
-                stream_failed(request, error);
+                stream_failed(request, error, c.problem, c.status);
                 return;
             }
             reconnects++;
@@ -844,7 +893,7 @@ void play(Context &ctx, Request &request)
         }
         if (broken) {
             if (++broken_frames >= kMaxBrokenFrames) {
-                stream_failed(request, error);
+                stream_failed(request, error, core::StreamProblem::NotMjpeg);
                 return;
             }
             ESP_LOGW(kTag, "stream of %s: %s, frame of %u bytes skipped", request.entity_id.c_str(), error,
@@ -970,6 +1019,7 @@ void no_task(core::EntityIndex entity, uint32_t generation, bool live)
     image.entity = entity;
     image.live = live;
     image.error = "no memory for the camera task";
+    image.problem = core::StreamProblem::NoMemory;
     detail::deliver_event(std::move(image));
 }
 

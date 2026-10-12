@@ -25,7 +25,7 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
 | Where | Gesture | Effect | Values |
 | --- | --- | --- | --- |
 | dashboard, top center | drag down from the pull-down zone | opens Settings | zone 160 x 40 px (`overlay::kZoneHeight`), 24 px of drag; the alert strip's area starts it too |
-| alert strip | tap | opens Settings at the matching page | |
+| alert strip | tap | a state message opens Settings at the matching page; "⟳ Stream failed" tries again; another event message closes | |
 | switch, button, scene tile | tap | toggles, presses | |
 | dimmer tile | drag up or down | sets the level on release | starts after 10 px |
 | dimmer tile | double tap | toggles | 300 ms |
@@ -52,7 +52,10 @@ Rules that keep the gestures apart:
   so the two do not collide.
 * What lies at the top center under the pull-down zone does not get taps there: the camera view's
   buttons sit below it (`overlay::kZoneHeight`).
-* While the dashboard is edited the pull-down and the alert strip are off.
+* While the dashboard is edited the pull-down is off; the alert strip shows only event messages
+  and a drag on it does not open Settings.
+* The camera view's buttons move down with the alert strip (`overlay::on_strip_moved()`), so a
+  message of two lines never covers them.
 
 ## 3. Feedback: click, ticks and vibration
 

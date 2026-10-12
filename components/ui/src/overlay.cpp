@@ -23,6 +23,11 @@ constexpr lv_opa_t kStripOpacity = LV_OPA_60;
 // a Home Assistant problem is shown once it lasts this long: a reconnect or a restart of Home
 // Assistant does not flash the strip
 constexpr uint32_t kHassProblemMs = 10000;
+// the strip slides down when it appears and up when it goes (the panel dialogs' time)
+constexpr uint32_t kSlideMs = 250;
+// the progress of a slide: 0 above the screen, kShown in place
+constexpr int32_t kShown = 1024;
+constexpr size_t kTextSize = 128;
 
 struct State {
     const Backend *backend = nullptr;
@@ -31,8 +36,20 @@ struct State {
     lv_obj_t *strip_label = nullptr;
     // the page a tap on the strip opens
     settings::Page strip_page = settings::Page::Quick;
-    char strip_text[96] = {};
+    char strip_text[kTextSize] = {};
     lv_coord_t strip_for_width = 0;
+    // the strip is coming or there (it slides in), else going or gone
+    bool strip_in = false;
+    int32_t shown = 0; // the progress of its slide
+    // the event message of show(); empty while there is none
+    char event_text[kTextSize] = {};
+    uint32_t event_color = 0;
+    uint32_t event_since = 0;
+    uint32_t event_ms = 0;
+    void (*event_tap)() = nullptr; // a tap on the event message calls it; nullptr: the tap closes it
+    // the strip shows the event message: a tap closes it
+    bool showing_event = false;
+    void (*moved)() = nullptr; // on_strip_moved()
     lv_coord_t press_y = 0;
     bool dragged = false;
     // Settings was opened by the swipe since the start; the hint is stored as seen once the
@@ -63,6 +80,9 @@ void on_drag(lv_event_t *event)
     lv_point_t point;
     lv_indev_get_point(indev, &point);
     const lv_event_code_t code = lv_event_get_code(event);
+    if (dashboard::editing()) {
+        return; // the strip shows an event message over the edit bar: no Settings
+    }
     if (code == LV_EVENT_PRESSED) {
         g.press_y = point.y;
         g.dragged = false;
@@ -74,11 +94,34 @@ void on_drag(lv_event_t *event)
     }
 }
 
+void on_update(lv_timer_t *);
+
 void on_strip_click(lv_event_t *)
 {
-    if (!g.dragged) {
+    if (g.showing_event && g.event_tap != nullptr) {
+        // the message stays until its code shows the next one or clears it
+        g.event_tap();
+    } else if (g.showing_event) {
+        g.event_text[0] = 0;
+        on_update(nullptr);
+    } else if (!g.dragged && !dashboard::editing()) {
         settings::open(g.strip_page);
     }
+}
+
+// the event message of show() while it lasts
+bool event_message(char *out, size_t size, uint32_t &color)
+{
+    if (g.event_text[0] == 0) {
+        return false;
+    }
+    if (g.event_ms != 0 && lv_tick_elaps(g.event_since) >= g.event_ms) {
+        g.event_text[0] = 0;
+        return false;
+    }
+    std::snprintf(out, size, "%s", g.event_text);
+    color = g.event_color;
+    return true;
 }
 
 // A Home Assistant problem that lasts kHassProblemMs, in words; false while there is none.
@@ -155,14 +198,74 @@ void strip_message(char *out, size_t size, uint32_t &color, settings::Page &page
     }
 }
 
-void update_strip()
+// the strip at `progress` of its slide: its whole height above the screen at 0, in place at kShown
+void place(int32_t progress)
+{
+    g.shown = progress;
+    const lv_coord_t height = lv_obj_get_height(g.strip);
+    lv_obj_set_style_translate_y(g.strip, static_cast<lv_coord_t>(-height * (kShown - progress) / kShown), 0);
+    if (g.moved != nullptr) {
+        g.moved();
+    }
+}
+
+// The strip slides in (down) or out (up), from where it is; at the end of a slide out it is hidden.
+void slide(bool in)
+{
+    if (in == g.strip_in) {
+        return;
+    }
+    g.strip_in = in;
+    lv_anim_del(g.strip, nullptr);
+    if (in && lv_obj_has_flag(g.strip, LV_OBJ_FLAG_HIDDEN)) {
+        set_hidden(g.strip, false);
+        lv_obj_update_layout(g.strip); // its height, for the start above the screen
+        place(0);
+    }
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, g.strip);
+    lv_anim_set_values(&anim, g.shown, in ? kShown : 0);
+    // the whole way takes kSlideMs, the rest of an interrupted slide its part of it
+    const int32_t way = in ? kShown - g.shown : g.shown;
+    lv_anim_set_time(&anim, static_cast<uint32_t>(kSlideMs * way / kShown));
+    lv_anim_set_path_cb(&anim, in ? lv_anim_path_ease_out : lv_anim_path_ease_in);
+    lv_anim_set_exec_cb(&anim, [](void *, int32_t progress) { place(progress); });
+    if (!in) {
+        lv_anim_set_ready_cb(&anim, [](lv_anim_t *) { set_hidden(g.strip, true); });
+    }
+    lv_anim_start(&anim);
+}
+
+// gone at once, without the slide (Settings covers the screen)
+void remove_strip()
+{
+    lv_anim_del(g.strip, nullptr);
+    set_hidden(g.strip, true);
+    g.strip_in = false;
+    g.shown = 0;
+    g.strip_text[0] = 0;
+    g.showing_event = false;
+    if (g.moved != nullptr) {
+        g.moved();
+    }
+}
+
+// `events_only`: while the dashboard is edited, only the event messages
+void update_strip(bool events_only)
 {
     char text[sizeof(g.strip_text)];
     uint32_t color = t::kText;
-    strip_message(text, sizeof(text), color, g.strip_page);
+    g.showing_event = event_message(text, sizeof(text), color);
+    if (!g.showing_event) {
+        text[0] = 0;
+        if (!events_only) {
+            strip_message(text, sizeof(text), color, g.strip_page);
+        }
+    }
     if (text[0] == 0) {
-        set_hidden(g.strip, true);
         g.strip_text[0] = 0;
+        slide(false);
         return;
     }
     // the strip fits its message, up to 90 % of the width (the display may have turned)
@@ -176,9 +279,14 @@ void update_strip()
         lv_point_t size;
         lv_txt_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         lv_obj_set_width(g.strip_label, LV_MIN(size.x + 1, max_width));
+        if (g.strip_in) {
+            // a new text on the strip that is there: its height may have changed
+            lv_obj_update_layout(g.strip);
+            place(g.shown);
+        }
     }
     lv_obj_set_style_text_color(g.strip_label, t::color(color), 0);
-    set_hidden(g.strip, false);
+    slide(true);
 }
 
 void on_update(lv_timer_t *)
@@ -186,14 +294,15 @@ void on_update(lv_timer_t *)
     if (g.zone == nullptr) {
         return;
     }
-    // Settings and the first setup have their own frame, the edit mode its bar: no pull-down, no strip
-    const bool open = settings::is_open() || setup::active() || dashboard::editing();
-    set_hidden(g.zone, open);
-    if (open) {
-        set_hidden(g.strip, true);
-        g.strip_text[0] = 0;
+    // Settings and the first setup have their own frame: no pull-down, no strip. The edit mode has
+    // its bar: no pull-down, only event messages.
+    const bool frame = settings::is_open() || setup::active();
+    const bool editing = dashboard::editing();
+    set_hidden(g.zone, frame || editing);
+    if (frame) {
+        remove_strip();
     } else {
-        update_strip();
+        update_strip(editing);
     }
 }
 
@@ -209,6 +318,41 @@ void add_drag(lv_obj_t *obj)
 
 void update()
 {
+    on_update(nullptr);
+}
+
+lv_coord_t strip_bottom()
+{
+    if (g.strip == nullptr || lv_obj_has_flag(g.strip, LV_OBJ_FLAG_HIDDEN)) {
+        return 0;
+    }
+    // aligned kRadius above the screen edge, moved up by the slide
+    const lv_coord_t bottom = lv_obj_get_y(g.strip) + lv_obj_get_height(g.strip) +
+                              lv_obj_get_style_translate_y(g.strip, LV_PART_MAIN);
+    return LV_MAX(bottom, 0);
+}
+
+void on_strip_moved(void (*callback)())
+{
+    g.moved = callback;
+}
+
+void clear()
+{
+    g.event_tap = nullptr;
+    if (g.event_text[0] != 0) {
+        g.event_text[0] = 0;
+        on_update(nullptr);
+    }
+}
+
+void show(const char *text, uint32_t color, uint32_t ms, void (*on_tap)())
+{
+    g.event_tap = on_tap;
+    std::snprintf(g.event_text, sizeof(g.event_text), "%s", text);
+    g.event_color = color;
+    g.event_since = lv_tick_get();
+    g.event_ms = ms;
     on_update(nullptr);
 }
 

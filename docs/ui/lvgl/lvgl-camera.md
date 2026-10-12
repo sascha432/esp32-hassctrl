@@ -62,8 +62,30 @@ freed, the DMA may still use them.
 ## 2. MJPEG stream (test, 2026-10-08)
 
 A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
-from the first frame of the stream instead of Home Assistant; full screen plays the stream with the
-frame rate in the upper left corner. Full screen waits 30 s for the stream's answer (go2rtc
+from the first frame of the stream instead of Home Assistant; full screen plays the stream.
+
+What the full screen view shows when the stream stops (decided by you 2026-10-12; the frame rate
+in the corner is gone, the media log has it every 5 s). The last picture stays under the alert
+strip ([lvgl-design.md](lvgl-design.md) section 8):
+
+| State | Alert strip | Ends when |
+| --- | --- | --- |
+| opening (the view was opened) | none, the spinner turns | the first picture (playing), or an error (failed) |
+| playing | none | the stream stops: it ended, the connection broke off, no data for 30 s |
+| the stream stopped: the 2 s before the first try, and every try while it connects | "⚠ Stream stopped, retrying" (orange) | the connection is up (loading), or the try fails (failed) |
+| connected, the request sent, waiting for the first picture (go2rtc answers only with it) | "Stream loading ..." (grey-blue, video symbol) | the first picture (playing, the strip slides away), or an error (failed) |
+| the try failed | "⟳ Stream failed: <reason>" (red, the reload icon) | the next try, 10 s after the start of the last one (retrying), a tap: a try at once, or the view is closed |
+
+A try starts every 10 s while the stream is down, so it comes back by itself within about 10 s of
+its server (your requirement, 2026-10-12). A connection that is not taken within 5 s fails (a
+restarting server answered nothing, and the connect waited 18 s); the answer and the data still
+get 30 s each (`kStreamConnectMs`, `kStreamTimeoutMs` in `media.cpp`). The media task tells the
+UI when the connection is up and the request sent (`core::Image::opened`). The
+reason is a word or two ("unreachable", "no answer", "HTTP 404", "ended", "broke off", "not
+MJPEG", "no memory", `core::StreamProblem`), the whole text is in the log. A zoom change asks the
+stream for the new size and changes nothing in the strip. The Windows version plays this with
+`--do "stream down"` / `"stream up"` (a down server fails a try after 5 s, an up one sends the
+first frame 4 s after the connection). Full screen waits 30 s for the stream's answer (go2rtc
 answers once its first frame is there, which took longer than 10 s when it first had to start its
 source), a tile's first frame 10 s; a missing answer says "no answer within ... s" instead of
 "HTTP -1". `stream: hass` plays Home Assistant's own MJPEG stream of the

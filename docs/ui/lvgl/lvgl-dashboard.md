@@ -30,14 +30,18 @@ vertical drag that starts on a tile, such as the level drag of a dimmer, stays a
 ```
 
 The start zone is 160 px wide at the top center and 40 px high (80 x 24 was hard to hit, 2026-10-07). While
-the alert strip is shown, its whole area also starts the pull-down (proposal).
+the alert strip is shown, its whole area also starts the pull-down (built).
 
 ### 1.1 Alert strip
 
 Messages on the dashboard appear in the **alert strip** (decided): a panel at the top center,
 touching the top edge, with rounded bottom corners and a background at 60 % opacity over the
-dashboard. The same style is used for every error, warning and hint. The pull-down gesture works
-through it, and a tap on it opens Settings at the matching page.
+dashboard. The same style is used for every error, warning and hint on the screen, also over the
+panels and the camera view (decided 2026-10-12: no popups for messages; the rules are in
+[lvgl-design.md](lvgl-design.md) section 8). It **slides down from the top** when it appears
+(250 ms, easing out) and back up when it goes (2026-10-12). The pull-down gesture works through
+it. A tap on a state message opens Settings at the matching page; a tap on an event message
+closes it.
 
 ```
 +------------------------------------------------------------+
@@ -58,11 +62,14 @@ through it, and a tap on it opens Settings at the matching page.
 | "Scanning for Wi-Fi ..." / "Connecting to Home-Net ..." | the device scans or connects (decided: shown on the display) | connected, or replaced by an error |
 | Home Assistant error, such as "Home Assistant: the host does not answer" (running: after Wi-Fi problems, once it lasts 10 s, so a reconnect or a restart of Home Assistant does not flash it; a tap opens its Settings page) | the error exists | connected again |
 | "Swipe down from the top for Settings" | after the first setup | the first pull-down once the onboarding is complete: Wi-Fi up and Home Assistant connected (decided 2026-10-10: while the start screen offers "Set up Home Assistant" the hint stays). Stored, so it does not come back after a restart. A tap leaves it in place |
+| Event messages of `overlay::show()`, one short line, the reason in the log: "Stream stopped, retrying", "Stream loading ..." and "⟳ Stream failed: <reason>" (the camera view, [lvgl-camera.md](lvgl-camera.md) section 2), "Changes not saved", "Tile not removed", "Order not reset", "Edit dropped" (the edit mode, section 7) | 5 s; the stream's until its state changes, "Stream failed" until a try (every 10 s, or a tap) reaches the server; before the state messages, a newer one replaces it | the time is over, or a tap (on "Stream failed": one more try) |
 
 The strip is as wide as its message needs, so it can get large. It keeps a small gap to the
 left and right screen edges, so the rounded corners and the transparency stay visible (decided).
-Proposals: a long message wraps to at most 3 lines; one message at a time, errors before warnings
-before hints.
+A long message wraps (two lines in portrait are common). One message at a time: an event message,
+then a Wi-Fi problem, connecting, a Home Assistant problem, the hint (built). While the dashboard
+is edited the strip shows only event messages, over the edit bar; a drag on it does not open
+Settings then.
 
 ### 1.2 Start screen
 
@@ -251,7 +258,9 @@ Tiles are moved in the edit mode (section 7) and in the web editor
   Remove and Cancel. An area names the tiles of its page that go with it. The back tile cannot be moved
   or removed.
 * **Reset** sets the page back to automatic order in this orientation (after a confirm).
-* **Done** saves; **Cancel** drops all changes of this edit session. The changes of every page
+* **Done** saves; **Cancel** drops all changes of this edit session. A save, a remove or a reset
+  that fails says so in the alert strip ("Changes not saved"), over the edit bar; the reason is
+  in the log. The changes of every page
   visited are saved together, one write.
 * **Leaving** (decided 2026-10-08): only a tap on Done or Cancel ends edit mode. There is no
   timeout, and turning the display keeps it open (the edit goes on in the new orientation). The
@@ -295,8 +304,7 @@ copy. Same behavior, one data path fewer.
   make every sensor orange. Proposal: keep it so.
 * The climate default step is 0.5 for both units until the unit of the HA configuration is read.
 * A failed service call ends the pending look; it is not shown in the alert strip yet.
-* The height of the pull-down start zone, the line limit and the message order of the alert
-  strip (section 1).
+* The height of the pull-down start zone (section 1).
 * **Push aside or swap**: push aside is built first; decided after trying it on the device. On
   a small page (4x2) it moves tiles the user did not touch.
 * **Moving between pages on the screen**: not proposed (drag onto the back tile could move a tile

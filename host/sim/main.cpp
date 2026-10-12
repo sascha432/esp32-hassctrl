@@ -20,6 +20,7 @@
 #include "hc/core/layout.hpp"
 #include "hc/ui/ui.hpp"
 #include "lvgl.h"
+#include "overlay.hpp"
 #include "png.hpp"
 #include "rotation.hpp"
 #include "sample_hass.hpp"
@@ -403,6 +404,18 @@ bool run_step(const std::string &step)
         }
         select_scenario(index);
         pump(800); // the first setup opens in the timer after it
+    } else if (verb == "alert") {
+        // an event message in the alert strip, as a stream or the edit mode sends it
+        ui::overlay::show((LV_SYMBOL_WARNING "  " + argument).c_str());
+    } else if (verb == "info") {
+        // a progress message that stays, as the camera view shows "Loading stream ..."
+        ui::overlay::show((LV_SYMBOL_REFRESH "  " + argument).c_str(), ui::theme::kTextValue, 0);
+    } else if (verb == "stream") {
+        if (argument != "up" && argument != "down") {
+            std::fprintf(stderr, "stream needs up or down\n");
+            return false;
+        }
+        sim::set_stream_server(argument == "up");
     } else if (verb == "rotate") {
         ui::rotation::rotate_clockwise();
     } else if (verb == "shot") {
@@ -452,6 +465,9 @@ void usage()
         "  --lux N              a light sensor with N lux in the room\n"
         "  --do STEP            a scripted step, repeatable, run in order after the start:\n"
         "                         page NAME | scenario NAME | rotate | wait MS | shot FILE\n"
+        "                         alert TEXT (an event message in the alert strip, 5 s)\n"
+        "                         info TEXT (a progress message in the alert strip that stays)\n"
+        "                         stream down|up (the stream's server ends and refuses streams, or answers again)\n"
         "                         tap TEXT (a label on the screen) | tap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"

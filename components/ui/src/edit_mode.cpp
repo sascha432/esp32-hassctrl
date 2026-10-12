@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "dashboard.hpp"
+#include "overlay.hpp"
 #include "settings.hpp"
 #include "theme.hpp"
 
@@ -19,7 +20,6 @@ constexpr lv_coord_t kSlop = 10;
 // the outline of the block a drag would take
 constexpr uint32_t kFits = 0x2ecc71;
 constexpr lv_coord_t kOutline = 3;
-constexpr uint32_t kMessageMs = 5000;
 
 bool touch_point(lv_point_t &out)
 {
@@ -36,13 +36,14 @@ bool moved(lv_point_t from, lv_point_t to)
     return LV_ABS(to.x - from.x) > kSlop || LV_ABS(to.y - from.y) > kSlop;
 }
 
-void message(const char *title, const char *text)
+// An error: one short line in the alert strip ("Changes not saved"), the reason in the log
+// (docs/ui/lvgl/lvgl-design.md section 8)
+void message(const char *line, const char *reason)
 {
-    lv_obj_t *card = settings::popup(title, kMessageMs, nullptr);
-    lv_obj_t *body = t::label(card, text, t::font_normal(), t::kTextValue);
-    lv_obj_set_width(body, lv_pct(100));
-    lv_label_set_long_mode(body, LV_LABEL_LONG_WRAP);
-    lv_obj_align(body, LV_ALIGN_CENTER, 0, 10);
+    LV_LOG_WARN("edit: %s: %s", line, reason);
+    char text[64];
+    std::snprintf(text, sizeof(text), LV_SYMBOL_WARNING "  %s", line);
+    overlay::show(text);
 }
 
 // ------------------------------------------------------------------- the long press that starts
@@ -168,9 +169,7 @@ void on_remove(void *context)
     const auto tile = static_cast<core::TileIndex>(reinterpret_cast<uintptr_t>(context));
     auto removed = core::remove_tile(dashboard::layout(), tile);
     if (!removed) {
-        char text[160];
-        std::snprintf(text, sizeof(text), "Not removed: %s.", removed.error().message.c_str());
-        message("Remove", text);
+        message("Tile not removed", removed.error().message.c_str());
         return;
     }
     dashboard::set_edited(std::move(*removed));
@@ -319,7 +318,7 @@ void on_done(lv_event_t *)
     char error[160];
     if (!dashboard::save_editing(error, sizeof(error))) {
         dashboard::stop_editing();
-        message("Not saved", error);
+        message("Changes not saved", error);
     }
 }
 
@@ -333,9 +332,9 @@ void on_reset_confirmed(void *)
     core::Layout copy = dashboard::layout();
     const auto reset = core::reset_arrangement(copy, dashboard::current_page(), orientation());
     if (!reset) {
-        char text[160];
-        std::snprintf(text, sizeof(text), "The tiles do not fit in list order: %s.", reset.error().message.c_str());
-        message("Reset", text);
+        char text[128];
+        std::snprintf(text, sizeof(text), "the tiles do not fit in list order: %s", reset.error().message.c_str());
+        message("Order not reset", text);
         return;
     }
     dashboard::set_edited(std::move(copy));
@@ -443,7 +442,7 @@ void close()
 
 void dropped()
 {
-    message("Edit dropped", "The dashboard was changed in the web UI meanwhile.");
+    message("Edit dropped", "the dashboard was saved in the web UI meanwhile");
 }
 
 } // namespace hc::ui::edit

@@ -39,5 +39,8 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
                  uint16_t height, uint32_t generation);
 void stop_stream();
+// The stream's server: down ends the stream that plays ("ended") and refuses new ones
+// ("unreachable"); up answers them again (the first frame 1.5 s after the answer).
+void set_stream_server(bool up);
 
 } // namespace sim

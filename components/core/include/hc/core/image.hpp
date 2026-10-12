@@ -21,6 +21,19 @@ using Pixels = std::shared_ptr<uint16_t>;
 // time a stream does not have); null when the heap is full.
 Pixels allocate_pixels(size_t count);
 
+// Why a stream stopped, as the screen names it (docs/ui/lvgl/lvgl-camera.md section 2)
+enum class StreamProblem : uint8_t {
+    None,
+    Unreachable, // no connection to the server
+    NoAnswer,    // connected, no answer or no data in time
+    Http,        // the server answered with an error status (Image::http_status)
+    Ended,       // the server ended the stream
+    BrokeOff,    // the connection broke off in a frame
+    NotMjpeg,    // the answer is not an MJPEG stream, or its frames cannot be decoded
+    NoMemory,
+    Other,
+};
+
 // A frame for the UI: `width` x `height` RGB565 pixels in the display's byte order. Shared, so
 // the tile and its full screen view can show the same frame. `generation` is the one of the
 // request; an answer to an older one is dropped.
@@ -36,6 +49,13 @@ struct Image {
     uint16_t source_height = 0;
     memory::String error; // empty: the frame is there
     bool live = false;    // a frame of a stream that plays (the next one is decoded once this is taken)
+    // A stream is connected and its request sent: its answer and first frame are on the way (go2rtc
+    // answers only with the first frame). No pixels, no error; not live (it is not a frame the
+    // stream waits to be taken).
+    bool opened = false;
+    // why a stream stopped, for a short text on the screen; `error` is the whole text for the log
+    StreamProblem problem = StreamProblem::None;
+    int http_status = 0; // StreamProblem::Http
 };
 
 // A header line of a part of an MJPEG stream (multipart/x-mixed-replace): true with `length` set

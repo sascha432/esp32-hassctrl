@@ -146,7 +146,7 @@ Patterns:
   "restarting ...". A running action ends in ` ...` like on the screen.
 * Errors from the device are shown as they come; they are written for people ("the stream needs a
   username and a password").
-* Units and times as on the screen ([lvgl-design.md](../lvgl/lvgl-design.md) section 8).
+* Units and times as on the screen ([lvgl-design.md](../lvgl/lvgl-design.md) section 9).
 
 ## 6. Checklist for a new or changed page
 

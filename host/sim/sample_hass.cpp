@@ -27,7 +27,12 @@ constexpr uint32_t kHistoryMs = 300;
 constexpr uint32_t kImageMs = 500;
 // a stream plays 5 frames a second
 constexpr uint32_t kStreamFrameMs = 200;
-constexpr uint32_t kStreamStartMs = 1500;
+// the first frame this long after the connection, like a go2rtc that first starts ffmpeg
+constexpr uint32_t kStreamStartMs = 4000;
+// a stream's server takes the connection this long after the request
+constexpr uint32_t kAnswerMs = 300;
+// a server that is down answers nothing: the device's connect gives up after this (media.cpp)
+constexpr uint32_t kConnectTimeoutMs = 5000;
 
 // every field of the store: the samples carry what their domain has
 constexpr hc::core::FieldMask kAllFields = (hc::core::FieldMask{1} << static_cast<int>(Field::Count)) - 1;
@@ -56,6 +61,7 @@ struct State {
         uint32_t next = 0; // lv_tick_get() of the next frame
         uint32_t frame = 0;
     } play;
+    bool stream_server_down = false;
 };
 
 State g;
@@ -503,6 +509,16 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
     g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
 }
 
+// an event at `at`, in time order (the queue is taken from its front)
+void queue_at(uint32_t at, hc::core::HassEvent event)
+{
+    auto it = g.queue.begin();
+    while (it != g.queue.end() && static_cast<int32_t>(at - it->at) >= 0) {
+        ++it;
+    }
+    g.queue.insert(it, {at, std::move(event)});
+}
+
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
                  uint16_t height, uint32_t generation)
 {
@@ -515,9 +531,40 @@ void play_stream(std::string_view entity_id, std::string_view stream, hc::core::
         g.play.generation = generation;
         return;
     }
-    // the first frame after a while, like a go2rtc that first starts ffmpeg
+    if (g.stream_server_down) {
+        hc::core::Image refused;
+        refused.generation = generation;
+        refused.entity = entity;
+        refused.live = true;
+        refused.error = "the stream cannot be reached";
+        refused.problem = hc::core::StreamProblem::Unreachable;
+        queue_at(lv_tick_get() + kConnectTimeoutMs, std::move(refused));
+        return;
+    }
+    // the answer, then the first frame after a while, like a go2rtc that first starts ffmpeg
+    hc::core::Image opened;
+    opened.generation = generation;
+    opened.entity = entity;
+    opened.opened = true;
+    queue_at(lv_tick_get() + kAnswerMs, std::move(opened));
     g.play = {.entity = entity, .width = width, .height = height, .generation = generation,
-              .next = lv_tick_get() + kStreamStartMs};
+              .next = lv_tick_get() + kAnswerMs + kStreamStartMs};
+}
+
+void set_stream_server(bool up)
+{
+    g.stream_server_down = !up;
+    if (!up && g.play.generation != 0) {
+        hc::core::Image ended;
+        ended.generation = g.play.generation;
+        ended.entity = g.play.entity;
+        ended.live = true;
+        ended.error = "the stream ended";
+        ended.problem = hc::core::StreamProblem::Ended;
+        g.queue.push_back({lv_tick_get(), std::move(ended)});
+        g.play = {};
+    }
+    std::printf("[sim] stream server %s\n", up ? "up" : "down");
 }
 
 void stop_stream()

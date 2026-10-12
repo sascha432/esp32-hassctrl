@@ -17,6 +17,18 @@
   written from the code (`lvgl-design.md`, `web-design.md`) and a touch document
   (`lvgl-touch.md`); `design-system.md` brought up to date and split between them. The
   references in code comments, tools and docs point to the new files.
+- Camera full screen: a stream that stops (ended, the connection broke off, no data for 30 s)
+  comes back by itself. The alert strip says "Stream stopped, retrying" while a try connects,
+  "Stream loading ..." once it is connected and waits for the first picture, and slides away
+  when the picture is back. When a try fails, "⟳ Stream failed: <reason>" (a word or two, the
+  whole reason is in the log) shows until the next try. A try starts every 10 s and the
+  connection gives up after 5 s, so the stream is back within about 10 s of its server; a tap
+  on "Stream failed" tries at once. The frame rate in the corner is gone. Confirmed on the P4.
+- Alert strip: it slides down from the top when it appears and back up when it goes. Errors are
+  never popups: the stream's states and the edit mode's errors ("Changes not saved", "Tile not
+  removed", "Order not reset", "Edit dropped", which were popups) are one short line in the
+  strip, the reasons go to the log. The camera view's buttons move down with the strip. Design
+  guide: lvgl-design.md section 8, Messages. Flashed on the P4 only.
 - Web UI in the recovery app: the System page no longer shows the Backup card (the recovery app
   has no backup; export and import failed with 404).
 - Time zones from tzdata 2026e (was 2025b: posix_tz_db is no longer updated;
