@@ -892,13 +892,15 @@ const views = {
 
   async system() {
     const [s, u] = await Promise.all([api("/api/status"), api("/api/update")]);
+    // the recovery app has no backup (its /api/backup answers 404)
+    const recovery = u.app === "recovery";
     render(`<h1>System</h1>` +
       card("Device", facts([
         ["Firmware", esc(s.device.firmware)], ["Uptime", duration(s.device.uptime_s)],
         ["Free memory", `${s.device.heap_internal_kb} KB internal, ${s.device.heap_psram_kb} KB PSRAM`],
         ["Firmware update", u.firmware_direct ? "direct" : "through the recovery app"],
       ])) +
-      card("Backup", `
+      (recovery ? "" : card("Backup", `
         <p class="small text-body-secondary">The settings and the dashboard in one YAML file. Wi-Fi passwords and the
           Home Assistant token are not in it; they may be added to the file by hand before an import.</p>
         <div class="d-flex gap-2 flex-wrap mb-3">
@@ -912,7 +914,7 @@ const views = {
           <button id="backup-check" class="btn btn-outline-secondary" type="button">Check</button>
           <button id="backup-import" class="btn btn-primary" type="button">Import</button>
         </div>
-        <div id="backup-report" class="mt-3"></div>`) +
+        <div id="backup-report" class="mt-3"></div>`)) +
       card("Update", `
         <label class="form-label" for="fw-file">Firmware image</label>
         <input id="fw-file" type="file" class="form-control mb-2" accept=".bin">
@@ -935,8 +937,10 @@ const views = {
           <button id="restart" class="btn btn-outline-secondary" type="button">Restart</button>
           <button id="reset" class="btn btn-outline-danger ms-auto" type="button">Factory reset</button>
         </div>`));
-    $("#backup-check").onclick = (e) => busy(e.target, () => importBackup(true));
-    $("#backup-import").onclick = (e) => busy(e.target, () => importBackup(false));
+    if (!recovery) {
+      $("#backup-check").onclick = (e) => busy(e.target, () => importBackup(true));
+      $("#backup-import").onclick = (e) => busy(e.target, () => importBackup(false));
+    }
     $("#fw-go").onclick = (e) => busy(e.target, () => runUpdate("firmware"));
     $("#fs-go").onclick = (e) => busy(e.target, () => runUpdate("filesystem"));
     $("#format").onclick = (e) => busy(e.target, async () => {

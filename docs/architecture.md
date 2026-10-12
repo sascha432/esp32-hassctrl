@@ -797,6 +797,11 @@ in the main firmware.
   adds a line with its state and percent (`ota::status()`), and the reason when it failed. Redrawn
   when something changes (checked once a second). The drivers made the app 45 KB larger, so the factory partition of the 4 MB layout is
   1.06 MB (ota_0 2.4 MB).
+* **Web pages in the recovery app**: the built-in page (always at `/recovery`, at `/` without web
+  files) with first setup, login, status, firmware and file system update by file or URL, the
+  files as .zip, format, restart and "Start the firmware"; and the web UI from LittleFS when it
+  is there, without Home Assistant, dashboard and backup (their routes are not registered: 404,
+  the pages say so or leave the card out). See [ui/web.md](ui/web.md) section 7.
 * **Alternative**: compressed or delta OTA updates exist for ESP-IDF, but they need a custom
   bootloader or a patch component. The recovery app is simpler and also covers the recovery case.
 

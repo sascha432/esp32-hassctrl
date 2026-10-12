@@ -2,6 +2,8 @@
 
 ## 2026-10-12
 
+- Web UI in the recovery app: the System page no longer shows the Backup card (the recovery app
+  has no backup; export and import failed with 404).
 - Time zones from tzdata 2026e (was 2025b: posix_tz_db is no longer updated;
   `tools/build_timezones.py` now reads the IANA data of the tzdata package on PyPI). British
   Columbia stays on -07 after 2026-11-01 (`MST7`, was `PST8PDT`); likewise Alberta, the Northwest

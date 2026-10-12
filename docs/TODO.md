@@ -489,6 +489,9 @@ Open:
       longer fit the 1 MB factory partition of the 16 MB layout (boot loop, black screen): now
       1.25 MB, ota_0 at 0x150000 and 5.75 MB. The P4 flickered cyan during an upload: fixed with
       `CONFIG_LCD_DSI_ISR_CACHE_SAFE` in `sdkconfig.recovery.esp32p4`.
+- [x] Web UI in the recovery app (2026-10-12): the System page showed the Backup card, whose
+      export and import answer 404 there. The card is left out when `/api/update` reports
+      `app: recovery`.
 - [x] P4 main firmware: no flicker during an update from the main firmware (tested by you
       2026-10-10), so it keeps `CONFIG_LCD_DSI_ISR_CACHE_SAFE` off (it would need esp_lvgl_port's
       DSI callback in IRAM).
@@ -1426,6 +1429,8 @@ Not built yet (placeholders in the code or the documentation):
 
 - [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
 - [ ] Home Assistant events waking the screen (`ui/src/power.hpp`).
+- [ ] "Start the firmware" on the System page of the web UI in the recovery app (only the
+      built-in page `/recovery` has it).
 - [x] Trusting a self-signed Home Assistant certificate on first use (Step 5, 2026-10-10).
 - [x] OTA push method in detail (Open decisions).
 

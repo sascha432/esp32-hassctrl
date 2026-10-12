@@ -256,7 +256,8 @@ certificate is written as `hass:` `certificate:` (its SHA-256) and trusted again
 file (`POST /api/backup/import[?check=1]`): the whole file is checked first, one problem and
 nothing changes; the answer lists the sections, the problems, what to know ("Office needs its
 password") and what was ignored. A network without a password is saved as "password needed" and
-not tried until it gets one. Only the main firmware: the recovery app has no backup.
+not tried until it gets one. Only the main firmware: the recovery app has no backup (404), and
+its System page shows no Backup card.
 
 ```
 +--------------------------------------------+
@@ -323,6 +324,10 @@ system has happened on earlier devices, mostly with the files still readable. So
   one .zip (stored, not compressed; files that cannot be read are listed in `unreadable.txt`
   inside), `POST /api/fs/format` with `confirm=yes` erases the file system. Both need the login.
   The settings export is not built yet ([TODO](../TODO.md)).
+* **In the recovery app** (2026-10-12): the same rules, `/` serves the web UI from LittleFS when
+  it is there. Its Home Assistant and Dashboard pages say "not in the recovery app", the System
+  page has no Backup card; Status, Wi-Fi, Hotspot, Logs, update, files, format, restart and
+  factory reset work. "Start the firmware" is only on the built-in page (`/recovery`).
 * **No automatic format** (decided): a LittleFS that fails to mount starts the recovery mode
   instead of being formatted, so files that are still readable can be exported first. Only a
   partition without any LittleFS (new device, leftovers of another firmware) is formatted.
