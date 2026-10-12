@@ -1,6 +1,6 @@
 #pragma once
 
-// The look of the screens (docs/ui/design-system.md): colors and sizes of the old firmware, and
+// The look of the screens (docs/ui/lvgl/lvgl-design.md): colors and sizes of the old firmware, and
 // the small building blocks every page uses.
 
 #include <cstddef>
@@ -87,7 +87,7 @@ lv_obj_t *caption_value(lv_obj_t *parent, const char *caption, const char *value
                         const lv_font_t &font = font_normal());
 
 // A white card with a QR code: dark on light with a quiet zone, also in the dark theme
-// (docs/ui/design-system.md section 2).
+// (docs/ui/lvgl/lvgl-design.md section 2).
 lv_obj_t *qr_card(lv_obj_t *parent, const char *data, lv_coord_t size);
 
 // the Wi-Fi QR code format: WIFI:T:WPA;S:<ssid>;P:<password>;; with \ ; , : " escaped

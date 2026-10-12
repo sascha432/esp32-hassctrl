@@ -140,7 +140,7 @@ esp_err_t send_error(httpd_req_t *req, const char *status, const char *message)
 bool require_login(httpd_req_t *req)
 {
     if (!auth::has_user()) {
-        return true; // setup mode: open until the first login exists (docs/ui/web.md section 2)
+        return true; // setup mode: open until the first login exists (docs/ui/web/web-app.md section 1)
     }
     char token[auth::kTokenSize];
     char user[auth::kUsernameSize];

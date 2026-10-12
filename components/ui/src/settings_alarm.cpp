@@ -1,4 +1,4 @@
-// Settings, Alarm (docs/ui/screen.md section 5, Alarm): only with an alarm (alarm::available()).
+// Settings, Alarm (docs/ui/lvgl/lvgl-settings.md section 3, Alarm): only with an alarm (alarm::available()).
 // Every change is stored at once. Choosing a sound plays it once as a preview, at full volume like
 // the alarm; leaving the page stops it.
 

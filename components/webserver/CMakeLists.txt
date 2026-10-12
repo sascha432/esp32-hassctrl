@@ -1,4 +1,4 @@
-# Web server and captive portal (docs/ui/web.md, docs/architecture.md section 9.4).
+# Web server and captive portal (docs/ui/web/web-app.md, docs/architecture.md section 9.4).
 idf_component_register(SRCS "src/api_backup.cpp"
                             "src/api_camera.cpp"
                             "src/api_dashboard.cpp"

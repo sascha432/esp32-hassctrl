@@ -332,7 +332,7 @@ lv_obj_t *caption_value(lv_obj_t *parent, const char *caption, const char *value
 }
 
 // A white card with a QR code: dark on light with a quiet zone, also in the dark theme
-// (docs/ui/design-system.md section 2).
+// (docs/ui/lvgl/lvgl-design.md section 2).
 lv_obj_t *qr_card(lv_obj_t *parent, const char *data, lv_coord_t size)
 {
     lv_obj_t *card = plain(parent);

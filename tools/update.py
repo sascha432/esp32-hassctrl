@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Updates a device over the network (docs/ui/web.md section 8).
+"""Updates a device over the network (docs/ui/web/web-app.md section 5).
 
     python tools/update.py <device> firmware <image.bin> [--user admin] [--password ...]
     python tools/update.py <device> filesystem <image.bin> ...

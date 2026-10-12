@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the file system image (LittleFS) of a board from web/ (docs/ui/web.md section 7) and, for a
+"""Builds the file system image (LittleFS) of a board from web/ (docs/ui/web/web-recovery.md) and, for a
 board built with CONFIG_HC_AUDIO_MP3, the sounds of sounds/ (docs/architecture.md section 9.6).
 
     python tools/build_fs.py <board>                 build/<board>/fs/storage.bin

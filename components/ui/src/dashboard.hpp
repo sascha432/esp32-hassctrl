@@ -1,6 +1,6 @@
 #pragma once
 
-// The dashboard screen (docs/ui/dashboard.md, docs/architecture.md section 4): the pages of the
+// The dashboard screen (docs/ui/lvgl/lvgl-dashboard.md, docs/architecture.md section 4): the pages of the
 // layout as grids of tiles. It owns the entity store and the pending actions, both only touched in
 // the LVGL task. The values come from the backend (take_event, drained every 20 ms), the tiles'
 // gestures go out as intents (call_service). A new layout (an import, an edit in the web UI)
@@ -73,7 +73,7 @@ void redraw(core::EntityIndex entity);
 // the tile's own name, else the entity's friendly name, else the entity id
 memory::String tile_name(core::TileIndex tile);
 
-// ------------------------------------------------- edit mode (edit_mode.hpp, web-dashboard.md section 3)
+// ------------------------------------------------- edit mode (edit_mode.hpp, lvgl-dashboard.md section 7)
 
 // true while the page is edited: a copy of the layout is drawn, the edit layer takes the touches
 bool editing();

@@ -1,10 +1,10 @@
 #pragma once
 
-// The panel a tile opens (docs/ui/dashboard.md section 6): a full screen view over the page with
+// The panel a tile opens (docs/ui/lvgl/lvgl-panels.md): a full screen view over the page with
 // the back tile, the name of the entity and the controls of its kind. One panel is open at a time;
 // the dashboard owns which one, subscribes its fields and passes the redraws of its entity on.
 //
-// The frame is the same for every kind (docs/ui/dashboard.md section 6):
+// The frame is the same for every kind (docs/ui/lvgl/lvgl-panels.md):
 //
 //   landscape                            portrait
 //   +------+---------------------+-+    +--+-----------------+--+
@@ -85,7 +85,7 @@ inline lv_coord_t step_size(const Frame &frame)
 }
 // holding a stepper steps this often (the touch repeats every 100 ms, too fast to stop on a value)
 constexpr uint32_t kStepRepeatMs = 250;
-// the color of an action on its way (docs/ui/dashboard.md section 3; cards show runner.hpp)
+// the color of an action on its way (docs/ui/lvgl/lvgl-dashboard.md section 4; cards show runner.hpp)
 constexpr uint32_t kPendingBorder = 0x00ffff;
 
 // a card of the panel in `area`, pressed a shade lighter

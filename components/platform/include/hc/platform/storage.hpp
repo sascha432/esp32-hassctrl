@@ -7,7 +7,7 @@
 //   "storage"   LittleFS at /fs: web UI files and the dashboard configuration
 //
 // A LittleFS that cannot be mounted is reported and never formatted automatically, so files that
-// can still be read survive until they are exported (docs/ui/web.md section 7). A partition that
+// can still be read survive until they are exported (docs/ui/web/web-recovery.md). A partition that
 // holds no LittleFS at all (new device, leftovers of another firmware) is formatted.
 
 #include <cstddef>

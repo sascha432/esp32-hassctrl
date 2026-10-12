@@ -102,7 +102,7 @@ struct SoundSettings {
 
 constexpr size_t kSoundNameSize = 32;
 
-// Settings, Alarm (docs/ui/screen.md section 5): rings at full volume until Stop or Snooze.
+// Settings, Alarm (docs/ui/lvgl/lvgl-settings.md section 3): rings at full volume until Stop or Snooze.
 struct AlarmSettings {
     bool on;
     uint8_t hour;
@@ -114,7 +114,7 @@ struct AlarmSettings {
     char sound[kSoundNameSize];
 };
 
-// Settings, Camera (docs/ui/screen.md section 5): the camera's picture, applied at once.
+// Settings, Camera (docs/ui/lvgl/lvgl-settings.md section 3): the camera's picture, applied at once.
 struct CameraPicture {
     bool auto_exposure;
     int8_t brightness;    // auto exposure: -50 to 50, moves the brightness it aims at

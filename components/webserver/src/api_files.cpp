@@ -1,4 +1,4 @@
-// The files of the file system (docs/ui/web.md section 7), login required after the setup:
+// The files of the file system (docs/ui/web/web-recovery.md), login required after the setup:
 //
 //   GET  /api/fs/files.zip   every file that can be read, as one .zip (stored, not compressed)
 //   POST /api/fs/format      confirm=yes: erases the file system (after the export)

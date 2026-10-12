@@ -136,7 +136,7 @@ struct ServiceFailed {
     memory::String message;
 };
 
-// What the history graph of a sensor panel shows (docs/ui/dashboard.md section 6).
+// What the history graph of a sensor panel shows (docs/ui/lvgl/lvgl-panels.md).
 enum class HistoryKind : uint8_t {
     Statistics, // the 5 minute means of the long term statistics (a sensor with a state_class)
     States,     // the state changes of an on/off entity (a binary sensor has no statistics)

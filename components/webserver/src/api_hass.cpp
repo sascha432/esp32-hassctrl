@@ -1,4 +1,4 @@
-// The Home Assistant connection (docs/ui/web.md section 6), login required after the setup:
+// The Home Assistant connection (docs/ui/web/web-app.md section 4), login required after the setup:
 //
 //   GET  /api/hass             state, address, whether a token is stored, version, last error
 //   POST /api/hass             url, token: stores them and connects; an empty token keeps the
@@ -11,7 +11,7 @@
 //                              the entity picker of the editor: {"more", "rows": [[id, name,
 //                              domain, device_class, unit], ...]}, the entities of the domain
 //                              (none: all) whose id or name contains q, at most 100; 503 without
-//                              a connection (docs/ui/web-dashboard.md section 2.3)
+//                              a connection (docs/ui/web/web-dashboard-editor.md section 3)
 //   GET  /api/hass/entity?id=  {"id", "name", "domain", "state", "icon", "device_class", "unit",
 //                              "color_modes", "temp_step"}, or {"id", "missing": true}
 //

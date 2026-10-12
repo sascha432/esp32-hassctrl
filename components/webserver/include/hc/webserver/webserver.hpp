@@ -1,6 +1,6 @@
 #pragma once
 
-// The web server of the device (docs/ui/web.md, docs/architecture.md section 9.4).
+// The web server of the device (docs/ui/web/web-app.md, docs/architecture.md section 9.4).
 //
 // HTTP on port 80, on the Wi-Fi and the hotspot. On the hotspot it is a captive portal: a DNS
 // responder answers every name with the hotspot address, the hotspot's DHCP announces the portal
@@ -53,7 +53,7 @@ struct HassAccess {
     esp_err_t (*trust)(const char *fingerprint, char *error, size_t error_size);
     // searches the network (mDNS) for about 2 s, blocking
     size_t (*discover)(HassFound *out, size_t max);
-    // The entity picker of the editor (docs/ui/web-dashboard.md section 2.3), blocking for a few
+    // The entity picker of the editor (docs/ui/web/web-dashboard-editor.md section 3), blocking for a few
     // seconds at most: Home Assistant's answer as JSON in a buffer of the large heap
     // (memory::allocate_large, the web server frees it), null with `error` set. `entities`: the
     // entities of `domain` (empty: all) whose id or name contains `query`; `entity`: the details of
@@ -141,7 +141,7 @@ struct BackupAccess {
     BackupReport (*import_file)(std::string_view text, bool check_only);
 };
 
-// The camera's web stream as the web UI sees it (docs/ui/web.md section 6, Camera); the picture
+// The camera's web stream as the web UI sees it (docs/ui/web/web-app.md section 4, Camera); the picture
 // itself is set on the screen, it needs the preview.
 constexpr size_t kCameraLoginSize = 33;
 
@@ -179,7 +179,7 @@ struct Config {
 // Starts the server and the DNS responder. The network component has to be started.
 esp_err_t start(const Config &config);
 
-// Removes the web UI login (Settings on the screen, docs/ui/screen.md section 5): the web UI is
+// Removes the web UI login (Settings on the screen, docs/ui/lvgl/lvgl-settings.md section 3): the web UI is
 // open in setup mode until a new login is created.
 esp_err_t reset_login();
 

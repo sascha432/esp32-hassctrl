@@ -1,6 +1,6 @@
 #pragma once
 
-// The sensor panel (docs/ui/dashboard.md section 6): the icon, the name and the live value of the
+// The sensor panel (docs/ui/lvgl/lvgl-panels.md): the icon, the name and the live value of the
 // entity above its history (history_view: the range buttons and the graph, the 5 minute means of
 // the long term statistics as a curve, or the timeline of an on/off entity).
 

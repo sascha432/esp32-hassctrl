@@ -1,6 +1,6 @@
 #pragma once
 
-// The alarm clock (docs/ui/screen.md section 5, Alarm): when the time of Settings, Alarm comes,
+// The alarm clock (docs/ui/lvgl/lvgl-settings.md section 3, Alarm): when the time of Settings, Alarm comes,
 // the screen wakes and the alarm screen lies over everything (lv_layer_top) with the time,
 // Snooze and Stop. The sound rings at full volume until one of them, or for 10 minutes. Snooze
 // rings again after the snooze time; an alarm without days rings once and turns itself off.

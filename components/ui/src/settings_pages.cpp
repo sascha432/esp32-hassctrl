@@ -1,4 +1,4 @@
-// The pages of Settings (docs/ui/screen.md section 5). Only one page exists at a time, so each
+// The pages of Settings (docs/ui/lvgl/lvgl-settings.md section 3). Only one page exists at a time, so each
 // page keeps the objects its refresh needs in file-local pointers, set by its builder.
 
 #include "settings_pages.hpp"

@@ -2,6 +2,12 @@
 
 ## 2026-10-12
 
+- Docs: the UI documents are split into `docs/ui/lvgl/` (the touch screen: design guide, touch,
+  dashboard, panels, camera, Settings and first setup) and `docs/ui/web/` (design guide, web app,
+  dashboard editor, recovery); the file names start with `lvgl-` or `web-`. Two design guides
+  written from the code (`lvgl-design.md`, `web-design.md`) and a touch document
+  (`lvgl-touch.md`); `design-system.md` brought up to date and split between them. The
+  references in code comments, tools and docs point to the new files.
 - Web UI in the recovery app: the System page no longer shows the Backup card (the recovery app
   has no backup; export and import failed with 404).
 - Time zones from tzdata 2026e (was 2025b: posix_tz_db is no longer updated;

@@ -11,7 +11,7 @@
 CONFIG_PARTITION_TABLE_CUSTOM=y
 
 # A new firmware has to confirm itself after an update, otherwise the bootloader goes back to the
-# previous one or to the recovery app (docs/ui/web.md section 8)
+# previous one or to the recovery app (docs/ui/web/web-app.md section 5)
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
 # Wi-Fi and lwIP buffers go to the PSRAM where there is one, internal RAM stays for DMA and LVGL

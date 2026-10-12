@@ -1,6 +1,6 @@
 #pragma once
 
-// The camera image of a picture tile (docs/ui/dashboard.md section 6): RGB565 frames the size of
+// The camera image of a picture tile (docs/ui/lvgl/lvgl-camera.md): RGB565 frames the size of
 // the tile or of the screen, cut from a larger JPEG. Plain C++, host tested; the decoding itself is
 // in hass (ESP-IDF's JPEG decoder).
 

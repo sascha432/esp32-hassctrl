@@ -1,4 +1,4 @@
-// Home Assistant instances on the network (docs/ui/web.md section 6): Home Assistant announces
+// Home Assistant instances on the network (docs/ui/web/web-app.md section 4): Home Assistant announces
 // itself over mDNS as _home-assistant._tcp, with its own address in the TXT record
 // (internal_url, base_url), its name (location_name) and its version.
 

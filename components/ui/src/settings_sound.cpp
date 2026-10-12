@@ -1,4 +1,4 @@
-// Settings, Sound (docs/ui/screen.md section 5, Sound): only with an audio output or a vibration
+// Settings, Sound (docs/ui/lvgl/lvgl-settings.md section 3, Sound): only with an audio output or a vibration
 // motor (sound::page_available()). The volume is also on quick settings (volume_card()).
 
 #include "settings.hpp"

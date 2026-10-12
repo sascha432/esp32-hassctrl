@@ -1,4 +1,4 @@
-// The log (docs/ui/web.md section 6, hc/logbuf/logbuf.hpp), login required after the setup:
+// The log (docs/ui/web/web-app.md section 4, hc/logbuf/logbuf.hpp), login required after the setup:
 //
 //   GET  /api/log        {"debug", "capacity"}
 //   POST /api/log        debug=1|0: info messages are kept as well (stored)

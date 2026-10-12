@@ -1,6 +1,6 @@
 #pragma once
 
-// Firmware and file system updates (docs/architecture.md section 9.5, docs/ui/web.md section 8).
+// Firmware and file system updates (docs/architecture.md section 9.5, docs/ui/web/web-app.md section 5).
 //
 // Firmware: written to the next OTA partition. On a 16 MB board that is the other one and the
 // main firmware updates itself. On a 4 MB board the only OTA partition is the running one, so the

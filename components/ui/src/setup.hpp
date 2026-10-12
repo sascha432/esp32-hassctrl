@@ -1,6 +1,6 @@
 #pragma once
 
-// The first setup (docs/ui/screen.md section 4): shown instead of the dashboard while no Wi-Fi
+// The first setup (docs/ui/lvgl/lvgl-settings.md section 4): shown instead of the dashboard while no Wi-Fi
 // network is saved, on the first boot and after a factory reset.
 //
 // Both paths run at the same time. On the screen, "Choose Wi-Fi" opens the network and password

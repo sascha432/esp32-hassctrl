@@ -3,7 +3,7 @@
 namespace hc::webserver::detail {
 
 // No external resources: in the captive portal there is no internet. Barely any design on
-// purpose; the web UI on LittleFS is the real one (docs/ui/web.md section 7).
+// purpose; the web UI on LittleFS is the real one (docs/ui/web/web-recovery.md).
 const char kBuiltinPage[] = R"HTML(<!doctype html>
 <html lang="en">
 <head>

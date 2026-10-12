@@ -1,4 +1,4 @@
-// Login and session (docs/ui/web.md section 5):
+// Login and session (docs/ui/web/web-app.md section 3):
 //
 //   GET  /api/session      {"setup": no login exists yet, "logged_in", "user"}
 //   POST /api/setup/user   username, password            only in setup mode: creates the login

@@ -8,7 +8,7 @@
 // the same checks however it arrived. A finished layout does not change; an edit builds a new one
 // (the edit functions at the end work on a copy).
 //
-// Placement (docs/ui/web-dashboard.md section 1): per orientation, the tiles with a cell of their
+// Placement (docs/ui/lvgl/lvgl-dashboard.md section 6): per orientation, the tiles with a cell of their
 // own take it first, then the others fill the first free block in list order.
 
 #include <cstdint>
@@ -161,7 +161,7 @@ std::expected<void, Problem> finish(Layout &layout);
 // The grid of a page in that orientation (portrait is the landscape grid turned).
 Span grid_in(const Page &page, Orientation o);
 
-// ---- edits of a finished layout (the edit mode of the screen, docs/ui/web-dashboard.md section 3)
+// ---- edits of a finished layout (the edit mode of the screen, docs/ui/lvgl/lvgl-dashboard.md section 7)
 
 // Moves `tile` to `cell` in orientation `o`. Every tile of its page gets its current cell (the page
 // becomes arranged in `o`), and the tiles the moved tile covers are pushed aside: each takes the

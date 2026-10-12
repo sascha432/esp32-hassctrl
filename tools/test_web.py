@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests the web server of a running device (docs/ui/web.md). Needs a device with a login.
+"""Tests the web server of a running device (docs/ui/web/web-app.md). Needs a device with a login.
 
     python tools/test_web.py <device> [--user admin] [--password ...]
 

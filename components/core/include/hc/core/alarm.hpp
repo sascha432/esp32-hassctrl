@@ -1,6 +1,6 @@
 #pragma once
 
-// When the alarm rings (Settings, Alarm; docs/ui/screen.md section 5). Plain C++ in local time:
+// When the alarm rings (Settings, Alarm; docs/ui/lvgl/lvgl-settings.md section 3). Plain C++ in local time:
 // the UI asks every few seconds with the clock of the device.
 
 #include <cstddef>

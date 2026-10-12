@@ -1,6 +1,6 @@
 #pragma once
 
-// The touch sounds (docs/ui/screen.md section 5, Sound), each with its own switch in Settings:
+// The touch sounds (docs/ui/lvgl/lvgl-settings.md section 3, Sound), each with its own switch in Settings:
 // - a click for every tap on a tap target (Backend::play_touch_sound). Tap targets are LVGL's
 //   input widgets (button, switch, slider, arc, button matrix and the keyboard) and the plain
 //   objects marked with tappable(). A tap on a container, a backdrop or the screen, and the end

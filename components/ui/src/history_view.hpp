@@ -1,6 +1,6 @@
 #pragma once
 
-// The history of an entity in a panel (docs/ui/dashboard.md section 6): "History" with the range
+// The history of an entity in a panel (docs/ui/lvgl/lvgl-panels.md): "History" with the range
 // buttons (48, 24 and 12 hours) and the card below it with the graph: the 5 minute means of the
 // long term statistics as a curve, or the timeline of an on/off entity. The history is asked for
 // when the view is built, when the range changes and once a minute. The sensor panel and the

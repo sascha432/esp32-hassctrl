@@ -1,4 +1,4 @@
-// The dashboard editor of the web UI (docs/ui/web-dashboard.md section 2). Loaded by the Dashboard
+// The dashboard editor of the web UI (docs/ui/web/web-dashboard-editor.md). Loaded by the Dashboard
 // page only, so the setup on a phone stays small. It edits the JSON of GET /api/dashboard as it is
 // and sends it back whole; the device checks it (POST ...&check=1 a second after each change) and
 // stores it (POST with the revision it was read at, 409 when the screen or an import was faster).
@@ -16,7 +16,7 @@ window.hcEditor = (() => {
   // the document as the device takes it: no local keys, no cells of an answer
   const plain = (v) => JSON.parse(JSON.stringify(v, (k, x) => (k === "_k" || k === "cells" ? undefined : x)));
 
-  // the device's screen in landscape (GET /api/dashboard/editor); margin 8 (docs/ui/dashboard.md)
+  // the device's screen in landscape (GET /api/dashboard/editor); margin 8 (docs/ui/lvgl/lvgl-dashboard.md)
   let screen = { name: "", w: 480, h: 320, gap: 4 };
 
   // ------------------------------------------------------------------------------- icons

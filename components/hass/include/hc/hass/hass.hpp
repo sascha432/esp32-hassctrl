@@ -142,7 +142,7 @@ void stop_stream();
 // smallest that covers the box.
 void set_stream_scale(int shift);
 
-// The entity picker of the web editor (docs/ui/web-dashboard.md section 2.3): a one-shot template
+// The entity picker of the web editor (docs/ui/web/web-dashboard-editor.md section 3): a one-shot template
 // over the connection, its result as JSON text (hass_protocol::entity_list_message and
 // entity_details_message say what it holds). Both block the calling task until Home Assistant
 // answered, at most `timeout_ms`; false with `error` set without a connection, on a template error

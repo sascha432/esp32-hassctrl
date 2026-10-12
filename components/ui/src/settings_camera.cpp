@@ -1,4 +1,4 @@
-// Settings, Camera (docs/ui/screen.md section 5, Camera): only with a camera
+// Settings, Camera (docs/ui/lvgl/lvgl-settings.md section 3, Camera): only with a camera
 // (Backend::camera_info). The page holds the mains frequency and the web stream; its login has a
 // form of its own, and the preview shows the picture with the controls that change it.
 //

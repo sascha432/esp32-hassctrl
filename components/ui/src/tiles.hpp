@@ -1,6 +1,6 @@
 #pragma once
 
-// The tiles of a dashboard page (docs/ui/dashboard.md): one view per tile, drawn from the state of
+// The tiles of a dashboard page (docs/ui/lvgl/lvgl-dashboard.md): one view per tile, drawn from the state of
 // its entity and the action that is pending for it. The gestures of a tile turn into intents
 // through the dashboard (dashboard.hpp).
 

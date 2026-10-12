@@ -1,6 +1,6 @@
 #pragma once
 
-// The web UI login (docs/ui/web.md section 5).
+// The web UI login (docs/ui/web/web-app.md section 3).
 //
 //   stored login = PBKDF2-HMAC-SHA256(salt, username + password)
 //   signing key  = HMAC(stored login, counter)

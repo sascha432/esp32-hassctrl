@@ -239,7 +239,7 @@ esp_err_t get_any(httpd_req_t *req)
     }
     const size_t length = std::strcspn(req->uri, "?#");
     // "/" without web files, and "/recovery" always: login, update and restart even when the web
-    // UI on LittleFS is broken (docs/ui/web.md section 7)
+    // UI on LittleFS is broken (docs/ui/web/web-recovery.md)
     if ((length == 1 && req->uri[0] == '/') || (length == 9 && std::strncmp(req->uri, "/recovery", 9) == 0)) {
         httpd_resp_set_type(req, "text/html; charset=utf-8");
         httpd_resp_set_hdr(req, "Cache-Control", "no-store");

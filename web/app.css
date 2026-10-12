@@ -1,4 +1,4 @@
-/* The web UI's own styles on top of Bootstrap 5.3 (docs/ui/design-system.md section 7). A custom
+/* The web UI's own styles on top of Bootstrap 5.3 (docs/ui/web/web-design.md section 2). A custom
    theme overrides Bootstrap's CSS variables in a file like this one. */
 
 .app-header { max-width: 100%; }

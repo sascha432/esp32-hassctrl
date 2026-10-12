@@ -523,7 +523,7 @@ extern "C" void app_main()
     // After an update the bootloader only keeps this firmware if it confirms itself: until then a
     // reset or a power loss starts the recovery app. It confirms as soon as the screen, the
     // network and the web server run, so an update can be repeated from here; later steps add the
-    // checks that prove the firmware works (docs/ui/web.md section 8). The development console,
+    // checks that prove the firmware works (docs/ui/web/web-app.md section 5). The development console,
     // created at the start, takes commands from here on.
     const esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
     if (err != ESP_OK) {

@@ -22,7 +22,7 @@ namespace t = theme;
 constexpr uint32_t kPollMs = 20;
 // a new layout is looked for this often
 constexpr uint32_t kLayoutCheckMs = 500;
-// docs/ui/dashboard.md: the margin around the grid (the gap between tiles is Options::tile_gap)
+// docs/ui/lvgl/lvgl-dashboard.md: the margin around the grid (the gap between tiles is Options::tile_gap)
 constexpr lv_coord_t kMargin = 8;
 // Options::slide_pages: how long a page takes to slide in
 constexpr uint32_t kSlideMs = 250;

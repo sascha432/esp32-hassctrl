@@ -136,7 +136,7 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       reports.
 - [x] Test screen out of the firmware (2026-10-09): only with `CONFIG_HC_BOARD_BRING_UP=y` in the
       board's sdkconfig.defaults (docs/adding-a-board.md), none of the four boards sets it; the
-      map files have no `show_test_screen`. The start screen (Home Assistant logo, docs/ui/screen.md
+      map files have no `show_test_screen`. The start screen (Home Assistant logo, docs/ui/lvgl/lvgl-dashboard.md
       section 1.2) took its place.
 - [x] **Start screen and backlight on the P4** (2026-10-09, confirmed working by the user on the
       JC4880P443C; built for all four boards): the logo with the runner after boot until the dashboard's values are in,
@@ -201,7 +201,7 @@ Step 4 is done in increments. Running on the T4 since 2026-10-06:
 - **Static files** from `/fs/www` with gzip (`file.gz`); without them the built-in status page.
 - A normal boot scans and follows the network order (network 1 was chosen, 4.1 s); the fast
   reconnect is kept for waking from deep sleep.
-- **Login** (docs/ui/web.md section 5): the web UI is open in setup mode until a login exists.
+- **Login** (docs/ui/web/web-app.md section 3): the web UI is open in setup mode until a login exists.
   `POST /api/setup/user` creates it (only in setup mode), `/api/login`, `/api/logout`,
   `/api/logout-all`, `GET /api/session`. PBKDF2-HMAC-SHA256 through PSA crypto (mbedTLS 4.1),
   checked at boot against the RFC 7914 test vector; token = HMAC with the key derived from the
@@ -219,7 +219,7 @@ Step 4 is done in increments. Running on the T4 since 2026-10-06:
 - SNTP starts with the network (pool.ntp.org), needed for the token expiry.
 - Console: `login-reset yes` removes the web UI login (setup mode again).
 
-**Screen** (docs/ui/screen.md), running on both boards since 2026-10-06, tested through the
+**Screen** (docs/ui/lvgl/lvgl-settings.md), running on both boards since 2026-10-06, tested through the
 console (`swipe`, `tap`, `screenshot`) in every rotation:
 
 - **Pull-down zone** (80 x 24 px, top center, `components/ui/src/overlay.cpp`): dragging down
@@ -282,7 +282,7 @@ Open:
 - [x] **Pull-down hard to hit** (your report, 2026-10-07): the start zone grew from 80 x 24 to
       160 x 40 px, the drag to open from 30 to 24 px (`components/ui/src/overlay.cpp`). Flashed;
       tried on the WT32, confirmed by you 2026-10-10. A tap on the top center of a tile under the zone now hits the zone.
-- [x] **First setup screen** (2026-10-07, `components/ui/src/setup.cpp`, screen.md section 4):
+- [x] **First setup screen** (2026-10-07, `components/ui/src/setup.cpp`, lvgl-settings.md section 4):
       shown at boot while no network is saved (console: `setup`). Two ways side by side
       (stacked in portrait): "Choose Wi-Fi" on the screen, or the phone (QR code to join the
       hotspot, its name and password, then the portal or http://192.168.4.1). Once a network is
@@ -290,7 +290,7 @@ Open:
       `<name>.local`, Next to the dashboard) or failed (the error, "Other network", "Try again").
       Tested on the T4 through the console: welcome, Choose Wi-Fi and back, adding a network,
       connected, Next.
-- [x] Setup screen: the Web UI login and Done pages of screen.md section 4 dropped (2026-10-10):
+- [x] Setup screen: the Web UI login and Done pages of lvgl-settings.md section 4 dropped (2026-10-10):
       the browser setup on the phone does Wi-Fi, creating the login (signs in at once), then
       Done with "Keep the hotspot on", which works (tried by you); `Next` on the screen goes straight to the dashboard.
 - [x] Setup screen: the "failed" view seen and tested by the user on the WT32 (2026-10-10): the
@@ -506,7 +506,7 @@ Open:
 - [x] Build the web UI (Bootstrap) and its LittleFS image in `tools/build.py` (done: `tools/build_fs.py`); the littlefs
       component's `littlefs_create_partition_image` (littlefs-python 0.15) creates images that
       mount on the device (tested with a test image).
-- **Logs page** (2026-10-10, [ui/web.md](ui/web.md) section 6): new component `logbuf`, a 16 KB
+- **Logs page** (2026-10-10, [ui/web/web-app.md](ui/web/web-app.md) section 4): new component `logbuf`, a 16 KB
   ring buffer in PSRAM fed by an `esp_log` output hook, started first in `app_main` of both
   apps (the recovery app has it as well, 16 KB of its partition left). Errors and warnings are
   always kept; Debug (stored, `logbuf/debug`) keeps info messages too. The serial output has
@@ -587,7 +587,7 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
       (architecture.md section 11). Measure before and after step 6.
 - [x] A Home Assistant with a self-signed certificate (https without a public CA) is refused
       ("certificate is not trusted"). Done 2026-10-10: trusted on first use (architecture.md
-      section 6, web.md section 6). Tested on the WT32 over the API:
+      section 6, web-app.md section 4). Tested on the WT32 over the API:
       - `https://hassctrltestdomain.com`: "the host name cannot be resolved";
       - `https://google.com`: certificate accepted by the bundle, then "no Home Assistant at this
         address (HTTP 404)". It needed cross-signed verification in the bundle (GTS Root R1 comes
@@ -658,8 +658,8 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
   (was 56), about 30 KB PSRAM for your dashboard; the stored JSON is 10.8 KB.
 - Not done: the web UI page for it (the Dashboard page still says "comes later"), the combined
   backup file with the settings sections, and `hass:` of an import is only reported as ignored.
-- [ ] **Dashboard editing** (planned 2026-10-08, [ui/web-dashboard.md](ui/web-dashboard.md), demo
-      `docs/ui/dashboard-editor-demo.html` reviewed by you): tile positions per orientation in the
+- [ ] **Dashboard editing** (planned 2026-10-08, [ui/web/web-dashboard-editor.md](ui/web/web-dashboard-editor.md), demo
+      `docs/ui/web/web-dashboard-editor-demo.html` reviewed by you): tile positions per orientation in the
       format, edit mode on the screen (1000 ms long press, drag with push aside, long press on a
       tile removes it, Done/Cancel), web UI editor with an Import & export tab; the backup goes
       to the System page. Steps in section 5 of the plan.
@@ -694,7 +694,7 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,
-      steppers, options row, list items and sliders (docs/ui/dashboard.md section 6), the color
+      steppers, options row, list items and sliders (docs/ui/lvgl/lvgl-panels.md), the color
       temperature marker a rounded bar. Fix: the climate `+`/`-` in portrait did nothing (the arc
       took their taps). Approved by you, tested on a 3.5" board and the P4.
 
@@ -729,7 +729,7 @@ Dashboard screen (2026-10-07, in the Windows version and on the T4 with your das
 - `ui`: `dashboard.cpp` (pages, navigation, the entity store, pending actions, the values from the
   backend every 20 ms, a new layout rebuilds the screen, turning rebuilds the page), `tiles.cpp`
   (switch, light, dimmer fill with drag and double tap, button, sensor, climate 1x2 with the step
-  bars, area, back tile, picture placeholder), `icons.cpp`. Described in `docs/ui/dashboard.md`.
+  bars, area, back tile, picture placeholder), `icons.cpp`. Described in `docs/ui/lvgl/lvgl-dashboard.md`.
 - `core/pending.hpp`: `PendingTracker` (expected state, level within 3, setpoint within 0.05,
   5 s timeout), host tested. `PageValues`/`ServiceFailed`/`HassEvent` moved to `core`, so `ui`
   does not depend on `hass`. The `Backend` has `dashboard`, `subscribe_page`, `call_service`,
@@ -774,7 +774,7 @@ Next:
         (`esp-tls: select() timeout` every round, 10 s); the tile shows only its icon, no error.
 - [ ] Review the dashboard in the Windows version (`python tools/sim.py`, your dashboard with
       `--dashboard docs/.retracted/dashboard/hass.yaml`); the open points are in
-      `docs/ui/dashboard.md` section 5.
+      `docs/ui/lvgl/lvgl-dashboard.md` section 8.
 - [x] Camera full screen zoom and move (2026-10-11): "+", "-", "X", swiping, kept zoom and
       position, the preview in the stream's place and the 30 s wait for a stream; confirmed by you.
       Flashed on all three boards.
@@ -811,12 +811,12 @@ Next:
       Windows version (2026-10-07): tapping a sensor, a dimmer and a climate tile does nothing,
       because these panels are not built yet (the taps are reserved for them). Order (your
       decision): light, climate, graph.
-  - [x] **Light panel** built (2026-10-07, `panel.cpp`, `light_panel.cpp`, docs/ui/dashboard.md
-        section 6): power, level slider with steppers, color wheel, color temperature, effects.
+  - [x] **Light panel** built (2026-10-07, `panel.cpp`, `light_panel.cpp`, docs/ui/lvgl/lvgl-panels.md
+        section 2): power, level slider with steppers, color wheel, color temperature, effects.
         Checked by me in the Windows version at 480x320, 320x240 and 320x480; firmware builds for
         the WT32 (1.78 MB). Approved by you in the Windows version (2026-10-07); the gap between
         the back tile and the name widened from 4 to 12 px after your review.
-  - [x] **Climate panel** built (2026-10-07, `climate_panel.cpp`, docs/ui/dashboard.md section 6):
+  - [x] **Climate panel** built (2026-10-07, `climate_panel.cpp`, docs/ui/lvgl/lvgl-panels.md):
         mode/preset/fan pills with their lists, the arc (drag), the steppers. A tap on a climate
         1x1 tile, or beside the bars of a 1x2 tile, opens it. Checked by me in the Windows version
         at 480x320, 320x240 and 320x480; firmware builds for the WT32 (1.80 MB; 5 new glyphs).
@@ -827,8 +827,8 @@ Next:
         Windows version; one list implementation in `panel.cpp` for both panels now. After your
         portrait screenshot (3 modes in 2 columns, the third alone): a list that fits in one
         column is a single centered column.
-  - [x] **Sensor history panel** built (2026-10-07, `sensor_panel.cpp`, docs/ui/dashboard.md
-        section 6): live value, 48/24/12 h, the statistics curve with round value labels and
+  - [x] **Sensor history panel** built (2026-10-07, `sensor_panel.cpp`, docs/ui/lvgl/lvgl-panels.md
+        section 4): live value, 48/24/12 h, the statistics curve with round value labels and
         local hour lines, the on/off timeline of binary sensors with its legend. New on the way:
         `core::History`, `hass_protocol::history_message`/`decode_history` (host tested, 53
         tests), the hass task reads the window in 6 h chunks (`hass::fetch_history`), the
@@ -841,7 +841,7 @@ Next:
         Your review (2026-10-07): the motion strip has 16 px left and right (it kept the column of
         the value labels), is centered in the card above the time labels, the legend centered
         above it.
-  - [x] **Camera image** built (2026-10-07, docs/ui/dashboard.md section 6): the picture tile
+  - [x] **Camera image** built (2026-10-07, docs/ui/lvgl/lvgl-camera.md): the picture tile
         shows the image with its name on a band and refreshes it (`refresh`), a tap shows it full
         screen. New: `core::Image` with the cover scaling (host tested, 54 tests), the media task
         of `hass` (`media.cpp`: camera proxy over `esp_http_client`, `esp_jpeg` 1.3.1 with the ROM
@@ -850,7 +850,7 @@ Next:
         WT32 (1.83 MB). **Not tested against your cameras** (the device was not flashed): stack
         use, decode time and progressive JPEGs still to see. Approved by you in the Windows version
         (2026-10-07), the name on the band centered after your review.
-  - [x] **MJPEG stream test** (2026-10-08, your request; docs/ui/dashboard.md "MJPEG stream"):
+  - [x] **MJPEG stream test** (2026-10-08, your request; docs/ui/lvgl/lvgl-camera.md "MJPEG stream"):
         `stream:` of a picture tile, first frame on the tile, live full screen with the frame rate.
         Tested on the WT32 (COM9, 192.168.0.199) with your TestCams: 800x480 1.3-1.4 fps,
         640x320 2.3-2.4 fps, the 2 fps stream complete. HA snapshots tested on the device too
@@ -902,7 +902,7 @@ Next:
       without a level" (100 %). Now the store keeps the last level (`last_brightness`) and a light
       that is switched on shows it; one never seen on shows `On`. Checked in the Windows version,
       confirmed by you together with the light panel (2026-10-07). The cyan border you saw is the pending
-      look (docs/ui/dashboard.md section 3): the action is on its way until HA reports it.
+      look (docs/ui/lvgl/lvgl-dashboard.md section 4): the action is on its way until HA reports it.
 
 - [x] **Lock tile and panel** (2026-10-11, your request: `lock.front_door` showed as a sensor
       without a graph). `lock.*` is its own kind; the tile opens the lock panel (never unlocks
@@ -1169,7 +1169,7 @@ test: the picture over the dashboard and a fixed login guest / password.
       dark, back to 41 in 0.5 s) and then holds; small corrections of a few 1/16, no back and forth.
 - [x] The test was successful, the camera stays (you, 2026-10-12): Settings, Camera below Sound;
       no dashboard tile; no picture over the dashboard any more.
-- [x] Settings, Camera (docs/ui/screen.md section 5): Preview; Mains 50 / 60 Hz; Stream on/off,
+- [x] Settings, Camera (docs/ui/lvgl/lvgl-settings.md section 3): Preview; Mains 50 / 60 Hz; Stream on/off,
       Login, Size (1288x728 / 644x364), Frames/s (5 / 10 / 15 / 30), Quality (30 to 95). The stream
       starts off and goes on only with a login (your decision); the login form is the Wi-Fi
       password page's (username, password, eye). The preview: the whole picture (portrait: above
@@ -1193,7 +1193,7 @@ test: the picture over the dashboard and a fixed login guest / password.
       LV_EVENT_READY to the text field, OK to the keyboard and the field); the forms listen on
       their fields now (`set_form`), also the Wi-Fi password page.
 - [x] Your test on the device: the settings and the preview work (2026-10-12).
-- [x] The camera's settings in the backup file (docs/ui/web.md section 6): a `camera:` section
+- [x] The camera's settings in the backup file (docs/ui/web/web-app.md section 4): a `camera:` section
       on a device with a camera, ignored as "not on this device" elsewhere; the stream's password
       is not written, a `stream_password:` added by hand is used (your decision). Checked: the
       P4's export (only comments mention passwords), a check with a `stream_password:`, an import
@@ -1243,7 +1243,7 @@ Setup and network ([architecture.md](architecture.md) section 9.2):
 - [ ] Slowing down reconnect scans while a phone is on the hotspot: still open, less important
       now that most reconnects need no scan.
 
-Screen ([ui/screen.md](ui/screen.md) section 7):
+Screen ([ui/lvgl/lvgl-touch.md](ui/lvgl/lvgl-touch.md) section 6, [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 8):
 
 - [ ] Does a swipe from the left edge also go back?
 - [x] Pull-down start zone 80 x 24 px; message order errors, connecting, hint (implemented,
@@ -1256,9 +1256,9 @@ Orientation ([architecture.md](architecture.md) section 8.1):
       panel controller. Running on the WT32-SC01.
 - [x] MPU6050 wiring documented on the WT32-SC01 device page.
 
-Web UI ([ui/web.md](ui/web.md) section 10):
+Web UI ([ui/web/web-app.md](ui/web/web-app.md) section 7):
 
-- [x] OTA push method in detail: done, see ui/web.md section 8. Section 10 of web.md has no open points now (2026-10-10).
+- [x] OTA push method in detail: done, see ui/web/web-app.md section 5. Section 10 of web.md (now web-app.md section 7) had no open points then (2026-10-10).
 
 Settings export and import (2026-10-07; decided: no secrets in the export, Wi-Fi networks as
 names only, YAML like the dashboard, an import may carry passwords added by hand):
@@ -1345,7 +1345,7 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
       storage reads it too. The settings file is YAML now, so its import does not need it, and
       the recovery app stays without cJSON.
 - [x] **Where** (decided 2026-10-07): System page, a "Backup" card with Export and Import
-      **above** the update card, so the backup is seen before an update (web.md section 6).
+      **above** the update card, so the backup is seen before an update (web-app.md section 4).
       2026-10-09: no backup in the recovery app (was: the network section next to files.zip).
       Recovery gets the device back on the network; the import follows in the main firmware.
       NVS survives a firmware reflash, files.zip covers LittleFS, and the recovery partition is
@@ -1399,6 +1399,19 @@ Dashboard ([architecture.md](architecture.md) section 14):
       architecture.md checked against the code on 2026-10-12: section 4 now describes the
       queues as built (no typed mailbox, no `ReloadConfig`: the UI polls the current layout),
       the components, partitions, repository layout and section 13 brought up to date.
+- [x] **UI docs split into LVGL and web** (2026-10-12, your request: no design guides found).
+      `docs/ui/lvgl/` (lvgl-design, lvgl-touch, lvgl-dashboard, lvgl-panels, lvgl-camera,
+      lvgl-settings) and `docs/ui/web/` (web-design, web-app, web-dashboard-editor,
+      web-recovery); design-system.md, screen.md, dashboard.md, web.md and web-dashboard.md are
+      gone, their sections moved unchanged. New: the two design guides (lvgl-design.md: the theme
+      as built, the building blocks of a page, texts, checklist; web-design.md: the page frame,
+      the helpers of `app.js`, Bootstrap patterns, checklist) and lvgl-touch.md (targets, every
+      gesture with its values, click and vibration, waking). The terms are in ui/README.md. Every
+      reference in code, tools and docs points to the new files and sections (the changelog's
+      old entries keep their names). design-system.md was out of date: fonts (no 24/32, the large
+      set), icons 24/48 (not 20/48), no `lv_dpx()` scaling (the board options instead).
+- [ ] The accent cyan `0x00ffff` is defined three times (`panel::kPendingBorder`, `runner.cpp`,
+      `history_view.cpp`); proposal: `theme::kAccent` (lvgl-design.md section 10).
 
 ## Next steps
 

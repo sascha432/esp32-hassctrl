@@ -1,24 +1,11 @@
-# Web UI layout
+# Web app
 
-Status: **proposal**, partly running (2026-10-07): setup, login, status, Wi-Fi, hotspot and
-system, Home Assistant, dashboard and logs pages in `web/`.
-Terms and colors are in [design-system.md](design-system.md).
+Status: **running**: setup, login, Status, Home Assistant, Wi-Fi, Hotspot, Camera, Dashboard, Logs
+and System pages in `web/`. The look, the page frame and how a page is built:
+[web-design.md](web-design.md). The dashboard editor: [web-dashboard-editor.md](web-dashboard-editor.md).
+The built-in recovery page and the recovery app: [web-recovery.md](web-recovery.md).
 
-## 1. Principles
-
-* **Phone first.** The first contact is a phone in the captive portal. One column, at most
-  800 px wide (480 until 2026-10-10; the log's lines need the room), centered on large screens.
-* **Works without internet.** Everything is served by the device: no CDN, no web fonts. In the
-  captive portal there is no internet.
-* **Bootstrap look with light and dark mode** (decided), the full Bootstrap CSS file (decided),
-  see [design-system.md](design-system.md) section 7. No JavaScript framework.
-* **Secrets are write-only.** The web UI can set Wi-Fi passwords and the Home Assistant token, but
-  never reads them back. It shows whether a secret is stored.
-* **Always recoverable.** Login and firmware update work even when the file system is broken
-  (decided), see section 7.
-* **Same terms** as the screen. English only (decided).
-
-## 2. Site map
+## 1. Site map
 
 ```
 Setup                     only while the device is not set up, no login
@@ -44,46 +31,7 @@ with a tool. There is no file manager (decided).
 Settings are exported and imported on the System page as YAML, without secrets; an import may
 carry passwords added by hand (decided).
 
-## 3. Page frame
-
-A header with the device name, the state icons and the menu button, then the page title and cards.
-
-```
-+--------------------------------------------+
-| hassctrl-1a2b            [Wi-Fi] [HA]  [=] |
-+--------------------------------------------+
-| Page title                                 |
-|                                            |
-| +--------------------------------------+   |
-| | card                                 |   |
-| +--------------------------------------+   |
-| +--------------------------------------+   |
-| | card                                 |   |
-| +--------------------------------------+   |
-+--------------------------------------------+
-```
-
-The menu opens over the page on phones. On screens wider than 800 px it is a sidebar instead. It
-also holds the light, dark or automatic mode.
-
-```
-+--------------------------------------------+
-| hassctrl-1a2b            [Wi-Fi] [HA]  [x] |
-+--------------------------------------------+
-|  Status                                    |
-|  Home Assistant                            |
-|  Wi-Fi                                     |
-|  Hotspot                                   |
-|  Dashboard                                 |
-|  Logs                                      |
-|  System                                    |
-+--------------------------------------------+
-|  Light / dark / auto                       |
-|  Log out                                   |
-+--------------------------------------------+
-```
-
-## 4. Setup pages
+## 2. Setup pages
 
 The captive portal opens the first page. Three steps, shown as `1 / 3` in the header.
 
@@ -130,7 +78,7 @@ proposal: 15 minutes).
 If the screen and a phone submit setup data at the same time, the first submission wins and the
 other side is not told (decided).
 
-## 5. Login
+## 3. Login
 
 ```
 +--------------------------------------------+
@@ -160,7 +108,7 @@ other side is not told (decided).
 * PBKDF2-HMAC-SHA256 with 1000 iterations: 10000 took 5.3 s on the ESP32 (PSA crypto) and
   blocked the web server for every login; 1000 take about 0.4 s.
 
-## 6. Main pages
+## 4. Main pages
 
 **Home Assistant.** URLs found by mDNS are offered in the list, a URL can also be typed. The token
 field is empty. `stored` says that a token exists.
@@ -179,7 +127,7 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
   token cannot have (a space from pasting).
 * Changed from the sketch below: **Save and connect** instead of "Test connection" and "Save".
   The status shows the result within seconds. Open: a separate test that does not store the
-  token, so a typo cannot replace a working token ([TODO](../TODO.md)).
+  token, so a typo cannot replace a working token ([TODO](../../TODO.md)).
 * The header's `HA` is green while connected, red for a rejected token, yellow otherwise.
 * A self-signed certificate (https, 2026-10-10, confirmed by the user): when the bundle does not trust the server's
   certificate, the card "Certificate not trusted" shows its SHA-256 fingerprint
@@ -193,7 +141,7 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
   removes both), `POST /api/hass/reconnect`, `POST /api/hass/certificate` (`fingerprint`, 64 hex
   digits, colons allowed; empty forgets it), `GET /api/hass/discover`, and for the
   dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`
-  ([web-dashboard.md](web-dashboard.md) section 2.3). The token is write-only. The recovery app has none of them (404).
+  ([web-dashboard-editor.md](web-dashboard-editor.md) section 3). The token is write-only. The recovery app has none of them (404).
 
 ```
 +--------------------------------------------+
@@ -239,7 +187,7 @@ whole log as text. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` 
 +--------------------------------------------+
 ```
 
-**System.** Firmware and file system updates are uploaded here (decided), see section 8. The
+**System.** Firmware and file system updates are uploaded here (decided), see section 5. The
 backup card sits above the update card, so the backup is seen before an update (decided).
 
 Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`,
@@ -280,10 +228,10 @@ its System page shows no Backup card.
 +--------------------------------------------+
 ```
 
-### Camera stream
+### 4.1 Camera stream
 
 Only on a board with a camera (docs/architecture.md section 9.8). The stream is set on the screen
-(Settings, Camera, docs/ui/screen.md section 5) or on the web UI's Camera page (2026-10-12); the
+(Settings, Camera, docs/ui/lvgl/lvgl-settings.md section 3) or on the web UI's Camera page (2026-10-12); the
 picture (exposure, gain, mirror, flip, mains frequency) only on the screen, next to its preview.
 
 **Camera page** (in the menu only when `/api/status` says `"camera": true`): one form with "Stream
@@ -309,55 +257,7 @@ removes the login and the stream goes off.
   `http://user:password@<device>/api/camera.mjpg`. Plain HTTP: the login crosses the network
   readable.
 
-## 7. Web files and recovery
-
-The web files live on LittleFS (decided). LittleFS survives power loss well, but a corrupted file
-system has happened on earlier devices, mostly with the files still readable. So:
-
-* **Recovery page in the firmware** (decided): a page with barely any design, compiled into the
-  firmware. It is served when the file system cannot be mounted or the web files are missing. It
-  offers login, export of the settings and of every file that can still be read, firmware
-  update, file system update, format and restart. Login works without the file system, because
-  the credentials are in NVS.
-* **Running** (2026-10-07): `/recovery` always serves the built-in page, `/` serves it while the
-  web files are missing. `GET /api/fs/files.zip` streams every file that can still be read as
-  one .zip (stored, not compressed; files that cannot be read are listed in `unreadable.txt`
-  inside), `POST /api/fs/format` with `confirm=yes` erases the file system. Both need the login.
-  The settings export is not built yet ([TODO](../TODO.md)).
-* **In the recovery app** (2026-10-12): the same rules, `/` serves the web UI from LittleFS when
-  it is there. Its Home Assistant and Dashboard pages say "not in the recovery app", the System
-  page has no Backup card; Status, Wi-Fi, Hotspot, Logs, update, files, format, restart and
-  factory reset work. "Start the firmware" is only on the built-in page (`/recovery`).
-* **No automatic format** (decided): a LittleFS that fails to mount starts the recovery mode
-  instead of being formatted, so files that are still readable can be exported first. Only a
-  partition without any LittleFS (new device, leftovers of another firmware) is formatted.
-* **Defensive reading** (proposal): a file that cannot be parsed is reported and skipped, never a
-  reason to crash.
-* **Atomic install** (proposal): an upload goes into a temporary directory and replaces the old
-  files only when it is complete. An interrupted upload leaves the old UI in place.
-* **Version check** (proposal): the web files carry the API version they were built for. On a
-  mismatch the firmware shows "web UI outdated" with an upload button.
-* The firmware does **not** embed a second copy of the web files (decided). Updates are a firmware
-  image and a file system image.
-
-```
-+--------------------------------------------+
-| hassctrl-1a2b  RECOVERY                    |
-+--------------------------------------------+
-| The file system could not be read.         |
-|                                            |
-| Username [admin       ]                    |
-| Password [**********  ]                    |
-| [Log in]                                   |
-|                                            |
-| [Export settings and files]                |
-| Firmware     [choose file]  [Upload]       |
-| File system  [choose file]  [Upload]       |
-| [Format file system]   [Restart]           |
-+--------------------------------------------+
-```
-
-## 8. Firmware update
+## 5. Firmware update
 
 * **Update form** (decided): the System page and the recovery page take a firmware image and a
   file system image, either as a file upload or as a URL the device downloads from.
@@ -378,9 +278,9 @@ system has happened on earlier devices, mostly with the files still readable. So
   firmware does not confirm itself after boot, the bootloader rolls back (ESP-IDF app rollback).
 * **Flash budget**: two OTA partitions on the 4 MB boards leave about 1.9 MB per firmware image
   and little room for LittleFS. The proposal is a small recovery app in its own partition, see
-  [architecture.md](../architecture.md) section 9.5.
+  [architecture.md](../../architecture.md) section 9.5.
 
-## 9. HTTPS
+## 6. HTTPS
 
 * Cancelled (decided): there will be no HTTPS web server. The web UI is plain HTTP only, with no
   certificate and no HTTPS option in the settings.
@@ -390,6 +290,6 @@ system has happened on earlier devices, mostly with the files still readable. So
   certificate check runs on the WT32 with 19 KB internal RAM left during the handshake. The
   recovery app keeps mbedTLS in internal RAM (it must run without PSRAM).
 
-## 10. Open points
+## 7. Open points
 
 * None.

@@ -1,7 +1,7 @@
 #pragma once
 
 // Wall clock time over SNTP and the time zone. The clock is needed for the expiry of login tokens
-// and for the clock in the status bar (`--:--` until it is set, docs/ui/screen.md section 2).
+// and for the clock in the status bar (`--:--` until it is set, docs/ui/lvgl/lvgl-settings.md section 1).
 //
 // SNTP asks as soon as the station has an address, and again after every new address: started
 // before the network is up, lwIP's retries back off to minutes. The time zone comes from Home

@@ -1,6 +1,6 @@
 #pragma once
 
-// The log of the web UI (docs/ui/web.md section 6): the last messages of esp_log, kept in RAM
+// The log of the web UI (docs/ui/web/web-app.md section 4): the last messages of esp_log, kept in RAM
 // (16 KB of PSRAM, the oldest lines go first).
 //
 // Errors and warnings are always kept; the debug mode (stored) keeps info messages as well. What

@@ -1,6 +1,6 @@
 #pragma once
 
-// The screens of the panel (docs/ui/screen.md). Plain LVGL, no ESP-IDF drivers; everything else
+// The screens of the panel (docs/ui/README.md). Plain LVGL, no ESP-IDF drivers; everything else
 // comes through the Backend.
 //
 // The start screen shows the Home Assistant logo until Home Assistant has sent the values of the
@@ -15,11 +15,11 @@ namespace hc::ui {
 // How the screens move and look on a board type (board::Info says which, the sim's --size preset)
 struct Options {
     // a page of the dashboard slides in from the right when it opens and out to the right when
-    // the back tile leads to its parent (docs/ui/dashboard.md section 1)
+    // the back tile leads to its parent (docs/ui/lvgl/lvgl-dashboard.md section 2)
     bool slide_pages = false;
     // the panels of a dimmer, a climate and a sensor are a dialog over the dimmed page, 620 x 420
-    // (440 x 600 in portrait), fading in and out, instead of the whole screen (docs/ui/dashboard.md
-    // section 6)
+    // (440 x 600 in portrait), sliding in and out, instead of the whole screen
+    // (docs/ui/lvgl/lvgl-panels.md section 1)
     bool panel_dialogs = false;
     // every text about 28 % larger (Montserrat 16 to 36 instead of 12 to 28); the board's
     // sdkconfig.defaults has to build the sizes 18, 26 and 36 in

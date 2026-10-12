@@ -1,6 +1,6 @@
 #pragma once
 
-// The edit mode of the dashboard (docs/ui/web-dashboard.md section 3). A long press on a page
+// The edit mode of the dashboard (docs/ui/lvgl/lvgl-dashboard.md section 7). A long press on a page
 // starts it; the dashboard then draws a copy of the layout and this layer lies over the page: a
 // bar with Reset, Cancel and Done at the top, and a transparent layer that takes every touch. A
 // drag moves a tile (core::move_tile: the tiles in the way are pushed aside), a long press on a

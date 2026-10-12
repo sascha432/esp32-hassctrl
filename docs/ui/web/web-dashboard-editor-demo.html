@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hassctrl dashboard editor (demo)</title>
-<!-- Demo of docs/ui/web-dashboard.md. Open this file directly in a browser: it uses the web UI's
+<!-- Demo of docs/ui/web/web-dashboard-editor.md. Open this file directly in a browser: it uses the web UI's
      own Bootstrap file, mock data, and saves nothing. Icons are rough stand-ins; the real ones
      come from web/icons.svg (MDI paths, tools/build_icons.py). -->
-<link rel="stylesheet" href="../../web/vendor/bootstrap.min.css">
+<link rel="stylesheet" href="../../../web/vendor/bootstrap.min.css">
 <script>
   (function () {
     var mode = "auto";
@@ -377,7 +377,7 @@ function displayName(t) {
 }
 const tileLabel = (t) => `${t.id ? "tile " + t.id : "new tile"} (${displayName(t)})`;
 
-// A copy of core::finish()'s placement (layout.cpp), extended by docs/ui/web-dashboard.md section 1:
+// A copy of core::finish()'s placement (layout.cpp), extended by docs/ui/lvgl/lvgl-dashboard.md section 6:
 // tiles with a cell first, then first-fit for the others. The device's check=1 is the truth.
 function place(p, o) {
   const g = gridOf(p);
@@ -431,7 +431,7 @@ function validate() {
 
 // Moves a tile to a cell; the whole page gets its current cells in that orientation, and the tiles
 // in the way are pushed aside: each takes the first free block in reading order from the drop cell
-// on, wrapping to the start, in their old order (docs/ui/web-dashboard.md section 1). False when one
+// on, wrapping to the start, in their old order (docs/ui/lvgl/lvgl-dashboard.md section 6). False when one
 // of them finds no block.
 function arrangeMove(p, o, k, c, r) {
   const pl = place(p, o), key = okey(o);
@@ -581,7 +581,7 @@ function tileHTML(t, box, large, flags = "") {
   return `<div class="tile ${on ? "on" : ""} ${flags}" ${attrs}>${icon(fs.icon)}${name}</div>`;
 }
 
-// the geometry of a page on a board: 8 px from the edges, 4 px between tiles (docs/ui/dashboard.md)
+// the geometry of a page on a board: 8 px from the edges, 4 px between tiles (docs/ui/lvgl/lvgl-dashboard.md)
 function geometry(p, o) {
   const b = BOARDS[board], W = o === "p" ? b.h : b.w, H = o === "p" ? b.w : b.h;
   const pl = place(p, o);

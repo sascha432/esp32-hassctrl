@@ -1,4 +1,4 @@
-// Wi-Fi of the setup and of Settings (docs/ui/web.md sections 4 and 6), login required after the
+// Wi-Fi of the setup and of Settings (docs/ui/web/web-app.md sections 2 and 4), login required after the
 // setup:
 //
 //   GET  /api/wifi          saved networks (with password_needed: imported without its

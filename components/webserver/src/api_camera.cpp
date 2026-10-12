@@ -1,4 +1,4 @@
-// The camera's web stream (docs/ui/web.md section 6, Camera), login required after the setup:
+// The camera's web stream (docs/ui/web/web-app.md section 4, Camera), login required after the setup:
 //
 //   GET  /api/camera    {"enabled", "size": "full"|"half", "width", "height", "fps", "quality",
 //                        "username", "password_set"}

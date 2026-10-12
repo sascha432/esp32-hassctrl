@@ -1,0 +1,223 @@
+# Screen design (LVGL)
+
+Status: **running**; the values below are the ones in the code (2026-10-12). The design guide of
+every LVGL screen: the dashboard, the panels, Settings, the first setup and the alarm. Read it
+before adding or changing a screen. The screens themselves are described in
+[lvgl-dashboard.md](lvgl-dashboard.md), [lvgl-panels.md](lvgl-panels.md),
+[lvgl-camera.md](lvgl-camera.md) and [lvgl-settings.md](lvgl-settings.md); gestures, touch targets
+and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../README.md).
+
+## 1. Principles
+
+* **The look of the old firmware** (decided): the theme of `lvgl_ui.h` of `kfc_fw`, dark only.
+  Flat cards on a near-black background, orange for "on", cyan for "on its way", red for errors.
+* **One theme in code.** Colors, fonts, sizes and the common widgets come from
+  `components/ui/src/theme.hpp` (`hc::ui::theme`, `namespace t = theme;` in the page files). A
+  screen does not write a hex color, pick a Montserrat font or style a widget itself. A new color
+  or size goes into `theme.hpp` and into this document first. The panels' shared parts are in
+  `panel.hpp` (section 7). Only the bring-up test screen (`test_screen.cpp`) has its own colors.
+* **Adapts, never drawn per board.** Layouts use flex and the display's size, so one build fits
+  480 x 320, 320 x 480 and 800 x 480 in both orientations (section 6). What differs between
+  boards is a flag of `hc::ui::Options`, filled from the board's `Info::ui_*` (section 6), never a
+  board name in `ui`.
+* **Plain LVGL.** `ui` has no ESP-IDF calls; everything else comes through `hc::ui::Backend`
+  (`hc/ui/backend.hpp`, filled in `main/ui_backend.cpp`). The same sources run in the Windows
+  version (`python tools/sim.py`), where screens are reviewed first.
+* **LVGL 8.4 now, 9 later**: only widgets both versions have; the calls that differ go through
+  `lvgl_compat.hpp` ([architecture.md](../../architecture.md) section 7.1).
+* **Large buffers on the large heap** (`hc::memory`, PSRAM where the board has it): images, the
+  color wheel, histories. They are freed when their control goes. LVGL's own heap holds widgets.
+* **English only** (decided), texts as in section 8.
+
+## 2. Colors
+
+| Name | `theme::` | Value | Use |
+| --- | --- | --- | --- |
+| background | `kBackground` | `#0b0f14` | screen and page background |
+| bar | `kBar` | `#12181f` | status bar |
+| card | `kCard` | `#182029` | cards, list rows, tiles, buttons |
+| card alt | `kCardAlt` | `#161d25` | second card shade, unavailable tiles |
+| border | `kBorder` | `#2b3844` | borders, separators, slider and switch track, pressed rows |
+| text | `kText` | `#ffffff` | primary text, slider and switch knobs |
+| text value | `kTextValue` | `#c8d4dd` | values in rows, paragraphs |
+| text label | `kTextLabel` | `#7fa8c9` | labels, captions, the `>` of a row, off icons |
+| text muted | `kTextMuted` | `#4d6274` | disabled, hints |
+| active | `kActive` | `#ff8000` | on state, pressed buttons, slider fill, switch on |
+| alert | `kAlert` | `#ff8000` | notes and status lines |
+| error | `kError` | `#ff0000` | errors, destructive buttons |
+| lock unlocked / locked / jammed | `kLockUnlocked`, `kLockLocked`, `kLockJammed` | `#4caf50`, `#ff8000`, `#ff0000` | the lock's tile, panel and timeline (2026-10-11) |
+| accent | (see below) | `#00ffff` | an action on its way (the runner, a pending setpoint), the sensor graph |
+
+Colors with one owner, kept next to their code: the edit mode's "fits" outline `0x2ecc71`
+(`edit_mode.cpp`), the splash's logo colors (`splash.cpp`), the dialog veil black at 50 %
+(`panel.cpp`), the alert strip at 60 % (`overlay.cpp`).
+
+QR codes are always drawn black on a white card with a quiet zone (`theme::qr_card`), also in the
+dark theme: phone cameras do not read light-on-dark codes reliably.
+
+## 3. Typography
+
+Montserrat, LVGL's built-in fonts. LVGL cannot scale fonts, so each size is a font in flash;
+a board builds only the sizes it uses (its `sdkconfig.defaults`). Two sets, chosen once at the
+start by `Options::large_fonts`:
+
+| `theme::` | Normal | Large | Use |
+| --- | --- | --- | --- |
+| `font_small()` | 12 | 16 | hints, units, captions, the small tile names |
+| `font_normal()` | 14 | 18 | buttons, row values, the status bar |
+| `font_medium()` | 16 | 20 | row labels, form fields, large tile names |
+| `font_large()` | 20 | 26 | dialog titles, small tile values |
+| `font_huge()` | 28 | 36 | large readouts: tile values, panel values, setpoints |
+| `font_item()` | 14 | 24 | the items of the panels' lists |
+
+A width that holds text (a column of labels, a chip) is `theme::scaled(px)`: `px` with the normal
+set, 30 % more with the large one.
+
+One-line texts whose width comes from the layout are set with `theme::line_text()`: a text that is
+too wide ends in `...` and is fitted again when the display turns (LVGL's `LV_LABEL_LONG_DOT` cuts
+at spaces first). A tile value that does not fit steps down through the font sizes instead
+([lvgl-dashboard.md](lvgl-dashboard.md) section 3).
+
+MDI icons are fonts too (section 5).
+
+## 4. Sizes
+
+Reference: 480 x 320 at about 165 DPI (3.5 inch, WT32-SC01).
+
+| Item | Size | Where |
+| --- | --- | --- |
+| status bar | 36 px high | `theme::kStatusBarHeight` |
+| list row, button | 44 px high; a button at least 96 px wide | `theme::kRowHeight` |
+| page padding | 8 px, 6 px between rows | `theme::kPad`, `theme::column()` |
+| card, row and button radius | 12 px | `theme::kRadius` |
+| tile radius | 8 px | `tiles.cpp` |
+| dashboard margin, tile gap | 8 px, 4 px (8 px with `Options::tile_gap` on the P4) | `dashboard.cpp` |
+| switch | 52 x 28 px | `theme::toggle()` |
+| panel steppers | 64 px round, 80 px in the P4's dialogs | `panel::kStepSize` |
+| popup | 200 x 200 px square at the display's center | `settings::popup()` |
+| touch target | at least 44 x 44 px, about 7 mm | [lvgl-touch.md](lvgl-touch.md) section 1 |
+
+Sizes are pixels, not scaled by DPI (`lv_dpx()` is not used): the boards are 3.5 inch at
+165 DPI, except the JC4880P443C (4.3 inch, 217 DPI), which takes the large fonts and larger panel
+parts through its options instead (section 6).
+
+## 5. Icons
+
+Material Design Icons 7.4.47 as subset fonts (`tools/build_icons.py`, `components/ui/src/fonts/`),
+24 px (4 bpp: tiles, buttons, inline) and 48 px (2 bpp: large tiles, panels). The names are the
+icon list of `core` (`components/core/src/icons.cpp`) plus `UI_GLYPHS` of `build_icons.py`, the
+glyphs the screens draw themselves; `icons.cpp` of `ui` maps a name to its glyph. A glyph that is
+not in the list is not in the firmware: add it there and run `python tools/build_icons.py`, which
+also writes `web/icons.svg`, so an icon looks the same on the screen and in the web UI (CLAUDE.md).
+LVGL's `LV_SYMBOL_*` are used only for the plain arrows of rows and the keyboard.
+
+## 6. Resolutions, orientation and boards
+
+The layout adapts to the display and is not drawn per board. Every board runs in landscape and in
+portrait (decided); with an orientation sensor the screen turns with the device, otherwise the
+rotation is set in Settings, Display ([architecture.md](../../architecture.md) section 8.1).
+Turning the display builds the shown screen again in the new size.
+
+| Board | Native | Diagonal | DPI | Options |
+| --- | --- | --- | --- | --- |
+| WT32-SC01 | 480 x 320 | 3.5" | 165 | reference |
+| JC3248W535 | 320 x 480 | 3.5" | 165 | none |
+| JC4880P443C | 480 x 800 | 4.3" | 217 | `slide_pages`, `panel_dialogs`, `large_fonts`, `tile_gap` 8 |
+
+TTGO T4 (240 x 320, no touch) is retired (2026-10-10) and no longer a layout target.
+
+`hc::ui::Options` (`hc/ui/ui.hpp`, from `board::Info::ui_*` in `main.cpp`, from the `--size`
+preset in the Windows version):
+
+| Option | Effect |
+| --- | --- |
+| `slide_pages` | an area page slides in and out (250 ms) |
+| `panel_dialogs` | the panels are a dialog of 620 x 420 (440 x 600 in portrait) over the dimmed page, with a quarter larger buttons |
+| `large_fonts` | the large font set (section 3) |
+| `tile_gap` | the gap between tiles |
+
+Rules for a page:
+
+* **Portrait**: two-column pages (welcome, hotspot) stack their columns, the QR code below the
+  text (`theme::split()` switches when the display turns). Lists and forms stay one column. The
+  keyboard is full width. The dashboard uses the transposed grid (lvgl-dashboard.md section 2).
+* A text that a person types on a phone (a hotspot name, a password, an address) is never cut:
+  `theme::caption_value()` wraps it below its caption.
+* A window that must not move when the display turns (the rotation popup) has a fixed size at the
+  center and places its children with `lv_obj_align()`, no layout.
+
+## 7. Building blocks
+
+Every Settings page and every setup screen is built from these; a new page uses them before
+writing its own.
+
+| Function | What it makes |
+| --- | --- |
+| `theme::plain(parent)` | an object without the default theme's styles, not scrollable: the base of every custom part |
+| `theme::label(parent, text, font, color)` | a label in a theme font and color |
+| `theme::column(parent)` | the page body: a column that fills the parent, padded, scrolls vertically |
+| `theme::row(parent, name, value, opens_page, callback)` | a 44 px card row: name left (up to 60 %), value right, `>` when it opens a page; without a callback it takes no touches |
+| `theme::row_value(row)` | the value label of a row, set with `line_text()` |
+| `theme::toggle(row, on, callback)` | a switch; in a row without an action the whole row flips it |
+| `theme::slider(parent, min, max, value)` | a slider; it takes touches up to 16 px past its ends |
+| `theme::button(parent, text, callback, data, danger)` | a 44 px button, card colored, red when `danger` |
+| `theme::caption_value(parent, caption, value)` | a small caption with its value wrapped below it |
+| `theme::split(content)` | a text column and a second child (a QR code) side by side or stacked |
+| `theme::qr_card(parent, data, size)`, `theme::wifi_qr_text()` | a QR code on a white card; the Wi-Fi join text |
+| `pages::section(parent, text)` | the small caption above a group of rows |
+| `pages::text_block(parent, text, color)` | a wrapped paragraph over the full width |
+| `pages::slider_card(...)` | name and value in one line, the slider over the full width below |
+| `pages::text_area()`, `set_form()`, `focus_area()` | form fields with the on-screen keyboard |
+| `settings::confirm(title, text, action, danger, ...)` | the modal question: Cancel left, the action right |
+| `settings::popup(title, timeout_ms, on_close)` | a small square window at the center that closes by a tap outside or a timeout |
+| `panel::card`, `step_button`, `slider_track`, `list`, `list_fill`, `layout_options` | the parts of the panels (`panel.hpp`) |
+
+How a Settings page is built (`settings_pages.hpp`): a builder fills `content` and returns
+`Built{title, refresh}`; the framework calls `refresh` every second while the page is shown, so a
+page updates its labels from the `Backend` there and builds itself again with `settings::reload()`
+only when its structure changed. A page leads to another with `settings::push(Page::...)`. A form
+with unsaved input calls `settings::set_form_dirty(true)`, which stops the 5 minute timeout.
+
+Layers: the dashboard and Settings are screens; the pull-down zone, the alert strip, popups and the
+alarm lie on `lv_layer_top()`; the wake blocker of a dark screen on `lv_layer_sys()`.
+
+Every tap target is either an LVGL input widget or a plain object marked with
+`sound::tappable()`, so it clicks and vibrates ([lvgl-touch.md](lvgl-touch.md) section 3).
+
+## 8. Texts
+
+* Sentence case: "Choose Wi-Fi", "Add network", not "Add Network". Titles without a period.
+* The terms of [README](../README.md): Wi-Fi, Hotspot, Settings, Home Assistant. Never AP or STA
+  on a screen.
+* A running action ends in `...` with a space: "Connecting to Home-Net ...", "Scanning for
+  Wi-Fi ...". "Loading..." in the panels is the old firmware's spelling.
+* Errors say what is wrong in words, from the driver's reason: "The password is wrong.", not an
+  error code. A tap on an error leads to the page that fixes it.
+* Buttons name the action: "Connect", "New password", "Reset"; a confirmation repeats it on its
+  action button. Destructive actions say what is lost ("All settings, networks and the Home
+  Assistant token are deleted.").
+* Units with a space: `25.4 °C`, `60 %`, `5 min`; a bare degree sign without one (the setpoint
+  `21.5°`). Times as `07:30`, `--:--` without a clock.
+* States of Home Assistant as words with a capital (`heat_cool` is "Heat cool"); binary sensors in
+  the words of their device class (lvgl-dashboard.md section 4).
+
+## 9. Checklist for a new or changed screen
+
+1. Wireframe or description in the screen's document (README "How to read the wireframes").
+2. Built from section 7 and the colors and fonts of `theme`; new values added to `theme.hpp` and
+   section 2 or 3 first.
+3. Landscape and portrait, the normal and the large fonts: in the Windows version
+   (`python tools/sim.py`, every `--size`, the rotate key) and on the boards.
+4. Every tap target 44 px, marked tappable; drags do not start the pull-down
+   ([lvgl-touch.md](lvgl-touch.md)).
+5. Texts as section 8; long texts cut with `line_text()` or wrapped.
+6. On the board under test: a screenshot with `tools/screenshot.py`, and the free internal RAM in
+   the log before and after.
+7. The screen's document and [TODO](../../TODO.md) updated in the same commit.
+
+## 10. Open points
+
+* The accent cyan is defined three times (`panel::kPendingBorder`, `runner.cpp`,
+  `history_view.cpp`). Proposal: `theme::kAccent`.
+* Montserrat 28 costs 37 KB of flash for the values; a subset (digits, units, the state words) is
+  possible if flash gets tight.

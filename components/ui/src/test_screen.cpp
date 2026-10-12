@@ -8,7 +8,7 @@ namespace hc::ui {
 
 namespace {
 
-// theme of the old firmware (docs/ui/design-system.md section 2)
+// theme of the old firmware (docs/ui/lvgl/lvgl-design.md section 2)
 constexpr uint32_t kColorBackground = 0x0b0f14;
 constexpr uint32_t kColorBar = 0x12181f;
 constexpr uint32_t kColorCard = 0x182029;

@@ -61,9 +61,9 @@ esp_err_t register_fs(bool format)
 }
 
 // A LittleFS that fails to mount is damaged: it is never formatted automatically, so the files
-// that can still be read survive until they are exported (recovery mode, docs/ui/web.md
-// section 7). A partition without any LittleFS (new device, leftovers of another firmware) holds
-// nothing to lose and is formatted.
+// that can still be read survive until they are exported (recovery mode,
+// docs/ui/web/web-recovery.md). A partition without any LittleFS (new device, leftovers of another
+// firmware) holds nothing to lose and is formatted.
 void mount_fs()
 {
     const esp_partition_t *partition =

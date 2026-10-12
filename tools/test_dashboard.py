@@ -121,7 +121,7 @@ def main() -> None:
     status, stored, _ = c.request("GET", "/api/dashboard")
     check(stored.get("revision") == revision + 1 and stored["tiles"][2]["name"] == "Crystal Lamp", "the edit is stored")
 
-    # the editor of the web UI (docs/ui/web-dashboard.md section 2): check=1, new tiles, cells, paths
+    # the editor of the web UI (docs/ui/web/web-dashboard-editor.md): check=1, new tiles, cells, paths
     revision = stored["revision"]
     workshop = stored["tiles"][7]["tiles"][2]
     check(workshop.get("name") == "Workshop" and workshop["tiles"][0].get("landscape") == [3, 0],

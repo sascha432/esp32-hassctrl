@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the Home Assistant logo of the start screen (docs/ui/screen.md section 1.2) from its SVG.
+"""Builds the Home Assistant logo of the start screen (docs/ui/lvgl/lvgl-dashboard.md section 1.2) from its SVG.
 
     python tools/build_logo.py
 

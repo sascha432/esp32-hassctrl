@@ -63,7 +63,7 @@ bool call_service_message(uint32_t id, const core::Intent &intent, std::string_v
 
 // ------------------------------------------------------------------------- the entity picker
 
-// the most rows of one entity list (docs/ui/web-dashboard.md section 2.3)
+// the most rows of one entity list (docs/ui/web/web-dashboard-editor.md section 3)
 constexpr size_t kEntityListMax = 100;
 
 // A render_template whose result is {"more": bool, "rows": [[id, name, domain, device_class,

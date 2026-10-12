@@ -1,4 +1,4 @@
-// Firmware and file system updates (docs/ui/web.md section 8), login required after the setup:
+// Firmware and file system updates (docs/ui/web/web-app.md section 5), login required after the setup:
 //
 //   GET  /api/update              which app runs, what it can update, the state of an update
 //   POST /api/update/firmware     the body is the firmware image (application/octet-stream)

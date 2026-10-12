@@ -265,7 +265,7 @@ Decided (2026-10-07):
   guide to it and a test file.
 * The device does not have to keep the configuration as YAML. The web UI is the editor for areas
   and tiles. The screen has an edit mode that moves and removes tiles (2026-10-08,
-  [ui/web-dashboard.md](ui/web-dashboard.md) section 3). YAML is the import and export format for
+  [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 7). YAML is the import and export format for
   advanced users, and the import accepts includes.
 * **The web UI goes with the firmware** (rule, 2026-10-09). The web editor (`web/dashboard.js`)
   copies rules of `core` and `config`: the placement (`place()` in `layout.cpp`), the sizes a kind
@@ -394,7 +394,7 @@ Orientation (decided 2026-10-07):
   outside the grid, on the back tile or over another tile is an error. Moving a tile (the edit
   mode of the screen, the web editor) gives every tile of its page its current cell in that
   orientation only, and pushes the tiles in its way aside (`core::move_tile`). Details:
-  [ui/web-dashboard.md](ui/web-dashboard.md) section 1. A grid of its own for portrait stays
+  [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 6. A grid of its own for portrait stays
   postponed.
 
 ---
@@ -435,7 +435,7 @@ What changes:
   allocating from PSRAM through `cJSON_InitHooks`. Messages are capped at 16 KB.
 * Camera images use `esp_http_client` and a JPEG decoder (`esp_new_jpeg` in software, the
   hardware JPEG driver on the P4), in the media worker: three tasks on the P4, one on the ESP32
-  and the S3 (internal RAM), see ui/dashboard.md "Camera image".
+  and the S3 (internal RAM), see ui/lvgl/lvgl-camera.md "Camera image".
 
 ---
 
@@ -448,7 +448,7 @@ What changes:
   single 5,500 line file.
 * **Panels**: climate, light, sensor graph, lock, each its own screen class; the sensor and the
   lock panel share the graph (`history_view`).
-* **Theme**: the color and font constants of [ui/design-system.md](ui/design-system.md) in one
+* **Theme**: the color and font constants of [ui/lvgl/lvgl-design.md](ui/lvgl/lvgl-design.md) in one
   place (`theme.hpp`). Fonts and
   Material Design Icons are generated with `lv_font_conv` for each supported LVGL version.
 * **Updates are incremental**: the store reports which entities changed, and only their tile
@@ -655,7 +655,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 * Naming: **Settings** is the settings dialog. Its first page is the quick settings page. On
   screen and in the web UI the two Wi-Fi roles are **Wi-Fi** (station) and **Hotspot** (AP).
   Code and developer docs use the ESP-IDF terms AP and STA.
-* Screen and web layouts: [ui/screen.md](ui/screen.md) and [ui/web.md](ui/web.md).
+* Screen and web layouts: [ui/README.md](ui/README.md) (the LVGL and the web documents and their design guides).
 
 ### 9.2 Open points of the setup design
 
@@ -736,11 +736,11 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | --- | --- | --- |
 | `platform` | yes | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP and the time zone (`time_sync.cpp`; the zone's name from Home Assistant, its POSIX rule from `timezones.inc`, built by `tools/build_timezones.py`) |
 | `network` | yes | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
-| `webserver` | yes | captive portal DNS and redirect (running), the status API and the built-in page (running), the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web.md](ui/web.md) section 7). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component (running) |
+| `webserver` | yes | captive portal DNS and redirect (running), the status API and the built-in page (running), the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component (running) |
 | `ui` | yes | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, system; running), the pull-down zone and the alert strip on `lv_layer_top` (running), the dashboard with its tiles, panels and edit mode (running). Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
 | `light_sensor` | yes, optional per device | BH1750 ambient light on the board's I2C bus (looked for at 0x23 and 0x5C), averaged over a second, for the automatic brightness of `ui` (running on the WT32-SC01) |
 | `hass` | yes | the Home Assistant connection of section 6 (running, step 5 first part): URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 16 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. URL parsing (`url.cpp`) is plain C++ for host tests |
-| `ota` | yes | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web.md](ui/web.md) section 8), restart into the recovery app and back, partition layout of section 9.5 (running) |
+| `ota` | yes | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web/web-app.md](ui/web/web-app.md) section 5), restart into the recovery app and back, partition layout of section 9.5 (running) |
 | `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
 | `audio` | yes, per board, removable | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
 | `vibration` | yes, per board, removable | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
@@ -774,7 +774,7 @@ in the main firmware.
   tells the two cases apart, so the update code is the same.
 * **Recovery for free**: when the main firmware is broken, does not confirm itself after an update,
   or an update was interrupted by a power loss, the bootloader starts the recovery app. Its web
-  page is the recovery page of [ui/web.md](ui/web.md) section 7, so there is one recovery page
+  page is the recovery page of [ui/web/web-recovery.md](ui/web/web-recovery.md), so there is one recovery page
   for both cases.
 * **Cost**: during an update on a 4 MB board the old firmware is gone once writing starts. If the
   upload fails, the device stays in the recovery app until a good image arrives. A second
@@ -801,7 +801,7 @@ in the main firmware.
   files) with first setup, login, status, firmware and file system update by file or URL, the
   files as .zip, format, restart and "Start the firmware"; and the web UI from LittleFS when it
   is there, without Home Assistant, dashboard and backup (their routes are not registered: 404,
-  the pages say so or leave the card out). See [ui/web.md](ui/web.md) section 7.
+  the pages say so or leave the card out). See [ui/web/web-recovery.md](ui/web/web-recovery.md).
 * **Alternative**: compressed or delta OTA updates exist for ESP-IDF, but they need a custom
   bootloader or a patch component. The recovery app is simpler and also covers the recovery case.
 
@@ -970,7 +970,7 @@ it the component has no sources and the Backend entries are nullptr.
   `camera:` (`main/backup.cpp`, only on a device with a camera; the stream's password is read,
   never written).
 * **Web**: `/api/camera.jpg` and `/api/camera.mjpg` (HTTP Basic auth with the stream's login, 404
-  while the stream is off; [ui/web.md](ui/web.md) section 6), registered through
+  while the stream is off; [ui/web/web-app.md](ui/web/web-app.md) section 4), registered through
   `webserver::Config::add_routes`, so the web server does not depend on the camera. The web UI's
   Camera page sets the stream through `/api/camera` and `webserver::CameraAccess` (filled in
   `main`, nullptr without a camera); the picture's settings stay on the screen. JPEGs come
@@ -1070,7 +1070,7 @@ esp32-hassctrl/
 | `hass_socket.{h,cpp}` framing, auth, statistics parser | `esp_websocket_client` + `hass_protocol` | replace the framing, port the parsers |
 | `ws2_screen_hass.cpp` | `ui/screens`, `ui/tiles`, `ui/panels` | split by screen, tile type and panel |
 | `lvgl_ui.{h,cpp}` theme and widgets | `ui/theme`, `ui/widgets` | port |
-| `docs/hass_config.md`, `docs/hass_layout/behavior.md` | `docs/ui/dashboard.md`, `docs/dashboard-sample/` | carried over and rewritten for the new format; the old files stay the reference |
+| `docs/hass_config.md`, `docs/hass_layout/behavior.md` | `docs/ui/lvgl/lvgl-dashboard.md`, `docs/dashboard-sample/` | carried over and rewritten for the new format; the old files stay the reference |
 
 ---
 

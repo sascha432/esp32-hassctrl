@@ -1,6 +1,6 @@
 #pragma once
 
-// The lock panel (docs/ui/dashboard.md section 6): two buttons choose between the lock control and
+// The lock panel (docs/ui/lvgl/lvgl-panels.md): two buttons choose between the lock control and
 // the timeline of the lock (history_view). The control is a slider with two places like Home
 // Assistant's: the thumb at the top is locked, at the bottom unlocked; dragging it to the other
 // half (or a tap there) locks or unlocks. A lock that can open the door (supported_features OPEN)

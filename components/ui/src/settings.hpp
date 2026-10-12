@@ -1,6 +1,6 @@
 #pragma once
 
-// Settings (docs/ui/screen.md sections 2, 3 and 5): a screen of its own with the status bar and a
+// Settings (docs/ui/lvgl/lvgl-settings.md sections 1 to 3): a screen of its own with the status bar and a
 // stack of pages. `<` goes one page back, from quick settings it closes Settings (no swipe up:
 // it fired while scrolling). It closes by itself after 5 minutes without a touch, except while a form has unsaved
 // input.

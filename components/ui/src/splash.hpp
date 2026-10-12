@@ -1,6 +1,6 @@
 #pragma once
 
-// The start screen (docs/ui/screen.md section 1.2): the Home Assistant logo, 160 x 160 at the
+// The start screen (docs/ui/lvgl/lvgl-dashboard.md section 1.2): the Home Assistant logo, 160 x 160 at the
 // center, with the runner going round the house, over the dashboard until Home Assistant is
 // connected and the values of the first page are in. The dashboard is built under it, so it is
 // complete when the logo goes. Settings (the pull-down) and the alert strip lie above it on the

@@ -1,6 +1,6 @@
 #pragma once
 
-// The light panel (docs/ui/dashboard.md section 6): the power button in the header, the buttons of
+// The light panel (docs/ui/lvgl/lvgl-panels.md): the power button in the header, the buttons of
 // the controls the light offers, and the control that is selected: the level slider with its
 // steppers, the color wheel, the color temperature slider or the list of the effects.
 

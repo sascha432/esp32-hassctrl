@@ -1,4 +1,4 @@
-// The web UI of hassctrl (docs/ui/web.md): one page, the views follow the hash (#/wifi). Plain
+// The web UI of hassctrl (docs/ui/web/web-app.md): one page, the views follow the hash (#/wifi). Plain
 // JavaScript, no framework and no build step; Bootstrap 5.3 only as CSS. Everything comes from the
 // device API (components/webserver). Texts from outside (network names) are escaped.
 "use strict";
@@ -335,7 +335,7 @@ function loginPage() {
 const facts = (rows) => `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
 const card = (title, body) => `<div class="card"><div class="card-body"><h2 class="h6 card-title">${esc(title)}</h2>${body}</div></div>`;
 
-// The editor (web/dashboard.js, docs/ui/web-dashboard.md) is loaded on the first visit of the page.
+// The editor (web/dashboard.js, docs/ui/web/web-dashboard-editor.md) is loaded on the first visit of the page.
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
@@ -596,7 +596,7 @@ const views = {
     refresh(draw, 5000);
   },
 
-  // The camera's web stream (docs/ui/web.md section 6). The picture itself (exposure, mirror, flip,
+  // The camera's web stream (docs/ui/web/web-app.md section 4). The picture itself (exposure, mirror, flip,
   // mains frequency) is set on the device, next to its preview.
   async camera() {
     render(`<h1>Camera</h1><div id="camera">Loading ...</div>`);

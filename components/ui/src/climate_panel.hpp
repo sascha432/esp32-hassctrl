@@ -1,6 +1,6 @@
 #pragma once
 
-// The climate panel (docs/ui/dashboard.md section 6): the pills of the mode, the preset and the fan
+// The climate panel (docs/ui/lvgl/lvgl-panels.md): the pills of the mode, the preset and the fan
 // mode, and the arc of the setpoint with the action, the setpoint and the room temperature inside
 // and its steppers. A tap on a pill shows the list of that option in the place of the arc.
 

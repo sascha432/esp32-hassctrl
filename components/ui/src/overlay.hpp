@@ -1,6 +1,6 @@
 #pragma once
 
-// What lies over the dashboard on lv_layer_top (docs/ui/screen.md sections 2 and 3):
+// What lies over the dashboard on lv_layer_top (docs/ui/lvgl/lvgl-settings.md sections 1 and 2):
 //
 //   * the pull-down zone, 160 x 40 px at the top center: dragging down from it opens
 //     Settings;

@@ -1,4 +1,4 @@
-// The entity picker of the web editor (docs/ui/web-dashboard.md section 2.3): one render_template
+// The entity picker of the web editor (docs/ui/web/web-dashboard-editor.md section 3): one render_template
 // each, filtered on Home Assistant's side, since get_states of a large house is more than the
 // device's RAM. The search text and the entity id go in as variables, so they need no escaping in
 // the template.
