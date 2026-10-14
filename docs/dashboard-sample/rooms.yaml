@@ -6,7 +6,7 @@
 # An area written out: it can sit in the file of its parent as well (indent its `tiles`).
 - type: area
   name: Rooms
-  # the grid of this page, 1x1 to 8x8. Without it the page uses `defaults.grid`.
+  # the grid of this page, 1x1 to 32x32. Without it the page uses `defaults.grid`.
   grid: 3x3
   tiles:
     - entity: lock.stardust_gate
@@ -17,11 +17,18 @@
     - include: rooms/workshop.yaml
     - entity: camera.owl_cam
       name: Owl Closeup
-      size: 2x1
+      # two cells wide on the landscape screen; the portrait size is the landscape size turned
+      # (1x2, tall) unless set: here it stays wide on the turned screen
+      landscape:
+        size: 2x1
+      portrait:
+        size: 2x1
       # an MJPEG stream of its own (here of go2rtc): the tile's image comes from it, full screen
       # plays it live. In quotes, it has a `:` in it.
       stream: "http://go2rtc.local:1984/api/stream.mjpeg?src=owl_closeup"
-    # A weather entity (OpenWeatherMap, Met.no, ...): its icon follows the condition. `size`
-    # 1x1, 1x2 or 2x1 (default 1x1); the forecast in its panel is the one the integration offers.
+    # A weather entity (OpenWeatherMap, Met.no, ...): its icon follows the condition. In one
+    # cell: the temperature with the icon, the condition and the humidity in a line; a tall tile
+    # (1x2) stacks them with the large icon, a wide one (2x1) puts the icon beside them. The
+    # forecast in its panel is the one the integration offers.
     - entity: weather.openweathermap
       name: Weather

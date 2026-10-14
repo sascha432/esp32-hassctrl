@@ -40,7 +40,7 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 | border | `kBorder` | `#2b3844` | borders, separators, slider and switch track, pressed rows |
 | text | `kText` | `#ffffff` | primary text, slider and switch knobs |
 | text value | `kTextValue` | `#c8d4dd` | values in rows, paragraphs |
-| text label | `kTextLabel` | `#7fa8c9` | labels, captions, the `>` of a row, off icons |
+| text label | `kTextLabel` | `#7fa8c9` | labels, captions, the `>` of a row, off icons, the dots of the other pages at 50 % (`kText` for the shown page; lvgl-dashboard.md section 9) |
 | text muted | `kTextMuted` | `#4d6274` | disabled, hints |
 | active | `kActive` | `#ff8000` | on state, pressed buttons, slider fill, switch on |
 | alert | `kAlert` | `#ff8000` | notes and status lines |
@@ -132,7 +132,7 @@ preset in the Windows version):
 
 | Option | Effect |
 | --- | --- |
-| `slide_pages` | an area page slides in and out (250 ms) |
+| `slide_pages` | an area page slides in and out (250 ms); on every board since 2026-10-14 (a swipe fires the slide), `false` switches without the animation |
 | `panel_dialogs` | the panels are a dialog of 620 x 420 (440 x 600 in portrait) over the dimmed page, with a quarter larger buttons |
 | `large_fonts` | the large font set (section 3) |
 | `tile_gap` | the gap between tiles |

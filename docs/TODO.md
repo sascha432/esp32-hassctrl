@@ -709,6 +709,15 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         onto it with push aside (shifted into the grid at the edge), else the cell is dropped.
         Checked under node with your main page (the tile grows upward, the tile above moves to
         the free cell). Web image flashed on the P4 and the S3 (the WT32 was busy, your word).
+  - [x] **Format version 2** (2026-10-14, your request "the dashboard needs to be more
+        flexible", plan decided with you): size, cell and hidden per orientation, 1x1 default,
+        any size for any kind, overflow instead of placement errors, `defaults.navigation`;
+        `core`, `config`, the API's cells, the subscription per orientation, the web editor
+        (tray, size per orientation, hidden, the swipe checkbox of an area; `refit()` gone),
+        `tools/convert_dashboard.py`, the sample; 98 host tests. Your dashboard needs the
+        conversion once (`docs/.retracted/dashboard` too, the host test of it fails until then).
+        The tile looks per shape (step 3) came the same day; the swipe on the screen (step 4)
+        is below under Open decisions.
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,
@@ -1296,7 +1305,8 @@ Setup and network ([architecture.md](architecture.md) section 9.2):
 
 Screen ([ui/lvgl/lvgl-touch.md](ui/lvgl/lvgl-touch.md) section 6, [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 8):
 
-- [ ] Does a swipe from the left edge also go back?
+- [ ] Does a swipe from the left edge also go back on a page with a back tile? (On a swipe
+      page a swipe right goes back from anywhere, 2026-10-14.)
 - [x] Pull-down start zone 80 x 24 px; message order errors, connecting, hint (implemented,
       to confirm by hand).
 - [ ] Line limit of the alert strip (proposal 3 lines); it wraps at 90 % of the width now.
@@ -1404,12 +1414,34 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
 
 Dashboard ([architecture.md](architecture.md) section 14):
 
-- [ ] **Landscape strict, portrait falls back** (2026-10-13, after your report above): a tile
-      without a cell that finds no block is an error in landscape and the first cell in
-      portrait. On a page arranged in both orientations the asymmetry shows: an edit in portrait
-      can be refused by landscape. My vote: keep it, a fallback over the back tile would hide
-      layout mistakes on the screen the file is written for; the message now says where the
-      room is missing. Your call.
+- [x] ~~**Landscape strict, portrait falls back**~~ (2026-10-13): gone with format version 2
+      (2026-10-14): both orientations leave a tile without room out of the screen, the web
+      editor's tray shows it.
+- [ ] **Dimmer options** (your request 2026-10-14, later): `+`/`-` bars on a large dimmer card
+      with a key to turn them off; `toggle_on_tap` with details on a hold of about 500 ms (the
+      hold cancels the edit watch; my recommendation: no double tap on such a dimmer, see
+      lvgl-dashboard.md section 8).
+- [x] Your requests of 2026-10-14 (afternoon): grid up to 32x32, dots 50 % / 100 % larger,
+      full-screen panels slide in from the right, the card decides the font size. Built,
+      host tests 98, sim; flashed on all three boards. Confirmed working by you (2026-10-14).
+- [ ] Edit mode: a swipe right on an empty cell of a swipe page goes back; not tried on a
+      device yet (sim only). The `.tar` files in your backups folder hold version 1 files
+      and were not converted (the YAML backups were).
+- [x] **Swipe navigation per area** (2026-10-14; the first build, a strip of the main page
+      and its areas, was not what you asked for and is gone): `swipe: true` on an area takes
+      the back tile off its page, a swipe right goes back, the dots show the depth of nested
+      swipe areas (lvgl-dashboard.md section 9). `swipe.cpp` (the direction decided after
+      10 px, 40 px sideways swipes and takes the rest of the press), the dot band (16 px, a tap
+      on its left half), the slide on every board, the edit layer's own detector, the dimmer's
+      drag only on an up or down lock. Tried in the sim and on the boards over the console,
+      confirmed working by you (2026-10-14). Free
+      internal RAM on the WT32 39 KB (largest block 21 KB) before and right after a swipe; the
+      two pages of a slide fit. Not tried: edit mode swiping on a device.
+- [x] **Tile looks for every shape** (step 3 of the plan of 2026-10-14, built the same day):
+      the shape follows the span (tall, wide, one-cell look), the climate's bars down the left
+      and right of a wide card, the wide row (icon left, texts right) for the other kinds,
+      reviewed in the sim at 480x320, 320x480 and 800x480 (lvgl-dashboard.md section 3). Open:
+      a 2x2 switch on the P4 looks empty with the 48 px glyph (no larger glyph size).
 - [x] **Discussed 2026-10-07.** Decided: only `defaults` (grid, more later) and `tiles`; URL,
       token, poll and the other connection values are not part of the dashboard; no reload by
       file size; the web UI edits areas and tiles, the screen only allows a few settings; YAML
@@ -1503,9 +1535,11 @@ Dashboard ([architecture.md](architecture.md) section 14):
 
 ## Next steps
 
-State as of 2026-10-13. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-14. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01, the JC3248W535 and the JC4880P443C; what is left of them is listed in their sections
-above. In order:
+above. The dashboard format is version 2 (sizes, hiding and overflow per orientation); the tile
+looks per shape and the swipe navigation on the screen are the next two steps (Open decisions).
+In order:
 
 1. [ ] **WT32 memory** (the only open crash): LVGL ran out of memory (Vibration, 2026-10-09) and
        internal RAM is nearly used up (Step 6).

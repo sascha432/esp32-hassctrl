@@ -89,10 +89,11 @@ struct Info {
     float imu_axes[6] = {};
     // What the module reads too much in every pose (found at the same time, same console command), g.
     float imu_offset[3] = {};
-    // The look of the UI on this board type (hc::ui::Options): dashboard pages slide, the panels
-    // of a dimmer, a climate and a sensor are dialogs over the page, the fonts are larger (the
-    // board's sdkconfig.defaults builds Montserrat 18, 26 and 36 in).
-    bool ui_slide_pages = false;
+    // The look of the UI on this board type (hc::ui::Options): dashboard pages slide (every
+    // board since 2026-10-14, a swipe fires the slide; false switches without the animation),
+    // the panels of a dimmer, a climate and a sensor are dialogs over the page, the fonts are
+    // larger (the board's sdkconfig.defaults builds Montserrat 18, 26 and 36 in).
+    bool ui_slide_pages = true;
     bool ui_panel_dialogs = false;
     bool ui_large_fonts = false;
     // the gap between the tiles of the dashboard in pixels

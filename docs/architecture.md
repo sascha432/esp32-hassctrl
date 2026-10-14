@@ -274,9 +274,9 @@ Decided (2026-10-07):
   [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 7). YAML is the import and export format for
   advanced users, and the import accepts includes.
 * **The web UI goes with the firmware** (rule, 2026-10-09). The web editor (`web/dashboard.js`)
-  copies rules of `core` and `config`: the placement (`place()` in `layout.cpp`), the sizes a kind
-  allows (`check_tile()`), the kinds of the domains (`kind_of_entity()`), the default sizes, the
-  keys of the format. Any change to the dashboard (format, rules, placement, API) changes the
+  copies rules of `core` and `config`: the placement (`place()`, `has_back_tile()`, `placeable()`
+  in `layout.cpp`), the kinds of the domains (`kind_of_entity()`), the default sizes, the keys of
+  the format. Any change to the dashboard (format, rules, placement, API) changes the
   editor in the same commit, and the web image goes onto the devices together with the firmware
   (README, "Flash"). The device's check stays the truth: a forgotten copy shows as a problem in
   the editor, not as a broken dashboard.
@@ -296,6 +296,12 @@ Storage (decided 2026-10-07):
 * The file carries a format version and a revision. Every tile gets a stable id, created by the
   device, so the web UI and the screen can name a tile. A write from the web UI sends the revision
   it read and gets `409` when the screen changed the dashboard in between.
+* **Format version 2** (2026-10-14, your decision: a clean format, no compatibility). The
+  firmware reads version 2 only and refuses an older file with a message that names
+  `tools/convert_dashboard.py`, the one-time conversion of a version 1 file or folder (JSON or
+  YAML, standard library only; it writes out the old default sizes of dimmer, climate and camera
+  tiles, so a converted dashboard looks as before). **No conversion code in the firmware**: later
+  versions add their step to the tool.
 * JSON and YAML both end in a `core::Layout`, and one validator checks it. A layout that fails is
   never stored, and the running dashboard stays.
 
@@ -357,8 +363,8 @@ Tile format, decided (2026-10-07):
 * Icons: one name per glyph, no duplicates. The names are the MDI names (`lightbulb`,
   `power-plug`).
 * One notation for sizes: `cols x rows` as a string, `grid: 4x3` and `size: 1x2` (stored as
-  `[4, 3]` in JSON). `position:` is dropped; cells per orientation replace it (`landscape: 2,1`,
-  `portrait: 0,3`, `[2, 1]` in JSON; "Orientation" below).
+  `[4, 3]` in JSON). The size and the cell of a tile live per orientation under `landscape:` and
+  `portrait:` (version 2, "Orientation" below); `position:` is dropped.
 * `decimals` defaults to the display precision of the entity in Home Assistant
   (`states(entity, rounded=True)`), the key overrides it.
 * The web UI reads the entity from Home Assistant when a tile is created and fills in everything
@@ -370,14 +376,19 @@ Tile format, details (decided 2026-10-07):
 
   | Domain | Tile | Tap |
   | --- | --- | --- |
-  | `light` | without `dimmer`: 1x1 switch; with `dimmer: true`: level fill, 1x2 (1x1 with `size`) | toggle; with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel |
-  | `switch`, `input_boolean`, `fan`, `automation` | switch, 1x1 | toggle |
-  | `button`, `input_button`, `scene`, `script` | button, 1x1 | press, `turn_on` for scene and script |
-  | `climate` | climate, 1x2 (1x1 with `size`) | as before |
-  | `camera` | picture, 2x2 (`size` 2x1 or 1x1) | as before |
-  | `lock` | lock, 1x1 (the state in words) | opens the lock panel (lock, unlock, open, the timeline); never unlocks by itself |
-  | `sensor`, `binary_sensor`, every other domain | sensor, 1x1 (read only) | opens the panel with the history |
+  | `light` | without `dimmer`: switch; with `dimmer: true`: level fill | toggle; with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel |
+  | `switch`, `input_boolean`, `fan`, `automation` | switch | toggle |
+  | `button`, `input_button`, `scene`, `script` | button | press, `turn_on` for scene and script |
+  | `climate` | climate; two rows tall it has the `+`/`-` bars | as before |
+  | `camera` | picture, the image fills the tile | as before |
+  | `lock` | lock (the state in words) | opens the lock panel (lock, unlock, open, the timeline); never unlocks by itself |
+  | `weather` | weather: the condition, the temperature, the humidity | opens the forecast panel |
+  | `sensor`, `binary_sensor`, every other domain | sensor (read only) | opens the panel with the history |
 
+  Every tile is 1x1 unless its `landscape:` / `portrait:` size says otherwise (version 2,
+  2026-10-14; before, dimmer and climate were 1x2 and a camera 2x2 by default, and the sizes
+  were restricted per kind). Any kind takes any size up to the grid; the look of a tile follows
+  its shape ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 3).
 * `type:` exists only for `area` and `spacer`; on any other tile it is an error.
 * Icon order, the same as in the Home Assistant frontend or as close as the glyph subset
   allows: the `icon` of the tile; the entity's `icon`
@@ -402,12 +413,21 @@ Orientation (decided 2026-10-07):
 * Cells per orientation (decided 2026-10-08, replaces "no moving of tiles for now"): a tile may
   have a cell of its own in landscape and in portrait (`landscape:` / `portrait:`, in the
   transposed grid for portrait). Per orientation the tiles with a cell take it first, the others
-  fill the free blocks first-fit in list order; a page without cells is placed as before. A cell
-  outside the grid, on the back tile or over another tile is an error. Moving a tile (the edit
-  mode of the screen, the web editor) gives every tile of its page its current cell in that
-  orientation only, and pushes the tiles in its way aside (`core::move_tile`). Details:
-  [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 6. A grid of its own for portrait stays
-  postponed.
+  fill the free blocks first-fit in list order; a page without cells is placed as before. Moving
+  a tile (the edit mode of the screen, the web editor) gives every tile of its page its current
+  cell in that orientation only, and pushes the tiles in its way aside (`core::move_tile`).
+  Details: [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 6. A grid of its own
+  for portrait stays postponed.
+* Version 2 (decided 2026-10-14, your request): everything about where and how large a tile is
+  lives per orientation, as a map `landscape:` / `portrait:` with `size` (default 1x1; portrait:
+  the landscape size turned), `cell` and `hidden`. **Placement is never an error any more**: a
+  tile that cannot take its cell (outside the grid, on the back tile, over another tile) or
+  finds no free block is not shown in that orientation (`Placement::shown`), the device draws
+  nothing for it, the web editor lists it under the preview and a drag brings it back. Only the
+  data (entity ids, icons, ranges) is checked. `swipe: true` on an area tile takes the back tile
+  off its page, a swipe right goes back and dots show the depth
+  ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 9). The subscription of a
+  page covers only the tiles shown in the current orientation.
 
 ---
 

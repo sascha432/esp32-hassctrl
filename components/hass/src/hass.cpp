@@ -75,6 +75,7 @@ enum class EventType : uint8_t {
 struct Subscribe {
     std::shared_ptr<const core::Layout> layout;
     core::PageIndex page = core::kNone;
+    core::Orientation orientation = core::Orientation::Landscape;
     core::TileIndex panel = core::kNone;
     uint32_t generation = 0;
 };
@@ -832,7 +833,8 @@ void on_command(Command &command)
     if (auto *wanted = std::get_if<Subscribe>(&command)) {
         PageState &p = s.page;
         p.wanted = std::move(*wanted);
-        p.subscription = p.wanted.layout ? hass_protocol::build_page(*p.wanted.layout, p.wanted.page, p.wanted.panel)
+        p.subscription = p.wanted.layout ? hass_protocol::build_page(*p.wanted.layout, p.wanted.page,
+                                                                     p.wanted.orientation, p.wanted.panel)
                                          : hass_protocol::PageSubscription{};
         if (s.authenticated) {
             render_page();
@@ -1367,10 +1369,11 @@ esp_err_t trust_certificate(const char *fingerprint, char *error, size_t error_s
     return ESP_OK;
 }
 
-void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::TileIndex panel,
-                    uint32_t generation)
+void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::Orientation o,
+                    core::TileIndex panel, uint32_t generation)
 {
-    post_command(Subscribe{.layout = std::move(layout), .page = page, .panel = panel, .generation = generation});
+    post_command(Subscribe{
+        .layout = std::move(layout), .page = page, .orientation = o, .panel = panel, .generation = generation});
 }
 
 void call_service(const core::Intent &intent, std::string_view entity_id)

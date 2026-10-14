@@ -1,35 +1,48 @@
 # Relative to rooms.yaml, which includes this file as rooms/workshop.yaml; its own includes
 # would be relative to this folder. A page can be at most 5 areas deep.
 #
-# This page is arranged in landscape: `landscape` is the cell of a tile, column,row from 0 (the
-# first cell of an area page is its back tile). Moving tiles in the edit mode of the screen (hold
-# the screen for a second) writes these for every tile of the page; they can be written by hand
-# too. `portrait` is the same for the turned screen, in the turned grid (4x3 becomes 3x4). Without
-# them a page fills its grid in list order. Tiles without a cell on an arranged page take the
-# first free place. A cell must be inside the grid and must not overlap another tile.
+# This page is arranged in landscape: `cell` under `landscape:` is the place of a tile,
+# column,row from 0 (the first cell of an area page is its back tile). Moving tiles in the edit
+# mode of the screen (hold the screen for a second) writes these for every tile of the page; they
+# can be written by hand too. `portrait:` is the same for the turned screen, in the turned grid
+# (4x3 becomes 3x4). Without them a page fills its grid in list order. Tiles without a cell on an
+# arranged page take the first free place. A tile whose cell lies outside the grid, on the back
+# tile or over another tile is left out on the screen, like a tile without room; the web editor
+# shows it under the preview.
 - type: area
   name: Workshop
+  # swipe navigation: the page has no back tile, a swipe to the right goes back to the parent
+  # page, and dots at the bottom show how deep you are (two here: Rooms and Workshop; an area
+  # with `swipe` inside a swipe area shows three, and so on)
+  swipe: true
   tiles:
-    # a small dimmer: `size: 1x1` keeps the level fill in one cell
+    # a dimmer in one cell: the level fill stays, the panel has the slider
     - entity: light.forge_lamp
       name: Forge
       dimmer: true
-      size: 1x1
-      landscape: 3,0
+      landscape:
+        cell: 3,0
     - entity: sensor.forge_power
       name: Forge Power
       icon: flash
       unit: W
       decimals: 0
-      landscape: 1,0
+      landscape:
+        cell: 1,0
     - entity: script.close_shutters
       name: Shutters
-      landscape: 0,2
+      landscape:
+        cell: 0,2
     - entity: switch.anvil_fan
       name: "Anvil #2"
       icon: none
-      landscape: 2,0
+      landscape:
+        cell: 2,0
     - entity: sensor.forge_humidity
       name: Humidity
       icon: water-percent
-      landscape: 1,1
+      landscape:
+        cell: 1,1
+      # not on the turned screen; the web editor lists it under the portrait preview
+      portrait:
+        hidden: true

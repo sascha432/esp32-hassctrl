@@ -29,7 +29,7 @@ std::shared_ptr<const hc::core::Layout> dashboard();
 // the edit mode's Done: kept in memory as the next revision (the file of --dashboard stays)
 bool save_dashboard(const hc::core::Layout &layout, uint32_t revision, char *error, size_t error_size);
 void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::PageIndex page,
-                    hc::core::TileIndex panel, uint32_t generation);
+                    hc::core::Orientation o, hc::core::TileIndex panel, uint32_t generation);
 void call_service(const hc::core::Intent &intent, std::string_view entity_id);
 bool take_event(hc::core::HassEvent &out);
 void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::HistoryKind kind, uint32_t hours,

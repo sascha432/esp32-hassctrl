@@ -62,7 +62,7 @@ closes it.
 | "Scanning for Wi-Fi ..." / "Connecting to Home-Net ..." | the device scans or connects (decided: shown on the display) | connected, or replaced by an error |
 | Home Assistant error, such as "Home Assistant: the host does not answer" (running: after Wi-Fi problems, once it lasts 10 s, so a reconnect or a restart of Home Assistant does not flash it; a tap opens its Settings page) | the error exists | connected again |
 | "Swipe down from the top for Settings" | after the first setup | the first pull-down once the onboarding is complete: Wi-Fi up and Home Assistant connected (decided 2026-10-10: while the start screen offers "Set up Home Assistant" the hint stays). Stored, so it does not come back after a restart. A tap leaves it in place |
-| Event messages of `overlay::show()`, one short line, the reason in the log: "Stream stopped, retrying", "Stream loading ..." and "⟳ Stream failed: <reason>" (the camera view, [lvgl-camera.md](lvgl-camera.md) section 2), "Changes not saved", "Tile not removed", "Order not reset", "Edit dropped" (the edit mode, section 7) | 5 s; the stream's until its state changes, "Stream failed" until a try (every 10 s, or a tap) reaches the server; before the state messages, a newer one replaces it | the time is over, or a tap (on "Stream failed": one more try) |
+| Event messages of `overlay::show()`, one short line, the reason in the log: "Stream stopped, retrying", "Stream loading ..." and "⟳ Stream failed: <reason>" (the camera view, [lvgl-camera.md](lvgl-camera.md) section 2), "Changes not saved", "Tile not removed", "Edit dropped" (the edit mode, section 7) | 5 s; the stream's until its state changes, "Stream failed" until a try (every 10 s, or a tap) reaches the server; before the state messages, a newer one replaces it | the time is over, or a tap (on "Stream failed": one more try) |
 
 The strip is as wide as its message needs, so it can get large. It keeps a small gap to the
 left and right screen edges, so the rounded corners and the transparency stay visible (decided).
@@ -104,7 +104,7 @@ The logo comes from the icon of dashboardicons.com, rendered by `tools/build_log
 ## 2. Grid
 
 The dashboard uses the whole screen; the pull-down at the top center opens Settings
-(section 1). A page is its grid of tiles, 8 px from the screen edges, 4 px
+(section 1). A page is its grid of tiles (1x1 to 32x32, `core::kMaxGrid`; 2026-10-14, your request, was 8x8), 8 px from the screen edges, 4 px
 between tiles (8 px on the JC4880P443C's 800x480, `Options::tile_gap`, 2026-10-09), radius 8. Portrait uses the transposed grid and the tile spans turned with it
 (docs/architecture.md section 5, "Orientation"). Turning the display builds the page again.
 
@@ -124,12 +124,15 @@ between tiles (8 px on the JC4880P443C's 800x480, `Options::tile_gap`, 2026-10-0
 +------------------------------------------------------------+
 ```
 
-An area page has the back tile (arrow) in its first cell; a tap goes to the parent page.
+An area page has the back tile (arrow) in its first cell; a tap goes to the parent page. An
+area with `swipe` has none: a swipe to the right goes back (section 9).
 
-Boards with `Info::ui_slide_pages` (the JC4880P443C, `hc::ui::Options::slide_pages`): an area page
-slides in from the right over 250 ms (ease out) and pushes the page that was shown out to the left;
-the back tile slides the parent in from the left. The leaving page takes no taps while it moves.
-Any other page change (a new layout, turning the display) has no slide.
+An area page slides in from the right over 250 ms (ease out) and pushes the page that was shown
+out to the left; the back tile and the swipe to the right slide the parent in from the left
+(section 9). The leaving page
+takes no taps while it moves. Every board slides since 2026-10-14 (the swipe fires the slide;
+`Info::ui_slide_pages = false` switches without the animation); before, only the JC4880P443C
+did. Any other page change (a new layout, turning the display) has no slide.
 
 ## 3. Tiles
 
@@ -139,20 +142,31 @@ Any other page change (a new layout, turning the display) has no slide.
 | button, scene, script | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
 | lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | opens the lock panel; a tap on the tile never locks or unlocks |
-| dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
-| climate 1x2 | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
-| climate 1x1 | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
-| weather 1x1 | icon (24 px) beside the temperature, the condition and the humidity in one line (`Cloudy • 81%`), name | opens the weather panel ([lvgl-panels.md](lvgl-panels.md) section 6) |
-| weather 1x2 | icon (48 px), the temperature, the condition, the humidity with its drop glyph, name | opens the weather panel |
-| weather 2x1 | the large icon left; right of it the temperature (28 px), the condition and the humidity in one line, the name | opens the weather panel |
-| picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives | shows the image full screen |
+| dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom; the same in every shape | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
+| climate, tall | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
+| climate, wide | the `-` bar down the left, the `+` bar down the right; between them the stack of the tall look when the card is at least 110 px high inside the padding, else the one-cell line | as the tall one |
+| climate, one cell | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
+| weather, one cell | icon (24 px) beside the temperature, the condition and the humidity in one line (`Cloudy • 81%`), name | opens the weather panel ([lvgl-panels.md](lvgl-panels.md) section 6) |
+| weather, tall | icon (48 px), the temperature, the condition, the humidity with its drop glyph, name | opens the weather panel |
+| weather, wide | the large icon left; right of it the temperature (28 px), the condition and the humidity in one line, the name | opens the weather panel |
+| switch, button, sensor, lock, area, wide | the icon left (48 px on a large cell, else 24), right of it the value (sensor, lock) and the name | as the one-cell tile |
+| picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives; any shape | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
 
-Sizes: a cell at least 90 px tall and wide gets the large fonts (value 28 px, name 16 px, icon
-48 px), smaller cells the small ones (value 20 px, name 12 px, icon 24 px). A value that is too
-wide steps down through the font sizes (`612 ppm`, `Detected` in a 74 px cell). A name that is too
-long ends in `...`.
+Sizes and shapes (decided 2026-10-14, built the same day, `tiles::create` takes the span):
+every tile is 1x1 unless its size says otherwise, any kind takes any size up to the grid, per
+orientation (section 6). The look follows the shape in the shown orientation: more rows than
+columns and at least 180 px high is **tall**, more columns than rows and at least 180 px wide
+is **wide**, everything else (one cell, 2x2, a 1x2 too small for the tall look) is the one-cell
+look in the card. A portrait screen turns a 1x2 climate into a wide 2x1 with the bars left and
+right by itself. The fonts follow the size of the card (your report 2026-10-14: a 2x2 area on an
+8x7 grid of the P4 had the small glyph): a card at least 90 px wide and tall (a tall one twice
+as tall) gets the large fonts (value 28 px, name 16 px, icon 48 px), smaller cells the small ones (value
+20 px, name 12 px, icon 24 px). A value that is too wide steps down through the font sizes
+(`612 ppm`, `Detected` in a 74 px cell). A name that is too long ends in `...`. Reviewed in the
+sim at 480x320, 320x480 and 800x480 (every kind in the three shapes). Open: a 2x2 switch on the
+P4 looks empty around its 48 px glyph (no larger glyph size).
 
 ## 4. States and colors
 
@@ -189,49 +203,70 @@ them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The gly
 (`UI_GLYPHS`: `arrow-left`, `plus`, `minus`, `chart-timeline-variant`, ...), in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
 web editor from the same names).
 
-## 6. Arrangement per orientation
+## 6. Placement per orientation
 
-Decided 2026-10-08 (your request), built: a tile keeps its own cell in landscape and in portrait.
-Tiles are moved in the edit mode (section 7) and in the web editor
-([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
+Decided 2026-10-08 (cells per orientation) and 2026-10-14 (sizes and hiding per orientation,
+overflow instead of errors; your request), built in `core` and `config`: everything about where
+and how large a tile is lives per orientation. Tiles are moved in the edit mode (section 7) and
+in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
 
-* A tile has two optional cells, `landscape` and `portrait` (column, row from 0). Portrait keeps
-  the transposed grid (4x3 becomes 3x4, no portrait grid of its own) and the swapped span, as
-  today; its cell is a cell of that transposed grid.
-* Placement of a page, per orientation: first every tile **with** a cell takes it; then the tiles
-  **without** one fill the first free block in list order (today's first-fit). A page where no tile
-  has a cell is placed exactly as today, so existing files do not change.
-* Rules (`core::finish`): a given cell must lie inside the grid with the whole span, must not
-  overlap another tile, and must not be the back tile's cell of an area page. Each is an error in
-  both orientations, naming the tile. A tile without a cell that finds no room is an error in
-  landscape and falls back to the first cell in portrait (as today). The error names the
-  orientation and the grid ("no free 1x2 block left in the landscape 5x4 grid of its page",
-  2026-10-13): a page arranged in landscape can be full there while the portrait preview of
-  the web editor still has room (your report). A size change in the web editor re-places the
-  tile ([web-dashboard-editor.md](../web/web-dashboard-editor.md) section 1); the screen's edit
-  mode has no size change.
-* **Moving writes the whole page.** When a tile is moved (screen or web), every tile of that page
-  gets its current cell in that orientation, not only the moved one. The page then stays as it was
-  arranged, also when a tile is added later (it takes the first free block). The other orientation
-  is not touched.
+* A tile has two optional maps, `landscape` and `portrait` (`core::Placement`), each with
+  `size` (columns x rows, 1x1 to 8x8, `core::kMaxTileSize`; default 1x1 in landscape, in portrait the landscape size
+  turned, so a tile keeps its cell count and turns with the grid unless told otherwise), `cell`
+  (column, row from 0; without it the tile takes the first free block) and `hidden` (the tile is
+  not placed, drawn or subscribed in that orientation). Portrait keeps the transposed grid (4x3
+  becomes 3x4, no portrait grid of its own); its cells are cells of that transposed grid.
+* Placement of a page, per orientation (`core::finish`): first every tile **with** a cell takes
+  it; then the tiles **without** one fill the first free block in list order (first-fit). A page
+  where no tile has a cell is in automatic order.
+* **Nothing about placement is an error.** A tile whose cell lies outside the grid, on the back
+  tile or over another tile (the earlier tile in list order keeps the cell), a tile without a
+  free block, or one larger than the grid is not shown in that orientation
+  (`Placement::shown == false`): the device draws nothing for it, the page's subscription
+  leaves it out, the web editor lists it under the preview ("no room") and a drag onto a cell
+  brings it back. Room made later (a tile removed, hidden or moved) brings an automatic tile back
+  by itself. Before 2026-10-14 every one of these refused the whole file, and a portrait tile
+  without room was drawn over the first cell; both are gone.
+* **Moving writes the whole page.** When a tile is moved (screen or web), every shown tile of
+  that page gets its current cell in that orientation, not only the moved one. The page then
+  stays as it was arranged, also when a tile is added later (it takes the first free block). The
+  other orientation is not touched. Hidden tiles and tiles without room keep no cell.
 * **A drop onto other tiles pushes them aside** (decided 2026-10-08 for a first try, judged on
   the device; the alternative is a swap of two tiles of the same span). The moved tile takes its
   block; every tile it covers takes the first free block in reading order from the drop cell on,
   wrapping to the start of the page, in their old order. When one of them finds no block, the drop
-  is refused (red outline). The same rule (`core::apply`) serves the screen and the web editor.
+  is refused (red outline): nothing vanishes into the overflow by a move. The same rule
+  (`core::move_tile`) serves the screen and the web editor; the editor also drops a tile that is
+  not on the screen onto a cell (hidden: shown again).
 * **Reset arrangement** (web and screen): removes the cells of a page in one orientation, back to
-  automatic order.
-* A grid change that leaves a cell outside the grid: the web editor offers to reset the
-  arrangement of that page; the device refuses a file with such a cell (error, as above).
+  automatic order. It cannot fail: a tile without room in list order is left out.
+* A grid change that leaves a cell outside the grid puts that tile into the editor's tray;
+  nothing else changes, the cell stays for a grid that fits it again.
 * Spacers stay: in automatic order they keep a cell free; in an arranged page an empty cell needs
-  none, but a spacer still works there.
-* JSON: `"landscape": [2, 1], "portrait": [0, 3]` (like `size`). YAML: `landscape: 2,1`
-  (column,row), to keep sizes `cols x rows` and positions apart at a glance.
-* `core::Tile`: `has_landscape`, `has_portrait` next to the `Cell`s that `finish()` fills, and
-  `portrait_fallback` (no block in portrait, drawn at the first cell). The edits are pure functions
-  of a finished layout: `move_tile`, `reset_arrangement` and `remove_tile` (host tests in
-  `host/tests/layout_test.cpp`). `remove_tile` keeps the entity table, so the entity store of the
-  screen stays valid while editing; the next read of the stored file drops unused entities.
+  none, but a spacer still works there. A hidden spacer is allowed.
+* The page of an area with `swipe` (section 9) has no back tile: its first cell is free.
+* YAML and JSON (`docs/dashboard-sample/`, format version 2):
+
+  ```yaml
+  - entity: climate.hearth
+    landscape:
+      size: 1x2
+      cell: 2,1
+    portrait:
+      hidden: true
+  ```
+
+  `"landscape": {"size": [1, 2], "cell": [2, 1]}, "portrait": {"hidden": true}` in JSON. The
+  keys of version 1 (`size: 1x2`, `landscape: 2,1`) are refused with a message that says where
+  they went; `tools/convert_dashboard.py` converts a version 1 file once.
+* `core::Tile::sides[2]`, one `Placement` per orientation (`tile.in(o)`): `has_size`, `has_cell`,
+  `hidden` from the file, `size`, `cell` and `shown` filled by `finish()`. The edits are pure
+  functions of a finished layout: `move_tile`, `reset_arrangement` and `remove_tile` (host tests
+  in `host/tests/layout_test.cpp`). `remove_tile` keeps the entity table, so the entity store of
+  the screen stays valid while editing; the next read of the stored file drops unused entities.
+* The web API's answers carry `"cells": {"landscape": [column, row] or null, "portrait": the
+  same}` per tile, where the device draws it (null: not shown there).
+* `swipe: true` on an area tile: section 9.
 
 ## 7. Edit mode
 
@@ -266,17 +301,21 @@ Tiles are moved in the edit mode (section 7) and in the web editor
 * **Remove**: a long press on a tile while editing (without moving) asks "Remove Ceiling?" with
   Remove and Cancel. An area names the tiles of its page that go with it. The back tile cannot be moved
   or removed.
-* **Reset** sets the page back to automatic order in this orientation (after a confirm).
-* **Done** saves; **Cancel** drops all changes of this edit session. A save, a remove or a reset
-  that fails says so in the alert strip ("Changes not saved"), over the edit bar; the reason is
-  in the log. The changes of every page
+* **Reset** sets the page back to automatic order in this orientation (after a confirm); a tile
+  without room in list order is left out of the screen, not refused (2026-10-14).
+* **Done** saves; **Cancel** drops all changes of this edit session. A save or a remove that
+  fails says so in the alert strip ("Changes not saved"), over the edit bar; the reason is in
+  the log. The changes of every page
   visited are saved together, one write.
 * **Leaving** (decided 2026-10-08): only a tap on Done or Cancel ends edit mode. There is no
   timeout, and turning the display keeps it open (the edit goes on in the new orientation). The
   session lives in RAM until Done: a reset or a power loss drops it. A new layout from the web UI
   or an import while editing drops the session too (it would conflict) and says so in the alert
   strip.
-* No adding of tiles and no change of sizes on the screen yet.
+* No adding of tiles and no change of sizes on the screen yet. Tiles hidden or without room in
+  the shown orientation are not part of the edit: a tile cannot be moved into or out of the
+  overflow on the screen (web editor only). A sideways drag on an empty cell goes back from a
+  swipe page (section 9).
 
 ### 7.1 Where the code goes
 
@@ -318,3 +357,59 @@ copy. Same behavior, one data path fewer.
   a small page (4x2) it moves tiles the user did not touch.
 * **Moving between pages on the screen**: not proposed (drag onto the back tile could move a tile
   to the parent page later).
+* **Dimmer options** (your request 2026-10-14, later): `+`/`-` bars on a dimmer card large
+  enough (like the climate bars), stepping by the tile's `step`, with a key to turn them off;
+  `toggle_on_tap: true` makes a tap toggle at once, details then open on a hold of about 500 ms
+  (which cancels the edit watch, so the 1000 ms edit long press never fires on such a dimmer);
+  the double tap goes for that dimmer, it would either toggle first and then open, or delay every
+  toggle by the double-tap window.
+
+## 9. Swipe navigation and the dots
+
+Decided and built 2026-10-14 (your request: enabled per area, "disable the back button and use
+swipe navigation", dots at the bottom; the first build as a strip of the main page was wrong and
+is gone). An area tile with `swipe: true` (YAML and JSON; the checkbox of the area in the web
+editor's inspector):
+
+* **Its page has no back tile.** Its first cell is a cell like any other. The area tile itself
+  stays on the parent page: a tap opens the page as always.
+* **A swipe to the right goes back** to the parent page (the page slides out as with the back
+  tile). A swipe to the left does nothing. Pages without `swipe` keep the back tile and take no
+  swipe.
+* **The dots** show how deep the page is: a band of 24 px at the bottom of a swipe page (32 px
+  on the JC4880P443C with its large fonts; your request 2026-10-14: 50 % and 100 % larger than
+  the first 16 px), the grid shrinks by it (like it shrinks below the edit bar). One 9 px dot
+  (12 px on the P4, the gap two thirds of a dot) per page
+  of the chain: the page the swipe areas were entered from, then every swipe area down to the
+  shown one, which is lit (`kText`; the others `kTextLabel` at 50 %). Rooms (back tile) > Workshop
+  (`swipe`) shows two dots on Workshop; Rooms with `swipe` as well shows three on Workshop
+  (`core::swipe_chain`). A tap on the left half of the band goes back; the right half does
+  nothing. Pages without a swipe area have no band.
+* **The gesture**: after 10 px the direction of a drag is decided (`swipe::kSlop`); a sideways
+  drag of 40 px (`kSwipeStart`) swipes at once, and the rest of the press goes nowhere
+  (`lv_indev_wait_release`: the tile under the finger is not tapped, it gets a press lost). A drag
+  that goes more up or down than sideways is the dimmer's level drag or the pull-down; the dimmer
+  starts its drag only then (`View::press_x`). In edit mode a sideways drag that starts on an
+  empty cell or the band goes back as well (the layer's own detector); a drag on a tile stays a
+  move, and the band takes no taps there.
+* The slide of a page runs on every board now (`Info::ui_slide_pages` defaults to true; before,
+  the JC4880P443C only); a swipe fires it, the page does not follow the finger (two pages exist
+  only during the 250 ms slide, decided for the WT32's RAM).
+* Code: `swipe.cpp` (the detector, the band), `dashboard::swiped()`, `core::swipe_page`,
+  `has_back_tile`, `swipe_chain`; the web editor mirrors them (the preview draws the back tile
+  and the dots by the same rules).
+* Tried in the sim with the sample (Workshop has `swipe`): Workshop without a back tile and with
+  two dots, a swipe right back to Rooms, a tap on the band's left half back to Rooms, and with
+  Rooms set to `swipe` too three dots on Workshop and two on Rooms.
+
+```
++------------------------------------------------------------+
+|  +-----------+ +-----------+ +-----------+ +-----------+   |
+|  |   tile    | |   tile    | |   tile    | |   tile    |   |   the Workshop page: no back tile,
+|  +-----------+ +-----------+ +-----------+ +-----------+   |   a swipe right goes back to Rooms
+|  +-----------+ +-----------+                               |
+|  |   tile    | |   tile    |                               |
+|  +-----------+ +-----------+                               |
+|                         o  •                               |   the dots: Rooms, Workshop
++------------------------------------------------------------+
+```

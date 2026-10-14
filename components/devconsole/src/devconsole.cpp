@@ -934,7 +934,8 @@ int cmd_hass(int argc, char **argv)
     if (argc == 3 && std::strcmp(argv[1], "page") == 0) {
         if (std::strcmp(argv[2], "off") == 0) {
             g_hass_layout.reset();
-            hc::hass::subscribe_page(nullptr, hc::core::kNone, hc::core::kNone, ++g_hass_generation);
+            hc::hass::subscribe_page(nullptr, hc::core::kNone, hc::core::Orientation::Landscape, hc::core::kNone,
+                                     ++g_hass_generation);
             return 0;
         }
         g_hass_layout = hc::dashboard::current();
@@ -947,7 +948,8 @@ int cmd_hass(int argc, char **argv)
         // the panel of the first tile of the page, so its fields come along
         const auto &tiles = g_hass_layout->pages[static_cast<size_t>(page)].tiles;
         const hc::core::TileIndex panel = argc == 3 && !tiles.empty() ? tiles.front() : hc::core::kNone;
-        hc::hass::subscribe_page(g_hass_layout, static_cast<hc::core::PageIndex>(page), panel, ++g_hass_generation);
+        hc::hass::subscribe_page(g_hass_layout, static_cast<hc::core::PageIndex>(page), hc::core::Orientation::Landscape,
+                                 panel, ++g_hass_generation);
         std::printf("page %ld subscribed, generation %lu; `hass values` prints what arrived\n", page,
                     static_cast<unsigned long>(g_hass_generation));
         return 0;

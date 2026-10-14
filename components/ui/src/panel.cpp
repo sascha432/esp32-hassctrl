@@ -58,7 +58,8 @@ constexpr lv_coord_t kOptionsRowLarge = kOptionsRow * 5 / 4;
 // Options::panel_dialogs: the opaque dialog in landscape and in portrait, the page behind it dimmed
 // by a black veil. The dialog slides down from above the screen and back up when it closes; the
 // veil darkens at once (fading it redrew the whole screen every frame, the P4 needs 50 ms for that).
-// Only the boards with panel_dialogs (the P4) animate: the others are too slow for it.
+// The full-screen panel of the other boards slides in from the right and out to the right, like
+// an area page (your request 2026-10-14; before, it just appeared).
 constexpr lv_coord_t kDialogWidth = 620;
 constexpr lv_coord_t kDialogHeight = 420;
 constexpr lv_coord_t kDialogPortraitWidth = 440;
@@ -73,11 +74,12 @@ struct State {
     lv_obj_t *root = nullptr; // the panel, or the veil the dialog lies on
     bool dialog = false;
     lv_obj_t *body = nullptr; // the dialog
-    int32_t shown = kShown;   // the dialog's slide progress
+    int32_t shown = kShown;   // the slide's progress
     // as built: LVGL lays the objects out only before the next frame, the first step of a slide
     // read 0 from them
     lv_coord_t body_height = 0;
     lv_coord_t screen_height = 0;
+    lv_coord_t screen_width = 0;
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
     lv_obj_t *name = nullptr;
@@ -138,16 +140,21 @@ void on_back(lv_event_t *)
     dashboard::close_panel();
 }
 
-// the dialog at `progress` of its slide: from above the screen down to the middle
+// the panel at `progress` of its slide: the dialog from above the screen down to the middle, the
+// full-screen panel from the right edge to the left
 void place(int32_t progress)
 {
     g.shown = progress;
+    if (!g.dialog) {
+        lv_obj_set_x(g.root, static_cast<lv_coord_t>(g.screen_width * (kShown - progress) / kShown));
+        return;
+    }
     const lv_coord_t height = g.body_height;
     const lv_coord_t middle = static_cast<lv_coord_t>((g.screen_height - height) / 2);
     lv_obj_set_y(g.body, static_cast<lv_coord_t>(-height + (middle + height) * progress / kShown));
 }
 
-// The dialog slides in (down) or out (up), from where it is; at the end of a slide out the panel goes.
+// The panel slides in or out, from where it is; at the end of a slide out the panel goes.
 void slide(bool in)
 {
     lv_anim_del(g.root, nullptr);
@@ -464,9 +471,17 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     lv_obj_clear_flag(g.root, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(g.root, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g.root, on_root_delete, LV_EVENT_DELETE, nullptr);
+    g.screen_width = width;
+    if (!dialog) {
+        // opened by a tap: from the right edge; built again after a turn: in place
+        place(appear ? 0 : kShown);
+    }
     if (kind == core::TileKind::Picture) {
         // the image full screen, without the frame
         picture_panel::build(g.root, tile, width, height);
+        if (appear) {
+            slide(true);
+        }
         return;
     }
     // the parts of the panel are placed in `body`: the whole screen, or the dialog
@@ -522,15 +537,14 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         sensor_panel::build(frame, tile);
     }
     update(g.entity);
-    if (dialog && appear) {
+    if (appear) {
         slide(true);
     }
 }
 
 void close()
 {
-    if (g.root == nullptr || !g.dialog) {
-        destroy();
+    if (g.root == nullptr) {
         return;
     }
     // from where a slide in got to

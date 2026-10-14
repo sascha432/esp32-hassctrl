@@ -290,8 +290,8 @@ bool save_dashboard(const hc::core::Layout &layout, uint32_t revision, char *err
     return true;
 }
 
-void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::PageIndex page, hc::core::TileIndex,
-                    uint32_t generation)
+void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::PageIndex page, hc::core::Orientation,
+                    hc::core::TileIndex, uint32_t generation)
 {
     const bool known = layout && g.layout && layout->entities.size() == g.layout->entities.size();
     g.shown = known ? std::move(layout) : nullptr;

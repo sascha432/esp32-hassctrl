@@ -66,8 +66,8 @@ constexpr Info kInfo{
     .vibration_gpio = 28,
     // 3 V / 70 mA motor through a 2N2222 (470 Ohm base): 50 ms (user, 2026-10-09; first 75 ms)
     .vibration_click_ms = 50,
-    // the large screen: pages slide, panels are dialogs, larger fonts (user, 2026-10-08)
-    .ui_slide_pages = true,
+    // the large screen: panels are dialogs, larger fonts (user, 2026-10-08); the pages slide on
+    // every board since 2026-10-14
     .ui_panel_dialogs = true,
     .ui_large_fonts = true,
     // twice the 4 px of the smaller screens (your choice on the device, 2026-10-09)

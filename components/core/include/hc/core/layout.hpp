@@ -8,8 +8,9 @@
 // the same checks however it arrived. A finished layout does not change; an edit builds a new one
 // (the edit functions at the end work on a copy).
 //
-// Placement (docs/ui/lvgl/lvgl-dashboard.md section 6): per orientation, the tiles with a cell of their
-// own take it first, then the others fill the first free block in list order.
+// Placement (docs/ui/lvgl/lvgl-dashboard.md section 6): per orientation, the tiles with a cell of
+// their own take it first, then the others fill the first free block in list order. A tile that
+// finds no room is not shown in that orientation (overflow); placement is never an error.
 
 #include <cstdint>
 #include <expected>
@@ -19,7 +20,8 @@
 
 namespace hc::core {
 
-constexpr uint8_t kMaxGrid = 8;          // columns and rows of a grid
+constexpr uint8_t kMaxGrid = 32;         // columns and rows of a grid (your request 2026-10-14; was 8)
+constexpr uint8_t kMaxTileSize = 8;      // columns and rows of a tile
 constexpr uint8_t kMaxAreaDepth = 5;     // areas inside areas, below the main page
 constexpr size_t kMaxNameLength = 32;    // bytes of UTF-8
 constexpr size_t kMaxEntityLength = 64;
@@ -70,6 +72,7 @@ struct Cell {
 };
 
 enum class Orientation : uint8_t { Landscape, Portrait };
+constexpr Orientation kOrientations[] = {Orientation::Landscape, Orientation::Portrait};
 
 using TileIndex = uint16_t;
 using PageIndex = uint16_t;
@@ -77,6 +80,16 @@ using EntityIndex = uint16_t;
 constexpr uint16_t kNone = 0xFFFF;
 // Tile::stream: the MJPEG stream of Home Assistant's camera proxy (/api/camera_proxy_stream)
 constexpr std::string_view kHassStream = "hass";
+
+// Where and how large a tile is in one orientation (`landscape:` / `portrait:` of the file).
+struct Placement {
+    bool has_size = false;  // `size` was set by the configuration
+    bool has_cell = false;  // `cell` was set by the configuration (the page is arranged)
+    bool hidden = false;    // not placed, drawn or subscribed in this orientation
+    Span size;              // finish(): 1x1 in landscape, the landscape size turned in portrait
+    Cell cell;              // finish() fills it unless has_cell
+    bool shown = false;     // finish(): drawn at `cell`; false: hidden, or no room (overflow)
+};
 
 struct Tile {
     // stable, given by the device; the web UI and the screen name a tile by it
@@ -86,8 +99,8 @@ struct Tile {
     PageIndex opens = kNone;     // Area: the page it opens
     EntityIndex entity = kNone;  // into Layout::entities
     bool dimmer = false;         // Light
-    bool has_size = false;       // `span` was set by the configuration
-    Span span;                   // cells in landscape; finish() sets the default of the kind
+    bool swipe = false;          // Area: its page has no back tile, a swipe right goes back, dots
+                                 // show the depth (docs/ui/lvgl/lvgl-dashboard.md section 9)
     int8_t decimals = -1;        // Sensor; -1: the display precision set in Home Assistant
     uint16_t refresh_s = 0;      // Picture; 0: kDefaultRefresh
     float step = 0;              // Light (percent) and Climate (degrees); 0: the default
@@ -95,24 +108,15 @@ struct Tile {
     memory::String icon;         // empty: automatic; "none": no icon
     memory::String unit;         // Sensor; empty: the unit Home Assistant reports
     memory::String stream;       // Picture: an MJPEG stream (http://... or kHassStream); empty: none
-    bool has_landscape = false;  // `landscape` was set by the configuration (the page is arranged)
-    bool has_portrait = false;
-    Cell landscape;              // set by finish() unless has_landscape
-    Cell portrait;               // set by finish() unless has_portrait
-    bool portrait_fallback = false; // set by finish(): no free block in portrait, drawn at the first cell
+    Placement sides[2];          // by Orientation
 
-    bool has_cell(Orientation o) const
+    Placement &in(Orientation o)
     {
-        return o == Orientation::Landscape ? has_landscape : has_portrait;
+        return sides[static_cast<size_t>(o)];
     }
-    Cell cell(Orientation o) const
+    const Placement &in(Orientation o) const
     {
-        return o == Orientation::Landscape ? landscape : portrait;
-    }
-    // the span in that orientation: portrait turns it
-    Span span_in(Orientation o) const
-    {
-        return o == Orientation::Landscape ? span : Span{span.rows, span.cols};
+        return sides[static_cast<size_t>(o)];
     }
 };
 
@@ -155,26 +159,34 @@ struct Problem {
     memory::String message;
 };
 
-// Checks every rule, sets the default sizes and grids, gives tiles without an id one, and places
-// the tiles of every page for landscape and for portrait.
+// Checks every rule of the data, sets the default sizes and grids, gives tiles without an id
+// one, and places the tiles of every page for landscape and for portrait (Placement::shown).
 std::expected<void, Problem> finish(Layout &layout);
 
 // The grid of a page in that orientation (portrait is the landscape grid turned).
 Span grid_in(const Page &page, Orientation o);
 
+// The area of `page` has swipe navigation: no back tile, a swipe right goes back.
+bool swipe_page(const Layout &layout, PageIndex page);
+
+// The page shows the back tile in its first cell: an area page without swipe navigation.
+bool has_back_tile(const Layout &layout, PageIndex page);
+
+// The pages the dots of `page` stand for: the page and every swipe page above it in one run, and
+// the page those were entered from, first. One entry (no dots) when `page` is no swipe page.
+memory::Vector<PageIndex> swipe_chain(const Layout &layout, PageIndex page);
+
 // ---- edits of a finished layout (the edit mode of the screen, docs/ui/lvgl/lvgl-dashboard.md section 7)
 
-// Moves `tile` to `cell` in orientation `o`. Every tile of its page gets its current cell (the page
-// becomes arranged in `o`), and the tiles the moved tile covers are pushed aside: each takes the
-// first free block in reading order from `cell` on, wrapping to the start, in their old order.
-// False when the tile does not fit there or a pushed tile finds no block; the layout is unchanged
-// then. The layout stays finished.
+// Moves `tile` to `cell` in orientation `o`. Every shown tile of its page gets its current cell
+// (the page becomes arranged in `o`), and the tiles the moved tile covers are pushed aside: each
+// takes the first free block in reading order from `cell` on, wrapping to the start, in their old
+// order. False when the tile does not fit there or a pushed tile finds no block; the layout is
+// unchanged then (nothing vanishes into the overflow by a move). The layout stays finished.
 bool move_tile(Layout &layout, TileIndex tile, Orientation o, Cell cell);
 
-// The tiles of `page` lose their cells in `o`: automatic order again. A problem when the tiles do
-// not fit in automatic order (an arrangement can use the room better); the layout is unchanged
-// then. The layout stays finished.
-std::expected<void, Problem> reset_arrangement(Layout &layout, PageIndex page, Orientation o);
+// The tiles of `page` lose their cells in `o`: automatic order again. The layout stays finished.
+void reset_arrangement(Layout &layout, PageIndex page, Orientation o);
 
 // The layout without `tile` (an area takes its pages and their tiles with it), finished. The
 // entity table stays as it is, so entity indices stay valid. A page left without tiles is a

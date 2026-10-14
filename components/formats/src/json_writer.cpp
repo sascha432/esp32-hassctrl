@@ -144,4 +144,11 @@ JsonWriter &JsonWriter::boolean(const char *name, bool value)
     return *this;
 }
 
+JsonWriter &JsonWriter::null(const char *name)
+{
+    key(name);
+    raw("null");
+    return *this;
+}
+
 } // namespace hc::formats

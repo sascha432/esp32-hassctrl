@@ -57,8 +57,9 @@ panels of a dimmer, a climate, a sensor and a lock are a dialog of 620x420 (440x
 centered over the page. The page behind it is dimmed by a black veil of 80 % (50 % until 2026-10-13), the dialog is
 opaque in `theme::kDialog` (0x161d25, a step lighter than the page so it stands out of the dimmed
 page, a step darker than its cards), radius 12, 1 px border. The veil darkens at once; the dialog slides down from above the screen into
-the middle (250 ms, easing out) and back up when it closes (easing in). Only these boards animate
-the panels; a fading veil redrew the whole screen every frame and is gone. A tap on the veil closes the dialog like the back tile. The camera image stays full
+the middle (250 ms, easing out) and back up when it closes (easing in). The full-screen panel of
+the other boards slides in from the right and out to the right like an area page (your request
+2026-10-14; before, it just appeared). A fading veil redrew the whole screen every frame and is gone. A tap on the veil closes the dialog like the back tile. The camera image stays full
 screen.
 
 ## 2. Light panel

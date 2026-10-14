@@ -12,6 +12,7 @@
 #include "icons.hpp"
 #include "runner.hpp"
 #include "sound.hpp"
+#include "swipe.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::tiles {
@@ -24,6 +25,9 @@ using core::TileKind;
 constexpr lv_coord_t kTileRadius = 8;
 // a cell at least this tall gets the large fonts (480x320 with 3 rows has 98 px)
 constexpr lv_coord_t kLargeCell = 90;
+// the middle of a climate card with the bars at least this high stacks action, setpoint and room
+// temperature (a 1x2 on 480x320 with 3 rows has 132 px)
+constexpr lv_coord_t kFullClimate = 110;
 // a finger has to move this far before a dimmer drag starts; less is a tap
 constexpr lv_coord_t kDragStart = 10;
 // a second tap within this time is a double tap (dimmer: on/off)
@@ -166,10 +170,11 @@ lv_obj_t *name_label(View &view, lv_obj_t *parent)
     return label;
 }
 
-lv_obj_t *bar(lv_obj_t *parent, const char *glyph, lv_coord_t height, lv_align_t align)
+// a step bar of a climate card: across the top or bottom (w 100 %), or down the left or right
+lv_obj_t *bar(lv_obj_t *parent, const char *glyph, lv_coord_t w, lv_coord_t h, lv_align_t align)
 {
     lv_obj_t *obj = t::plain(parent);
-    lv_obj_set_size(obj, LV_PCT(100), height);
+    lv_obj_set_size(obj, w, h);
     lv_obj_align(obj, align, 0, 0);
     lv_obj_set_style_radius(obj, kTileRadius - 2, 0);
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
@@ -178,6 +183,30 @@ lv_obj_t *bar(lv_obj_t *parent, const char *glyph, lv_coord_t height, lv_align_t
     lv_obj_t *label = t::label(obj, glyph != nullptr ? glyph : "", icons::small(), t::kBackground);
     lv_obj_center(label);
     return obj;
+}
+
+// The wide shape: the icon left, right of it a column of texts as wide as the room left. The
+// texts are added by the caller.
+lv_obj_t *wide_row(View &view, const lv_font_t &icon_font)
+{
+    lv_obj_t *row = t::plain(view.card);
+    lv_obj_set_size(row, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 12, 0);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(row, LV_OBJ_FLAG_EVENT_BUBBLE);
+    view.icon = t::label(row, "", icon_font, t::kTextLabel);
+    lv_obj_t *col = t::plain(row);
+    lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(col, 2, 0);
+    lv_obj_clear_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(col, LV_OBJ_FLAG_EVENT_BUBBLE);
+    // the room left of the icon
+    view.value_width = static_cast<lv_coord_t>(view.value_width - lv_font_get_line_height(&icon_font) - 12);
+    lv_obj_set_width(col, view.value_width);
+    return col;
 }
 
 // ------------------------------------------------------------------------------- the gestures
@@ -279,11 +308,14 @@ void on_dimmer(lv_event_t *event)
     }
     switch (lv_event_get_code(event)) {
     case LV_EVENT_PRESSED:
+        view.press_x = point.x;
         view.press_y = point.y;
         view.dragging = false;
         break;
     case LV_EVENT_PRESSING:
-        if (!view.dragging && std::abs(point.y - view.press_y) >= kDragStart) {
+        // a drag that goes more up or down than sideways; a sideways one is a swipe of the page
+        if (!view.dragging && !swipe::active() && std::abs(point.y - view.press_y) >= kDragStart &&
+            std::abs(point.y - view.press_y) > std::abs(point.x - view.press_x)) {
             view.dragging = true;
         }
         if (view.dragging) {
@@ -477,7 +509,7 @@ void update_climate(View &view, const core::EntityState &state, const core::Expe
         std::string current;
         if (available && !std::isnan(state.current)) {
             // after the action in the line of a small tile
-            current = (view.tall ? "" : "\xe2\x80\xa2 ") + temperature(state.current) + "°";
+            current = (view.full ? "" : "\xe2\x80\xa2 ") + temperature(state.current) + "°";
         }
         set_text(view.current, current);
     }
@@ -501,7 +533,8 @@ void update_weather(View &view, const core::EntityState &state, bool known, bool
     if (available && !std::isnan(state.humidity)) {
         humidity = number(state.humidity, 0) + "%";
     }
-    if (view.tall) {
+    if (view.current != nullptr) {
+        // the tall look: the humidity on a line of its own
         set_text(view.action, condition);
         set_text(view.current, humidity);
         set_hidden(lv_obj_get_parent(view.current), humidity.empty());
@@ -629,7 +662,7 @@ int shown_level(const core::EntityState &state, const core::Expectation *pending
     return std::max(1, static_cast<int>(std::lround(brightness * 100 / 255.0)));
 }
 
-void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t area)
+void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t area, core::Span span)
 {
     const lv_coord_t height = lv_area_get_height(&area);
     const lv_coord_t width = lv_area_get_width(&area);
@@ -648,11 +681,12 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
     const core::Tile &tile = layout.tiles[view.tile];
     view.kind = tile.kind;
     view.entity = tile.entity;
-    const bool landscape_tall = height > width;
-    view.tall = landscape_tall && height >= 2 * kLargeCell;
-    view.wide = tile.kind == TileKind::Weather && width >= height * 3 / 2;
-    // a tile two cells tall uses the fonts of one cell
-    view.large = (view.tall ? height / 2 : height) >= kLargeCell && width >= kLargeCell;
+    // the shape follows the cells; a tall or wide look needs the room of two cells of 90 px
+    view.tall = span.rows > span.cols && height >= 2 * kLargeCell;
+    view.wide = span.cols > span.rows && width >= 2 * kLargeCell;
+    // the fonts follow the size of the card (a 2x2 of small cells is a large card); the tall
+    // look stacks more, so it needs twice the height
+    view.large = width >= kLargeCell && (view.tall ? height / 2 : height) >= kLargeCell;
 
     if (tile.kind == TileKind::Light && tile.dimmer) {
         view.fill = t::plain(view.card);
@@ -677,22 +711,37 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
     }
 
     if (tile.kind == TileKind::Climate) {
+        // the step bars: across the top and bottom of a tall card, down the left and right of a
+        // wide one; the one-cell look has none (the panel steps)
         lv_coord_t middle_top = 0;
         lv_coord_t middle_bottom = 0;
+        lv_coord_t middle_left = 0;
+        lv_coord_t middle_right = 0;
         if (view.tall) {
-            const lv_coord_t bar_height = std::max<lv_coord_t>(28, height / 10);
-            view.plus = bar(view.card, icons::glyph("plus"), bar_height, LV_ALIGN_TOP_MID);
-            view.minus = bar(view.card, icons::glyph("minus"), bar_height, LV_ALIGN_BOTTOM_MID);
+            const lv_coord_t thickness = std::max<lv_coord_t>(28, height / 10);
+            view.plus = bar(view.card, icons::glyph("plus"), LV_PCT(100), thickness, LV_ALIGN_TOP_MID);
+            view.minus = bar(view.card, icons::glyph("minus"), LV_PCT(100), thickness, LV_ALIGN_BOTTOM_MID);
+            middle_top = thickness;
+            middle_bottom = thickness;
+        } else if (view.wide) {
+            const lv_coord_t thickness = std::max<lv_coord_t>(28, width / 10);
+            view.minus = bar(view.card, icons::glyph("minus"), thickness, LV_PCT(100), LV_ALIGN_LEFT_MID);
+            view.plus = bar(view.card, icons::glyph("plus"), thickness, LV_PCT(100), LV_ALIGN_RIGHT_MID);
+            middle_left = thickness;
+            middle_right = thickness;
+        }
+        if (view.plus != nullptr) {
             lv_obj_add_event_cb(view.plus, on_step, LV_EVENT_CLICKED, &view);
             lv_obj_add_event_cb(view.minus, on_step, LV_EVENT_CLICKED, &view);
-            middle_top = bar_height;
-            middle_bottom = bar_height;
         }
         lv_obj_t *col = column(view.card);
         const auto col_height = static_cast<lv_coord_t>(height - 12 - middle_top - middle_bottom);
-        lv_obj_set_height(col, col_height);
-        lv_obj_align(col, LV_ALIGN_TOP_MID, 0, middle_top);
-        if (view.tall) {
+        const auto col_width = static_cast<lv_coord_t>(width - 12 - middle_left - middle_right);
+        lv_obj_set_size(col, col_width, col_height);
+        lv_obj_align(col, LV_ALIGN_TOP_LEFT, middle_left, middle_top);
+        view.value_width = static_cast<lv_coord_t>(col_width - 2);
+        view.full = col_height >= kFullClimate;
+        if (view.full) {
             view.action = text(col, t::font_normal(), t::kTextLabel);
             view.value = text(col, value_font(view), t::kText);
             // the room temperature under the setpoint
@@ -714,24 +763,8 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
     }
 
     if (tile.kind == TileKind::Weather && view.wide) {
-        // 2x1: the large icon left, right of it the temperature, the condition and the name
-        lv_obj_t *row = t::plain(view.card);
-        lv_obj_set_size(row, LV_PCT(100), LV_PCT(100));
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(row, 12, 0);
-        lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_EVENT_BUBBLE);
-        view.icon = t::label(row, "", icons::large(), t::kTextLabel);
-        lv_obj_t *col = t::plain(row);
-        lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(col, 2, 0);
-        lv_obj_clear_flag(col, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(col, LV_OBJ_FLAG_EVENT_BUBBLE);
-        // the room left of the icon
-        view.value_width = static_cast<lv_coord_t>(view.value_width - lv_font_get_line_height(&icons::large()) - 12);
-        lv_obj_set_width(col, view.value_width);
+        // the large icon left, right of it the temperature, the condition and the name
+        lv_obj_t *col = wide_row(view, icons::large());
         view.value = t::label(col, "", value_font(view), t::kText);
         view.action = t::label(col, "", t::font_normal(), t::kTextValue);
         lv_obj_set_width(view.action, LV_PCT(100));
@@ -767,9 +800,22 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
         return;
     }
 
+    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock;
+    if (view.wide && tile.kind != TileKind::Picture) {
+        // the icon left, the value and the name right of it
+        lv_obj_t *col = wide_row(view, view.large ? icons::large() : icons::small());
+        if (has_value) {
+            view.value = t::label(col, "", value_font(view), t::kText);
+            lv_obj_set_width(view.value, LV_PCT(100));
+            lv_label_set_long_mode(view.value, LV_LABEL_LONG_CLIP);
+        }
+        view.name = t::label(col, "", name_font(view), t::kTextLabel);
+        lv_obj_set_width(view.name, LV_PCT(100));
+        lv_obj_add_event_cb(view.card, on_click, LV_EVENT_CLICKED, &view);
+        return;
+    }
     lv_obj_t *col = column(view.card);
     // without a value the icon is the large one
-    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock;
     const bool big_icon = !has_value && view.large;
     view.icon = t::label(col, "", big_icon ? icons::large() : icons::small(), t::kTextLabel);
     if (has_value) {

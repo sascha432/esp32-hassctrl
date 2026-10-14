@@ -368,7 +368,7 @@ FieldMask fields_of(const core::Tile &tile, bool panel)
     return fields;
 }
 
-PageSubscription build_page(const core::Layout &layout, core::PageIndex page, core::TileIndex panel)
+PageSubscription build_page(const core::Layout &layout, core::PageIndex page, core::Orientation o, core::TileIndex panel)
 {
     PageSubscription sub;
     if (page >= layout.pages.size()) {
@@ -377,6 +377,9 @@ PageSubscription build_page(const core::Layout &layout, core::PageIndex page, co
     // the entities in the order of their first tile; two tiles of one entity share an entry
     for (const core::TileIndex index : layout.pages[page].tiles) {
         const core::Tile &tile = layout.tiles[index];
+        if (!tile.in(o).shown && index != panel) {
+            continue; // not on the screen in this orientation
+        }
         const FieldMask fields = fields_of(tile, index == panel);
         if (fields == 0) {
             continue;

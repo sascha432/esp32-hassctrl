@@ -43,6 +43,9 @@ const core::Expectation *pending(core::EntityIndex entity);
 void open_page(core::PageIndex page);
 // to the parent of the current page
 void back();
+// A swipe (swipe.hpp): `direction` -1 for a swipe right, which goes back on a swipe page (an
+// area with `swipe`); 1 for a swipe left, which does nothing.
+void swiped(int direction);
 
 // Opens the panel of `tile` over the page (a light with `dimmer`, a climate) and subscribes its fields;
 // close_panel() goes back to the page. Opening another page closes it.

@@ -26,6 +26,7 @@ public:
     // a number with a fraction, shortest form ("0.5", "21", "0.1")
     JsonWriter &decimal(const char *key, double value);
     JsonWriter &boolean(const char *key, bool value);
+    JsonWriter &null(const char *key);
 
     const char *c_str() const
     {

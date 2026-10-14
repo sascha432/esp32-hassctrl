@@ -33,8 +33,10 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
 | climate tile | tap on a `+`/`-` bar | steps the setpoint, sent 0.7 s after the last tap | |
 | other tiles with a panel | tap | opens the panel | |
 | area tile, back tile | tap | opens the page, goes to the parent | |
+| swipe page (an area with `swipe`), any tile | drag to the right | back to the parent page ([lvgl-dashboard.md](lvgl-dashboard.md) section 9) | the direction is decided after 10 px, 40 px sideways swipe; the tile under the finger is not tapped |
+| dot band (swipe page) | tap on the left half | back | the band is 24 px high, the dots 9 px (32 and 12 on the P4) |
 | dashboard page | long press, moving less than 10 px | starts the edit mode | 1000 ms |
-| edit mode | drag a tile; long press on a tile | moves it; asks to remove it | [lvgl-dashboard.md](lvgl-dashboard.md) section 7 |
+| edit mode | drag a tile; long press on a tile; drag to the right on an empty cell | moves it; asks to remove it; back from a swipe page | [lvgl-dashboard.md](lvgl-dashboard.md) section 7 |
 | panel steppers | tap; hold | one step; a step every 250 ms | `panel::kStepRepeatMs` |
 | panel sliders, color wheel, arc | drag | sent on release | |
 | P4 panel dialog | tap on the dimmed page | closes the dialog | |
@@ -50,6 +52,10 @@ Rules that keep the gestures apart:
 * **No swipe to close** (decided): a swipe up to close Settings fired while scrolling. Back is `<`.
 * **No long press on a tile** except to start the edit mode; a dimmer's drag starts with movement,
   so the two do not collide.
+* **The first 10 px decide between sideways and up or down** (2026-10-14): a sideways drag is a
+  swipe of the page wherever it starts (it acts only on a swipe page), an up or down drag belongs
+  to the dimmer under the finger or the pull-down zone. A swipe takes the rest of the press
+  (`lv_indev_wait_release`), so the tile it started on is not tapped on release.
 * What lies at the top center under the pull-down zone does not get taps there: the camera view's
   buttons sit below it (`overlay::kZoneHeight`).
 * While the dashboard is edited the pull-down is off; the alert strip shows only event messages
@@ -89,4 +95,5 @@ of two fingers closer than about 3 cm. The Windows version has one pointer (the 
 
 ## 6. Open points
 
-* Whether a swipe from the left edge also goes back.
+* Whether a swipe from the left edge also goes back on a page with a back tile. On a swipe page
+  (an area with `swipe`, 2026-10-14) a swipe right goes back from anywhere.

@@ -217,7 +217,8 @@ struct Backend {
     bool (*save_dashboard)(const core::Layout &layout, uint32_t revision, char *error, size_t error_size);
     // the values of the tiles of `page` (and the panel of the tile `panel`) are wanted from now
     // on, stamped with `generation`
-    void (*subscribe_page)(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::TileIndex panel,
+    void (*subscribe_page)(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::Orientation o,
+                           core::TileIndex panel,
                            uint32_t generation);
     void (*call_service)(const core::Intent &intent, std::string_view entity_id);
     // the next values or failure from Home Assistant, false when there is none

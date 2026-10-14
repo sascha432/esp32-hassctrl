@@ -47,6 +47,16 @@ private:
         _out += '\n';
     }
 
+    // a key of a map inside a tile, one level deeper than the tile's keys
+    void sub(int indent, const char *key, std::string_view value)
+    {
+        _out.append(static_cast<size_t>(indent + 4), ' ');
+        _out += key;
+        _out += ": ";
+        _out.append(value.data(), value.size());
+        _out += '\n';
+    }
+
     void tile(const Tile &tile, int indent)
     {
         bool first = true;
@@ -65,24 +75,30 @@ private:
         if (tile.dimmer) {
             put("dimmer", "true");
         }
+        if (tile.swipe) {
+            put("swipe", "true");
+        }
         if (!tile.icon.empty()) {
             put("icon", formats::yaml::quote(tile.icon));
         }
         char text[24];
-        if (tile.has_size) {
-            char span[8];
-            detail::format_span(tile.span, span);
-            put("size", span);
-        }
-        if (tile.has_landscape || tile.has_portrait) {
-            char cell[8];
-            if (tile.has_landscape) {
-                detail::format_cell(tile.landscape, cell);
-                put("landscape", cell);
+        for (const core::Orientation o : core::kOrientations) {
+            const core::Placement &p = tile.in(o);
+            if (!p.has_size && !p.has_cell && !p.hidden) {
+                continue;
             }
-            if (tile.has_portrait) {
-                detail::format_cell(tile.portrait, cell);
-                put("portrait", cell);
+            put(o == core::Orientation::Landscape ? "landscape" : "portrait", {});
+            char value[8];
+            if (p.has_size) {
+                detail::format_span(p.size, value);
+                sub(indent, "size", value);
+            }
+            if (p.has_cell) {
+                detail::format_cell(p.cell, value);
+                sub(indent, "cell", value);
+            }
+            if (p.hidden) {
+                sub(indent, "hidden", "true");
             }
         }
         if (tile.step != 0) {

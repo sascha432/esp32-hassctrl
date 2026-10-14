@@ -19,7 +19,7 @@ Two user interfaces, each in its own folder; the file names say which one they b
 | --- | --- |
 | [web-design.md](web/web-design.md) | the design guide: principles, Bootstrap look, page frame, how a page is built, texts, checklist |
 | [web-app.md](web/web-app.md) | the web app: site map, setup, login, the main pages and their API, firmware update, HTTPS |
-| [web-dashboard-editor.md](web/web-dashboard-editor.md) | the dashboard editor: what it does, data flow, the entity picker, page layout; [demo](web/web-dashboard-editor-demo.html) |
+| [web-dashboard-editor.md](web/web-dashboard-editor.md) | the dashboard editor: what it does, data flow, the entity picker, page layout |
 | [web-recovery.md](web/web-recovery.md) | web files on LittleFS, the built-in recovery page, the web UI in the recovery app |
 
 [images/](images/) holds pictures of the screens for the README.

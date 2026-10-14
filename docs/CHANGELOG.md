@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-10-14
+
+Everything of this day confirmed working by you on the boards (2026-10-14, evening).
+
+- Dashboard format version 2 (your request: a more flexible dashboard; decided with you,
+  architecture.md section 5, lvgl-dashboard.md section 6): a tile's size, cell and `hidden`
+  live per orientation (`landscape:` / `portrait:` maps), every tile is 1x1 unless set, any kind
+  takes any size up to the grid, the portrait size is the landscape size turned unless set.
+  Placement is never an error any more: a tile without room, with a cell outside the grid, on
+  the back tile or over another tile is left out of that orientation (the device draws nothing,
+  the subscription skips it), and the web editor lists it in a tray under the preview to drag
+  back; a drag into the tray hides a tile in that orientation. The
+  firmware reads version 2 only (your decision: no compatibility, no conversion code in the
+  firmware); `tools/convert_dashboard.py` converts a version 1 JSON or YAML file or folder
+  once and writes out the old default sizes, so a converted dashboard looks as before. The
+  API's `cells` answer is `{"landscape": [c, r] | null, "portrait": ...}`. Web editor: size
+  per orientation, hidden checkboxes, the tray, no shifting on a size or grid change
+  (`refit()` gone); the mock-up page
+  `web-dashboard-editor-demo.html` is deleted. Host tests 98 (new layout tests for overflow,
+  hidden, swipe rules); the sample dashboard shows the new keys. Your dashboard on the devices
+  needs the conversion before the next flash (the device refuses the stored file otherwise).
+- Your requests of the afternoon: the grid of a page goes up to 32x32 (`core::kMaxGrid`; a tile
+  stays 1x1 to 8x8, `kMaxTileSize`; `4x3` and `2,1` take two digits now); the dots of a swipe
+  page are 50 % larger (24 px band, 9 px dots) and 100 % on the JC4880P443C (32 and 12 px);
+  the full-screen panels of the WT32-SC01 and the JC3248W535 (dimmer, climate, sensor, lock,
+  weather, camera) slide in from the right and out to the right like an area page, the P4's
+  dialogs keep sliding down; the large fonts and glyphs follow the size of the card, not of
+  one cell (a 2x2 area on an 8x7 grid of the P4 had the small glyph).
+- Tile looks per shape (lvgl-dashboard.md section 3): the shape follows the tile's span in the
+  shown orientation, tall (bars top and bottom, the stacked climate and weather looks), wide
+  (the climate's bars down the left and right with the stacked look where the card is high
+  enough, the icon left and the texts right for every other kind) or the one-cell look; the
+  fonts follow the size of one cell. A 1x2 climate turns into a wide 2x1 with side bars on a
+  portrait screen. Reviewed in the sim at the three screen sizes.
+- Swipe navigation per area (lvgl-dashboard.md section 9, lvgl-touch.md; your request):
+  `swipe: true` on an area tile (a checkbox in the web editor) takes the back tile off its
+  page, a drag to the right of 40 px (the direction decided after 10 px) slides back to the
+  parent page, and a band of dots at the bottom shows how deep the page is in nested swipe
+  areas (two on a swipe area below a page with a back tile, three one level further, and so
+  on; a tap on the band's left half goes back). The pages slide on every board now (before:
+  the JC4880P443C only; `ui_slide_pages = false` switches without the animation). A swipe takes
+  the rest of the press, so the tile under the finger is not tapped; the dimmer starts its
+  level drag only on an up or down drag. In edit mode a drag to the right on an empty cell
+  goes back as well. Tried in the sim and on the boards.
+
 ## 2026-10-13
 
 - JC4880P443C (your report): the panel dialogs (dimmer, climate, sensor, lock, weather) did not

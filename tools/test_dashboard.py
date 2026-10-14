@@ -63,7 +63,7 @@ def main() -> None:
 
     sample = folder(SAMPLE)
     status, answer, _ = upload(c, sample, check_only=True)
-    check(status == 200 and answer.get("checked") is True and answer.get("tiles") == 18 and answer.get("pages") == 3
+    check(status == 200 and answer.get("checked") is True and answer.get("tiles") == 19 and answer.get("pages") == 3
           and answer.get("revision") == 0 and answer.get("ignored") == "hass", "check only: the sample is valid", f"{status} {answer}")
 
     broken = dict(sample)
@@ -90,7 +90,7 @@ def main() -> None:
     check(before_status == after_status and before == after, "a refused import changed nothing")
 
     status, answer, _ = upload(c, sample)
-    check(status == 200 and answer.get("checked") is False and answer.get("tiles") == 18 and answer.get("revision", 0) >= 1,
+    check(status == 200 and answer.get("checked") is False and answer.get("tiles") == 19 and answer.get("revision", 0) >= 1,
           "import the sample", f"{status} {answer}")
     revision = answer.get("revision", 0)
 
@@ -124,7 +124,7 @@ def main() -> None:
     # the editor of the web UI (docs/ui/web/web-dashboard-editor.md): check=1, new tiles, cells, paths
     revision = stored["revision"]
     workshop = stored["tiles"][7]["tiles"][2]
-    check(workshop.get("name") == "Workshop" and workshop["tiles"][0].get("landscape") == [3, 0],
+    check(workshop.get("name") == "Workshop" and workshop["tiles"][0].get("landscape") == {"cell": [3, 0]},
           "the cells of an arranged page are stored", f"{workshop}")
     added = json.loads(json.dumps(stored))
     added["tiles"].append({"entity": "switch.new_tile"})
@@ -134,8 +134,20 @@ def main() -> None:
     dashboard = answer.get("dashboard", {}) if isinstance(answer, dict) else {}
     new = dashboard.get("tiles", [{}])[-1]
     check(status == 200 and answer.get("checked") is True and answer.get("revision") == revision
-          and new.get("entity") == "switch.new_tile" and new.get("id", 0) > 0 and len(new.get("cells", [])) == 5,
+          and new.get("entity") == "switch.new_tile" and new.get("id", 0) > 0
+          and isinstance(new.get("cells", {}).get("landscape"), list) and len(new["cells"]["landscape"]) == 2,
           "check=1: a new tile gets an id and its cells", f"{status} {answer if status != 200 else new}")
+    # a tile without room and a hidden tile answer 200 with null cells (docs/ui/lvgl/lvgl-dashboard.md section 6)
+    crowded = json.loads(json.dumps(stored))
+    crowded["tiles"] = [t for t in crowded["tiles"] if t.get("type") != "area"]
+    crowded["tiles"] += [{"entity": f"switch.extra_{i}", "landscape": {"size": [8, 8]}} for i in range(3)]
+    crowded["tiles"][0]["portrait"] = {"hidden": True}
+    status, answer, _ = c.request("POST", f"/api/dashboard?revision={revision}&check=1", body=json.dumps(crowded).encode(),
+                                  headers={"Content-Type": "application/json"})
+    tiles = answer.get("dashboard", {}).get("tiles", []) if status == 200 else []
+    check(status == 200 and len(tiles) >= 4 and all(t["cells"] == {"landscape": None, "portrait": None} for t in tiles[-3:])
+          and tiles[0]["cells"]["portrait"] is None and isinstance(tiles[0]["cells"]["landscape"], list),
+          "tiles without room or hidden are checked with null cells", f"{status} {answer if status != 200 else tiles[-1]}")
     status, after, _ = c.request("GET", "/api/dashboard")
     check(after.get("revision") == revision and len(after.get("tiles", [])) == 9, "check=1 stores nothing")
 
@@ -169,7 +181,7 @@ def main() -> None:
     check(status == 200 and "attachment" in headers.get("Content-Disposition", "") and isinstance(text, str)
           and text.startswith("defaults:"), "export as YAML", f"{status}")
     status, answer, _ = upload(c, {"hass.yaml": text.encode()}, check_only=True)
-    check(status == 200 and answer.get("tiles") == 18 and answer.get("pages") == 3, "the exported YAML imports again", f"{status} {answer}")
+    check(status == 200 and answer.get("tiles") == 19 and answer.get("pages") == 3, "the exported YAML imports again", f"{status} {answer}")
 
     if args.set_up:
         files = folder(Path(args.set_up))

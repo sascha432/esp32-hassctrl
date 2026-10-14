@@ -22,9 +22,13 @@ struct View {
     core::TileIndex tile = core::kNone; // kNone: the back tile of an area page
     core::EntityIndex entity = core::kNone;
     core::TileKind kind = core::TileKind::Spacer;
-    bool large = false;    // the cell is large enough for the large fonts
-    bool tall = false;     // spans two rows (dimmer and climate 1x2)
-    bool wide = false;     // a weather tile of two columns: the icon beside the text
+    bool large = false;    // a cell of the tile is large enough for the large fonts
+    // the shape (docs/ui/lvgl/lvgl-dashboard.md section 3): more rows than columns and room for it
+    // is tall (the climate bars top and bottom), more columns than rows wide (the icon beside the
+    // text, the climate bars left and right); else the one-cell look in the card
+    bool tall = false;
+    bool wide = false;
+    bool full = false;     // climate: action, setpoint and room temperature stacked (room for it)
     lv_obj_t *card = nullptr;
     lv_obj_t *icon = nullptr;
     lv_obj_t *value = nullptr;
@@ -53,6 +57,7 @@ struct View {
     lv_timer_t *image_timer = nullptr;
 
     // gestures
+    lv_coord_t press_x = 0;
     lv_coord_t press_y = 0;
     bool dragging = false;
     int drag_level = 0;          // dimmer, percent while dragging
@@ -83,8 +88,9 @@ float climate_step(const core::Tile &tile, const core::EntityState &state);
 // and the level it comes on at is not known yet.
 int shown_level(const core::EntityState &state, const core::Expectation *pending, bool &on);
 
-// Creates the view of `view.tile` (or the back tile) in the area x, y, w, h of `parent`.
-void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t area);
+// Creates the view of `view.tile` (or the back tile) in the area x, y, w, h of `parent`; `span`
+// is the tile's size in cells in the shown orientation (the shape follows it).
+void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t area, core::Span span);
 
 // asks for the camera image of a picture view now (after a panel covered the page)
 void request_image(View &view);

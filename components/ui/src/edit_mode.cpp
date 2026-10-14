@@ -7,6 +7,7 @@
 #include "dashboard.hpp"
 #include "overlay.hpp"
 #include "settings.hpp"
+#include "swipe.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::edit {
@@ -201,7 +202,7 @@ void show_target(core::Cell cell)
 {
     const dashboard::Grid &grid = dashboard::grid();
     const core::Layout &layout = dashboard::layout();
-    const core::Span span = layout.tiles[g.tile].span_in(grid.orientation);
+    const core::Span span = layout.tiles[g.tile].in(grid.orientation).size;
     g.target = cell;
     auto copy = std::make_unique<core::Layout>(layout);
     g.moved = core::move_tile(*copy, g.tile, grid.orientation, cell) ? std::move(copy) : nullptr;
@@ -286,6 +287,15 @@ void on_layer(lv_event_t *event)
         }
         if (g.dragging) {
             drag(point);
+        } else if (g.tile == core::kNone && !g.back) {
+            // a sideways drag on an empty cell or the band of dots swipes to another page
+            const lv_coord_t dx = static_cast<lv_coord_t>(point.x - g.at.x);
+            const lv_coord_t dy = static_cast<lv_coord_t>(point.y - g.at.y);
+            if (LV_ABS(dx) >= swipe::kSwipeStart && LV_ABS(dx) > LV_ABS(dy)) {
+                cancel_timer();
+                lv_indev_wait_release(lv_indev_get_act());
+                dashboard::swiped(dx < 0 ? 1 : -1);
+            }
         }
         break;
     case LV_EVENT_RELEASED:
@@ -329,14 +339,9 @@ void on_cancel(lv_event_t *)
 
 void on_reset_confirmed(void *)
 {
+    // cannot fail: a tile without room in list order is left out, not refused
     core::Layout copy = dashboard::layout();
-    const auto reset = core::reset_arrangement(copy, dashboard::current_page(), orientation());
-    if (!reset) {
-        char text[128];
-        std::snprintf(text, sizeof(text), "the tiles do not fit in list order: %s", reset.error().message.c_str());
-        message("Order not reset", text);
-        return;
-    }
+    core::reset_arrangement(copy, dashboard::current_page(), orientation());
     dashboard::set_edited(std::move(copy));
 }
 
@@ -415,7 +420,7 @@ void refresh()
     t::line_text(g.title, text);
     bool arranged = false;
     for (const core::TileIndex tile : shown.tiles) {
-        arranged = arranged || layout.tiles[tile].has_cell(o);
+        arranged = arranged || layout.tiles[tile].in(o).has_cell;
     }
     if (arranged) {
         lv_obj_clear_flag(g.reset, LV_OBJ_FLAG_HIDDEN);

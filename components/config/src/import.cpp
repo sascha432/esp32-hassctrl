@@ -287,6 +287,38 @@ private:
         return true;
     }
 
+    // `landscape:` / `portrait:` of a tile: size, cell and hidden
+    bool placement(const yaml::Node &node, int frame, core::Placement &out)
+    {
+        for (const auto &entry : node.map) {
+            const std::string_view key = entry.key;
+            const std::string_view text = entry.value.kind == yaml::Kind::Scalar ? std::string_view(entry.value.text)
+                                                                                  : std::string_view();
+            if (key == "size") {
+                if (!detail::parse_span(text, out.size)) {
+                    return fail(frame, entry.line, "size is columns x rows, for example 1x2");
+                }
+                out.has_size = true;
+            } else if (key == "cell") {
+                if (!detail::parse_cell(text, out.cell)) {
+                    return fail(frame, entry.line, "cell is column,row from 0, for example 2,1");
+                }
+                out.has_cell = true;
+            } else if (key == "hidden") {
+                if (text != "true" && text != "false") {
+                    return fail(frame, entry.line, "hidden is true or false");
+                }
+                out.hidden = text == "true";
+            } else {
+                return fail(frame, entry.line,
+                            format("unknown key '%.*s' (landscape: and portrait: take size, cell and hidden)",
+                                   static_cast<int>(key.size()), key.data())
+                                .c_str());
+            }
+        }
+        return true;
+    }
+
     bool tile(const yaml::Node &item, PageIndex page, int frame, core::Layout &layout)
     {
         const auto scalar = [&item](const char *key) -> std::string_view {
@@ -310,8 +342,24 @@ private:
                 (key == "tiles" ? tiles : area_grid) = &value;
                 continue;
             }
-            if (key == "position") {
-                return fail(frame, entry.line, "position: is gone: landscape: and portrait: take column,row, for example 2,1");
+            if (key == "landscape" || key == "portrait") {
+                if (value.kind != yaml::Kind::Map) {
+                    return fail(frame, entry.line,
+                                format("%.*s: is a map with size, cell and hidden (version 2 of the format)",
+                                       static_cast<int>(key.size()), key.data())
+                                    .c_str());
+                }
+                if (!placement(value, frame, tile.in(key == "landscape" ? core::Orientation::Landscape
+                                                                         : core::Orientation::Portrait))) {
+                    return false;
+                }
+                continue;
+            }
+            if (key == "size" || key == "position") {
+                return fail(frame, entry.line,
+                            format("%.*s: is gone: landscape: and portrait: take size, cell and hidden (version 2 of the format)",
+                                   static_cast<int>(key.size()), key.data())
+                                .c_str());
             }
             if (value.kind != yaml::Kind::Scalar) {
                 return fail(frame, entry.line, format("%.*s takes a single value", static_cast<int>(key.size()), key.data()).c_str());
@@ -332,23 +380,16 @@ private:
                 tile.name.assign(text.data(), text.size());
             } else if (key == "icon") {
                 tile.icon.assign(text.data(), text.size());
-            } else if (key == "size") {
-                if (!detail::parse_span(text, tile.span)) {
-                    return fail(frame, entry.line, "size is columns x rows, for example 1x2");
-                }
-                tile.has_size = true;
-            } else if (key == "landscape" || key == "portrait") {
-                const bool landscape = key == "landscape";
-                if (!detail::parse_cell(text, landscape ? tile.landscape : tile.portrait)) {
-                    return fail(frame, entry.line,
-                                format("%s is column,row from 0, for example 2,1", landscape ? "landscape" : "portrait").c_str());
-                }
-                (landscape ? tile.has_landscape : tile.has_portrait) = true;
             } else if (key == "dimmer") {
                 if (text != "true" && text != "false") {
                     return fail(frame, entry.line, "dimmer is true or false");
                 }
                 tile.dimmer = tile.dimmer || text == "true";
+            } else if (key == "swipe") {
+                if (text != "true" && text != "false") {
+                    return fail(frame, entry.line, "swipe is true or false");
+                }
+                tile.swipe = text == "true";
             } else if (key == "step") {
                 if (!detail::parse_decimal(text, tile.step) || tile.step == 0) {
                     return fail(frame, entry.line, "step is a number above 0, for example 0.5");

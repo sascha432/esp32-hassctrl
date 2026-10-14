@@ -3,10 +3,10 @@
 // and sends it back whole; the device checks it (POST ...&check=1 a second after each change) and
 // stores it (POST with the revision it was read at, 409 when the screen or an import was faster).
 //
-// It copies rules of the firmware: the placement of core::finish() (components/core/src/layout.cpp),
-// the sizes of a kind, the kinds of the domains. A change of the dashboard in core or config is a
-// change here too, and the web image goes onto the devices with the firmware (docs/architecture.md
-// section 5). The device's check is the truth. Icons come from web/icons.svg.
+// It copies rules of the firmware: the placement of core::finish() (components/core/src/layout.cpp:
+// place(), has_back_tile(), swipe_chain()), the kinds of the domains. A change of the dashboard in
+// core or config is a change here too, and the web image goes onto the devices with the firmware
+// (docs/architecture.md section 5). The device's check is the truth. Icons come from web/icons.svg.
 // The preview shows no live values (decided 2026-10-09).
 "use strict";
 
@@ -16,8 +16,12 @@ window.hcEditor = (() => {
   // the document as the device takes it: no local keys, no cells of an answer
   const plain = (v) => JSON.parse(JSON.stringify(v, (k, x) => (k === "_k" || k === "cells" ? undefined : x)));
 
-  // the device's screen in landscape (GET /api/dashboard/editor); margin 8 (docs/ui/lvgl/lvgl-dashboard.md)
+  // the device's screen in landscape (GET /api/dashboard/editor); margin 8, the dot band of a swipe
+  // area 16 px (docs/ui/lvgl/lvgl-dashboard.md sections 2 and 9)
   let screen = { name: "", w: 480, h: 320, gap: 4 };
+  // 24 px with 9 px dots, 32 px with 12 px dots on a screen of 800 px (swipe.cpp: large fonts)
+  const dotsHeight = () => (Math.max(screen.w, screen.h) >= 800 ? 32 : 24);
+  const dotSize = () => (Math.max(screen.w, screen.h) >= 800 ? 12 : 9);
 
   // ------------------------------------------------------------------------------- icons
   // web/icons.svg (tools/build_icons.py): one <symbol id="mdi-<name>"> per icon name, put into the
@@ -64,11 +68,12 @@ window.hcEditor = (() => {
   .tile { position: absolute; background: #182029; border: 1px solid #2b3844; border-radius: 8px; overflow: hidden; cursor: pointer;
           display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #7fa8c9; gap: 4px; }
   .tile .nm { padding: 0 6px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.wide { flex-direction: row; gap: 10px; }
+  .tile.wide .nm { white-space: normal; text-align: left; }
   .tile.pic { background: linear-gradient(160deg, #3b5a6e 0%, #1f3240 45%, #4a3b2a 100%); justify-content: flex-end; }
   .tile.pic .nm { width: 100%; background: rgba(0,0,0,.55); color: #fff; padding: 3px 0; }
   .tile.spacer { background: transparent; border: 1px dashed #2b3844; color: #4d6274; }
   .tile.err { box-shadow: inset 0 0 0 3px #ff0000; }
-  .tile.fallback { box-shadow: inset 0 0 0 3px #ffb000; opacity: .75; }
   .tile.sel { box-shadow: 0 0 0 3px #00ffff; z-index: 2; }
   .tile.drop-before::before, .tile.drop-after::before { content: ""; position: absolute; top: 0; bottom: 0; width: 5px; background: #00ffff; }
   .tile.drop-before::before { left: 0; }
@@ -78,9 +83,19 @@ window.hcEditor = (() => {
   .cell-empty { position: absolute; border: 1px dashed #2b3844; border-radius: 8px; display: flex; align-items: center; justify-content: center;
                 color: #4d6274; font-size: 22px; cursor: pointer; }
   .cell-empty:hover { color: #00ffff; border-color: #00ffff; }
+  .dots { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; align-items: center; }
+  .dots span { border-radius: 50%; background: #7fa8c9; opacity: .5; }
+  .dots span.on { background: #fff; opacity: 1; }
   .hl { position: absolute; border-radius: 8px; pointer-events: none; z-index: 5; }
   .hl.ok { border: 3px solid #2ecc71; background: rgba(46,204,113,.15); }
   .hl.no { border: 3px solid #ff0000; background: rgba(255,0,0,.12); }
+  .tray { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-height: 2.4rem; padding: .35rem .5rem;
+          border: 1px dashed var(--bs-border-color); border-radius: .375rem; }
+  .tray.drop-target { outline: 2px dashed var(--bs-primary); outline-offset: -2px; }
+  .chip { display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .55rem; border-radius: 1rem; cursor: grab;
+          background: #182029; color: #7fa8c9; border: 1px solid #2b3844; font-size: .8rem; user-select: none; }
+  .chip.sel { box-shadow: 0 0 0 2px #00ffff; }
+  .chip .badge { font-size: .65rem; }
   .ed-modal { display: block; }
   .ent-list { max-height: 40vh; overflow-y: auto; }
   .ent-list .list-group-item { cursor: pointer; }
@@ -138,24 +153,18 @@ window.hcEditor = (() => {
     if (d === "weather") return "weather";
     return "sensor";
   }
-  function defaultSpan(t) {
-    const k = kindOf(t);
-    if (k === "light") return t.dimmer ? [1, 2] : [1, 1];
-    if (k === "climate") return [1, 2];
-    if (k === "picture") return [2, 2];
-    return [1, 1];
-  }
-  // the sizes core::finish() allows for the kind (layout.cpp check_tile)
-  function sizesFor(t) {
-    const k = kindOf(t);
-    if ((k === "light" && t.dimmer) || k === "climate") return [[1, 1], [1, 2]];
-    if (k === "weather") return [[1, 1], [1, 2], [2, 1]];
-    if (k === "picture") return [[1, 1], [1, 2], [2, 1], [2, 2]];
-    return [];
-  }
-  const spanOf = (t, o) => { const s = t.size || defaultSpan(t); return o === "p" ? [s[1], s[0]] : s; };
   const okey = (o) => (o === "p" ? "portrait" : "landscape");
   const oname = (o) => (o === "p" ? "portrait" : "landscape");
+  const other = (o) => (o === "p" ? "l" : "p");
+  // the placement of a tile in an orientation: {size, cell, hidden}, every key optional
+  const side = (t, o) => t[okey(o)] || {};
+  const sideW = (t, o) => (t[okey(o)] ||= {});
+  // an empty map is not written
+  const tidy = (t) => { for (const o of ["l", "p"]) if (t[okey(o)] && !Object.keys(t[okey(o)]).length) delete t[okey(o)]; };
+  // core::finish(): 1x1 in landscape, the landscape size turned in portrait, unless set
+  const landscapeSize = (t) => side(t, "l").size || [1, 1];
+  const sizeOf = (t, o) => side(t, o).size || (o === "p" ? [landscapeSize(t)[1], landscapeSize(t)[0]] : landscapeSize(t));
+  const hiddenIn = (t, o) => !!side(t, o).hidden;
   const validEntity = (id) => /^[a-z0-9_]+\.[a-z0-9_]+$/.test(id) && id.length <= 64;
 
   function pages() {
@@ -169,6 +178,15 @@ window.hcEditor = (() => {
     return out;
   }
   const pageByKey = (k) => pages().find((p) => p.key === k) || pages()[0];
+  // core::swipe_page() and has_back_tile(): an area with `swipe` has no back tile on its page
+  const swipePage = (p) => !!(p.area && p.area.swipe);
+  const hasBackTile = (p) => p.depth >= 1 && !swipePage(p);
+  // core::swipe_chain(): the pages the dots of `p` stand for (one entry: no dots)
+  function swipeChain(p) {
+    const chain = [p];
+    for (let q = p; swipePage(q) && q.parent !== null;) { q = pageByKey(q.parent); chain.unshift(q); }
+    return chain;
+  }
   function locate(k) {
     for (const p of pages()) {
       const i = p.tiles.findIndex((t) => t._k === k);
@@ -203,51 +221,50 @@ window.hcEditor = (() => {
   }
 
   // core::finish()'s placement (layout.cpp place()): per orientation the tiles with a cell first,
-  // then first-fit
+  // then first-fit; a tile that cannot take its cell or finds no block is not on the screen
+  // (res.out[k]: "room"; hidden tiles "hidden")
   function place(p, o) {
     const g = gridOf(p);
     const C = o === "p" ? g[1] : g[0], R = o === "p" ? g[0] : g[1];
     const used = Array.from({ length: R }, () => Array(C).fill(null));
-    const res = { C, R, cells: {}, errors: {}, fallback: {}, arranged: false, used };
+    const res = { C, R, cells: {}, out: {}, arranged: false, used };
     const fits = (c, r, w, h) => {
       if (c < 0 || r < 0 || c + w > C || r + h > R) return false;
       for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) if (used[y][x] !== null) return false;
       return true;
     };
     const take = (c, r, w, h, k) => { for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) used[y][x] = k; };
-    if (p.key !== 0) take(0, 0, 1, 1, "back");
-    const key = okey(o);
+    if (hasBackTile(p)) take(0, 0, 1, 1, "back");
     for (const t of p.tiles) {
-      if (!t[key]) continue;
+      const cell = side(t, o).cell;
+      if (!cell) continue;
       res.arranged = true;
-      const [w, h] = spanOf(t, o), [c, r] = t[key];
-      if (c + w > C || r + h > R) res.errors[t._k] = `the ${oname(o)} cell ${c},${r} lies outside the ${C}x${R} grid`;
-      else if (p.key !== 0 && c === 0 && r === 0) res.errors[t._k] = `the ${oname(o)} cell 0,0 is the back tile's`;
-      else if (!fits(c, r, w, h)) res.errors[t._k] = `the ${oname(o)} cell ${c},${r} overlaps another tile`;
-      else { take(c, r, w, h, t._k); res.cells[t._k] = { c, r, w, h }; }
+      if (hiddenIn(t, o)) { res.out[t._k] = "hidden"; continue; }
+      const [w, h] = sizeOf(t, o), [c, r] = cell;
+      if (fits(c, r, w, h)) { take(c, r, w, h, t._k); res.cells[t._k] = { c, r, w, h }; } else res.out[t._k] = "room";
     }
     for (const t of p.tiles) {
-      if (t[key]) continue;
-      const [w, h] = spanOf(t, o);
+      if (side(t, o).cell) continue;
+      if (hiddenIn(t, o)) { res.out[t._k] = "hidden"; continue; }
+      const [w, h] = sizeOf(t, o);
       let found = null;
-      if (w <= C && h <= R) {
-        outer: for (let r = 0; r + h <= R; r++) for (let c = 0; c + w <= C; c++) if (fits(c, r, w, h)) { found = { c, r, w, h }; break outer; }
-      }
-      if (found) { take(found.c, found.r, w, h, t._k); res.cells[t._k] = found; }
-      else if (o === "p") { res.cells[t._k] = { c: 0, r: 0, w, h }; res.fallback[t._k] = true; }
-      else res.errors[t._k] = w > C || h > R ? `a ${w}x${h} tile does not fit into the ${oname(o)} ${C}x${R} grid` : `no free ${w}x${h} block left in the ${oname(o)} ${C}x${R} grid`;
+      outer: for (let r = 0; r + h <= R; r++) for (let c = 0; c + w <= C; c++) if (fits(c, r, w, h)) { found = { c, r, w, h }; break outer; }
+      if (found) { take(found.c, found.r, w, h, t._k); res.cells[t._k] = found; } else res.out[t._k] = "room";
     }
     return res;
   }
 
-  // core::move_tile: the page gets its current cells in `o`, the tiles in the way are pushed aside
+  // core::move_tile: the page gets its current cells in `o`, the tiles in the way are pushed aside.
+  // A tile that is not on the screen (hidden, no room) can be dropped onto a cell as well: it is
+  // shown in `o` from then on (the tray of the editor).
   function arrangeMove(p, o, k, c, r) {
-    const pl = place(p, o), key = okey(o);
-    const t = p.tiles.find((x) => x._k === k), [w, h] = spanOf(t, o);
+    const t = p.tiles.find((x) => x._k === k);
+    delete side(t, o).hidden;
+    const pl = place(p, o), [w, h] = sizeOf(t, o);
     if (c < 0 || r < 0 || c + w > pl.C || r + h > pl.R) return false;
-    if (p.key !== 0 && c === 0 && r === 0) return false;
+    if (hasBackTile(p) && c === 0 && r === 0) return false;
     const inBlock = (q) => q.c < c + w && q.c + q.w > c && q.r < r + h && q.r + q.h > r;
-    const placed = p.tiles.filter((x) => pl.cells[x._k] && !pl.fallback[x._k] && x._k !== k);
+    const placed = p.tiles.filter((x) => pl.cells[x._k] && x._k !== k);
     const pushed = placed.filter((x) => inBlock(pl.cells[x._k]));
     const used = Array.from({ length: pl.R }, () => Array(pl.C).fill(false));
     const take = (cc, rr, ww, hh) => { for (let y = rr; y < rr + hh; y++) for (let x = cc; x < cc + ww; x++) used[y][x] = true; };
@@ -256,7 +273,7 @@ window.hcEditor = (() => {
       for (let y = rr; y < rr + hh; y++) for (let x = cc; x < cc + ww; x++) if (used[y][x]) return false;
       return true;
     };
-    if (p.key !== 0) take(0, 0, 1, 1);
+    if (hasBackTile(p)) take(0, 0, 1, 1);
     for (const x of placed) if (!pushed.includes(x)) { const q = pl.cells[x._k]; take(q.c, q.r, q.w, q.h); }
     take(c, r, w, h);
     const moved = new Map(), start = r * pl.C + c, n = pl.C * pl.R;
@@ -271,48 +288,31 @@ window.hcEditor = (() => {
       take(found[0], found[1], q.w, q.h);
       moved.set(x._k, found);
     }
-    for (const x of placed) x[key] = moved.get(x._k) || [pl.cells[x._k].c, pl.cells[x._k].r];
-    t[key] = [c, r];
+    for (const x of placed) sideW(x, o).cell = moved.get(x._k) || [pl.cells[x._k].c, pl.cells[x._k].r];
+    sideW(t, o).cell = [c, r];
+    tidy(t);
     return true;
   }
   const tryMove = (p, o, k, c, r) => arrangeMove({ ...p, tiles: clone(p.tiles) }, o, k, c, r);
-  // A tile whose span changed (size, dimmer, kind) keeps its cell in an orientation when the new
-  // block is free there; else it is dropped onto that cell (the tiles in the way are pushed aside),
-  // shifted up or left when the block would run past the grid; when that fails too the cell is
-  // dropped and the tile takes the first free block (the device reports a page without room).
-  function refit(p, t) {
-    for (const o of ["l", "p"]) {
-      const key = okey(o), cell = t[key];
-      if (!cell) continue;
-      delete t[key];
-      const pl = place(p, o), [w, h] = spanOf(t, o);
-      const c = Math.min(cell[0], pl.C - w), r = Math.min(cell[1], pl.R - h);
-      if (c < 0 || r < 0) continue;
-      let free = c === cell[0] && r === cell[1] && !(p.key !== 0 && c === 0 && r === 0);
-      for (let y = r; free && y < r + h; y++) for (let x = c; x < c + w; x++) if (pl.used[y][x] !== null && pl.used[y][x] !== t._k) free = false;
-      if (free) t[key] = cell;
-      else arrangeMove(p, o, t._k, c, r);
-    }
-  }
-  function resetArrangement(p, o) { for (const t of p.tiles) delete t[okey(o)]; }
+  function resetArrangement(p, o) { for (const t of p.tiles) { delete side(t, o).cell; tidy(t); } }
 
   function stripForKind(t) {
     const k = kindOf(t);
     if (k !== "light") delete t.dimmer;
+    if (k !== "area") delete t.swipe;
     if (k !== "light" && k !== "climate") delete t.step;
     if (k !== "sensor") { delete t.unit; delete t.decimals; }
     if (k !== "picture") { delete t.refresh; delete t.stream; }
-    if (t.size && !sizesFor(t).some(([c, r]) => c === t.size[0] && r === t.size[1])) delete t.size;
   }
   function insertTile(p, t, cell) {
     if (cell) {
       const pl = place(p, orient);
       if (pl.arranged) {
         p.tiles.push(t);
-        const [w, h] = spanOf(t, orient);
+        const [w, h] = sizeOf(t, orient);
         let ok = true;
         for (let y = cell.r; y < cell.r + h; y++) for (let x = cell.c; x < cell.c + w; x++) if (y >= pl.R || x >= pl.C || pl.used[y][x] !== null) ok = false;
-        if (ok) t[okey(orient)] = [cell.c, cell.r];
+        if (ok) sideW(t, orient).cell = [cell.c, cell.r];
         return;
       }
       const at = cell.r * pl.C + cell.c;
@@ -353,7 +353,7 @@ window.hcEditor = (() => {
   async function load() {
     const { status, answer } = await request("GET", "/api/dashboard");
     if (status === 404) {
-      doc = { format: "hassctrl-dashboard", version: 1, revision: 0, next_id: 1, defaults: { grid: [4, 2] }, tiles: [] };
+      doc = { format: "hassctrl-dashboard", version: 2, revision: 0, next_id: 1, defaults: { grid: [4, 2] }, tiles: [] };
     } else if (status !== 200) {
       throw new Error(answer.error || `error ${status}`);
     } else {
@@ -431,10 +431,14 @@ window.hcEditor = (() => {
   function geometry(p, o) {
     const W = o === "p" ? screen.h : screen.w, H = o === "p" ? screen.w : screen.h, gap = screen.gap;
     const pl = place(p, o);
-    const cw = (W - 16 - gap * (pl.C - 1)) / pl.C, ch = (H - 16 - gap * (pl.R - 1)) / pl.R;
+    // the dot band of a swipe page takes the bottom, like the device
+    const bottom = swipeChain(p).length >= 2 ? dotsHeight() : 0;
+    const cw = (W - 16 - gap * (pl.C - 1)) / pl.C, ch = (H - bottom - 16 - gap * (pl.R - 1)) / pl.R;
     const box = (c, r, w, h) => ({ x: 8 + c * (cw + gap), y: 8 + r * (ch + gap), w: w * cw + (w - 1) * gap, h: h * ch + (h - 1) * gap });
     const cellAt = (x, y) => ({ c: Math.floor((x - 8 + gap / 2) / (cw + gap)), r: Math.floor((y - 8 + gap / 2) / (ch + gap)) });
-    return { W, H, pl, cw, ch, box, cellAt, large: cw >= 90 && ch >= 90 };
+    // the fonts follow the size of the card (tiles.cpp): a tall card needs twice the height
+    const large = (w, h, tall) => w >= 90 && (tall ? h / 2 : h) >= 90;
+    return { W, H, pl, cw, ch, box, cellAt, large: large(cw, ch, false), largeFor: large };
   }
 
   function tileHTML(t, b, large, flags) {
@@ -451,7 +455,7 @@ window.hcEditor = (() => {
   function boardHTML(p, o) {
     const g = geometry(p, o), pl = g.pl;
     let html = "";
-    if (p.key !== 0) html += `<div class="tile" data-back="1" style="left:8px;top:8px;width:${g.cw}px;height:${g.ch}px">${svg("arrow-left", g.large ? 44 : 24)}</div>`;
+    if (hasBackTile(p)) html += `<div class="tile" data-back="1" style="left:8px;top:8px;width:${g.cw}px;height:${g.ch}px">${svg("arrow-left", g.large ? 44 : 24)}</div>`;
     for (let r = 0; r < pl.R; r++) for (let c = 0; c < pl.C; c++) if (pl.used[r][c] === null) {
       const b = g.box(c, r, 1, 1);
       html += `<div class="cell-empty" data-act="add" data-c="${c}" data-r="${r}" title="Add a tile here" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px">+</div>`;
@@ -461,10 +465,17 @@ window.hcEditor = (() => {
       if (!cell) continue;
       let flags = "";
       if (sel === t._k) flags += " sel";
-      if (pl.fallback[t._k]) flags += " fallback";
-      if (t[okey(o)]) flags += " pinned";
+      if (side(t, o).cell) flags += " pinned";
+      // a tile wider than tall puts the icon beside the text (tiles.cpp, the wide shape)
+      if (cell.w > cell.h && kindOf(t) !== "picture") flags += " wide";
       if (check.state === "error" && check.k === t._k) flags += " err";
-      html += tileHTML(t, g.box(cell.c, cell.r, cell.w, cell.h), g.large, flags);
+      const b = g.box(cell.c, cell.r, cell.w, cell.h);
+      html += tileHTML(t, b, g.largeFor(b.w, b.h, cell.h > cell.w && b.h >= 180), flags);
+    }
+    const chain = swipeChain(p);
+    if (chain.length >= 2) {
+      const d = dotSize();
+      html += `<div class="dots" style="height:${dotsHeight()}px;gap:${d * 2 / 3}px">${chain.map((x) => `<span class="${x.key === p.key ? "on" : ""}" style="width:${d}px;height:${d}px"></span>`).join("")}</div>`;
     }
     return { html, g };
   }
@@ -499,8 +510,22 @@ window.hcEditor = (() => {
     if (check.state === "error" && check.k) root.querySelectorAll(`#ed-board .tile[data-k="${check.k}"]`).forEach((x) => x.classList.add("err"));
   }
 
+  // a grid of 1x1 to 32x32 (core::kMaxGrid), a tile of 1x1 to 8x8 (kMaxTileSize)
+  const MAX_GRID = 32, MAX_TILE = 8;
   const gridSelect = (ctl, value, disabled) => `<select class="form-select form-select-sm" data-ctl="${ctl}" ${disabled ? "disabled" : ""}>
-    ${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<option ${n === value ? "selected" : ""}>${n}</option>`).join("")}</select>`;
+    ${Array.from({ length: MAX_GRID }, (_, i) => i + 1).map((n) => `<option ${n === value ? "selected" : ""}>${n}</option>`).join("")}</select>`;
+
+  // the tiles of `p` that are not on the screen of `o`: hidden there, or without room
+  function trayHTML(p, o) {
+    const pl = place(p, o);
+    const out = p.tiles.filter((t) => pl.out[t._k] && pl.out[t._k] !== "swipe");
+    const chips = out.map((t) => `<span class="chip ${sel === t._k ? "sel" : ""}" draggable="true" data-k="${t._k}" data-tray="1">
+      ${iconOf(t) === "none" || kindOf(t) === "spacer" ? "" : svg(iconOf(t), 16)}${esc(displayName(t))}
+      <span class="badge ${pl.out[t._k] === "hidden" ? "text-bg-secondary" : "text-bg-warning"}">${pl.out[t._k] === "hidden" ? "hidden" : "no room"}</span></span>`).join("");
+    return `<div class="small text-body-secondary mt-2 mb-1">Not on the screen in ${oname(o)}
+        <span class="text-body-tertiary">· drag a tile here to hide it, onto a cell to show it</span></div>
+      <div class="tray" id="ed-tray">${chips || '<span class="small text-body-tertiary">every tile is on the screen</span>'}</div>`;
+  }
 
   function drawEditor() {
     const p = pageByKey(pageKey);
@@ -517,8 +542,6 @@ window.hcEditor = (() => {
            <input class="form-check-input" type="checkbox" id="ed-owngrid" data-ctl="owngrid" ${p.area.grid ? "checked" : ""}>
            <label class="form-check-label" for="ed-owngrid">own grid</label></span>
            ${gridSelect("gcols", g[0], !p.area.grid)}x${gridSelect("grows", g[1], !p.area.grid)}</span>`;
-    const missing = p.tiles.filter((t) => !pl.cells[t._k]);
-    const fallback = Object.keys(pl.fallback).length;
     $("#ed-body").innerHTML = `
       <div class="ed">
         <div><div class="card mb-0"><div class="card-body p-2">
@@ -528,7 +551,7 @@ window.hcEditor = (() => {
           </div>
           <div class="list-group list-group-flush tree ed-tree-list">${tree}</div>
           <select class="form-select form-select-sm ed-tree-select" data-ctl="page">
-            ${all.map((x) => `<option value="${x.key}" ${x.key === p.key ? "selected" : ""}>${"  ".repeat(x.depth)}${esc(x.name)}</option>`).join("")}
+            ${all.map((x) => `<option value="${x.key}" ${x.key === p.key ? "selected" : ""}>${"  ".repeat(x.depth)}${esc(x.name)}</option>`).join("")}
           </select>
           <p class="small text-body-secondary px-1 mt-2 mb-0">Drop a tile on a page to move it there.</p>
         </div></div></div>
@@ -550,8 +573,7 @@ window.hcEditor = (() => {
                  <span class="text-body-secondary">Drag onto a tile to take its place in the order; onto an empty cell to arrange the page.</span>`}
           </div>
           <div class="board-wrap" id="ed-wrap"><div class="board-scale"><div class="board" id="ed-board"></div></div></div>
-          ${missing.length ? `<div class="alert alert-danger py-2 small mt-2 mb-0">Not on the page: ${missing.map((t) => `<a href="#" data-act="select" data-k="${t._k}">${esc(displayName(t))}</a>`).join(", ")}</div>` : ""}
-          ${fallback ? `<div class="alert alert-warning py-2 small mt-2 mb-0">In portrait ${fallback} tile(s) find no free block and fall back to the first cell (outlined yellow).</div>` : ""}
+          ${trayHTML(p, orient)}
           <div id="ed-problem" class="mt-2"></div>
           <div class="d-flex flex-wrap gap-2 mt-2">
             <button class="btn btn-sm btn-outline-primary" data-act="add">+ Tile</button>
@@ -584,27 +606,42 @@ window.hcEditor = (() => {
     wrap.dataset.s = s;
   }
 
+  // the size select of one orientation: 1x1 up to the grid of the page in that orientation
+  function sizeSelect(p, t, o) {
+    const g = gridOf(p), C = o === "p" ? g[1] : g[0], R = o === "p" ? g[0] : g[1];
+    const own = side(t, o).size, cur = sizeOf(t, o);
+    const options = [];
+    for (let r = 1; r <= Math.min(R, MAX_TILE); r++) for (let c = 1; c <= Math.min(C, MAX_TILE); c++) options.push([c, r]);
+    if (own && !options.some(([c, r]) => c === own[0] && r === own[1])) options.push(own); // larger than the grid: kept, not shown
+    const auto = o === "p" ? `landscape turned (${cur[0]}x${cur[1]})` : "1x1";
+    return `<select class="form-select form-select-sm" data-field="size-${o}">
+        <option value="">${own ? auto : `${auto} ✓`}</option>
+        ${options.map(([c, r]) => `<option value="${c}x${r}" ${own && own[0] === c && own[1] === r ? "selected" : ""}>${c}x${r}</option>`).join("")}
+      </select>`;
+  }
+
   function drawInspector() {
     const el = $("#ed-insp");
     const loc = sel ? locate(sel) : null;
     if (!loc) {
       const p = pageByKey(pageKey);
       el.innerHTML = `<h2 class="h6">${esc(p.name)}</h2>
-        <p class="small text-body-secondary">${p.tiles.length} tiles on this page. Select a tile in the preview to edit it,
+        <p class="small text-body-secondary">${p.tiles.length} tiles on this page. Select a tile in the preview or in the tray to edit it,
         click an empty cell to add one there. A second click on a selected area opens its page.</p>
         ${p.area ? `<button class="btn btn-sm btn-outline-secondary" data-act="select" data-k="${p.area._k}">Edit the area tile</button>` : ""}`;
       return;
     }
-    const t = loc.tile, k = kindOf(t), def = defaultSpan(t), sizes = sizesFor(t);
+    const t = loc.tile, k = kindOf(t), p = loc.page;
     const field = (label, html, hint = "") => `<div class="row-field"><label class="form-label">${label}</label>${html}${hint ? `<div class="form-text mt-0">${hint}</div>` : ""}</div>`;
     const cellText = (o) => {
-      const pl = place(loc.page, o), c = pl.cells[t._k], v = t[okey(o)];
-      if (v) return `<b>${v[0]},${v[1]}</b> (arranged)`;
-      if (c) return `auto, ${c.c},${c.r}${pl.fallback[t._k] ? " (fallback)" : ""}`;
-      // no block in the orientation not shown: a click shows it
-      return o === orient ? '<span class="text-danger">no place</span>' : `<a href="#" class="text-danger" data-act="orient" data-o="${o}">no place, show ${oname(o)}</a>`;
+      const pl = place(p, o), c = pl.cells[t._k], v = side(t, o).cell;
+      if (c && v) return `<b>${v[0]},${v[1]}</b> (arranged)`;
+      if (c) return `auto, ${c.c},${c.r}`;
+      const why = pl.out[t._k] === "hidden" ? "hidden" : "no room";
+      const text = `<span class="text-warning-emphasis">${why}${v ? `, cell ${v[0]},${v[1]}` : ""}</span>`;
+      return o === orient ? text : `<a href="#" data-act="orient" data-o="${o}">${text}, show ${oname(o)}</a>`;
     };
-    const movable = pages().filter((x) => x.key !== loc.page.key && !(t.type === "area" && isInside(x.key, t._k)));
+    const movable = pages().filter((x) => x.key !== p.key && !(t.type === "area" && isInside(x.key, t._k)));
     const known = [...entitiesInUse()].sort();
     let body = "";
     if (k !== "area" && k !== "spacer") {
@@ -618,17 +655,22 @@ window.hcEditor = (() => {
       body += field("Icon", `<button class="btn btn-sm btn-outline-secondary icon-chip" data-act="icon">
         ${t.icon === "none" ? "none" : svg(iconOf(t), 20) + " " + esc(t.icon || "automatic")}</button>`);
     }
-    if (k === "area") body += field("Page", `<button class="btn btn-sm btn-outline-secondary" data-act="page" data-page="${t._k}">Open its page (${t.tiles.length} tiles)</button>`);
+    if (k === "area") {
+      body += field("Page", `<button class="btn btn-sm btn-outline-secondary" data-act="page" data-page="${t._k}">Open its page (${t.tiles.length} tiles)</button>`);
+      body += `<div class="row-field form-check"><input class="form-check-input" type="checkbox" id="ed-swipe" data-field="swipe" ${t.swipe ? "checked" : ""}>
+        <label class="form-check-label small" for="ed-swipe">Swipe navigation: no back tile on its page, a swipe to the right goes back, dots show the depth</label></div>`;
+    }
     if (k === "light") {
       body += `<div class="row-field form-check"><input class="form-check-input" type="checkbox" id="ed-dim" data-field="dimmer" ${t.dimmer ? "checked" : ""}>
         <label class="form-check-label small" for="ed-dim">Dimmer (level fill, drag sets the level)</label></div>`;
     }
-    if (sizes.length) {
-      body += field("Size", `<select class="form-select form-select-sm" data-field="size">
-          <option value="">automatic (${def[0]}x${def[1]})</option>
-          ${sizes.map(([c, r]) => `<option value="${c}x${r}" ${t.size && t.size[0] === c && t.size[1] === r ? "selected" : ""}>${c}x${r}</option>`).join("")}
-        </select>`, orient === "p" ? `columns x rows in landscape; portrait turns it, ${(t.size || def).join("x")} shows as ${spanOf(t, "p").join("x")}` : "columns x rows, in landscape");
-    }
+    body += field(`Size in ${oname(orient)}`, sizeSelect(p, t, orient),
+      orient === "p" ? "columns x rows of the turned screen; without one the landscape size turned" : "columns x rows; portrait turns it unless set there");
+    body += `<div class="row-field d-flex gap-3">
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="ed-hide-l" data-field="hidden-l" ${hiddenIn(t, "l") ? "checked" : ""}>
+        <label class="form-check-label small" for="ed-hide-l">Hidden in landscape</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="ed-hide-p" data-field="hidden-p" ${hiddenIn(t, "p") ? "checked" : ""}>
+        <label class="form-check-label small" for="ed-hide-p">Hidden in portrait</label></div></div>`;
     if (k === "light") body += field("Step of + and − (%)", `<input class="form-control form-control-sm" type="number" min="1" max="50" data-field="step" value="${t.step ?? ""}" placeholder="default">`);
     if (k === "climate") body += field("Step (°)", `<input class="form-control form-control-sm" type="number" min="0.1" max="5" step="0.1" data-field="step" value="${t.step ?? ""}" placeholder="from Home Assistant">`);
     if (k === "sensor") {
@@ -650,7 +692,7 @@ window.hcEditor = (() => {
       ${body}
       <div class="d-flex flex-wrap gap-2 mt-3">
         <button class="btn btn-sm btn-outline-secondary" data-act="up" ${loc.index === 0 ? "disabled" : ""} title="Earlier in the order">Up</button>
-        <button class="btn btn-sm btn-outline-secondary" data-act="down" ${loc.index === loc.page.tiles.length - 1 ? "disabled" : ""} title="Later in the order">Down</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="down" ${loc.index === p.tiles.length - 1 ? "disabled" : ""} title="Later in the order">Down</button>
         <button class="btn btn-sm btn-outline-secondary" data-act="dup">Duplicate</button>
         <select class="form-select form-select-sm w-auto" data-ctl="moveto"><option value="">Move to ...</option>
           ${movable.map((x) => `<option value="${x.key}">${esc(x.name)}</option>`).join("")}</select>
@@ -665,6 +707,8 @@ window.hcEditor = (() => {
   }
 
   // -------------------------------------------------------------------------------- dragging
+  // Tiles move on the board (a reorder in automatic order, a cell in an arranged page), from the
+  // tray onto a cell (shown again) and from the board into the tray (hidden in this orientation).
   function wireDrag(el, p) {
     const s = () => +$("#ed-wrap").dataset.s;
     const g = () => geometry(p, orient);
@@ -673,12 +717,13 @@ window.hcEditor = (() => {
     const clearMarks = () => {
       el.querySelectorAll(".drop-before, .drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
       root.querySelector("#ed-hl")?.remove();
+      root.querySelector("#ed-tray")?.classList.remove("drop-target");
     };
     el.addEventListener("dragstart", (e) => {
       const t = e.target.closest("[data-k]");
       if (!t) return;
       const k = +t.dataset.k, cell = place(p, orient).cells[k], pc = pointerCell(e);
-      drag = { k, dc: pc.c - cell.c, dr: pc.r - cell.r };
+      drag = { k, dc: pc.c - cell.c, dr: pc.r - cell.r, fromTray: false };
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", String(k));
     });
@@ -688,11 +733,11 @@ window.hcEditor = (() => {
       e.preventDefault();
       clearMarks();
       const pl = place(p, orient), pc = pointerCell(e), under = pl.used[pc.r]?.[pc.c];
-      if (!pl.arranged && typeof under === "number" && under !== drag.k) {
+      if (!pl.arranged && !drag.fromTray && typeof under === "number" && under !== drag.k) {
         el.querySelector(`.tile[data-k="${under}"]`)?.classList.add(forward(drag.k, under) ? "drop-after" : "drop-before");
         return;
       }
-      const t = locate(drag.k).tile, [w, h] = spanOf(t, orient), c = pc.c - drag.dc, r = pc.r - drag.dr;
+      const t = locate(drag.k).tile, [w, h] = sizeOf(t, orient), c = pc.c - drag.dc, r = pc.r - drag.dr;
       const b = g().box(c, r, w, h);
       el.insertAdjacentHTML("beforeend", `<div id="ed-hl" class="hl ${tryMove(p, orient, drag.k, c, r) ? "ok" : "no"}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`);
     });
@@ -702,7 +747,7 @@ window.hcEditor = (() => {
       const d = drag;
       drag = null;
       const pl = place(p, orient), pc = pointerCell(e), under = pl.used[pc.r]?.[pc.c];
-      if (!pl.arranged && typeof under === "number" && under !== d.k) {
+      if (!pl.arranged && !d.fromTray && typeof under === "number" && under !== d.k) {
         change(() => {
           const to = p.tiles.findIndex((x) => x._k === under);
           const [t] = p.tiles.splice(p.tiles.findIndex((x) => x._k === d.k), 1);
@@ -714,6 +759,31 @@ window.hcEditor = (() => {
       change(() => { arrangeMove(pageByKey(p.key), orient, d.k, pc.c - d.dc, pc.r - d.dr); sel = d.k; });
       if (!pl.arranged) ctx.toast(`The page is arranged in ${oname(orient)} now.`, "info");
     });
+    const tray = root.querySelector("#ed-tray");
+    if (!tray) return;
+    tray.addEventListener("dragstart", (e) => {
+      const chip = e.target.closest("[data-k]");
+      if (!chip) return;
+      drag = { k: +chip.dataset.k, dc: 0, dr: 0, fromTray: true };
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", chip.dataset.k);
+    });
+    tray.addEventListener("dragend", () => { drag = null; clearMarks(); });
+    tray.addEventListener("dragover", (e) => {
+      if (!drag || drag.fromTray) return;
+      e.preventDefault();
+      clearMarks();
+      tray.classList.add("drop-target");
+    });
+    tray.addEventListener("drop", (e) => {
+      if (!drag || drag.fromTray) return;
+      e.preventDefault();
+      const k = drag.k;
+      drag = null;
+      clearMarks();
+      change(() => { sideW(locate(k).tile, orient).hidden = true; sel = k; });
+      ctx.toast(`Hidden in ${oname(orient)}.`, "info");
+    });
   }
 
   function moveToPage(k, target) {
@@ -721,8 +791,8 @@ window.hcEditor = (() => {
     if (loc.tile.type === "area" && isInside(target, k)) { ctx.toast("An area cannot go into itself.", "warning"); return; }
     change(() => {
       const [t] = loc.page.tiles.splice(loc.index, 1);
-      delete t.landscape;
-      delete t.portrait;
+      for (const o of ["l", "p"]) delete side(t, o).cell;
+      tidy(t);
       pageByKey(target).tiles.push(t);
     });
     ctx.toast(`Moved to ${pageByKey(target).name}.`, "success");
@@ -813,7 +883,8 @@ window.hcEditor = (() => {
   }
 
   // what a tile takes over from its entity: a light dims unless it only knows on and off (keys
-  // equal to the automatic value are left out, the tile follows Home Assistant)
+  // equal to the automatic value are left out, the tile follows Home Assistant); every new tile
+  // is 1x1 (decided 2026-10-14)
   async function pick(id) {
     let info = null;
     try {
@@ -879,13 +950,7 @@ window.hcEditor = (() => {
     save: (el) => { el.disabled = true; save().catch((e) => ctx.toast(e.message, "danger")).finally(() => { el.disabled = false; }); },
     reload: async () => { await load(); ctx.toast("Loaded the dashboard of the device.", "info"); draw(); },
     overwrite: () => save(true).catch((e) => ctx.toast(e.message, "danger")),
-    "goto-problem": () => {
-      if (!check.k) return;
-      // a problem of the orientation not shown (an arranged page full there): show that one
-      const loc = locate(check.k), other = orient === "l" ? "p" : "l";
-      if (loc && !place(loc.page, orient).errors[check.k] && place(loc.page, other).errors[check.k]) orient = other;
-      actions.select({ dataset: { k: check.k } });
-    },
+    "goto-problem": () => { if (check.k) actions.select({ dataset: { k: check.k } }); },
     add: (el) => openPicker(el.dataset.c !== undefined ? { c: +el.dataset.c, r: +el.dataset.r } : null),
     "pick-entity": () => openPicker(null, sel),
     pick: (el) => {
@@ -911,7 +976,8 @@ window.hcEditor = (() => {
     down: () => change(() => { const l = locate(sel); l.page.tiles.splice(l.index + 1, 0, l.page.tiles.splice(l.index, 1)[0]); }),
     dup: () => change(() => {
       const l = locate(sel), c = clone(l.tile);
-      (function strip(t) { delete t.id; delete t.landscape; delete t.portrait; t._k = K++; if (t.tiles) t.tiles.forEach(strip); })(c);
+      // the copy keeps size and hidden, not the cell: it would overlap the original
+      (function strip(t) { delete t.id; for (const o of ["l", "p"]) delete side(t, o).cell; tidy(t); t._k = K++; if (t.tiles) t.tiles.forEach(strip); })(c);
       l.page.tiles.splice(l.index + 1, 0, c);
       sel = c._k;
     }),
@@ -927,7 +993,7 @@ window.hcEditor = (() => {
   function onClick(e) {
     const el = e.target.closest("[data-act]");
     if (!el) {
-      const t = e.target.closest("#ed-board [data-k]");
+      const t = e.target.closest("#ed-board [data-k], #ed-tray [data-k]");
       if (t) {
         const k = +t.dataset.k;
         if (sel === k && locate(k)?.tile.type === "area") { pageKey = k; sel = null; } else sel = k;
@@ -953,26 +1019,31 @@ window.hcEditor = (() => {
     if (ctl === "moveto" && el.value) moveToPage(sel, +el.value);
     if (ctl === "owngrid") change(() => { if (el.checked) p.area.grid = [...doc.defaults.grid]; else delete p.area.grid; });
     if (ctl === "gcols" || ctl === "grows") {
+      // a cell outside the new grid puts its tile into the tray, nothing else changes
       const g = [...gridOf(p)];
       g[ctl === "gcols" ? 0 : 1] = +el.value;
-      change(() => {
-        if (p.key === 0) doc.defaults.grid = g; else p.area.grid = g;
-        // cells outside the new grid: offer to reset the arrangement of the page
-        for (const o of ["l", "p"]) {
-          const pl = place(p, o);
-          if (Object.values(pl.errors).some((m) => m.includes("outside")) &&
-              confirm(`Some ${oname(o)} cells are outside the new grid. Reset the arrangement of ${p.name} in ${oname(o)}?`)) resetArrangement(p, o);
-        }
-      });
+      change(() => { if (p.key === 0) doc.defaults.grid = g; else p.area.grid = g; });
     }
   }
 
   function setField(f, el) {
     change(() => {
-      const loc = locate(sel), t = loc.tile, v = el.type === "checkbox" ? el.checked : el.value.trim();
-      if (f === "entity") { t.entity = v; stripForKind(t); refit(loc.page, t); return; }
-      if (f === "dimmer") { if (v) t.dimmer = true; else delete t.dimmer; stripForKind(t); refit(loc.page, t); return; }
-      if (f === "size") { if (v) t.size = v.split("x").map(Number); else delete t.size; refit(loc.page, t); return; }
+      const t = locate(sel).tile, v = el.type === "checkbox" ? el.checked : el.value.trim();
+      if (f === "entity") { t.entity = v; stripForKind(t); return; }
+      if (f === "dimmer") { if (v) t.dimmer = true; else delete t.dimmer; stripForKind(t); return; }
+      if (f === "swipe") { if (v) t.swipe = true; else delete t.swipe; return; }
+      if (f === "size-l" || f === "size-p") {
+        const o = f.slice(-1);
+        if (v) sideW(t, o).size = v.split("x").map(Number); else delete side(t, o).size;
+        tidy(t);
+        return;
+      }
+      if (f === "hidden-l" || f === "hidden-p") {
+        const o = f.slice(-1);
+        if (v) sideW(t, o).hidden = true; else delete side(t, o).hidden;
+        tidy(t);
+        return;
+      }
       if (["step", "decimals", "refresh"].includes(f)) { if (v === "") delete t[f]; else t[f] = Number(v); return; }
       if (v === "") delete t[f]; else t[f] = v;
     });

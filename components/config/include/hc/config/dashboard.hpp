@@ -48,9 +48,9 @@ struct JsonProblem {
 };
 std::expected<core::Layout, JsonProblem> read_json_at(std::string_view text);
 
-// `with_cells`: every tile also gets "cells": [landscape column, row, portrait column, row,
-// 1 when portrait falls back to the first cell] (the answers of the web API, whose editor draws
-// its preview from them). The reader skips "cells".
+// `with_cells`: every tile also gets "cells": {"landscape": [column, row] or null, "portrait":
+// the same}, where the device draws it (null: hidden, no room, or an area tile a swipe replaces);
+// the answers of the web API, whose editor draws its preview from them. The reader skips "cells".
 memory::String write_json(const core::Layout &layout, bool with_cells = false);
 
 // Where a tile stands in the JSON: its index in the tile list of the main page, then in the list

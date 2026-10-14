@@ -3,7 +3,7 @@
 //   {"format": "hassctrl-dashboard", "version": 1, "revision": 12, "next_id": 131,
 //    "defaults": {"grid": [4, 2]},
 //    "tiles": [{"id": 1, "entity": "light.kitchen", "name": "Kitchen", "dimmer": true,
-//               "landscape": [0, 0], "portrait": [1, 0]},
+//               "landscape": {"size": [1, 2], "cell": [0, 0]}, "portrait": {"hidden": true}},
 //              {"id": 2, "type": "area", "name": "Rooms", "grid": [4, 3], "tiles": [...]},
 //              {"id": 3, "type": "spacer"}]}
 //
@@ -31,7 +31,7 @@ using core::TileIndex;
 using core::TileKind;
 
 constexpr const char *kFormat = "hassctrl-dashboard";
-constexpr int kVersion = 1;
+constexpr int kVersion = 2;
 
 memory::String format(const char *pattern, ...)
 {
@@ -67,7 +67,9 @@ public:
             return failed(memory::String("the stored file is not a dashboard"));
         }
         if (!cJSON_IsNumber(version) || version->valueint != kVersion) {
-            return failed(memory::String("the stored dashboard has a version this firmware does not read"));
+            // no older version is read: tools/convert_dashboard.py converts a file of version 1
+            return failed(format("the dashboard has version %d, this firmware reads version %d (tools/convert_dashboard.py converts it)",
+                                 cJSON_IsNumber(version) ? version->valueint : 0, kVersion));
         }
         core::Layout layout;
         const cJSON *tiles = nullptr;
@@ -123,15 +125,45 @@ private:
         }
         const cJSON *cols = cJSON_GetArrayItem(value, 0);
         const cJSON *rows = cJSON_GetArrayItem(value, 1);
-        if (!cJSON_IsNumber(cols) || !cJSON_IsNumber(rows) || cols->valueint < 1 || cols->valueint > 9 ||
-            rows->valueint < 1 || rows->valueint > 9) {
+        if (!cJSON_IsNumber(cols) || !cJSON_IsNumber(rows) || cols->valueint < 1 || cols->valueint > core::kMaxGrid ||
+            rows->valueint < 1 || rows->valueint > core::kMaxGrid) {
             return false;
         }
         out = {static_cast<uint8_t>(cols->valueint), static_cast<uint8_t>(rows->valueint)};
         return true;
     }
 
-    // [column, row], 0 to 7 each
+    // {"size": [cols, rows], "cell": [column, row], "hidden": true}, every key optional
+    static bool placement(const cJSON *value, core::Placement &out)
+    {
+        if (!cJSON_IsObject(value)) {
+            return false;
+        }
+        for (const cJSON *item = value->child; item != nullptr; item = item->next) {
+            const std::string_view key = item->string;
+            if (key == "size") {
+                if (!span(item, out.size)) {
+                    return false;
+                }
+                out.has_size = true;
+            } else if (key == "cell") {
+                if (!cell(item, out.cell)) {
+                    return false;
+                }
+                out.has_cell = true;
+            } else if (key == "hidden") {
+                if (!cJSON_IsBool(item)) {
+                    return false;
+                }
+                out.hidden = cJSON_IsTrue(item);
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // [column, row], 0 to 31 each
     static bool cell(const cJSON *value, core::Cell &out)
     {
         if (!cJSON_IsArray(value) || cJSON_GetArraySize(value) != 2) {
@@ -218,15 +250,13 @@ private:
             } else if (key == "dimmer") {
                 ok = cJSON_IsBool(item);
                 tile.dimmer = cJSON_IsTrue(item);
-            } else if (key == "size") {
-                ok = span(item, tile.span);
-                tile.has_size = true;
+            } else if (key == "swipe") {
+                ok = cJSON_IsBool(item);
+                tile.swipe = cJSON_IsTrue(item);
             } else if (key == "landscape") {
-                ok = cell(item, tile.landscape);
-                tile.has_landscape = true;
+                ok = placement(item, tile.in(core::Orientation::Landscape));
             } else if (key == "portrait") {
-                ok = cell(item, tile.portrait);
-                tile.has_portrait = true;
+                ok = placement(item, tile.in(core::Orientation::Portrait));
             } else if (key == "step") {
                 ok = cJSON_IsNumber(item) && item->valuedouble > 0;
                 tile.step = static_cast<float>(item->valuedouble);
@@ -289,17 +319,28 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
     if (tile.dimmer) {
         json.boolean("dimmer", true);
     }
+    if (tile.swipe) {
+        json.boolean("swipe", true);
+    }
     if (!tile.icon.empty()) {
         json.string("icon", tile.icon.c_str());
     }
-    if (tile.has_size) {
-        json.begin_array("size").number(nullptr, tile.span.cols).number(nullptr, tile.span.rows).end_array();
-    }
-    if (tile.has_landscape) {
-        json.begin_array("landscape").number(nullptr, tile.landscape.col).number(nullptr, tile.landscape.row).end_array();
-    }
-    if (tile.has_portrait) {
-        json.begin_array("portrait").number(nullptr, tile.portrait.col).number(nullptr, tile.portrait.row).end_array();
+    for (const core::Orientation o : core::kOrientations) {
+        const core::Placement &p = tile.in(o);
+        if (!p.has_size && !p.has_cell && !p.hidden) {
+            continue;
+        }
+        json.begin_object(o == core::Orientation::Landscape ? "landscape" : "portrait");
+        if (p.has_size) {
+            json.begin_array("size").number(nullptr, p.size.cols).number(nullptr, p.size.rows).end_array();
+        }
+        if (p.has_cell) {
+            json.begin_array("cell").number(nullptr, p.cell.col).number(nullptr, p.cell.row).end_array();
+        }
+        if (p.hidden) {
+            json.boolean("hidden", true);
+        }
+        json.end_object();
     }
     if (tile.step != 0) {
         json.decimal("step", tile.step);
@@ -317,13 +358,18 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
         json.string("stream", tile.stream.c_str());
     }
     if (with_cells) {
-        json.begin_array("cells")
-            .number(nullptr, tile.landscape.col)
-            .number(nullptr, tile.landscape.row)
-            .number(nullptr, tile.portrait.col)
-            .number(nullptr, tile.portrait.row)
-            .number(nullptr, tile.portrait_fallback ? 1 : 0)
-            .end_array();
+        // where the device draws the tile; null: not drawn in that orientation
+        json.begin_object("cells");
+        for (const core::Orientation o : core::kOrientations) {
+            const char *name = o == core::Orientation::Landscape ? "landscape" : "portrait";
+            const core::Placement &p = tile.in(o);
+            if (p.shown) {
+                json.begin_array(name).number(nullptr, p.cell.col).number(nullptr, p.cell.row).end_array();
+            } else {
+                json.null(name);
+            }
+        }
+        json.end_object();
     }
     if (tile.kind == TileKind::Area) {
         const core::Page &page = layout.pages[tile.opens];

@@ -100,47 +100,62 @@
 # is not sent to the server (docs/TODO.md).
 
 # --------------------------------------------------------------------------------- dashboard
-# Defaults for the whole dashboard. Only the grid for now.
+# Defaults for the whole dashboard.
 defaults:
-  # columns x rows of every page, 1x1 to 8x8. Default 4x2. A cell is the unit of every size
+  # columns x rows of every page, 1x1 to 32x32. Default 4x2. A cell is the unit of every size
   # below. A 480x320 panel with 4x2 has cells of about 110x148 pixels; a portrait panel shows the
   # grid turned (4x3 becomes 3x4), the tiles keep their order.
   grid: 4x3
 
 # The main page. Tiles fill the grid in the order of this list, left to right and top to bottom,
-# each in the first place where it fits; a `spacer` keeps a cell free. A page can also be arranged
-# with a cell per tile (`landscape:`, `portrait:`; see rooms/workshop.yaml), which the edit mode
-# of the screen writes when you move a tile.
+# each in the first place where it fits; a `spacer` keeps a cell free. A tile that finds no room
+# is left out on the screen, never an error: the web editor lists it under the preview, and it
+# comes back when room is made. A page can also be arranged with a cell per tile (`cell` under
+# `landscape:` / `portrait:`, see rooms/workshop.yaml), which the edit mode of the screen writes
+# when you move a tile.
+#
+# Every tile is one cell unless `landscape:` and `portrait:` say otherwise:
+#   landscape:
+#     size: 1x2       columns x rows, 1x1 to 8x8 (larger than the grid: left out); default 1x1
+#     cell: 2,1       column,row from 0: the place on an arranged page; without it the tile
+#                     takes the first free place
+#     hidden: true    the tile is not on the screen in this orientation
+#   portrait:         the same for the turned screen, in the turned grid (4x3 becomes 3x4). The
+#                     portrait size is the landscape size turned (1x2 becomes 2x1) unless set.
 #
 # What a tile is, is decided by its entity (the domain before the dot):
 #   light.*                                         switch, or a dimmer with `dimmer: true`
 #   switch.* input_boolean.* fan.* automation.*     switch: a tap toggles
 #   button.* input_button.* scene.* script.*        button: a tap presses
-#   climate.*                                       thermostat, 1x2
-#   camera.*                                        camera picture, 2x2
+#   climate.*                                       thermostat; two rows tall it has +/- bars
+#   camera.*                                        camera picture, fills the tile
 #   lock.*                                          lock: a tap opens the panel (lock, unlock,
 #                                                   open, the timeline); the tile does not unlock
 #   weather.*                                       weather: the condition, the temperature and
 #                                                   the humidity; a tap opens the current values
-#                                                   and the daily and hourly forecast. `size`
-#                                                   1x1, 1x2 or 2x1
+#                                                   and the daily and hourly forecast
 #   everything else (sensor.*, binary_sensor.*, ...)
 #                                                   shows the state, a tap opens the history
 # Only `area` and `spacer` have a `type`. Every key except `entity` is optional.
 tiles:
   # A light as a dimmer: level fill from the bottom, drag to set the level, double tap to switch,
-  # tap for the light panel (colors, effects). 1x2 cells unless `size` says otherwise.
+  # tap for the light panel (colors, effects). Two rows tall, so the fill has room.
   - entity: light.aurora_ceiling
     name: Ceiling
     dimmer: true
+    landscape:
+      size: 1x2
     # the +/- buttons of the light panel change the level by this many percent. 1 to 50,
     # default 1. The slider itself is continuous.
     step: 5
 
-  # A thermostat. The +/- bars change the target temperature by the step the thermostat
-  # reports; `step` (0.1 to 5, in degrees) is used when it reports none, else 0.5 (1 for °F).
+  # A thermostat, two rows tall: the +/- bars change the target temperature by the step the
+  # thermostat reports; `step` (0.1 to 5, in degrees) is used when it reports none, else 0.5
+  # (1 for °F). In one cell it shows the action, the temperatures and the name.
   - entity: climate.hearth_thermostat
     name: Hearth
+    landscape:
+      size: 1x2
 
   # A switch. Without `name`, Home Assistant's friendly name is shown.
   - entity: switch.crystal_lamp
@@ -163,21 +178,23 @@ tiles:
   # Keeps its cell free.
   - type: spacer
 
-  # A camera: `size` columns x rows, 1x1 / 1x2 / 2x1 / 2x2 (default 2x2). `refresh` is the
-  # seconds between two images, 1 to 3600 (default 60); images are only fetched while the page is
-  # visible. A tap shows the image full screen. `stream` (optional) is an MJPEG stream of the camera
-  # (http://, for example of go2rtc): the tile takes its image from the stream instead of Home
-  # Assistant, and full screen plays it live. `stream: hass` plays Home Assistant's own MJPEG
-  # stream of the camera full screen. One stream plays at a time.
+  # A camera: the image fills the tile, whatever its size. `refresh` is the seconds between two
+  # images, 1 to 3600 (default 60); images are only fetched while the page is visible. A tap
+  # shows the image full screen. `stream` (optional) is an MJPEG stream of the camera (http://,
+  # for example of go2rtc): the tile takes its image from the stream instead of Home Assistant,
+  # and full screen plays it live. `stream: hass` plays Home Assistant's own MJPEG stream of the
+  # camera full screen. One stream plays at a time.
   - entity: camera.owl_cam
     name: Owl
-    size: 2x1
+    landscape:
+      size: 2x1
     refresh: 30
     # full screen plays Home Assistant's MJPEG stream of the camera
     stream: hass
 
-  # An area is a page of its own. The first cell of its page is the back tile. The name is
-  # required. `tiles` is the list of its page; `include` takes it from another file.
+  # An area is a page of its own. The first cell of its page is the back tile, unless the area
+  # has `swipe: true` (see rooms/workshop.yaml). The name is required. `tiles` is the list of
+  # its page; `include` takes it from another file.
   - include: rooms.yaml
 
   # A button: a tap presses it (`scene` and `script` entities are activated).

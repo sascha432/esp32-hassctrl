@@ -15,8 +15,9 @@ namespace hc::ui {
 // How the screens move and look on a board type (board::Info says which, the sim's --size preset)
 struct Options {
     // a page of the dashboard slides in from the right when it opens and out to the right when
-    // the back tile leads to its parent (docs/ui/lvgl/lvgl-dashboard.md section 2)
-    bool slide_pages = false;
+    // the back tile leads to its parent, along the swipe strip the same way
+    // (docs/ui/lvgl/lvgl-dashboard.md sections 2 and 9); false: the page just changes
+    bool slide_pages = true;
     // the panels of a dimmer, a climate and a sensor are a dialog over the dimmed page, 620 x 420
     // (440 x 600 in portrait), sliding in and out, instead of the whole screen
     // (docs/ui/lvgl/lvgl-panels.md section 1)

@@ -9,6 +9,7 @@
 #include "edit_mode.hpp"
 #include "overlay.hpp"
 #include "panel.hpp"
+#include "swipe.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
 
@@ -73,7 +74,7 @@ const core::EntityState kNoState{};
 void subscribe()
 {
     g.generation++;
-    g.backend->subscribe_page(g.layout, g.layout ? g.page : core::kNone, g.panel, g.generation);
+    g.backend->subscribe_page(g.layout, g.layout ? g.page : core::kNone, g.grid.orientation, g.panel, g.generation);
 }
 
 void clear_page()
@@ -156,13 +157,17 @@ void build_page(Slide slide = Slide::None)
     g.built_width = width;
     g.built_height = height;
     const bool portrait = height > width;
-    // while editing the bar takes the top and the grid shrinks below it
+    // while editing the bar takes the top and the grid shrinks below it; on a swipe page the
+    // band of dots takes the bottom
     const lv_coord_t top = editing() ? edit::kBarHeight : 0;
+    const auto chain = core::swipe_chain(layout, g.page);
+    const bool dots = chain.size() >= 2;
+    const lv_coord_t bottom = dots ? swipe::dots_height() : 0;
     const uint8_t cols = portrait ? page.grid.rows : page.grid.cols;
     const uint8_t rows = portrait ? page.grid.cols : page.grid.rows;
     const lv_coord_t gap = g.options.tile_gap;
     const lv_coord_t cell_w = (width - 2 * kMargin - (cols - 1) * gap) / cols;
-    const lv_coord_t cell_h = (height - top - 2 * kMargin - (rows - 1) * gap) / rows;
+    const lv_coord_t cell_h = (height - top - bottom - 2 * kMargin - (rows - 1) * gap) / rows;
     g.grid = {kMargin, static_cast<lv_coord_t>(top + kMargin), cell_w, cell_h, gap, cols, rows,
               portrait ? core::Orientation::Portrait : core::Orientation::Landscape};
     const auto area_of = [&](core::Cell cell, uint8_t span_cols, uint8_t span_rows) {
@@ -175,24 +180,26 @@ void build_page(Slide slide = Slide::None)
     };
 
     g.views.reserve(page.tiles.size() + 1);
-    if (page.parent != core::kNone) {
+    if (core::has_back_tile(layout, g.page)) {
         // the first cell of an area page goes back
-        tiles::create(g.views.emplace_back(), g.page_obj, layout, area_of({0, 0}, 1, 1));
+        tiles::create(g.views.emplace_back(), g.page_obj, layout, area_of({0, 0}, 1, 1), {1, 1});
     }
     for (const core::TileIndex index : page.tiles) {
         const core::Tile &tile = layout.tiles[index];
-        if (tile.kind == core::TileKind::Spacer) {
-            continue;
+        const core::Placement &placed = tile.in(g.grid.orientation);
+        if (tile.kind == core::TileKind::Spacer || !placed.shown) {
+            continue; // hidden, or no room in this orientation
         }
-        const core::Cell cell = portrait ? tile.portrait : tile.landscape;
-        const uint8_t span_cols = portrait ? tile.span.rows : tile.span.cols;
-        const uint8_t span_rows = portrait ? tile.span.cols : tile.span.rows;
         tiles::View &view = g.views.emplace_back();
         view.tile = index;
-        tiles::create(view, g.page_obj, layout, area_of(cell, span_cols, span_rows));
+        tiles::create(view, g.page_obj, layout, area_of(placed.cell, placed.size.cols, placed.size.rows), placed.size);
     }
     for (auto &view : g.views) {
         update_view(view);
+    }
+    if (dots) {
+        // the page is the last of its chain
+        swipe::dots(g.page_obj, width, chain.size(), chain.size() - 1);
     }
     if (editing()) {
         // the tiles take no touches (the edit layer lies over them), an outline shows that they move
@@ -202,13 +209,15 @@ void build_page(Slide slide = Slide::None)
         }
         edit::refresh();
     } else {
-        // a long press anywhere on the page starts edit mode
+        // a long press anywhere on the page starts edit mode, a sideways drag swipes
         lv_obj_add_flag(g.page_obj, LV_OBJ_FLAG_CLICKABLE);
         edit::watch(g.page_obj);
+        swipe::watch(g.page_obj);
         for (auto &view : g.views) {
             for (lv_obj_t *obj : {view.card, view.plus, view.minus}) {
                 if (obj != nullptr) {
                     edit::watch(obj);
+                    swipe::watch(obj);
                 }
             }
         }
@@ -413,6 +422,14 @@ void back()
 {
     if (g.layout && g.layout->pages[g.page].parent != core::kNone) {
         open_page(g.layout->pages[g.page].parent);
+    }
+}
+
+void swiped(int direction)
+{
+    // a swipe right on a swipe page goes back; nothing else
+    if (g.layout && direction < 0 && core::swipe_page(*g.layout, g.page)) {
+        back();
     }
 }
 

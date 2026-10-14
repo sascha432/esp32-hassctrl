@@ -53,6 +53,7 @@ struct Sample {
         spacer.kind = TileKind::Spacer;
         layout.add_tile(0, spacer);
         again = layout.add_tile(0, entity_tile(layout, "light.aurora"));
+        static_cast<void>(finish(layout)); // placed: build_page leaves out what is not shown
     }
 };
 
@@ -104,7 +105,7 @@ TEST(protocol_fields_follow_the_tile)
 TEST(protocol_page_template)
 {
     Sample page;
-    const PageSubscription sub = build_page(page.layout, 0, kNone);
+    const PageSubscription sub = build_page(page.layout, 0, Orientation::Landscape, kNone);
     // the second tile of the light shares its entry; the spacer has none
     REQUIRE(sub.entities.size() == 3);
     CHECK(page.layout.entities[sub.entities[0]] == "light.aurora");
@@ -124,18 +125,18 @@ TEST(protocol_page_template)
     CHECK(sub.template_text.find("{{%") == std::string::npos);
 
     // the open panel adds its fields to the entity of its tile
-    const PageSubscription panel = build_page(page.layout, 0, page.again);
+    const PageSubscription panel = build_page(page.layout, 0, Orientation::Landscape, page.again);
     CHECK((panel.fields[0] & bit(Field::EffectList)) != 0);
     CHECK((panel.fields[1] & bit(Field::PresetModes)) == 0);
     CHECK(panel.template_text.find("'effect_list'") != std::string::npos);
 
-    CHECK(build_page(page.layout, 7, kNone).empty());
+    CHECK(build_page(page.layout, 7, Orientation::Landscape, kNone).empty());
 }
 
 TEST(protocol_decode_object_and_text)
 {
     Sample page;
-    const PageSubscription sub = build_page(page.layout, 0, page.dimmer);
+    const PageSubscription sub = build_page(page.layout, 0, Orientation::Landscape, page.dimmer);
     const char *text = R"({"0":{"s":"on","b":180,"cs":["hs","color_temp"],"cm":"hs","e":null,"el":["Rainbow","Fire, warm"],)"
                        R"("k":null,"kl":2000,"kh":6535,"h":[30.5,80]},)"
                        R"("1":{"s":"heat","t":21.5,"c":"20.8","a":"heating","tl":7,"th":35,"ts":null},)"
@@ -181,7 +182,7 @@ TEST(protocol_decode_weather)
 {
     Layout layout;
     const TileIndex index = layout.add_tile(0, entity_tile(layout, "weather.openweathermap"));
-    const PageSubscription sub = build_page(layout, 0, index);
+    const PageSubscription sub = build_page(layout, 0, Orientation::Landscape, index);
     REQUIRE(sub.entities.size() == 1);
     CHECK(sub.template_text.find("\"wb\":{{state_attr(e,'wind_bearing')|tojson}}") != std::string::npos);
     // as OpenWeatherMap reports it: no uv_index

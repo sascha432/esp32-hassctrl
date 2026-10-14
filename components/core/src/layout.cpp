@@ -29,23 +29,14 @@ std::expected<void, Problem> page_problem(PageIndex page, memory::String message
     return std::unexpected(Problem{kNone, page, std::move(message)});
 }
 
-Span default_span(const Tile &tile)
-{
-    switch (tile.kind) {
-    case TileKind::Light:
-        return tile.dimmer ? Span{1, 2} : Span{1, 1};
-    case TileKind::Climate:
-        return {1, 2};
-    case TileKind::Picture:
-        return {2, 2};
-    default:
-        return {1, 1};
-    }
-}
-
 bool in_range(float value, float low, float high)
 {
     return value >= low && value <= high;
+}
+
+const char *orientation_name(Orientation o)
+{
+    return o == Orientation::Landscape ? "landscape" : "portrait";
 }
 
 std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
@@ -87,32 +78,18 @@ std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
     if (tile.dimmer && kind != TileKind::Light) {
         return tile_problem(index, "dimmer is only for lights");
     }
-    if (tile.has_size) {
-        const Span size = tile.span;
-        switch (kind) {
-        case TileKind::Light:
-            if (!tile.dimmer) {
-                return tile_problem(index, "a light has a size only with dimmer: true");
-            }
-            [[fallthrough]];
-        case TileKind::Climate:
-            if (size.cols != 1 || size.rows < 1 || size.rows > 2) {
-                return tile_problem(index, format("a %s tile is 1x1 or 1x2", kind_name(kind)));
-            }
-            break;
-        case TileKind::Weather:
-            // 1x1, 1x2 (tall) and 2x1 (wide)
-            if (!((size.cols == 1 && size.rows >= 1 && size.rows <= 2) || (size.cols == 2 && size.rows == 1))) {
-                return tile_problem(index, "a weather tile is 1x1, 1x2 or 2x1");
-            }
-            break;
-        case TileKind::Picture:
-            if (size.cols < 1 || size.cols > 2 || size.rows < 1 || size.rows > 2) {
-                return tile_problem(index, "a picture tile is 1x1, 1x2, 2x1 or 2x2");
-            }
-            break;
-        default:
-            return tile_problem(index, "size is only for dimmer lights, climate, weather and picture tiles");
+    if (tile.swipe && kind != TileKind::Area) {
+        return tile_problem(index, "swipe is only for areas");
+    }
+    for (const Orientation o : kOrientations) {
+        const Placement &p = tile.in(o);
+        if (p.has_size && (p.size.cols < 1 || p.size.cols > kMaxTileSize || p.size.rows < 1 || p.size.rows > kMaxTileSize)) {
+            return tile_problem(index, format("the %s size is 1x1 to %ux%u", orientation_name(o),
+                                              static_cast<unsigned>(kMaxTileSize), static_cast<unsigned>(kMaxTileSize)));
+        }
+        if (p.has_cell && (p.cell.col >= kMaxGrid || p.cell.row >= kMaxGrid)) {
+            return tile_problem(index, format("the %s cell is 0,0 to %u,%u", orientation_name(o),
+                                              static_cast<unsigned>(kMaxGrid - 1), static_cast<unsigned>(kMaxGrid - 1)));
         }
     }
 
@@ -196,7 +173,7 @@ public:
     {
         for (uint8_t row = at.row; row < at.row + span.rows; row++) {
             for (uint8_t col = at.col; col < at.col + span.cols; col++) {
-                _used[row] |= static_cast<uint8_t>(1u << col);
+                _used[row] |= 1u << col;
             }
         }
     }
@@ -217,92 +194,55 @@ public:
 
 private:
     Span _size;
-    uint8_t _used[kMaxGrid] = {};
+    uint32_t _used[kMaxGrid] = {}; // a bit per column
 };
-
-const char *orientation_name(Orientation o)
-{
-    return o == Orientation::Landscape ? "landscape" : "portrait";
-}
-
-Cell &cell_of(Tile &tile, Orientation o)
-{
-    return o == Orientation::Landscape ? tile.landscape : tile.portrait;
-}
 
 // the tile keeps `cell` in `o` as its own
 void pin(Tile &tile, Orientation o, Cell cell)
 {
-    cell_of(tile, o) = cell;
-    (o == Orientation::Landscape ? tile.has_landscape : tile.has_portrait) = true;
+    Placement &p = tile.in(o);
+    p.cell = cell;
+    p.has_cell = true;
 }
 
-// web/dashboard.js copies this placement, kind_of_entity(), default_span() and the sizes of
-// check_tile() for its preview: a change here is a change there too (docs/architecture.md section 5).
+// web/dashboard.js copies this placement, kind_of_entity(), has_back_tile() and swipe_chain() for
+// its preview: a change here is a change there too (docs/architecture.md section 5).
 //
 // Places the tiles of a page for one orientation. Portrait shows the grid transposed (4x3 becomes
-// 3x4) and swaps the span of every tile with it, so a cell keeps its shape, and the page reads in
-// the same order (transposing the positions instead would turn the first row into the left
-// column). The tiles with a cell of their own take it first; the others fill the first free block
-// in the order of the page. The configuration is written for landscape: there a tile that finds no
-// block is an error, in portrait it falls back to the first cell.
-std::expected<void, Problem> place(Layout &layout, PageIndex index, Orientation o)
+// 3x4); a tile's portrait size is its landscape size turned unless the file sets one, so a cell
+// keeps its shape and the page reads in the same order. The tiles with a cell of their own take
+// it first; the others fill the first free block in the order of the page. A tile that cannot
+// take its cell (outside the grid, on the back tile, over another tile) or finds no free block
+// is not shown in this orientation: the device draws nothing for it, the web editor lists it.
+void place(Layout &layout, PageIndex index, Orientation o)
 {
     const Page &page = layout.pages[index];
     const Span size = grid_in(page, o);
-    const char *name = orientation_name(o);
     Grid grid(size);
-    if (index != 0) {
-        // the first cell of an area page is its back tile
+    if (has_back_tile(layout, index)) {
         grid.take({0, 0}, {1, 1});
     }
     for (const TileIndex t : page.tiles) {
-        Tile &tile = layout.tiles[t];
-        if (!tile.has_cell(o)) {
+        Placement &p = layout.tiles[t].in(o);
+        p.shown = false;
+        if (!p.has_cell || p.hidden) {
             continue;
         }
-        const Span span = tile.span_in(o);
-        const Cell at = tile.cell(o);
-        if (at.col + span.cols > size.cols || at.row + span.rows > size.rows) {
-            return tile_problem(t, format("the %s cell %u,%u of a %ux%u tile lies outside the %ux%u grid of its page", name,
-                                          static_cast<unsigned>(at.col), static_cast<unsigned>(at.row),
-                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows),
-                                          static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
+        if (grid.free(p.cell, p.size)) {
+            grid.take(p.cell, p.size);
+            p.shown = true;
         }
-        if (index != 0 && at == Cell{0, 0}) {
-            return tile_problem(t, format("the %s cell 0,0 of an area page is its back tile", name));
-        }
-        if (!grid.free(at, span)) {
-            return tile_problem(t, format("the %s cell %u,%u overlaps another tile", name, static_cast<unsigned>(at.col),
-                                          static_cast<unsigned>(at.row)));
-        }
-        grid.take(at, span);
     }
     for (const TileIndex t : page.tiles) {
-        Tile &tile = layout.tiles[t];
-        if (tile.has_cell(o)) {
+        Placement &p = layout.tiles[t].in(o);
+        if (p.has_cell || p.hidden) {
             continue;
         }
-        const Span span = tile.span_in(o);
-        Cell &at = cell_of(tile, o);
-        if (o == Orientation::Portrait) {
-            tile.portrait_fallback = !grid.first_fit(span, at);
-            if (tile.portrait_fallback) {
-                at = {0, 0};
-                continue;
-            }
-        } else if (span.cols > size.cols || span.rows > size.rows) {
-            return tile_problem(t, format("a %ux%u tile does not fit into the %s %ux%u grid of its page",
-                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows), name,
-                                          static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
-        } else if (!grid.first_fit(span, at)) {
-            return tile_problem(t, format("no free %ux%u block left in the %s %ux%u grid of its page",
-                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows), name,
-                                          static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
+        if (grid.first_fit(p.size, p.cell)) {
+            grid.take(p.cell, p.size);
+            p.shown = true;
         }
-        grid.take(at, span);
     }
-    return {};
 }
 
 // the tiles of page `from` (without `removed`, an area with its pages) appended to page `to`
@@ -443,7 +383,7 @@ EntityIndex Layout::intern(std::string_view entity_id)
 std::expected<void, Problem> finish(Layout &layout)
 {
     if (!grid_ok(layout.grid)) {
-        return page_problem(0, "the grid is 1x1 to 8x8");
+        return page_problem(0, "the grid is 1x1 to 32x32");
     }
     if (layout.tiles.size() >= kNone || layout.pages.size() >= kNone || layout.entities.size() >= kNone) {
         return page_problem(0, "the dashboard has too many tiles");
@@ -478,7 +418,7 @@ std::expected<void, Problem> finish(Layout &layout)
             return page_problem(p, format("areas are nested more than %u levels deep", static_cast<unsigned>(kMaxAreaDepth)));
         }
         if (page.has_grid && !grid_ok(page.grid)) {
-            return page_problem(p, "the grid is 1x1 to 8x8");
+            return page_problem(p, "the grid is 1x1 to 32x32");
         }
         if (!page.has_grid) {
             page.grid = layout.grid;
@@ -493,19 +433,43 @@ std::expected<void, Problem> finish(Layout &layout)
             return checked;
         }
         Tile &tile = layout.tiles[i];
-        if (!tile.has_size) {
-            tile.span = default_span(tile);
+        if (!tile.in(Orientation::Landscape).has_size) {
+            tile.in(Orientation::Landscape).size = {1, 1};
+        }
+        if (!tile.in(Orientation::Portrait).has_size) {
+            const Span landscape = tile.in(Orientation::Landscape).size;
+            tile.in(Orientation::Portrait).size = {landscape.rows, landscape.cols};
         }
     }
 
     for (PageIndex p = 0; p < layout.pages.size(); p++) {
-        for (const Orientation o : {Orientation::Landscape, Orientation::Portrait}) {
-            if (auto placed = place(layout, p, o); !placed) {
-                return placed;
-            }
+        for (const Orientation o : kOrientations) {
+            place(layout, p, o);
         }
     }
     return {};
+}
+
+bool swipe_page(const Layout &layout, PageIndex page)
+{
+    const TileIndex area = layout.pages[page].area;
+    return area != kNone && layout.tiles[area].swipe;
+}
+
+bool has_back_tile(const Layout &layout, PageIndex page)
+{
+    return layout.pages[page].parent != kNone && !swipe_page(layout, page);
+}
+
+memory::Vector<PageIndex> swipe_chain(const Layout &layout, PageIndex page)
+{
+    memory::Vector<PageIndex> chain;
+    chain.push_back(page);
+    for (PageIndex p = page; swipe_page(layout, p) && layout.pages[p].parent != kNone;) {
+        p = layout.pages[p].parent;
+        chain.insert(chain.begin(), p);
+    }
+    return chain;
 }
 
 Span grid_in(const Page &page, Orientation o)
@@ -515,11 +479,13 @@ Span grid_in(const Page &page, Orientation o)
 
 bool move_tile(Layout &layout, TileIndex index, Orientation o, Cell cell)
 {
-    const Page &page = layout.pages[layout.tiles[index].page];
-    const bool area_page = layout.tiles[index].page != 0;
+    const PageIndex page_index = layout.tiles[index].page;
+    const Page &page = layout.pages[page_index];
+    const bool back_tile = has_back_tile(layout, page_index);
     const Span size = grid_in(page, o);
-    const Span span = layout.tiles[index].span_in(o);
-    if (cell.col + span.cols > size.cols || cell.row + span.rows > size.rows || (area_page && cell == Cell{0, 0})) {
+    const Span span = layout.tiles[index].in(o).size;
+    if (!layout.tiles[index].in(o).shown || cell.col + span.cols > size.cols || cell.row + span.rows > size.rows ||
+        (back_tile && cell == Cell{0, 0})) {
         return false;
     }
     const auto covered = [&](Cell at, Span other) {
@@ -528,19 +494,19 @@ bool move_tile(Layout &layout, TileIndex index, Orientation o, Cell cell)
     };
     // the page without the moved tile and the tiles it covers, then the moved tile in its place
     Grid grid(size);
-    if (area_page) {
+    if (back_tile) {
         grid.take({0, 0}, {1, 1});
     }
     memory::Vector<TileIndex> pushed;
     for (const TileIndex t : page.tiles) {
-        const Tile &tile = layout.tiles[t];
-        if (t == index || (o == Orientation::Portrait && tile.portrait_fallback)) {
+        const Placement &p = layout.tiles[t].in(o);
+        if (t == index || !p.shown) {
             continue;
         }
-        if (covered(tile.cell(o), tile.span_in(o))) {
+        if (covered(p.cell, p.size)) {
             pushed.push_back(t);
         } else {
-            grid.take(tile.cell(o), tile.span_in(o));
+            grid.take(p.cell, p.size);
         }
     }
     grid.take(cell, span);
@@ -549,7 +515,7 @@ bool move_tile(Layout &layout, TileIndex index, Orientation o, Cell cell)
     const unsigned start = cell.row * size.cols + cell.col;
     memory::Vector<Cell> targets;
     for (const TileIndex t : pushed) {
-        const Span other = layout.tiles[t].span_in(o);
+        const Span other = layout.tiles[t].in(o).size;
         bool found = false;
         for (unsigned i = 0; i < count && !found; i++) {
             const unsigned at = (start + i) % count;
@@ -564,33 +530,28 @@ bool move_tile(Layout &layout, TileIndex index, Orientation o, Cell cell)
             return false;
         }
     }
-    // the page is arranged in `o` from now on: every tile keeps its cell
+    // the page is arranged in `o` from now on: every shown tile keeps its cell
     for (const TileIndex t : page.tiles) {
         Tile &tile = layout.tiles[t];
-        if (!(o == Orientation::Portrait && tile.portrait_fallback)) {
-            pin(tile, o, tile.cell(o));
+        if (tile.in(o).shown) {
+            pin(tile, o, tile.in(o).cell);
         }
     }
     for (size_t i = 0; i < pushed.size(); i++) {
         pin(layout.tiles[pushed[i]], o, targets[i]);
     }
     pin(layout.tiles[index], o, cell);
-    // cannot fail: the cells of this page do not overlap, the other pages did not change
+    // cannot fail: the data did not change, and the placement never fails
     return finish(layout).has_value();
 }
 
-std::expected<void, Problem> reset_arrangement(Layout &layout, PageIndex page, Orientation o)
+void reset_arrangement(Layout &layout, PageIndex page, Orientation o)
 {
-    // automatic order may need more room than the arrangement, so it is tried on a copy
-    Layout copy = layout;
-    for (const TileIndex t : copy.pages[page].tiles) {
-        (o == Orientation::Landscape ? copy.tiles[t].has_landscape : copy.tiles[t].has_portrait) = false;
+    for (const TileIndex t : layout.pages[page].tiles) {
+        layout.tiles[t].in(o).has_cell = false;
     }
-    if (auto finished = finish(copy); !finished) {
-        return finished;
-    }
-    layout = std::move(copy);
-    return {};
+    // the data did not change: the placement cannot fail
+    static_cast<void>(finish(layout));
 }
 
 std::expected<Layout, Problem> remove_tile(const Layout &layout, TileIndex tile)

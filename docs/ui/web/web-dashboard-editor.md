@@ -1,9 +1,9 @@
 # Dashboard editor (web)
 
 Status: **decided and built** (2026-10-08/09): the API, the web editor (`web/dashboard.js`) and
-the entity picker. The look can be tried in a browser:
-[web-dashboard-editor-demo.html](web-dashboard-editor-demo.html) (open the file directly, no device
-needed; mock data, nothing is saved).
+the entity picker; 2026-10-14: sizes and hiding per orientation, the tray of the tiles not on the
+screen, the swipe checkbox of an area (the mock-up page of the first design is gone, the editor on a
+device is the reference).
 
 Dashboard editing has three parts:
 
@@ -23,28 +23,33 @@ dashboard as one file is on the System page (web-app.md section 1), not here (de
   (its page opens at once, 2026-10-09: an empty area is an error, and a "+ Tile" after "+ Area"
   meant the new area, not the page it is on), rename, delete (with its tiles, after a confirm that names the count), move a tile to another
   page by dragging it onto the tree.
-* **Grid.** `defaults.grid`, and per area page its own grid or the default. 1x1 to 8x8.
+* **Grid.** `defaults.grid`, and per area page its own grid or the default. 1x1 to 32x32 (2026-10-14, your request; was 8x8); a tile is 1x1 to 8x8.
 * **Tiles.** Add from a Home Assistant entity, add an area or a spacer, remove, duplicate, move to
   another page, reorder. Every key of the tile format; the keys a kind does not have are hidden.
-  A weather entity (`weather.*`) is a `weather` tile, 1x1, 1x2 or 2x1, with the icon of the
-  weather by default (the preview cannot show the condition: no live values).
+  A new tile is 1x1. The size is set per orientation, in the orientation the preview shows
+  (1x1 up to the grid of the page; portrait offers "landscape turned" as the default), and a
+  tile can be hidden per orientation (two checkboxes). A weather entity (`weather.*`) is a
+  `weather` tile with the icon of the weather by default (the preview cannot show the condition:
+  no live values).
+* **Swipe navigation** is a checkbox of an area tile: its page loses the back tile, a swipe
+  right goes back, dots show the depth ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md)
+  section 9). The preview draws the back tile and the dots by the same rules as the screen.
 * **Preview.** The page as the screen draws it (colors of lvgl-design.md section 2), the back
-  tile, landscape or portrait, in the aspect of a board. A tile that does not fit shows the error.
-  The preview shows whether the page is in automatic order or arranged in that orientation.
-  The device checks both orientations, so a page arranged in the orientation not shown can
-  refuse a tile or a size the shown one has room for (your report, 2026-10-13: a 1x2 picture
-  tile set in portrait, the landscape side full). The problem names the orientation; a click on
-  it switches the preview to the orientation that has the problem and selects the tile; the
-  inspector's "Position" line shows "no place, show landscape" as a link. The size select is
-  `columns x rows` in landscape; in portrait its hint says what the size turns into (1x2 shows
-  as 2x1).
-* **A new span on an arranged page** (size, dimmer, a kind change of the entity; your report
-  2026-10-13: a 1x1 at the last row set to 1x2 ran past the grid and the editor just showed the
-  error): in each orientation the tile keeps its cell when the new block is free there; else it
-  is dropped onto that cell like a drag (the tiles in the way are pushed aside), shifted up or
-  left when the block would run past the grid; when that fails too (the block would cover the
-  back tile, nothing can be pushed aside) the cell is dropped and the tile takes the first free
-  block, or the device reports a page without room (`refit()` in dashboard.js).
+  tile where the navigation rule puts one, the dots of a swipe strip page, landscape or
+  portrait, in the aspect of a board. A tile wider than tall shows the icon beside the text (the
+  wide shape of the screen). The preview shows whether the page is in automatic order or
+  arranged in that orientation.
+* **The tray** under the preview, "Not on the screen in landscape" (or portrait): every tile of
+  the page that is not drawn there, with the reason: **hidden** there, or **no room** (no free
+  block, a size larger than the grid, a cell outside the grid, on the back tile or over another
+  tile; the device leaves such a tile out instead of refusing the file, decided 2026-10-14).
+  A tile dragged into the tray is hidden in that orientation; a chip dragged onto a cell is shown
+  again and takes that cell (the tiles in the way are pushed aside). A click on a chip selects
+  the tile; the inspector's Position line says why it is out and offers the other orientation.
+* **A size change** keeps the cell; a tile that no longer fits appears in the tray, nothing is
+  shifted (before 2026-10-14 `refit()` tried to keep it on the page and the asymmetry of the
+  rules showed in your reports of 2026-10-13). The same for a grid change: a cell outside the
+  new grid puts its tile into the tray, the cell stays for a grid that fits it again.
 * **Drag in the preview**: in automatic order a drag reorders the list (the tile takes the place of
   the tile it is dropped on: after it when dragged forward, before it when dragged back); in an
   arranged page it moves the tile to the cell and pushes the tiles there aside ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 6). A drag in an automatic page onto an empty cell
@@ -80,11 +85,13 @@ GET /api/dashboard ---> editor model (the JSON as it is) ---> edits in the brows
   section 5, README "Flash").
 * **Answers** (built): save and check answer `{"checked", "revision", "dashboard"}`; the dashboard
   is the one stored (or checked) with the ids of new tiles, and every tile carries
-  `"cells": [landscape column, row, portrait column, row, portrait fallback 0/1]`. The reader skips
-  `cells`, so an answer can be sent back as it is. A problem answers `{"error", "path"}`: the path
-  is the tile's index in each level of tile lists (`config::tile_path`), because a new tile has no
-  id the editor could match. `GET /api/dashboard/editor` gives the device's screen in landscape
-  (name, width, height, the gap between tiles) and the icon names.
+  `"cells": {"landscape": [column, row] or null, "portrait": the same}`, where the device draws
+  it (null: hidden or no room). The reader skips `cells`, so an
+  answer can be sent back as it is. A problem answers `{"error", "path"}` for a data error (the
+  placement never is one): the path is the tile's index in each level of tile lists
+  (`config::tile_path`), because a new tile has no id the editor could match.
+  `GET /api/dashboard/editor` gives the device's screen in landscape (name, width, height, the
+  gap between tiles) and the icon names.
 * **The preview is the device's own screen** (2026-10-09, your review): no choice of board; the
   screen comes from `GET /api/dashboard/editor`. Its name and size are not shown (2026-10-09,
   your request).
@@ -135,16 +142,18 @@ Phone first like the rest of the web UI, but the editor uses the full width from
 +-----------+--------------------------------------------------------------------------+
 | Status    | Dashboard   [Editor] [Import & export]   rev 12 · unsaved [Undo][Save]  |
 | Home Ass. +--------------+------------------------------------+----------------------+
-| Wi-Fi     | Pages        | Main page   grid [4]x[3]           | Tile                 |
+| Wi-Fi     | Pages        | Main page  grid [4]x[3]            | Tile                 |
 | Hotspot   | > Main       | [Landscape|Portrait]               | Ceiling      light   |
 | Dashboard |   > Rooms    | Automatic order   [Reset]          | Entity [light.aur..] |
 | Logs      |     Workshop | +------+------+------+------+      | Name   [Ceiling    ] |
 | System    | [+ Area]     | |      |Hearth| (o)  | (o)  |      | Icon   [(o) auto   ] |
-|           |              | | 24 % |21.5° |Crystal Breeze|      | Size   [1x2 auto v] |
-|           |              | |######|      +------+------+      | [x] Dimmer  Step 5   |
-|           |              | +------+------+ 25.4 |      |      | Position  auto / 0,0 |
-|           |              | | Owl (2x1)   |Rooms |Movie |      | [Up][Down][Dup][Del] |
-|           |              | +-------------+------+------+      |                      |
+|           |              | | 24 % |21.5° |Crystal Breeze|      | Size in landscape    |
+|           |              | |######|      +------+------+      |        [1x2        v]|
+|           |              | +------+------+ 25.4 |      |      | [ ] Hidden landscape |
+|           |              | | Owl (2x1)   |Rooms |Movie |      | [x] Hidden portrait  |
+|           |              | +-------------+------+------+      | [x] Dimmer  Step 5   |
+|           |              | Not on the screen in landscape     | Position  auto / 0,0 |
+|           |              | [ (o) Pantry  no room ] [ Fan hid.]| [Up][Down][Dup][Del] |
 +-----------+--------------+------------------------------------+----------------------+
 ```
 
@@ -154,11 +163,11 @@ Below 800 px the columns stack: the page as a dropdown, the preview, the tile fo
 
 | Where | What |
 | --- | --- |
-| `core` | `landscape`/`portrait` cells and their rules in `finish()`; `move_tile`, `reset_arrangement`, `remove_tile` (built) |
-| `config` | the two keys in JSON and YAML (read, write, export); the sample in `docs/dashboard-sample/` documents them (built) |
+| `core` | `landscape`/`portrait` placements (size, cell, hidden) and the overflow rule in `finish()`; `move_tile`, `reset_arrangement`, `remove_tile`; `swipe` of an area and its helpers (built) |
+| `config` | the two maps and `swipe` in JSON and YAML (read, write, export), format version 2; the sample in `docs/dashboard-sample/` documents them (built); `tools/convert_dashboard.py` for version 1 files |
 | `dashboard` | `save_layout()` (built) |
 | `ui` | edit mode ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 7, built) |
-| `api_dashboard.cpp` | `POST /api/dashboard?check=1`; answers `{"checked", "revision", "dashboard"}` with cells per tile, on 400 `{"error", "path"}` (built) |
+| `api_dashboard.cpp` | `POST /api/dashboard?check=1`; answers `{"checked", "revision", "dashboard"}` with the cells per tile (null where a tile is not drawn), on 400 `{"error", "path"}` (built) |
 | `api_hass.cpp` | `GET /api/hass/entities?domain=&q=`, `GET /api/hass/entity?id=` (built) |
 | `api_dashboard.cpp` | `GET /api/dashboard/editor`: the screen of the device and `core::icon_names()` (built) |
 | `tools/build_icons.py` | also writes `web/icons.svg`, one `<symbol>` per icon name (about 6 KB gzipped) |
@@ -174,7 +183,9 @@ Below 800 px the columns stack: the page as a dropdown, the preview, the tile fo
 4. **Web editor without Home Assistant**: pages, grid, tiles with a typed entity id, preview with
    both orientations, save, 409, undo; the Import & export tab moves in.
 5. **Icons** (`web/icons.svg`) and the **entity picker** (built 2026-10-09).
-6. Later: adding tiles and sizes on the screen. Not planned: live values in the web preview
+6. **Version 2** (2026-10-14): sizes and hiding per orientation, overflow instead of errors,
+   the tray, the swipe checkbox of an area; the mock-up page removed.
+7. Later: adding tiles and sizes on the screen. Not planned: live values in the web preview
    (decided 2026-10-09).
 
 ## 7. Open points

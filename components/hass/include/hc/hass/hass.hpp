@@ -101,10 +101,11 @@ using core::History;
 using core::PageValues;
 using core::ServiceFailed;
 
-// Subscribes the tiles of `page` of `layout`, with the panel fields of the tile `panel` (kNone:
-// no panel open), and ends the subscription before. A null layout ends it without a new one.
-void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::TileIndex panel,
-                    uint32_t generation);
+// Subscribes the tiles of `page` of `layout` shown in orientation `o`, with the panel fields of
+// the tile `panel` (kNone: no panel open), and ends the subscription before. A null layout ends
+// it without a new one.
+void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::Orientation o,
+                    core::TileIndex panel, uint32_t generation);
 
 // Sends the service call of `intent` for `entity_id`. Without a connection it is dropped and
 // reported as failed.

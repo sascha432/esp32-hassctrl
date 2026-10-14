@@ -41,8 +41,9 @@ struct PageSubscription {
     }
 };
 
-// The template of `page`, with the panel fields of the tile `panel` (core::kNone: no panel open).
-PageSubscription build_page(const core::Layout &layout, core::PageIndex page, core::TileIndex panel);
+// The template of `page` as shown in `o` (the tiles hidden or without room there are left out),
+// with the panel fields of the tile `panel` (core::kNone: no panel open).
+PageSubscription build_page(const core::Layout &layout, core::PageIndex page, core::Orientation o, core::TileIndex panel);
 
 // Decodes the `result` of a render_template event (an object, or the same as a JSON string) into
 // one update per entity of the subscription. False with `error` set when it is not the object
