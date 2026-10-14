@@ -877,8 +877,7 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
   ES8311 (`boards/jc4880p443c/es8311.cpp`) uses `espressif/esp_codec_dev` (Apache 2.0) for its
   control part only: I2S slave, MCLK 256 x the rate from the ESP32-P4, DAC at 0 dB, the volume in
   software as everywhere; the driver switches the amplifier (GPIO 11) with the output. The DAC's
-  level is a board constant (`kDacDb`, -12 dB): louder sounds restarted the board through its
-  supply.
+  level is a board constant (`kDacDb`, 0 dB).
 * **One task owns the I2S channel** (priority 5, above LVGL; 5 KB internal stack with MP3, of
   which decoding used 2.1 KB, 3 KB without): sounds are posted to a queue of four; the task takes
   the newest, which replaces the one that plays (quick taps do not queue up clicks). The task

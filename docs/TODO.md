@@ -1125,13 +1125,10 @@ Your report of the second version (2026-10-09):
       volume play without a restart.
 - [x] Every click as loud as the others, at any pace, on both boards: confirmed by you
       (2026-10-09).
-- [ ] P4 on a proper supply (5 V, 2 to 3 A, as the board recommends; USB from a PC gives 0.5 A):
-      then try a higher DAC level (`kDacDb` in es8311.cpp) if the alarm is too quiet. Restarts
-      with "power on" or "brownout" are discussed with the developer first (docs/adding-a-board.md,
-      "Power").
-- [ ] P4: loud enough at 100 % and for the alarm? If not, a stronger supply (a 5 V power supply
-      instead of USB from the hub) would allow a higher `kDacDb`; test with `sound tone 500 1500`
-      at 100 % and watch for a restart.
+- [x] P4 louder: the DAC at 0 dB (`kDacDb` in es8311.cpp, was -12 dB), kept by you
+      (2026-10-14). Tested on a USB hub with 2.4 A: volume 50, 70 and 100 %, a 500 Hz tone (1.5 s
+      and 5 s), 200 Hz, 15 s of the alarm MP3, no restart. On 2026-10-09 the same level restarted
+      the board at 70 % (worn cable then). No separate 5 V supply needed.
 - [x] MP3 memory (your question): the decoder's state, the read buffer and the PCM frame are in
       PSRAM. Its code and tables are in flash (S3: 40 KB code, 13 KB tables; 1.1 KB of hand-written
       assembly in IRAM, by Espressif, for speed), 12 bytes in internal RAM. The 5 KB of internal
@@ -1162,7 +1159,15 @@ sim.
       yet whether it happened before the vibration change. Motor wiring for reference: 3 V / 70 mA
       on 3.3 V through a 2N2222, 470 Ohm base.
       Probably the same cause as the watchdog after boot fixed on 2026-10-09: the LVGL task never
-      slept at the 100 Hz tick (now 1 ms, CHANGELOG). Still to check: flash and reset over USB.
+      slept at the 100 Hz tick (now 1 ms, CHANGELOG). Checked 2026-10-14: 15 hard resets with esptool
+      (`--after hard-reset`, as when flashing) and one flash, no hang, the console answered every
+      time. The reset reason now reads "unknown" after such a reset (not brownout).
+- [ ] New, seen 2026-10-14: 2 of the 15 resets panicked during ESP-IDF's start, before any code
+      of ours (`Store access fault` in a ROM memset, `esp_startup_start_app` ->
+      `xTaskCreatePinnedToCore` -> `prvInitialiseNewTask`, filling the first task's stack with 0xa5
+      at internal RAM 0x4ff4cd40). The board restarted by itself (reset reason "panic") and ran
+      normally. Cause not known; it only costs a second boot.
+
 - [x] Working on the device, confirmed by you (2026-10-09).
 - [x] Bug (you): with both touch sounds off, letting go of the volume slider still clicked. It
       clicks now only when one of them is on.

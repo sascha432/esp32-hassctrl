@@ -4,6 +4,8 @@
 
 Everything of this day confirmed working by you on the boards (2026-10-14, evening).
 
+- JC4880P443C: the DAC at 0 dB (was -12 dB), no restart at 100 % on a 2.4 A USB hub.
+
 - Dashboard format version 2 (your request: a more flexible dashboard; decided with you,
   architecture.md section 5, lvgl-dashboard.md section 6): a tile's size, cell and `hidden`
   live per orientation (`landscape:` / `portrait:` maps), every tile is 1x1 unless set, any kind

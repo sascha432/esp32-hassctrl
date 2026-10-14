@@ -21,10 +21,8 @@ constexpr const char *kTag = "board";
 constexpr uint8_t kAddress = 0x18;
 constexpr gpio_num_t kPinAmplifier = GPIO_NUM_11;
 constexpr uint32_t kProbeTimeoutMs = 50;
-// The DAC's level, the loudest the firmware plays (the alarm, 100 %). At the DAC's full scale the
-// amplifier pulled the board's supply down and it restarted ("power on" reset, 2026-10-09, on USB
-// from the PC): a 500 Hz tone at 70 % volume did, at 50 % (12 dB less) it did not.
-constexpr float kDacDb = -12.0f;
+// The DAC's level, the loudest the firmware plays (the alarm, 100 %)
+constexpr float kDacDb = 0.0f;
 
 const audio_codec_if_t *g_codec = nullptr;
 
