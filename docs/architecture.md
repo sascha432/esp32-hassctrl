@@ -1012,6 +1012,7 @@ esp32-hassctrl/
     ui/          src/ flat: one file per screen, tile view, panel, Settings page; src/fonts/
     board/       include/hc/board/board.hpp  boards/<name>/
     camera/      ov02c10/ the vendor's sensor driver with its changes (README)
+    esp_driver_ppa/  overrides the IDF's PPA driver: its sources, ppa_srm.c with the DIG-734 flag forced (README)
   host/
     CMakeLists.txt  the host build (MSVC), python tools/host_test.py builds and runs it
     tests/       unit tests for formats, core, config, hass_protocol, network's choice, the backup;

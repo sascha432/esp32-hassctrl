@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-13
+
+- JC4880P443C: the PPA's first scale of a camera image after most boots never finished, so the
+  P4 decoded in software for the rest of the run (TODO of 2026-10-11). Silicon bug DIG-734
+  (esp-idf issue 19023, the user's find): the driver's workaround sets the SRM engine's bypass
+  flag only when its formula predicts a last macro block smaller than the 2D-DMA's FIFO; ours
+  computed to 3696 bits against 1536 and hung anyway, and the issue's fix only corrects 90° and
+  270° rotation. New component `components/esp_driver_ppa` overrides the IDF's: the IDF's own
+  sources plus a copy of `ppa_srm.c` (v6.1.0) that always sets the flag (README: how to check it
+  after an IDF update, when to drop it). Measured on the P4: 8 of 8 boots ran with the flag, 3 of
+  3 hung without. `image_hw.cpp` keeps its 500 ms timeout and the software fallback. Existing
+  build directories need `python tools/build.py <board> reconfigure` once to pick the component
+  up (the first build after adding it still linked the IDF's driver).
+
 ## 2026-10-12
 
 - Dashboard import: `hass.yaml` may carry the settings sections of the backup file (`hass`,

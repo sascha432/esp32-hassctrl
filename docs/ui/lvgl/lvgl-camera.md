@@ -148,7 +148,12 @@ dropped is not decoded for nothing. The UI's take wakes the stream (a semaphore;
 was too coarse to poll). Further settings of the board: a TCP window of 64 KB (with the default
 5.7 KB go2rtc waited while a frame decoded: 3.3 fps), LVGL's rotation buffer of 48 KB (a whole
 band; 10 KB flushed it in 5 pieces), the copy of LVGL's bands into the frame buffer by the CPU
-(with the DMA2D memory got corrupted while a stream played, `init_panel` of the board).
+(with the DMA2D memory got corrupted while a stream played, `init_panel` of the board). The
+PPA's first scale after most boots never finished (silicon bug DIG-734, esp-idf issue 19023: the
+driver's workaround flag stayed clear for our geometry); `components/esp_driver_ppa` overrides
+the IDF's driver and always sets the flag (its README has the numbers). A scale that still does
+not answer within 500 ms switches the decoder and the PPA off until the restart, every image is
+then decoded in software (`image_hw.cpp`).
 
 Measured full screen 800x480 (2026-10-08):
 

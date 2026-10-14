@@ -771,7 +771,7 @@ Next:
       one PPA timeout caught; JC3248W535 and WT32 flashed and checked the same way. Open points
       below.
   - [x] Confirmed by you on the P4 (2026-10-10).
-  - [ ] Why the PPA hangs (DMA2D, like the display's memory corruption of 2026-10-08).
+  - [x] Why the PPA hangs: silicon bug DIG-734 (2026-10-13, below).
   - [ ] "Balcony Stream" (camera.balconycam with a `stream`): its https URL is not reached
         (`esp-tls: select() timeout` every round, 10 s); the tile shows only its icon, no error.
 - [ ] Review the dashboard in the Windows version (`python tools/sim.py`, your dashboard with
@@ -786,13 +786,24 @@ Next:
       in the LVGL task. Confirmed by you on all three boards. Then (your wish): the pinch zooms
       freely, only the buttons have steps, the smallest zoom shows the whole picture; confirmed
       by you on the P4.
-- [ ] **P4: the PPA hangs on the first camera image after most boots** (2026-10-11, also without
+- [x] **P4: the PPA hangs on the first camera image after most boots** (2026-10-11, also without
       the zoom change: 4 of 4 boots of the last commit, 5 of 6 with it). Always the cameras page's
       first scale (balconycam, 264x216 from a 272x224 decoder frame, block 258x169 at 3,23 to
       226x148, scale 14/16); no answer even after 3.5 s. A warm-up scale of 64x64 before it works
       and changes nothing; even offsets and sizes change nothing; the DIG-734 workaround of the
       driver does not apply to it by its formula. Then decoder and PPA stay off until the restart
       and every image is decoded in software (doorspy 1280x960: 315 ms a frame instead of 55 + 21).
+  - [x] Fixed (2026-10-13, your link to esp-idf issue 19023): silicon bug DIG-734, the 2D-DMA
+        miscounts a last macro block smaller than its FIFO and never raises done. The driver's
+        workaround sets the SRM engine's "bypass macro block order" flag only when its formula
+        predicts a leftover below the FIFO (1536 bits); ours computes to 3696, the flag stayed
+        clear, and the issue's fix (469aa16, 90° and 270° rotation only, backports promised)
+        does not reach rotation 0. Measured over the serial console (restart, cameras page): the
+        flag forced on, 8 of 8 boots ran (the scale in 2 to 8 ms); the driver as shipped, 3 of 3
+        hung. `components/esp_driver_ppa` overrides the IDF's component: its own sources, and
+        `ppa_srm.c` copied from v6.1.0 with the flag always set (README: the numbers, the diff to
+        check after an IDF update, when to drop it). The 500 ms timeout and the software fallback
+        stay. Built for all three boards, flashed on the P4.
 - [x] **Bug (your report): MJPEG streams fall behind over time** (2026-10-11): Doorspy (go2rtc,
       460x600, `-q:v 5 -r 10`, 37 KB frames, 370 KB/s) was 10 s behind on the P4 after a few
       minutes and 30 s on the WT32. go2rtc queues up to 64 frames per client that reads slower
