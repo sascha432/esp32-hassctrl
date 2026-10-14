@@ -6,7 +6,8 @@
   stand out of the page behind them, the alert strip let the tiles show through. The veil behind
   a dialog is black at 80 % (was 50 %), the dialog body has its own color `theme::kDialog`
   (0x161d25, between the page and the cards; was the page color), the alert strip is black at
-  90 % (was 60 %, all boards). Picked by you in the sim from two variants.
+  90 % (was 60 %, all boards). Picked by you in the sim from two variants; confirmed working
+  by you on the P4.
 - Web editor (your report): a tile size the portrait preview had room for was refused with
   "no free 1x2 block left in the 5x4 grid of its page" and nothing said that the landscape
   side of the page (arranged, the camera tiles in a band of two rows) was full. The device's
