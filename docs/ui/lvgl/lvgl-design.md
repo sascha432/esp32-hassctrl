@@ -200,7 +200,8 @@ Every message on the screen has one place (decided 2026-10-12):
 The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
 
 * Black at 90 % (60 % until 2026-10-13: the tiles showed through) with rounded bottom corners, as wide as its text up to 90 % of the display, the
-  text in `font_normal()`, wrapped and centered. It starts with a symbol: `LV_SYMBOL_WARNING`
+  text in `font_normal()`, wrapped and centered, at most 3 lines (a longer one ends in "...",
+  `kStripLines`). It starts with a symbol: `LV_SYMBOL_WARNING`
   for an error, `LV_SYMBOL_WIFI` while connecting, `LV_SYMBOL_DOWN` for the hint. The text color
   says its weight: `kAlert` for problems, `kTextValue` for progress, `kTextLabel` for the hint.
 * **It slides down from the top** when it appears (250 ms, easing out) and back up when it goes

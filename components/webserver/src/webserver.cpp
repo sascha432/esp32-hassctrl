@@ -106,7 +106,16 @@ const char *content_type(const char *path)
     return "application/octet-stream";
 }
 
-// Sends /fs/www/<path>, preferring <path>.gz. False when there is no such file.
+// True when the request's Accept-Encoding names gzip (a longer header is read as far as it fits)
+bool accepts_gzip(httpd_req_t *req)
+{
+    char value[128];
+    const esp_err_t err = httpd_req_get_hdr_value_str(req, "Accept-Encoding", value, sizeof(value));
+    return (err == ESP_OK || err == ESP_ERR_HTTPD_RESULT_TRUNC) && strcasestr(value, "gzip") != nullptr;
+}
+
+// Sends /fs/www/<path>, preferring <path>.gz; 406 when only the .gz is there and the client does
+// not take gzip (the web image keeps no uncompressed copies). False when there is no such file.
 bool send_file(httpd_req_t *req, const char *uri)
 {
     if (hc::platform::storage_status().fs != hc::platform::FsState::Mounted) {
@@ -124,8 +133,16 @@ bool send_file(httpd_req_t *req, const char *uri)
     char gz_path[sizeof(path) + 3];
     std::snprintf(gz_path, sizeof(gz_path), "%s.gz", path);
     struct stat info {};
-    const bool gzip = stat(gz_path, &info) == 0;
-    if (!gzip && stat(path, &info) != 0) {
+    bool gzip = stat(gz_path, &info) == 0;
+    if (gzip && !accepts_gzip(req)) {
+        gzip = false;
+        if (stat(path, &info) != 0) {
+            httpd_resp_set_status(req, "406 Not Acceptable");
+            httpd_resp_set_type(req, "text/plain");
+            httpd_resp_sendstr(req, "gzip only: send Accept-Encoding: gzip (curl --compressed)\n");
+            return true;
+        }
+    } else if (!gzip && stat(path, &info) != 0) {
         return false;
     }
     FILE *file = std::fopen(gzip ? gz_path : path, "rb");

@@ -66,7 +66,8 @@ closes it.
 
 The strip is as wide as its message needs, so it can get large. It keeps a small gap to the
 left and right screen edges, so the rounded corners and the transparency stay visible (decided).
-A long message wraps (two lines in portrait are common). One message at a time: an event message,
+A long message wraps (two lines in portrait are common), at most 3 lines, then it ends in "..."
+(decided 2026-10-14). One message at a time: an event message,
 then a Wi-Fi problem, connecting, a Home Assistant problem, the hint (built). While the dashboard
 is edited the strip shows only event messages, over the edit bar; a drag on it does not open
 Settings then.

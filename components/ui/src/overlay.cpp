@@ -20,6 +20,7 @@ constexpr lv_coord_t kZoneWidth = 160;
 constexpr lv_coord_t kDragDistance = 24;
 constexpr uint32_t kUpdateMs = 500;
 constexpr lv_opa_t kStripOpacity = LV_OPA_90;
+constexpr int kStripLines = 3; // a longer message ends in "..."
 // a Home Assistant problem is shown once it lasts this long: a reconnect or a restart of Home
 // Assistant does not flash the strip
 constexpr uint32_t kHassProblemMs = 10000;
@@ -268,7 +269,8 @@ void update_strip(bool events_only)
         slide(false);
         return;
     }
-    // the strip fits its message, up to 90 % of the width (the display may have turned)
+    // the strip fits its message, up to 90 % of the width (the display may have turned) and
+    // kStripLines lines
     const lv_coord_t width = lv_obj_get_width(lv_layer_top());
     if (std::strcmp(text, g.strip_text) != 0 || width != g.strip_for_width) {
         std::snprintf(g.strip_text, sizeof(g.strip_text), "%s", text);
@@ -278,7 +280,12 @@ void update_strip(bool events_only)
         const lv_coord_t max_width = width * 9 / 10 - 2 * t::kRadius;
         lv_point_t size;
         lv_txt_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        lv_obj_set_width(g.strip_label, LV_MIN(size.x + 1, max_width));
+        const lv_coord_t label_width = LV_MIN(size.x + 1, max_width);
+        lv_obj_set_width(g.strip_label, label_width);
+        const lv_coord_t line_space = lv_obj_get_style_text_line_space(g.strip_label, 0);
+        lv_txt_get_size(&size, text, font, 0, line_space, label_width, LV_TEXT_FLAG_NONE);
+        const lv_coord_t max_height = kStripLines * lv_font_get_line_height(font) + (kStripLines - 1) * line_space;
+        lv_obj_set_height(g.strip_label, LV_MIN(size.y, max_height));
         if (g.strip_in) {
             // a new text on the strip that is there: its height may have changed
             lv_obj_update_layout(g.strip);
@@ -381,7 +388,7 @@ void init(const Backend &backend)
     lv_obj_add_event_cb(g.strip, on_strip_click, LV_EVENT_CLICKED, nullptr);
 
     g.strip_label = t::label(g.strip, "", t::font_normal(), t::kText);
-    lv_label_set_long_mode(g.strip_label, LV_LABEL_LONG_WRAP);
+    lv_label_set_long_mode(g.strip_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(g.strip_label, LV_TEXT_ALIGN_CENTER, 0);
     set_hidden(g.strip, true);
 

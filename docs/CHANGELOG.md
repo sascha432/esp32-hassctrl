@@ -2,7 +2,11 @@
 
 ## 2026-10-14
 
-Everything of this day confirmed working by you on the boards (2026-10-14, evening).
+- The alert strip shows at most 3 lines, a longer message ends in "..." (approved by you).
+- Web files: a client that does not take gzip gets 406 instead of compressed data (`curl` needs
+  `--compressed`).
+
+Everything below confirmed working by you on the boards (2026-10-14, evening).
 
 - JC4880P443C: the DAC at 0 dB (was -12 dB), no restart at 100 % on a 2.4 A USB hub.
 

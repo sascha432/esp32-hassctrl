@@ -15,7 +15,8 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
   captive portal there is no internet.
 * **Bootstrap look with light and dark mode** (decided), the full Bootstrap CSS file (decided),
   section 2. No JavaScript framework, no build step: the files in `web/` are what the browser gets
-  (gzipped by `tools/build_fs.py`).
+  (gzipped by `tools/build_fs.py`). The device keeps only the gzipped files: a client without
+  `Accept-Encoding: gzip` gets 406 (`curl` needs `--compressed`).
 * **Secrets are write-only.** The web UI can set Wi-Fi passwords, the Home Assistant token and the
   camera stream's password, but never reads them back. It shows whether a secret is stored, and an
   empty field keeps it.

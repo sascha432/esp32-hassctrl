@@ -81,6 +81,9 @@
 #  automatic: true          # brightness from the light sensor
 #  rotation: 0              # 0, 90, 180, 270
 #  rotation_locked: false
+#  # `automatic`: the light in the room at the lowest and at full brightness, linear between
+#  light_min_lx: 0          # 0 to 100000, less than light_max_lx
+#  light_max_lx: 350        # 1 to 100000
 
 # Sounds and vibration, on boards that have them.
 #sound:

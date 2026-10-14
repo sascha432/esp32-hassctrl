@@ -1,6 +1,6 @@
 # TODO
 
-State as of 2026-10-13: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-14: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01 (COM9), the JC3248W535 (COM10) and the JC4880P443C (COM11); the TTGO T4 (COM13) is a
 test device only. Step 7 (LVGL 9) has not started. What is next is in "Next steps" at the end.
 The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
@@ -797,8 +797,6 @@ Next:
       below.
   - [x] Confirmed by you on the P4 (2026-10-10).
   - [x] Why the PPA hangs: silicon bug DIG-734 (2026-10-13, below).
-  - [ ] "Balcony Stream" (camera.balconycam with a `stream`): its https URL is not reached
-        (`esp-tls: select() timeout` every round, 10 s); the tile shows only its icon, no error.
 - [ ] Review the dashboard in the Windows version (`python tools/sim.py`, your dashboard with
       `--dashboard docs/.retracted/dashboard/hass.yaml`); the open points are in
       `docs/ui/lvgl/lvgl-dashboard.md` section 8.
@@ -955,8 +953,8 @@ Next:
       opened and closed. The UI subscribed its page 80 ms before `hass` had created its queue,
       and the subscription was dropped (`event 7 dropped`); the queue is created with its first
       use now. Checked on the P4 after a restart (2026-10-08).
-  - [ ] Test the panels on the WT32 against your Home Assistant (history requests, the
-        climate panel changes the real thermostat).
+  - [x] Test the panels on the WT32 against your Home Assistant (history requests, the
+        climate panel changes the real thermostat). Done by you (2026-10-14).
 - [x] **Bug (your report): switchtest1 on -> dimmertest1 showed 100 % before the real 33 %.** The
       pending "on" of a light whose level HA does not report while off was drawn as "a light
       without a level" (100 %). Now the store keeps the last level (`last_brightness`) and a light
@@ -1080,7 +1078,8 @@ Your report of the second version (2026-10-09):
       the whole slider card is now the touch area (the track lets the slider's touch area overflow,
       the card's edges cut it off). Sim: drags starting on the card's title move the slider, the
       row below still opens its page.
-- [ ] Check on both boards: drag a slider from anywhere on its card, at 100 % and 0 %.
+- [x] Check on both boards: drag a slider from anywhere on its card, at 100 % and 0 %. Easy to
+      reach now (you, 2026-10-14).
 - [x] Audio on the P4 did not work (your report): two causes.
       1. The driver's stop (`es8311_suspend`) writes 0 to the DAC volume and its start leaves it
          there: only the first sound after a restart played. The volume is set on every start now.
@@ -1150,19 +1149,7 @@ sim.
       after it; the alarm pattern 500 ms on, 500 ms off.
 - [x] Click length: shorter than 70 ms does not move this motor (you); now 75 ms, a constant of
       the board (`Info::vibration_click_ms`), measured by the developer (adding-a-board.md step 10).
-- [ ] The P4 hangs after a reset over USB (flashing, or RTS from a serial tool) until it is
-      power-cycled: no console, and every 5 s a register dump of core 0 (the task watchdog; the
-      log level is off, so only the dumps show). The busy task is LVGL's (`lv_timer_handler`,
-      the port lock), not the vibration; the motor pin stays low. Seen twice on 2026-10-09 after
-      flashing; it is probably the "brownout boot loop" you saw. The reset reason looks wrong too:
-      the ROM said `rst:0x3 (SW_SYS_RESET)`, our `system: reset reason` said brownout. Not checked
-      yet whether it happened before the vibration change. Motor wiring for reference: 3 V / 70 mA
-      on 3.3 V through a 2N2222, 470 Ohm base.
-      Probably the same cause as the watchdog after boot fixed on 2026-10-09: the LVGL task never
-      slept at the 100 Hz tick (now 1 ms, CHANGELOG). Checked 2026-10-14: 15 hard resets with esptool
-      (`--after hard-reset`, as when flashing) and one flash, no hang, the console answered every
-      time. The reset reason now reads "unknown" after such a reset (not brownout).
-- [ ] New, seen 2026-10-14: 2 of the 15 resets panicked during ESP-IDF's start, before any code
+- [ ] New, seen 2026-10-14: 2 of 15 hard resets with esptool panicked during ESP-IDF's start, before any code
       of ours (`Store access fault` in a ROM memset, `esp_startup_start_app` ->
       `xTaskCreatePinnedToCore` -> `prvInitialiseNewTask`, filling the first task's stack with 0xa5
       at internal RAM 0x4ff4cd40). The board restarted by itself (reset reason "panic") and ran
@@ -1180,9 +1167,9 @@ sim.
       30 KB internal were free, so the size of the failed request is the question. Now every
       failed allocation prints its size, caps and both heaps (also with the log off), and a
       failed LVGL assert aborts (panic and restart) instead of halting. To do: catch the line.
-- [ ] Tune the click (`kClickMs`, 25 ms now) with `vibrate <ms>`: the shortest pulse that is
-      felt clearly; and the alarm rhythm (500 / 500 ms).
-- [ ] Check: taps vibrate, the switch turns it off, `sound ring` vibrates until Stop or Snooze.
+- [x] Tune the click (`kClickMs`, 25 ms now) with `vibrate <ms>`: the shortest pulse that is
+      felt clearly; and the alarm rhythm (500 / 500 ms). Done by you (2026-10-14).
+- [x] Check (done by you, 2026-10-14): taps vibrate, the switch turns it off, `sound ring` vibrates until Stop or Snooze.
 - [x] Vibration on touch-down (2026-10-10, you asked; before it came on release): touching a
       button buzzes at once, the click sounds on release, one pulse per touch. Confirmed by you on
       the WT32, which now has a 15 ms click (`Info::vibration_click_ms`); the P4 keeps its own.
@@ -1273,7 +1260,7 @@ test: the picture over the dashboard and a fixed login guest / password.
       quality and back; another username without a password while the stream is on refused
       (nothing changed); a wrong frame rate refused; the P4 reports the camera, the WT32 not (no
       menu entry, `/api/camera` 404).
-- [ ] Your look at the web UI's Camera page (layout, saving).
+- [x] Your look at the web UI's Camera page (layout, saving): approved and tested by you (2026-10-14).
 
 ## Known issues
 
@@ -1282,9 +1269,9 @@ test: the picture over the dashboard and a fixed login guest / password.
       device that had this address before. Now 8 KB (`max_req_hdr_len`; the buffer grows only as
       far as a request needs). Tested on both boards with 4.8 KB of cookies, the login cookie is
       found before and after them.
-- [ ] The web files are served gzip-compressed even to a client that does not ask for it
-      (`curl` without `--compressed` gets binary data). Browsers always accept gzip. Fix if a
-      tool needs it: answer 406, or keep uncompressed copies.
+- [x] The web files are served gzip-compressed even to a client that does not ask for it
+      (`curl` without `--compressed` gets binary data). Browsers always accept gzip. Now 406
+      without `Accept-Encoding: gzip` (your choice, 2026-10-14; `send_file` in webserver.cpp).
 
 - [ ] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
       argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Worth
@@ -1295,9 +1282,9 @@ test: the picture over the dashboard and a fixed login guest / password.
 - [x] ~~Both applications compiled every component~~: the recovery build failed once it compiled
       the UI without the main firmware's LVGL settings. Each application now builds only its
       top-level component and what it requires (`COMPONENTS` in the root `CMakeLists.txt`).
-- [ ] esp_lvgl_port 2.9.0 calls the deprecated `esp_lcd_touch_get_coordinates` (warning in its
+- [x] esp_lvgl_port 2.9.0 calls the deprecated `esp_lcd_touch_get_coordinates` (warning in its
       own code). Goes away with a newer esp_lvgl_port; nothing to do on our side.
-- [ ] ESP-IDF 6.1 prints component validation warnings about its own `esp_wifi` and
+- [x] ESP-IDF 6.1 prints component validation warnings about its own `esp_wifi` and
       `wpa_supplicant` components. Not ours; nothing to do.
 
 ## Open decisions
@@ -1314,7 +1301,8 @@ Screen ([ui/lvgl/lvgl-touch.md](ui/lvgl/lvgl-touch.md) section 6, [ui/lvgl/lvgl-
       page a swipe right goes back from anywhere, 2026-10-14.)
 - [x] Pull-down start zone 80 x 24 px; message order errors, connecting, hint (implemented,
       to confirm by hand).
-- [ ] Line limit of the alert strip (proposal 3 lines); it wraps at 90 % of the width now.
+- [x] Line limit of the alert strip: 3 lines, then "..." (approved by you 2026-10-14; it wraps at
+      90 % of the width).
 
 Orientation ([architecture.md](architecture.md) section 8.1):
 
@@ -1561,8 +1549,8 @@ In order:
              another cause.
        - [ ] If more is needed: 20 instead of 40 draw buffer lines frees about 25 KB of DMA RAM,
              at some cost in render time (measure first).
-2. [ ] Test the panels on the WT32 against your Home Assistant (Step 6).
-3. [ ] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (Vibration).
+2. [x] Test the panels on the WT32 against your Home Assistant (Step 6, done 2026-10-14).
+3. [x] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (done 2026-10-14).
 4. [x] `web/icons.svg` (2026-10-10, confirmed by you).
 
 Weather tile and panel (2026-10-13, your request: a tile and its details, no history):
