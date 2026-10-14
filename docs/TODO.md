@@ -700,6 +700,12 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         the grid, a click on the problem switches the preview to that orientation, "no place"
         in the Position line is a link there, the size hint in portrait says what the size turns
         into. The rule stays (lvgl-dashboard.md section 6, see Open decisions). Host tests 96.
+  - [x] **Bug (your report): a size change on an arranged page "bugs out"** (2026-10-13): the
+        weather tile at landscape 1,2 of the 5x3 main page set to 1x2 kept its cell and ran past
+        the grid. `refit()` in dashboard.js: keep the cell when the new block is free, else a drop
+        onto it with push aside (shifted into the grid at the edge), else the cell is dropped.
+        Checked under node with your main page (the tile grows upward, the tile above moves to
+        the free cell). Web image flashed on the P4 and the S3 (the WT32 was busy, your word).
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,

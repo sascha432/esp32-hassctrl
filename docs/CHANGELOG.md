@@ -9,6 +9,12 @@
   problem switches the preview to the orientation that has it, "no place" in the Position line
   is a link to that orientation, and the size hint in portrait says what the landscape size
   turns into (1x2 shows as 2x1). Four host tests check the new texts.
+- Web editor (your report): a size change on an arranged page left the tile's cell as it was,
+  so a 1x1 in the last row set to 1x2 ran past the grid ("the landscape cell 1,2 of a 1x2 tile
+  lies outside the 5x3 grid"). Now the tile keeps its cell when the new block is free, else it
+  is dropped onto that cell with the tiles in the way pushed aside (shifted up or left at the
+  edge of the grid), else its cell is dropped and it takes the first free block. Same for the
+  dimmer box and a kind change of the entity.
 - JC4880P443C: the PPA's first scale of a camera image after most boots never finished, so the
   P4 decoded in software for the rest of the run (TODO of 2026-10-11). Silicon bug DIG-734
   (esp-idf issue 19023, the user's find): the driver's workaround sets the SRM engine's bypass

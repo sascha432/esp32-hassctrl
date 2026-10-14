@@ -38,6 +38,13 @@ dashboard as one file is on the System page (web-app.md section 1), not here (de
   inspector's "Position" line shows "no place, show landscape" as a link. The size select is
   `columns x rows` in landscape; in portrait its hint says what the size turns into (1x2 shows
   as 2x1).
+* **A new span on an arranged page** (size, dimmer, a kind change of the entity; your report
+  2026-10-13: a 1x1 at the last row set to 1x2 ran past the grid and the editor just showed the
+  error): in each orientation the tile keeps its cell when the new block is free there; else it
+  is dropped onto that cell like a drag (the tiles in the way are pushed aside), shifted up or
+  left when the block would run past the grid; when that fails too (the block would cover the
+  back tile, nothing can be pushed aside) the cell is dropped and the tile takes the first free
+  block, or the device reports a page without room (`refit()` in dashboard.js).
 * **Drag in the preview**: in automatic order a drag reorders the list (the tile takes the place of
   the tile it is dropped on: after it when dragged forward, before it when dragged back); in an
   arranged page it moves the tile to the cell and pushes the tiles there aside ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 6). A drag in an automatic page onto an empty cell

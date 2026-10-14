@@ -276,6 +276,24 @@ window.hcEditor = (() => {
     return true;
   }
   const tryMove = (p, o, k, c, r) => arrangeMove({ ...p, tiles: clone(p.tiles) }, o, k, c, r);
+  // A tile whose span changed (size, dimmer, kind) keeps its cell in an orientation when the new
+  // block is free there; else it is dropped onto that cell (the tiles in the way are pushed aside),
+  // shifted up or left when the block would run past the grid; when that fails too the cell is
+  // dropped and the tile takes the first free block (the device reports a page without room).
+  function refit(p, t) {
+    for (const o of ["l", "p"]) {
+      const key = okey(o), cell = t[key];
+      if (!cell) continue;
+      delete t[key];
+      const pl = place(p, o), [w, h] = spanOf(t, o);
+      const c = Math.min(cell[0], pl.C - w), r = Math.min(cell[1], pl.R - h);
+      if (c < 0 || r < 0) continue;
+      let free = c === cell[0] && r === cell[1] && !(p.key !== 0 && c === 0 && r === 0);
+      for (let y = r; free && y < r + h; y++) for (let x = c; x < c + w; x++) if (pl.used[y][x] !== null && pl.used[y][x] !== t._k) free = false;
+      if (free) t[key] = cell;
+      else arrangeMove(p, o, t._k, c, r);
+    }
+  }
   function resetArrangement(p, o) { for (const t of p.tiles) delete t[okey(o)]; }
 
   function stripForKind(t) {
@@ -951,10 +969,10 @@ window.hcEditor = (() => {
 
   function setField(f, el) {
     change(() => {
-      const t = locate(sel).tile, v = el.type === "checkbox" ? el.checked : el.value.trim();
-      if (f === "entity") { t.entity = v; stripForKind(t); return; }
-      if (f === "dimmer") { if (v) t.dimmer = true; else delete t.dimmer; stripForKind(t); return; }
-      if (f === "size") { if (v) t.size = v.split("x").map(Number); else delete t.size; return; }
+      const loc = locate(sel), t = loc.tile, v = el.type === "checkbox" ? el.checked : el.value.trim();
+      if (f === "entity") { t.entity = v; stripForKind(t); refit(loc.page, t); return; }
+      if (f === "dimmer") { if (v) t.dimmer = true; else delete t.dimmer; stripForKind(t); refit(loc.page, t); return; }
+      if (f === "size") { if (v) t.size = v.split("x").map(Number); else delete t.size; refit(loc.page, t); return; }
       if (["step", "decimals", "refresh"].includes(f)) { if (v === "") delete t[f]; else t[f] = Number(v); return; }
       if (v === "") delete t[f]; else t[f] = v;
     });

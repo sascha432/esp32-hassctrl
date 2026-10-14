@@ -207,7 +207,9 @@ Tiles are moved in the edit mode (section 7) and in the web editor
   landscape and falls back to the first cell in portrait (as today). The error names the
   orientation and the grid ("no free 1x2 block left in the landscape 5x4 grid of its page",
   2026-10-13): a page arranged in landscape can be full there while the portrait preview of
-  the web editor still has room (your report).
+  the web editor still has room (your report). A size change in the web editor re-places the
+  tile ([web-dashboard-editor.md](../web/web-dashboard-editor.md) section 1); the screen's edit
+  mode has no size change.
 * **Moving writes the whole page.** When a tile is moved (screen or web), every tile of that page
   gets its current cell in that orientation, not only the moved one. The page then stays as it was
   arranged, also when a tile is added later (it takes the first free block). The other orientation
