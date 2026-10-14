@@ -116,6 +116,13 @@ void call_service(const core::Intent &intent, std::string_view entity_id);
 void fetch_history(std::string_view entity_id, core::EntityIndex entity, core::HistoryKind kind, uint32_t hours,
                    uint32_t generation);
 
+// Subscribes the forecast of the weather entity `entity_id` (the weather panel): the answer comes
+// back through take_event as a core::Forecast stamped with `generation`, and again with every
+// update of the integration, also after a reconnect. A new call replaces the subscription; type
+// None ends it. An answer to an older generation is dropped by the UI.
+void subscribe_forecast(std::string_view entity_id, core::EntityIndex entity, core::ForecastType type,
+                        uint32_t generation);
+
 // The next event for the UI, false when there is none. The task keeps at most 16; when nobody
 // takes them the oldest go.
 bool take_event(HassEvent &out);

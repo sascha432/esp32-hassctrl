@@ -135,6 +135,7 @@ window.hcEditor = (() => {
     if (d === "climate") return "climate";
     if (d === "camera") return "picture";
     if (d === "lock") return "lock";
+    if (d === "weather") return "weather";
     return "sensor";
   }
   function defaultSpan(t) {
@@ -148,6 +149,7 @@ window.hcEditor = (() => {
   function sizesFor(t) {
     const k = kindOf(t);
     if ((k === "light" && t.dimmer) || k === "climate") return [[1, 1], [1, 2]];
+    if (k === "weather") return [[1, 1], [1, 2], [2, 1]];
     if (k === "picture") return [[1, 1], [1, 2], [2, 1], [2, 2]];
     return [];
   }
@@ -388,6 +390,7 @@ window.hcEditor = (() => {
     if (k === "light") return "lightbulb";
     if (k === "climate") return "thermostat";
     if (k === "picture") return "camera";
+    if (k === "weather") return "weather-partly-cloudy";
     const d = e.split(".")[0];
     if (d === "fan") return "fan";
     if (d === "scene") return "palette";

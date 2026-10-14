@@ -142,6 +142,9 @@ Any other page change (a new layout, turning the display) has no slide.
 | dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
 | climate 1x2 | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
 | climate 1x1 | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
+| weather 1x1 | icon (24 px) beside the temperature, the condition and the humidity in one line (`Cloudy • 81%`), name | opens the weather panel ([lvgl-panels.md](lvgl-panels.md) section 6) |
+| weather 1x2 | icon (48 px), the temperature, the condition, the humidity with its drop glyph, name | opens the weather panel |
+| weather 2x1 | the large icon left; right of it the temperature (28 px), the condition and the humidity in one line, the name | opens the weather panel |
 | picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
@@ -181,7 +184,8 @@ the tile's `decimals` or HA's display precision. A state of several lines shows 
 The tile's `icon`; else the entity's `icon` attribute when the glyph is in the firmware; else the
 default of the domain and device class (light `lightbulb`/`lightbulb-off`, outlet `power-plug`,
 motion `motion-sensor`, temperature `thermometer`, lock `lock`/`lock-open`/`lock-alert` (jammed),
-...; `icons.cpp`). The glyphs are the 44 names of `core` plus the ones the screens draw themselves
+...; `icons.cpp`; a weather entity: the glyph of its condition, as the Home Assistant app has
+them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The glyphs are the 59 names of `core` plus the ones the screens draw themselves
 (`UI_GLYPHS`: `arrow-left`, `plus`, `minus`, `chart-timeline-variant`, ...), in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
 web editor from the same names).
 

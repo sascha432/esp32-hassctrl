@@ -441,6 +441,7 @@ const hc::ui::Backend g_backend{
     .call_service = hc::hass::call_service,
     .take_event = hc::hass::take_event,
     .fetch_history = hc::hass::fetch_history,
+    .subscribe_forecast = hc::hass::subscribe_forecast,
     .fetch_image = fetch_image,
     .play_stream = play_stream,
     .stop_stream = hc::hass::stop_stream,

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <iterator>
 
+#include "hc/core/weather.hpp"
+
 namespace hc::ui::icons {
 
 namespace {
@@ -104,6 +106,9 @@ const char *by_domain(std::string_view domain, const core::EntityState &state, b
     }
     if (domain == "sensor") {
         return sensor(device_class);
+    }
+    if (domain == "weather") {
+        return core::condition_icon(core::condition_of(state.state));
     }
     return "home-assistant";
 }

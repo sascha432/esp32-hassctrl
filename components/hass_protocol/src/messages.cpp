@@ -114,6 +114,18 @@ memory::String render_template_message(uint32_t id, std::string_view template_te
     });
 }
 
+memory::String forecast_subscribe_message(uint32_t id, std::string_view entity_id, core::ForecastType type)
+{
+    return write([&](JsonWriter &w) {
+        w.begin_object()
+            .number("id", id)
+            .string("type", "weather/subscribe_forecast")
+            .string("entity_id", entity_id.data(), entity_id.size())
+            .string("forecast_type", type == core::ForecastType::Hourly ? "hourly" : "daily")
+            .end_object();
+    });
+}
+
 memory::String unsubscribe_message(uint32_t id, uint32_t subscription)
 {
     return write([&](JsonWriter &w) {

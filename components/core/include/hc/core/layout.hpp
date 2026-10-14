@@ -44,6 +44,7 @@ enum class TileKind : uint8_t {
     Picture, // camera
     Sensor,  // every other domain: shows the state, a tap opens the history
     Lock,    // lock: shows the state, a tap opens the lock panel (never locks or unlocks by itself)
+    Weather, // weather: the condition, the temperature, a tap opens the forecast
 };
 
 const char *kind_name(TileKind kind);

@@ -209,7 +209,7 @@ screens. Nothing patches the old objects in place.
 Each tile type is described in one table entry, and every layer reads that entry:
 
 ```cpp
-// core: what a tile can show
+// core: what a tile can show (a 64 bit FieldMask since the weather fields: 42 fields)
 enum class Field : uint8_t { State, Rounded, Name, Icon, DeviceClass, Unit, Brightness, ... };
 
 // hass_protocol: one entry per field
@@ -228,6 +228,12 @@ struct FieldSpec {
   `state_attr(e,'<attribute>')|tojson`, and decodes a result back into `EntityUpdate`s, from the
   same table.
 * `ui` picks the tile view for the kind.
+* A weather entity (`TileKind::Weather`, `weather.*`) has 15 more fields: `temperature` (its own
+  field, not `Target`: on a climate it is the setpoint), `apparent_temperature`, `humidity`,
+  `pressure`, `wind_speed`, `wind_gust_speed`, `wind_bearing`, `visibility`, `cloud_coverage`,
+  `dew_point`, `uv_index` and the units of four of them. The tile needs the temperature, its unit
+  and the humidity, the panel the rest and `supported_features`. The condition is the state
+  (`core/weather.hpp`: words, MDI names, compass).
 
 The old code kept the template in the client and the response mapping in the dashboard, two lists
 that had to stay in sync by hand. With one table they cannot drift.
@@ -414,6 +420,7 @@ What is kept from the old client, because it works:
   added while a panel is open. Home Assistant only sends a result when the rendered text changed;
 * `call_service` over the same connection, with failures reported per entity;
 * statistics and history in 6 hour chunks, one request at a time;
+* the forecast of a weather entity while its panel is open (below);
 * a full resync every 60 seconds as a safety net (section 5);
 * an application-level ping and a silence timeout to detect half-open connections.
 
@@ -438,7 +445,19 @@ What changes:
 * The old notes record a stall after about 8 KB of a single message. That was observed on the
   Arduino stack. Retest it on ESP-IDF; keep the 6 hour chunks either way, they cost nothing.
 * JSON is parsed with cJSON from the component registry (ESP-IDF 6 no longer bundles it),
-  allocating from PSRAM through `cJSON_InitHooks`. Messages are capped at 16 KB.
+  allocating from PSRAM through `cJSON_InitHooks`. Messages are capped at 32 KB (16 KB until the hourly forecast: 48 entries of about 320 bytes);
+  the buffer of a connection is PSRAM.
+* The forecast of a weather entity is not in its state. The weather panel subscribes it with
+  `weather/subscribe_forecast` (`{"type":"weather/subscribe_forecast","entity_id":...,
+  "forecast_type":"daily"|"hourly"}`, Home Assistant 2023.9 and later): an empty result, then an
+  event `{"type":"daily","forecast":[...]}` now and with every update of the integration. The
+  hass task owns one such subscription (`SubscribeForecast` command, `ForecastState`): a new
+  command ends the old one with `unsubscribe_events` and subscribes the wanted one, type `None`
+  only ends it; it is subscribed again after a reconnect (after `auth_ok`, next to the page).
+  `hass_protocol::decode_forecast` keeps the first 24 entries (8 days or 24 hours) as
+  `core::Forecast` (time, condition, temperature, low, chance of precipitation), delivered to the
+  UI as a `HassEvent` stamped with the panel's generation. An error (`forecast_not_supported`
+  when the entity lacks the type) comes as a `Forecast` with `error`.
 * Camera images use `esp_http_client` and a JPEG decoder (`esp_new_jpeg` in software, the
   hardware JPEG driver on the P4), in the media worker: three tasks on the P4, one on the ESP32
   and the S3 (internal RAM), see ui/lvgl/lvgl-camera.md "Camera image".
@@ -745,7 +764,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `webserver` | yes | captive portal DNS and redirect (running), the status API and the built-in page (running), the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component (running) |
 | `ui` | yes | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, system; running), the pull-down zone and the alert strip on `lv_layer_top` (running), the dashboard with its tiles, panels and edit mode (running). Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
 | `light_sensor` | yes, optional per device | BH1750 ambient light on the board's I2C bus (looked for at 0x23 and 0x5C), averaged over a second, for the automatic brightness of `ui` (running on the WT32-SC01) |
-| `hass` | yes | the Home Assistant connection of section 6 (running, step 5 first part): URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 16 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. URL parsing (`url.cpp`) is plain C++ for host tests |
+| `hass` | yes | the Home Assistant connection of section 6 (running, step 5 first part): URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. URL parsing (`url.cpp`) is plain C++ for host tests |
 | `ota` | yes | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web/web-app.md](ui/web/web-app.md) section 5), restart into the recovery app and back, partition layout of section 9.5 (running) |
 | `devconsole` | yes, removable | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
 | `audio` | yes, per board, removable | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |

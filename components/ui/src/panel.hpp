@@ -17,8 +17,8 @@
 //                                       |   options (one row)   |
 //                                       +-----------------------+
 //
-// The sensor panel has no options: its frame is the portrait one in both orientations, without the
-// options row (the control takes the whole width and height below the header).
+// The sensor and the weather panel have no options: their frame is the portrait one in both
+// orientations, without the options row (the control takes the whole width and height below the header).
 //
 // `a` is the action of the header (the power button of a light or a climate); without one the name
 // takes its place. A panel that hides its action gives the name its place by widening `Frame::name`.
@@ -50,8 +50,8 @@ struct Frame {
     bool large = false;       // a dialog (the P4): the larger buttons, see step_size()
 };
 
-// true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a lock, a picture: its
-// image full screen)
+// true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a lock, a weather, a
+// picture: its image full screen)
 bool has_panel(const core::Tile &tile);
 
 // Builds the panel of `tile` over the page in `parent` (the dashboard's root); a panel that is open
@@ -70,6 +70,8 @@ void update(core::EntityIndex entity);
 void on_history(core::History history);
 // a camera image for the picture panel
 void on_image(const core::Image &image);
+// a forecast for the weather panel
+void on_forecast(core::Forecast forecast);
 
 // ------------------------------------------------------------------------------- shared parts
 

@@ -13,6 +13,7 @@
 #include "sensor_panel.hpp"
 #include "sound.hpp"
 #include "theme.hpp"
+#include "weather_panel.hpp"
 
 namespace hc::ui::panel {
 
@@ -192,6 +193,7 @@ void on_root_delete(lv_event_t *)
     sensor_panel::forget();
     lock_panel::forget();
     picture_panel::forget();
+    weather_panel::forget();
 }
 
 } // namespace
@@ -199,7 +201,8 @@ void on_root_delete(lv_event_t *)
 bool has_panel(const core::Tile &tile)
 {
     return (tile.kind == core::TileKind::Light && tile.dimmer) || tile.kind == core::TileKind::Climate ||
-           tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Lock || tile.kind == core::TileKind::Picture;
+           tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Lock || tile.kind == core::TileKind::Picture ||
+           tile.kind == core::TileKind::Weather;
 }
 
 lv_obj_t *card(lv_obj_t *parent, const lv_area_t &a)
@@ -491,7 +494,8 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         place(appear ? 0 : kShown);
     }
     const bool light = kind == core::TileKind::Light;
-    Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, kind == core::TileKind::Sensor, dialog);
+    const bool compact = kind == core::TileKind::Sensor || kind == core::TileKind::Weather;
+    Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, compact, dialog);
 
     lv_obj_t *back = card(body, frame.back);
     lv_obj_t *arrow = t::label(back, icons::glyph("arrow-left"),
@@ -512,6 +516,8 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         climate_panel::build(frame, tile);
     } else if (kind == core::TileKind::Lock) {
         lock_panel::build(frame, tile);
+    } else if (kind == core::TileKind::Weather) {
+        weather_panel::build(frame, tile);
     } else {
         sensor_panel::build(frame, tile);
     }
@@ -558,6 +564,8 @@ void update(core::EntityIndex entity)
         climate_panel::update();
     } else if (tile.kind == core::TileKind::Lock) {
         lock_panel::update();
+    } else if (tile.kind == core::TileKind::Weather) {
+        weather_panel::update();
     } else {
         sensor_panel::update();
     }
@@ -567,6 +575,13 @@ void on_image(const core::Image &image)
 {
     if (g.root != nullptr && image.entity == g.entity) {
         picture_panel::on_image(image);
+    }
+}
+
+void on_forecast(core::Forecast forecast)
+{
+    if (g.root != nullptr && forecast.entity == g.entity) {
+        weather_panel::on_forecast(std::move(forecast));
     }
 }
 

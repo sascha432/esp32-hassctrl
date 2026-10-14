@@ -67,6 +67,7 @@ add_library(hc_dashboard STATIC
     ${HC_ROOT}/components/core/src/image.cpp
     ${HC_ROOT}/components/core/src/layout.cpp
     ${HC_ROOT}/components/core/src/pending.cpp
+    ${HC_ROOT}/components/core/src/weather.cpp
     ${HC_ROOT}/components/formats/src/json_writer.cpp
     ${HC_ROOT}/components/formats/src/yaml.cpp
     ${HC_ROOT}/components/memory/src/large.cpp

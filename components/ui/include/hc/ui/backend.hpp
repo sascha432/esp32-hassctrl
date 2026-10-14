@@ -226,6 +226,11 @@ struct Backend {
     // back through take_event as a core::History stamped with `generation`.
     void (*fetch_history)(std::string_view entity_id, core::EntityIndex entity, core::HistoryKind kind, uint32_t hours,
                           uint32_t generation);
+    // The forecast of the weather entity `entity_id` for the weather panel: it comes back through
+    // take_event as a core::Forecast stamped with `generation`, and again with every update of the
+    // integration, until the next call; `type` None ends it. nullptr: no forecasts.
+    void (*subscribe_forecast)(std::string_view entity_id, core::EntityIndex entity, core::ForecastType type,
+                               uint32_t generation);
     // The camera image of `entity_id` as a `width` x `height` frame in the display's pixel format
     // (lv_color_t); it comes back through take_event as a core::Image stamped with `generation`.
     // `stream`: the tile's MJPEG stream, whose first frame is the image; empty: Home Assistant's.

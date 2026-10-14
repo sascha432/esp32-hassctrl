@@ -289,6 +289,8 @@ void take_events()
             }
         } else if (auto *history = std::get_if<core::History>(&event)) {
             panel::on_history(std::move(*history));
+        } else if (auto *forecast = std::get_if<core::Forecast>(&event)) {
+            panel::on_forecast(std::move(*forecast));
         } else if (const auto *image = std::get_if<core::Image>(&event)) {
             for (auto &view : g.views) {
                 if (view.entity == image->entity) {

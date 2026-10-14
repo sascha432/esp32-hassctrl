@@ -38,6 +38,7 @@ add_executable(hc_tests
     tests/network_test.cpp
     tests/protocol_test.cpp
     tests/url_test.cpp
+    tests/weather_test.cpp
     tests/yaml_test.cpp
     ${HC_ROOT}/components/config/src/backup.cpp
     ${HC_ROOT}/components/config/src/export.cpp
@@ -49,10 +50,12 @@ add_executable(hc_tests
     ${HC_ROOT}/components/core/src/image.cpp
     ${HC_ROOT}/components/core/src/layout.cpp
     ${HC_ROOT}/components/core/src/pending.cpp
+    ${HC_ROOT}/components/core/src/weather.cpp
     ${HC_ROOT}/components/formats/src/json_writer.cpp
     ${HC_ROOT}/components/formats/src/multipart.cpp
     ${HC_ROOT}/components/formats/src/yaml.cpp
     ${HC_ROOT}/components/hass/src/url.cpp
+    ${HC_ROOT}/components/hass_protocol/src/forecast.cpp
     ${HC_ROOT}/components/hass_protocol/src/messages.cpp
     ${HC_ROOT}/components/hass_protocol/src/page.cpp
     ${HC_ROOT}/components/hass_protocol/src/history.cpp

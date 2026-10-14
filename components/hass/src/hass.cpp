@@ -47,8 +47,9 @@ constexpr int64_t kSilenceTimeoutMs = 70000;
 constexpr int64_t kConnectTimeoutMs = 20000;
 constexpr uint32_t kRetryMinMs = 2000;
 constexpr uint32_t kRetryMaxMs = 30000;
-// the largest message taken; the compact template results stay far below it
-constexpr size_t kMaxMessage = 16384;
+// the largest message taken; the compact template results stay far below it. An hourly forecast
+// of 48 hours is about 16 KB (the buffer of a connection is PSRAM).
+constexpr size_t kMaxMessage = 32768;
 constexpr TickType_t kSendTimeout = pdMS_TO_TICKS(5000);
 // the timers of the task are checked at least this often
 constexpr TickType_t kTick = pdMS_TO_TICKS(500);
@@ -91,6 +92,14 @@ struct FetchHistory {
     uint32_t generation = 0;
 };
 
+// The forecast the weather panel shows; type None ends it.
+struct SubscribeForecast {
+    memory::String entity_id;
+    core::EntityIndex entity = core::kNone;
+    core::ForecastType type = core::ForecastType::None;
+    uint32_t generation = 0;
+};
+
 // A one-shot template of the entity picker; the web server's task waits for `wait`.
 struct QueryWait {
     SemaphoreHandle_t done = xSemaphoreCreateBinary();
@@ -114,7 +123,7 @@ struct Query {
     std::shared_ptr<QueryWait> wait;
 };
 
-using Command = std::variant<Subscribe, Call, FetchHistory, Query>;
+using Command = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast>;
 
 struct Event {
     EventType type = EventType::Reconnect;
@@ -226,12 +235,16 @@ bool token_chars_ok(const char *token)
     return true;
 }
 
-// What went wrong with a connection, in words for the web UI and the screen. `trusted`: a
-// certificate is trusted on first use.
+// What went wrong with a connection, in words for the web UI and the screen: short, no error
+// numbers (they do not fit the screen); the numbers are in the log for advanced users.
+// `trusted`: a certificate is trusted on first use.
 void describe(const Event &event, bool trusted, char *out, size_t size)
 {
     const esp_websocket_error_codes_t &e = event.error;
     const int status = e.esp_ws_handshake_status_code;
+    ESP_LOGW(kTag, "connection problem: HTTP %d, errno %d, close code %d, TLS error %s (stack -0x%x, certificate flags 0x%x)",
+             status, e.esp_transport_sock_errno, event.close_code, esp_err_to_name(e.esp_tls_last_esp_err),
+             static_cast<unsigned>(-e.esp_tls_stack_err), static_cast<unsigned>(e.esp_tls_cert_verify_flags));
     // a web server that is not Home Assistant: it does not know /api/websocket or the upgrade
     if (status == 400 || status == 404 || status == 405) {
         std::snprintf(out, size, "no Home Assistant at this address (HTTP %d)", status);
@@ -255,7 +268,7 @@ void describe(const Event &event, bool trusted, char *out, size_t size)
         } else if (e.esp_transport_sock_errno == EHOSTUNREACH) {
             std::snprintf(out, size, "the host cannot be reached");
         } else {
-            std::snprintf(out, size, "cannot connect to the host (errno %d)", e.esp_transport_sock_errno);
+            std::snprintf(out, size, "cannot connect to the host");
         }
         return;
     case ESP_ERR_MBEDTLS_SSL_HANDSHAKE_FAILED:
@@ -264,18 +277,18 @@ void describe(const Event &event, bool trusted, char *out, size_t size)
         } else if (event.has_refused) {
             std::snprintf(out, size, "the server's certificate is not trusted (self-signed?)");
         } else if (e.esp_tls_cert_verify_flags != 0) {
-            std::snprintf(out, size, "the server's certificate is not trusted (flags 0x%x)", e.esp_tls_cert_verify_flags);
+            std::snprintf(out, size, "the server's certificate is not trusted");
         } else {
-            std::snprintf(out, size, "the TLS handshake failed (-0x%x)", -e.esp_tls_stack_err);
+            std::snprintf(out, size, "the TLS handshake failed");
         }
         return;
     default:
         break;
     }
     if (e.error_type == WEBSOCKET_ERROR_TYPE_SERVER_CLOSE || event.close_code != 0) {
-        std::snprintf(out, size, "Home Assistant closed the connection (%d)", event.close_code);
+        std::snprintf(out, size, "Home Assistant closed the connection");
     } else if (e.esp_transport_sock_errno != 0) {
-        std::snprintf(out, size, "the connection broke (errno %d)", e.esp_transport_sock_errno);
+        std::snprintf(out, size, "the connection broke");
     } else {
         std::snprintf(out, size, "the connection broke");
     }
@@ -377,6 +390,12 @@ struct HistoryState {
     History result;
 };
 
+// The forecast subscription of the weather panel. Owned by the hass task.
+struct ForecastState {
+    SubscribeForecast wanted;
+    uint32_t id = 0; // of the weather/subscribe_forecast request; 0: not subscribed
+};
+
 // The picker's query on its way: one at a time, a new one replaces it. Owned by the hass task.
 struct QueryState {
     std::shared_ptr<QueryWait> wait;
@@ -409,6 +428,7 @@ struct Session {
     char token[kTokenSize] = {};
     PageState page;
     HistoryState history;
+    ForecastState forecast;
     QueryState query;
     // the get_config request after the authentication (the time zone)
     uint32_t config_id = 0;
@@ -588,6 +608,7 @@ void close_connection()
     // the subscription ended with the connection; the next one subscribes at once
     s.page.id = 0;
     s.page.next_render = 0;
+    s.forecast.id = 0;
     for (PendingCall &call : s.calls) {
         if (call.id != 0) {
             report_failed(call.entity, "the connection to Home Assistant broke");
@@ -740,6 +761,61 @@ void render_page()
              static_cast<unsigned>(p.subscription.template_text.size()));
 }
 
+// the error of the forecast subscription to the UI
+void forecast_done(const char *error)
+{
+    ForecastState &f = s.forecast;
+    core::Forecast forecast;
+    forecast.generation = f.wanted.generation;
+    forecast.entity = f.wanted.entity;
+    forecast.type = f.wanted.type;
+    forecast.error = error;
+    ESP_LOGW(kTag, "forecast of %s: %s", f.wanted.entity_id.c_str(), error);
+    deliver(std::move(forecast));
+}
+
+// Ends the forecast subscription on its way and subscribes the wanted one.
+void render_forecast()
+{
+    ForecastState &f = s.forecast;
+    if (f.id != 0) {
+        send_text(hass_protocol::unsubscribe_message(s.next_id++, f.id));
+        f.id = 0;
+    }
+    if (f.wanted.type == core::ForecastType::None || f.wanted.entity_id.empty()) {
+        return;
+    }
+    if (!s.authenticated) {
+        return; // subscribed again once the connection is there (auth_ok)
+    }
+    f.id = s.next_id++;
+    if (!send_text(hass_protocol::forecast_subscribe_message(f.id, f.wanted.entity_id, f.wanted.type))) {
+        f.id = 0;
+        retry_later("the forecast subscription could not be sent");
+        return;
+    }
+    ESP_LOGD(kTag, "%s forecast of %s subscribed", f.wanted.type == core::ForecastType::Hourly ? "hourly" : "daily",
+             f.wanted.entity_id.c_str());
+}
+
+void on_forecast_event(const cJSON *root)
+{
+    ForecastState &f = s.forecast;
+    const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
+    core::Forecast forecast;
+    forecast.generation = f.wanted.generation;
+    forecast.entity = f.wanted.entity;
+    forecast.type = f.wanted.type;
+    memory::String error;
+    if (!hass_protocol::decode_forecast(event, forecast.entries, error)) {
+        forecast_done(error.c_str());
+        return;
+    }
+    ESP_LOGD(kTag, "forecast of %s: %u entries", f.wanted.entity_id.c_str(),
+             static_cast<unsigned>(forecast.entries.size()));
+    deliver(std::move(forecast));
+}
+
 // After an error the page is subscribed again at once, but not more than once a resync period:
 // a template that fails would otherwise loop.
 void page_failed(const char *what)
@@ -769,6 +845,11 @@ void on_command(Command &command)
     }
     if (auto *query = std::get_if<Query>(&command)) {
         start_query(std::move(*query));
+        return;
+    }
+    if (auto *forecast = std::get_if<SubscribeForecast>(&command)) {
+        s.forecast.wanted = std::move(*forecast);
+        render_forecast();
         return;
     }
     auto &call = std::get<Call>(command);
@@ -814,6 +895,10 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         deliver(std::move(values));
         return;
     }
+    if (std::strcmp(type, "event") == 0 && id == s.forecast.id && s.forecast.id != 0) {
+        on_forecast_event(root);
+        return;
+    }
     QueryState &q = s.query;
     if (std::strcmp(type, "event") == 0 && id == q.id && q.id != 0) {
         const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
@@ -848,6 +933,17 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
     const char *message = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(error, "message"));
     if (id == s.history.id && s.history.id != 0) {
         on_history(root, success, message);
+        return;
+    }
+    if (id == s.forecast.id && s.forecast.id != 0) {
+        if (!success) {
+            // the integration has no such forecast: no subscription to end
+            s.forecast.id = 0;
+            const char *code = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(error, "code"));
+            forecast_done(code != nullptr && std::strcmp(code, "forecast_not_supported") == 0
+                              ? "no forecast of this kind"
+                              : message != nullptr ? message : "Home Assistant refused the forecast");
+        }
         return;
     }
     if (id == q.id && q.id != 0) {
@@ -904,6 +1000,7 @@ void on_message(const char *data, size_t length)
         set_state(State::Connected, "");
         send_get_config();
         render_page();
+        render_forecast();
     } else if (std::strcmp(type, "auth_invalid") == 0) {
         const char *reason = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "message"));
         // Home Assistant's own words ("Invalid access token or password"); the state says the rest
@@ -1279,6 +1376,13 @@ void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex 
 void call_service(const core::Intent &intent, std::string_view entity_id)
 {
     post_command(Call{.intent = intent, .entity_id = memory::String(entity_id)});
+}
+
+void subscribe_forecast(std::string_view entity_id, core::EntityIndex entity, core::ForecastType type,
+                        uint32_t generation)
+{
+    post_command(SubscribeForecast{
+        .entity_id = memory::String(entity_id), .entity = entity, .type = type, .generation = generation});
 }
 
 void fetch_history(std::string_view entity_id, core::EntityIndex entity, core::HistoryKind kind, uint32_t hours,

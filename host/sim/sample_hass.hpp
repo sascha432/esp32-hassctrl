@@ -6,6 +6,7 @@
 // 400 ms after the tap (--action-ms), so a pending tile is seen for a moment. Every tenth entity is unavailable.
 // The history of a sensor panel is made up as well: a daily curve around the sensor's value with
 // a gap of an hour, or on/off changes with an unavailable hour; it arrives 300 ms after the request.
+// A weather entity reports OpenWeatherMap's values; its forecast is made up as well.
 // A camera image is a drawn landscape whose sun moves with the clock, 500 ms after the request.
 // Nothing arrives while the scenario's Home Assistant is not connected.
 
@@ -39,6 +40,13 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
                  uint16_t height, uint32_t generation);
 void stop_stream();
+// The forecast of a weather panel: 8 days or 24 hours from now, the conditions in turn, 300 ms
+// after the subscription (once; the real one comes again with every update of the integration).
+void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::ForecastType type,
+                        uint32_t generation);
+// how the forecast answers (step `forecast`): with the entries, never (Loading...), or an error
+enum class ForecastMode : uint8_t { Ok, Loading, Error };
+void set_forecast_mode(ForecastMode mode);
 // The stream's server: down ends the stream that plays ("ended") and refuses new ones
 // ("unreachable"); up answers them again (the first frame 1.5 s after the answer).
 void set_stream_server(bool up);

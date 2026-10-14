@@ -100,13 +100,19 @@ std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
                 return tile_problem(index, format("a %s tile is 1x1 or 1x2", kind_name(kind)));
             }
             break;
+        case TileKind::Weather:
+            // 1x1, 1x2 (tall) and 2x1 (wide)
+            if (!((size.cols == 1 && size.rows >= 1 && size.rows <= 2) || (size.cols == 2 && size.rows == 1))) {
+                return tile_problem(index, "a weather tile is 1x1, 1x2 or 2x1");
+            }
+            break;
         case TileKind::Picture:
             if (size.cols < 1 || size.cols > 2 || size.rows < 1 || size.rows > 2) {
                 return tile_problem(index, "a picture tile is 1x1, 1x2, 2x1 or 2x2");
             }
             break;
         default:
-            return tile_problem(index, "size is only for dimmer lights, climate and picture tiles");
+            return tile_problem(index, "size is only for dimmer lights, climate, weather and picture tiles");
         }
     }
 
@@ -343,6 +349,8 @@ const char *kind_name(TileKind kind)
         return "sensor";
     case TileKind::Lock:
         return "lock";
+    case TileKind::Weather:
+        return "weather";
     }
     return "?";
 }
@@ -367,6 +375,9 @@ TileKind kind_of_entity(std::string_view entity_id)
     }
     if (domain == "lock") {
         return TileKind::Lock;
+    }
+    if (domain == "weather") {
+        return TileKind::Weather;
     }
     return TileKind::Sensor;
 }

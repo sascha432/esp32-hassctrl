@@ -8,6 +8,7 @@
 #include <iterator>
 
 #include "dashboard.hpp"
+#include "hc/core/weather.hpp"
 #include "icons.hpp"
 #include "runner.hpp"
 #include "sound.hpp"
@@ -243,6 +244,7 @@ void on_click(lv_event_t *event)
     case TileKind::Sensor:
     case TileKind::Lock:
     case TileKind::Picture:
+    case TileKind::Weather:
         // a lock is never locked or unlocked by a tap on its tile, only in its panel
         dashboard::open_panel(view.tile);
         break;
@@ -489,6 +491,29 @@ void update_climate(View &view, const core::EntityState &state, const core::Expe
     }
 }
 
+void update_weather(View &view, const core::EntityState &state, bool known, bool available)
+{
+    set_value(view, !known                                    ? std::string("...")
+                    : !available || std::isnan(state.temperature) ? std::string("--")
+                                                                  : temperature(state.temperature) + "°");
+    std::string condition = available ? core::condition_words(core::condition_of(state.state)) : "";
+    std::string humidity;
+    if (available && !std::isnan(state.humidity)) {
+        humidity = number(state.humidity, 0) + "%";
+    }
+    if (view.tall) {
+        set_text(view.action, condition);
+        set_text(view.current, humidity);
+        set_hidden(lv_obj_get_parent(view.current), humidity.empty());
+        return;
+    }
+    if (!humidity.empty()) {
+        condition += (condition.empty() ? "" : "  \xe2\x80\xa2  ") + humidity;
+    }
+    // a long condition ("Lightning, rainy") ends in "..." in a narrow tile
+    t::line_text(view.action, condition.c_str());
+}
+
 void update_dimmer(View &view, const core::EntityState &state, const core::Expectation *pending, bool available)
 {
     int level = 0;
@@ -625,6 +650,7 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
     view.entity = tile.entity;
     const bool landscape_tall = height > width;
     view.tall = landscape_tall && height >= 2 * kLargeCell;
+    view.wide = tile.kind == TileKind::Weather && width >= height * 3 / 2;
     // a tile two cells tall uses the fonts of one cell
     view.large = (view.tall ? height / 2 : height) >= kLargeCell && width >= kLargeCell;
 
@@ -683,6 +709,60 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
         }
         view.name = name_label(view, col);
         // a tap beside the step bars opens the climate panel
+        lv_obj_add_event_cb(view.card, on_click, LV_EVENT_CLICKED, &view);
+        return;
+    }
+
+    if (tile.kind == TileKind::Weather && view.wide) {
+        // 2x1: the large icon left, right of it the temperature, the condition and the name
+        lv_obj_t *row = t::plain(view.card);
+        lv_obj_set_size(row, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(row, 12, 0);
+        lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_EVENT_BUBBLE);
+        view.icon = t::label(row, "", icons::large(), t::kTextLabel);
+        lv_obj_t *col = t::plain(row);
+        lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(col, 2, 0);
+        lv_obj_clear_flag(col, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(col, LV_OBJ_FLAG_EVENT_BUBBLE);
+        // the room left of the icon
+        view.value_width = static_cast<lv_coord_t>(view.value_width - lv_font_get_line_height(&icons::large()) - 12);
+        lv_obj_set_width(col, view.value_width);
+        view.value = t::label(col, "", value_font(view), t::kText);
+        view.action = t::label(col, "", t::font_normal(), t::kTextValue);
+        lv_obj_set_width(view.action, LV_PCT(100));
+        view.name = t::label(col, "", name_font(view), t::kTextLabel);
+        lv_obj_set_width(view.name, LV_PCT(100));
+        lv_obj_add_event_cb(view.card, on_click, LV_EVENT_CLICKED, &view);
+        return;
+    }
+    if (tile.kind == TileKind::Weather) {
+        lv_obj_t *col = column(view.card);
+        if (view.tall) {
+            view.icon = t::label(col, "", icons::large(), t::kTextLabel);
+            view.value = text(col, value_font(view), t::kText);
+            view.action = text(col, t::font_normal(), t::kTextValue);
+            lv_obj_set_width(view.action, LV_PCT(100));
+            // the humidity under the condition, like the room temperature of a climate tile
+            lv_obj_t *row = flex_row(col, 2);
+            t::label(row, icons::glyph("water-percent"), icons::small(), t::kTextLabel);
+            view.current = t::label(row, "", t::font_medium(), t::kTextValue);
+        } else {
+            // the icon beside the temperature: icon, line and value above each other are taller than
+            // a cell of 98 px (480x320 with 3 rows)
+            lv_obj_t *row = flex_row(col, 4);
+            view.icon = t::label(row, "", icons::small(), t::kTextLabel);
+            view.value = text(row, value_font(view), t::kText);
+            view.value_width = static_cast<lv_coord_t>(view.value_width - lv_font_get_line_height(&icons::small()) - 4);
+            // the condition and the humidity
+            view.action = text(col, t::font_small(), t::kTextValue);
+            lv_obj_set_width(view.action, LV_PCT(100));
+        }
+        view.name = name_label(view, col);
         lv_obj_add_event_cb(view.card, on_click, LV_EVENT_CLICKED, &view);
         return;
     }
@@ -813,6 +893,9 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
         set_value(view, !known ? std::string("...") : !available ? std::string("--") : words(shown));
         break;
     }
+    case TileKind::Weather:
+        update_weather(view, state, known, available);
+        break;
     default:
         break;
     }

@@ -120,6 +120,10 @@ defaults:
 #   camera.*                                        camera picture, 2x2
 #   lock.*                                          lock: a tap opens the panel (lock, unlock,
 #                                                   open, the timeline); the tile does not unlock
+#   weather.*                                       weather: the condition, the temperature and
+#                                                   the humidity; a tap opens the current values
+#                                                   and the daily and hourly forecast. `size`
+#                                                   1x1, 1x2 or 2x1
 #   everything else (sensor.*, binary_sensor.*, ...)
 #                                                   shows the state, a tap opens the history
 # Only `area` and `spacer` have a `type`. Every key except `entity` is optional.

@@ -16,6 +16,7 @@
 
 #include "hc/core/image.hpp"
 #include "hc/core/layout.hpp"
+#include "hc/core/weather.hpp"
 #include "hc/memory/large.hpp"
 
 namespace hc::core {
@@ -50,11 +51,27 @@ enum class Field : uint8_t {
     FanMode,
     FanModes,
     Features,     // supported_features
+    // a weather entity (the state is its condition)
+    Temperature,  // temperature: the current one (a climate's `temperature` is its setpoint, Target)
+    TemperatureUnit,
+    ApparentTemperature,
+    Humidity,
+    Pressure,
+    PressureUnit,
+    WindSpeed,
+    WindSpeedUnit,
+    WindGust,
+    WindBearing,  // degrees
+    Visibility,
+    VisibilityUnit,
+    CloudCoverage,
+    DewPoint,
+    UvIndex,
     Count,
 };
 
-using FieldMask = uint32_t;
-static_assert(static_cast<int>(Field::Count) <= 32);
+using FieldMask = uint64_t;
+static_assert(static_cast<int>(Field::Count) <= 64);
 
 constexpr FieldMask bit(Field field)
 {
@@ -96,6 +113,22 @@ struct EntityState {
     memory::String fan_mode;
     memory::Vector<memory::String> fan_modes;
     int32_t features = 0; // supported_features, 0 until it arrived
+    // a weather entity, in its units
+    float temperature = kUnknown;
+    memory::String temperature_unit;
+    float apparent_temperature = kUnknown;
+    float humidity = kUnknown; // percent
+    float pressure = kUnknown;
+    memory::String pressure_unit;
+    float wind_speed = kUnknown;
+    memory::String wind_speed_unit;
+    float wind_gust = kUnknown;
+    float wind_bearing = kUnknown;
+    float visibility = kUnknown;
+    memory::String visibility_unit;
+    float cloud_coverage = kUnknown; // percent
+    float dew_point = kUnknown;
+    float uv_index = kUnknown;
 
     bool has(Field field) const
     {
@@ -114,6 +147,9 @@ struct EntityState {
 
 // supported_features of a lock: it can open (unlatch) the door (LockEntityFeature.OPEN)
 constexpr int32_t kLockOpen = 1;
+// supported_features of a weather entity: the forecasts it has (WeatherEntityFeature)
+constexpr int32_t kForecastDaily = 1;
+constexpr int32_t kForecastHourly = 2;
 
 // The values of `fields` for one entity, from one template result.
 struct EntityUpdate {
@@ -164,8 +200,36 @@ struct History {
     memory::String error; // empty: the request worked (the points may still be empty)
 };
 
+// What the weather panel shows (docs/ui/lvgl/lvgl-panels.md): a day, or an hour.
+enum class ForecastType : uint8_t {
+    None,   // no forecast wanted (ends the subscription)
+    Daily,
+    Hourly,
+};
+
+struct ForecastEntry {
+    uint32_t time = 0;           // epoch seconds: the start of the day or the hour
+    Condition condition = Condition::Unknown;
+    float temperature = kUnknown; // the day's high, or the hour's temperature
+    float templow = kUnknown;     // the day's low
+    int8_t precipitation_probability = -1; // percent, -1 unknown
+};
+
+// the entries kept of an answer: 8 days, or the next 24 hours
+constexpr size_t kMaxForecastEntries = 24;
+
+// The forecast of one entity, from its subscription: again with every update of the integration.
+// `generation` is the one of the subscription; the UI drops the answers of an older one.
+struct Forecast {
+    uint32_t generation = 0;
+    EntityIndex entity = kNone;
+    ForecastType type = ForecastType::None;
+    memory::Vector<ForecastEntry> entries;
+    memory::String error; // empty: it worked (the entries may still be empty)
+};
+
 // What the connection hands to the UI.
-using HassEvent = std::variant<PageValues, ServiceFailed, History, Image>;
+using HassEvent = std::variant<PageValues, ServiceFailed, History, Image, Forecast>;
 
 class EntityStore {
 public:

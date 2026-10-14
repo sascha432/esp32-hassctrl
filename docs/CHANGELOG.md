@@ -13,6 +13,25 @@
   3 hung without. `image_hw.cpp` keeps its 500 ms timeout and the software fallback. Existing
   build directories need `python tools/build.py <board> reconfigure` once to pick the component
   up (the first build after adding it still linked the IDF's driver).
+- Weather: a `weather.*` entity is a `weather` tile (1x1, 1x2 or 2x1) with the glyph of its
+  condition, the temperature, the condition in words and the humidity. A tap opens the weather
+  panel: the current values (feels like, humidity, pressure, wind with its compass point, gusts,
+  visibility, clouds, dew point, UV index, as many as the entity has and fit) and the daily
+  (8 days) and hourly (24 hours) forecast in a strip that scrolls sideways. No history. Not
+  supported on the TTGO T4's 320x240 screen.
+- The forecast comes from `weather/subscribe_forecast`, subscribed while the panel is open
+  (`hass`, `hass_protocol`, `Backend::subscribe_forecast`); the connection's message limit is
+  32 KB for the hourly forecast. 15 new entity fields (the field mask is 64 bits), the 15
+  condition glyphs (icon fonts and `web/icons.svg` rebuilt), the web editor knows the kind and its
+  sizes, the sample dashboard has a weather tile.
+- Weather panel after a restart of Home Assistant: the chips stay selected (an unavailable entity
+  has no features) and a failed forecast is asked for again every 10 s.
+- Connection errors on the status line and the screen no longer carry error numbers ("cannot
+  connect to the host", "the connection broke", "Home Assistant closed the connection", "the TLS
+  handshake failed"); HTTP status, errno, close code and TLS codes are one warning in the log
+  (`connection problem: ...`).
+- Windows version: a `weather` sample entity with OpenWeatherMap's values and a made-up forecast,
+  step `forecast ok|loading|error`. Host tests 96. Tested on the WT32-SC01.
 
 ## 2026-10-12
 

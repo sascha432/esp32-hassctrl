@@ -696,6 +696,7 @@ const hc::ui::Backend kBackend{
     .call_service = sim::call_service,
     .take_event = sim::take_event,
     .fetch_history = sim::fetch_history,
+    .subscribe_forecast = sim::subscribe_forecast,
     .fetch_image = sim::fetch_image,
     .play_stream = sim::play_stream,
     .stop_stream = sim::stop_stream,

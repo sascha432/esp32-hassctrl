@@ -1481,7 +1481,7 @@ Dashboard ([architecture.md](architecture.md) section 14):
 
 ## Next steps
 
-State as of 2026-10-12. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-13. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01, the JC3248W535 and the JC4880P443C; what is left of them is listed in their sections
 above. In order:
 
@@ -1503,6 +1503,23 @@ above. In order:
 2. [ ] Test the panels on the WT32 against your Home Assistant (Step 6).
 3. [ ] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (Vibration).
 4. [x] `web/icons.svg` (2026-10-10, confirmed by you).
+
+Weather tile and panel (2026-10-13, your request: a tile and its details, no history):
+
+- [x] `weather.*` is a tile of its own (1x1, 1x2, 2x1): condition glyph, temperature, condition
+      and humidity; the panel shows the current values and the daily and hourly forecast
+      ([ui/lvgl/lvgl-panels.md](ui/lvgl/lvgl-panels.md) section 6, architecture.md section 6).
+      Designed in the Windows version at four board sizes and approved by you, then the backend
+      (`weather/subscribe_forecast`), 96 host tests. Tested on the WT32-SC01 with your
+      OpenWeatherMap: tile, both forecasts, scrolling, closing and reopening. The WT32 was
+      reflashed completely first (it ran another firmware: recovery app, firmware, web image).
+- [x] Confirmed working on the WT32-SC01 by you (2026-10-13): unit changes show at once, values
+      follow Home Assistant, the forecast panel works; after a restart of Home Assistant the chips
+      and the strip came back (bugs fixed the same day).
+- [x] A change of the values (wind speed) after 30 minutes and a reconnect while the panel is
+      open: seen by you. Not tested: the other boards (they build).
+- [ ] Not supported: the TTGO T4's 320x240 (decided: only "Feels like" fits above the forecast).
+- [ ] `twice_daily` forecasts, the night glyph of `partlycloudy`.
 
 Not built yet (placeholders in the code or the documentation):
 

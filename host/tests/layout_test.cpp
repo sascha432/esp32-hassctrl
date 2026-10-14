@@ -52,6 +52,8 @@ TEST(layout_kind_follows_the_domain)
     CHECK(kind_of_entity("sensor.a") == TileKind::Sensor);
     CHECK(kind_of_entity("binary_sensor.a") == TileKind::Sensor);
     CHECK(kind_of_entity("lock.front_door") == TileKind::Lock);
+    CHECK(kind_of_entity("weather.openweathermap") == TileKind::Weather);
+    CHECK(std::string_view(kind_name(TileKind::Weather)) == "weather");
 }
 
 TEST(layout_checks_entity_ids)
@@ -161,7 +163,7 @@ TEST(layout_checks_the_keys_per_kind)
     CHECK_STR(problem([](Layout &, Tile &t) { t.icon = "nope"; }), "unknown icon 'nope'");
     CHECK_STR(problem([](Layout &, Tile &t) { t.name = std::string(33, 'x').c_str(); }), "the name is longer than 32 bytes");
     CHECK_STR(problem([](Layout &, Tile &t) { t.has_size = true; t.span = {1, 2}; }),
-              "size is only for dimmer lights, climate and picture tiles");
+              "size is only for dimmer lights, climate, weather and picture tiles");
     CHECK_STR(problem([](Layout &l, Tile &t) { t.entity = l.intern("sensor.A"); }),
               "'sensor.A' is not an entity id (domain.name: lowercase letters, digits and _)");
     CHECK_STR(problem([](Layout &, Tile &t) { t.kind = TileKind::Light; }), "sensor.a does not make a light tile");
@@ -187,6 +189,10 @@ TEST(layout_checks_lights_climate_and_pictures)
               "a picture tile is 1x1, 1x2, 2x1 or 2x2");
     CHECK_STR(problem("camera.a", [](Tile &t) { t.refresh_s = 4000; }), "refresh is 1 to 3600 seconds");
     CHECK_STR(problem("light.a", [](Tile &t) { t.dimmer = true; }), "ok");
+    CHECK_STR(problem("weather.a", [](Tile &t) { t.has_size = true; t.span = {1, 2}; }), "ok");
+    CHECK_STR(problem("weather.a", [](Tile &t) { t.has_size = true; t.span = {2, 1}; }), "ok");
+    CHECK_STR(problem("weather.a", [](Tile &t) { t.has_size = true; t.span = {2, 2}; }), "a weather tile is 1x1, 1x2 or 2x1");
+    CHECK_STR(problem("weather.a", [](Tile &t) { t.unit = "C"; }), "unit is only for sensors");
 }
 
 TEST(layout_checks_pages)

@@ -81,6 +81,16 @@ TEST(protocol_fields_follow_the_tile)
     CHECK(fields_of(lock, false) == bit(Field::State));
     CHECK(fields_of(lock, true) == (bit(Field::State) | bit(Field::Features)));
 
+    Tile weather = entity_tile(layout, "weather.home");
+    weather.name = "Weather";
+    weather.icon = "weather-sunny";
+    CHECK(fields_of(weather, false) ==
+          (bit(Field::State) | bit(Field::Temperature) | bit(Field::TemperatureUnit) | bit(Field::Humidity)));
+    CHECK((fields_of(weather, true) & (bit(Field::WindBearing) | bit(Field::Features) | bit(Field::UvIndex))) ==
+          (bit(Field::WindBearing) | bit(Field::Features) | bit(Field::UvIndex)));
+    // the last field of the table is above bit 31
+    CHECK(bit(Field::UvIndex) > 0xffffffffull);
+
     Tile climate = entity_tile(layout, "climate.hall");
     CHECK((fields_of(climate, false) & bit(Field::Target)) != 0);
     CHECK((fields_of(climate, false) & bit(Field::PresetModes)) == 0);
@@ -165,6 +175,89 @@ TEST(protocol_decode_object_and_text)
     REQUIRE(decode_page(partial.get(), sub, updates, error));
     REQUIRE(updates.size() == 1);
     CHECK(updates[0].fields == bit(Field::State));
+}
+
+TEST(protocol_decode_weather)
+{
+    Layout layout;
+    const TileIndex index = layout.add_tile(0, entity_tile(layout, "weather.openweathermap"));
+    const PageSubscription sub = build_page(layout, 0, index);
+    REQUIRE(sub.entities.size() == 1);
+    CHECK(sub.template_text.find("\"wb\":{{state_attr(e,'wind_bearing')|tojson}}") != std::string::npos);
+    // as OpenWeatherMap reports it: no uv_index
+    Json result(cJSON_Parse(R"({"0":{"s":"cloudy","wt":11.8,"wtu":"°C","wh":81,"wa":10.2,"wp":1023,"wpu":"hPa",)"
+                            R"("ws":25.74,"wsu":"km/h","wg":null,"wb":67,"wv":3.74,"wvu":"km","wc":90,"wd":8.6,)"
+                            R"("wi":null,"sf":3}})"));
+    hc::memory::Vector<EntityUpdate> updates;
+    hc::memory::String error;
+    REQUIRE(decode_page(result.get(), sub, updates, error));
+    REQUIRE(updates.size() == 1);
+    const EntityState &w = updates[0].values;
+    CHECK(w.state == "cloudy" && w.temperature == 11.8f && w.temperature_unit == "°C" && w.humidity == 81);
+    CHECK(w.apparent_temperature == 10.2f && w.pressure == 1023 && w.pressure_unit == "hPa");
+    CHECK(w.wind_speed == 25.74f && w.wind_speed_unit == "km/h" && std::isnan(w.wind_gust) && w.wind_bearing == 67);
+    CHECK(w.visibility == 3.74f && w.visibility_unit == "km" && w.cloud_coverage == 90 && w.dew_point == 8.6f);
+    CHECK(std::isnan(w.uv_index) && w.features == (kForecastDaily | kForecastHourly));
+    CHECK(std::isnan(w.target)); // not a climate's setpoint
+
+    EntityStore store(layout.entities.size());
+    CHECK(store.apply(updates[0]));
+    CHECK(!store.apply(updates[0]));
+    CHECK(store.state(updates[0].entity).has(Field::UvIndex));
+}
+
+TEST(protocol_forecast)
+{
+    CHECK_STR(forecast_subscribe_message(7, "weather.home", ForecastType::Hourly).c_str(),
+              "{\"id\":7,\"type\":\"weather/subscribe_forecast\",\"entity_id\":\"weather.home\",\"forecast_type\":\"hourly\"}");
+    CHECK_STR(forecast_subscribe_message(8, "weather.home", ForecastType::Daily).c_str(),
+              "{\"id\":8,\"type\":\"weather/subscribe_forecast\",\"entity_id\":\"weather.home\",\"forecast_type\":\"daily\"}");
+
+    uint32_t t = 0;
+    REQUIRE(parse_iso_time("2026-10-13T20:00:00+00:00", t));
+    CHECK(t == 1791921600);
+    uint32_t offset = 0;
+    REQUIRE(parse_iso_time("2026-10-13T22:00:00+02:00", offset));
+    CHECK(offset == t);
+    uint32_t fraction = 0;
+    REQUIRE(parse_iso_time("2026-10-13T20:00:00.250Z", fraction));
+    CHECK(fraction == t);
+    CHECK(!parse_iso_time("2026-10-13", t));
+    CHECK(!parse_iso_time("soon", t));
+
+    // OpenWeatherMap's daily answer: the high is `temperature`, the low `templow`
+    Json event(cJSON_Parse(R"({"type":"daily","forecast":[)"
+                           R"({"datetime":"2026-10-13T12:00:00+00:00","condition":"rainy","temperature":14.8,"templow":8.8,)"
+                           R"("precipitation_probability":60,"humidity":80},)"
+                           R"({"datetime":"2026-10-14T12:00:00+00:00","condition":"partlycloudy","temperature":17.7,"templow":12.5,)"
+                           R"("precipitation_probability":null}]})"));
+    hc::memory::Vector<ForecastEntry> entries;
+    hc::memory::String error;
+    REQUIRE(decode_forecast(event.get(), entries, error));
+    REQUIRE(entries.size() == 2);
+    CHECK(entries[0].condition == Condition::Rainy && entries[0].temperature == 14.8f && entries[0].templow == 8.8f);
+    CHECK(entries[0].precipitation_probability == 60 && entries[0].time == 1791892800);
+    CHECK(entries[1].condition == Condition::PartlyCloudy && entries[1].precipitation_probability == -1);
+
+    // hourly: no templow; only the first 24 are kept
+    std::string hourly = R"({"type":"hourly","forecast":[)";
+    for (int i = 0; i < 48; i++) {
+        char entry[128];
+        std::snprintf(entry, sizeof(entry), R"(%s{"datetime":"2026-10-13T%02d:00:00+00:00","condition":"cloudy","temperature":%d})",
+                      i > 0 ? "," : "", i % 24, 10 + i % 5);
+        hourly += entry;
+    }
+    hourly += "]}";
+    Json many(cJSON_Parse(hourly.c_str()));
+    REQUIRE(decode_forecast(many.get(), entries, error));
+    CHECK(entries.size() == kMaxForecastEntries && std::isnan(entries[0].templow));
+
+    Json none(cJSON_Parse(R"({"type":"daily","forecast":null})"));
+    REQUIRE(decode_forecast(none.get(), entries, error));
+    CHECK(entries.empty());
+    Json broken(cJSON_Parse(R"({"forecast":[{"condition":"rainy"}]})"));
+    CHECK(!decode_forecast(broken.get(), entries, error));
+    CHECK_STR(error.c_str(), "a forecast entry without its time");
 }
 
 TEST(protocol_store_reports_changes)

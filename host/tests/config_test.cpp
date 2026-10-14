@@ -147,7 +147,7 @@ TEST(config_imports_the_documented_sample)
     CHECK(imported->other_keys.empty()); // the settings sections are commented out
     CHECK(layout.grid == (Span{4, 3}));
     CHECK(layout.pages.size() == 3);
-    CHECK(layout.tiles.size() == 18);
+    CHECK(layout.tiles.size() == 19);
 
     const Tile *ceiling = named(layout, "Ceiling");
     REQUIRE(ceiling != nullptr);
@@ -172,7 +172,10 @@ TEST(config_imports_the_documented_sample)
     // the Workshop page is arranged in landscape, portrait is automatic
     CHECK(anvil->has_landscape && anvil->landscape == (Cell{2, 0}) && !anvil->has_portrait);
     CHECK(named(layout, "Shutters")->landscape == (Cell{0, 2}));
-    CHECK(layout.entities.size() == 14);
+    const Tile *weather = named(layout, "Weather");
+    REQUIRE(weather != nullptr);
+    CHECK(weather->kind == TileKind::Weather && weather->landscape == (Cell{0, 2}));
+    CHECK(layout.entities.size() == 15);
     for (size_t i = 0; i < layout.tiles.size(); i++) {
         CHECK(layout.tiles[i].id == i + 1);
     }

@@ -63,6 +63,21 @@ constexpr FieldSpec kFields[] = {
     {Field::FanMode, "f", "fan_mode", Kind::Text},
     {Field::FanModes, "fl", "fan_modes", Kind::List},
     {Field::Features, "sf", "supported_features", Kind::Number},
+    {Field::Temperature, "wt", "temperature", Kind::Number},
+    {Field::TemperatureUnit, "wtu", "temperature_unit", Kind::Text},
+    {Field::ApparentTemperature, "wa", "apparent_temperature", Kind::Number},
+    {Field::Humidity, "wh", "humidity", Kind::Number},
+    {Field::Pressure, "wp", "pressure", Kind::Number},
+    {Field::PressureUnit, "wpu", "pressure_unit", Kind::Text},
+    {Field::WindSpeed, "ws", "wind_speed", Kind::Number},
+    {Field::WindSpeedUnit, "wsu", "wind_speed_unit", Kind::Text},
+    {Field::WindGust, "wg", "wind_gust_speed", Kind::Number},
+    {Field::WindBearing, "wb", "wind_bearing", Kind::Number},
+    {Field::Visibility, "wv", "visibility", Kind::Number},
+    {Field::VisibilityUnit, "wvu", "visibility_unit", Kind::Text},
+    {Field::CloudCoverage, "wc", "cloud_coverage", Kind::Number},
+    {Field::DewPoint, "wd", "dew_point", Kind::Number},
+    {Field::UvIndex, "wi", "uv_index", Kind::Number},
 };
 static_assert(std::size(kFields) == static_cast<size_t>(Field::Count));
 
@@ -85,6 +100,13 @@ constexpr FieldMask kClimate = bit(Field::Target) | bit(Field::Current) | bit(Fi
                                bit(Field::MinTemp) | bit(Field::MaxTemp) | bit(Field::TempStep);
 constexpr FieldMask kClimatePanel = bit(Field::HvacModes) | bit(Field::PresetMode) | bit(Field::PresetModes) |
                                     bit(Field::FanMode) | bit(Field::FanModes);
+constexpr FieldMask kWeather = bit(Field::Temperature) | bit(Field::TemperatureUnit) | bit(Field::Humidity);
+// the details, and the forecasts the entity has (supported_features)
+constexpr FieldMask kWeatherPanel = bit(Field::ApparentTemperature) | bit(Field::Pressure) | bit(Field::PressureUnit) |
+                                    bit(Field::WindSpeed) | bit(Field::WindSpeedUnit) | bit(Field::WindGust) |
+                                    bit(Field::WindBearing) | bit(Field::Visibility) | bit(Field::VisibilityUnit) |
+                                    bit(Field::CloudCoverage) | bit(Field::DewPoint) | bit(Field::UvIndex) |
+                                    bit(Field::Features);
 
 void append(memory::String &out, std::string_view text)
 {
@@ -231,6 +253,51 @@ void decode_field(const FieldSpec &spec, const cJSON *item, core::EntityState &t
         to.features = std::isnan(value) ? 0 : static_cast<int32_t>(value);
         break;
     }
+    case Field::Temperature:
+        to.temperature = number_of(item);
+        break;
+    case Field::TemperatureUnit:
+        to.temperature_unit = text_of(item);
+        break;
+    case Field::ApparentTemperature:
+        to.apparent_temperature = number_of(item);
+        break;
+    case Field::Humidity:
+        to.humidity = number_of(item);
+        break;
+    case Field::Pressure:
+        to.pressure = number_of(item);
+        break;
+    case Field::PressureUnit:
+        to.pressure_unit = text_of(item);
+        break;
+    case Field::WindSpeed:
+        to.wind_speed = number_of(item);
+        break;
+    case Field::WindSpeedUnit:
+        to.wind_speed_unit = text_of(item);
+        break;
+    case Field::WindGust:
+        to.wind_gust = number_of(item);
+        break;
+    case Field::WindBearing:
+        to.wind_bearing = number_of(item);
+        break;
+    case Field::Visibility:
+        to.visibility = number_of(item);
+        break;
+    case Field::VisibilityUnit:
+        to.visibility_unit = text_of(item);
+        break;
+    case Field::CloudCoverage:
+        to.cloud_coverage = number_of(item);
+        break;
+    case Field::DewPoint:
+        to.dew_point = number_of(item);
+        break;
+    case Field::UvIndex:
+        to.uv_index = number_of(item);
+        break;
     case Field::Count:
         break;
     }
@@ -287,6 +354,12 @@ FieldMask fields_of(const core::Tile &tile, bool panel)
         // the open button
         if (panel) {
             fields |= bit(Field::Features);
+        }
+        break;
+    case TileKind::Weather:
+        fields |= kWeather;
+        if (panel) {
+            fields |= kWeatherPanel;
         }
         break;
     default:

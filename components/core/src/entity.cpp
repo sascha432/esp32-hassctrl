@@ -84,6 +84,36 @@ bool copy(EntityState &to, const EntityState &from, Field field)
         return assign(to.fan_modes, from.fan_modes);
     case Field::Features:
         return assign(to.features, from.features);
+    case Field::Temperature:
+        return assign(to.temperature, from.temperature);
+    case Field::TemperatureUnit:
+        return assign(to.temperature_unit, from.temperature_unit);
+    case Field::ApparentTemperature:
+        return assign(to.apparent_temperature, from.apparent_temperature);
+    case Field::Humidity:
+        return assign(to.humidity, from.humidity);
+    case Field::Pressure:
+        return assign(to.pressure, from.pressure);
+    case Field::PressureUnit:
+        return assign(to.pressure_unit, from.pressure_unit);
+    case Field::WindSpeed:
+        return assign(to.wind_speed, from.wind_speed);
+    case Field::WindSpeedUnit:
+        return assign(to.wind_speed_unit, from.wind_speed_unit);
+    case Field::WindGust:
+        return assign(to.wind_gust, from.wind_gust);
+    case Field::WindBearing:
+        return assign(to.wind_bearing, from.wind_bearing);
+    case Field::Visibility:
+        return assign(to.visibility, from.visibility);
+    case Field::VisibilityUnit:
+        return assign(to.visibility_unit, from.visibility_unit);
+    case Field::CloudCoverage:
+        return assign(to.cloud_coverage, from.cloud_coverage);
+    case Field::DewPoint:
+        return assign(to.dew_point, from.dew_point);
+    case Field::UvIndex:
+        return assign(to.uv_index, from.uv_index);
     case Field::Count:
         break;
     }

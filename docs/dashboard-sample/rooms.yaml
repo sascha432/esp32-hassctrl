@@ -21,3 +21,7 @@
       # an MJPEG stream of its own (here of go2rtc): the tile's image comes from it, full screen
       # plays it live. In quotes, it has a `:` in it.
       stream: "http://go2rtc.local:1984/api/stream.mjpeg?src=owl_closeup"
+    # A weather entity (OpenWeatherMap, Met.no, ...): its icon follows the condition. `size`
+    # 1x1, 1x2 or 2x1 (default 1x1); the forecast in its panel is the one the integration offers.
+    - entity: weather.openweathermap
+      name: Weather

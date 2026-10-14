@@ -1,7 +1,8 @@
 # Panels (LVGL)
 
 Status: **running**. The full screen views a tile opens: the light (dimmer), the climate, the
-sensor and the lock. The picture tile's full screen view is in [lvgl-camera.md](lvgl-camera.md).
+sensor, the lock and the weather. The picture tile's full screen view is in
+[lvgl-camera.md](lvgl-camera.md).
 Tiles and their states: [lvgl-dashboard.md](lvgl-dashboard.md); colors, fonts and the shared
 parts: [lvgl-design.md](lvgl-design.md).
 
@@ -11,7 +12,8 @@ A tap opens the panel of a tile over the page; the back tile closes it, opening 
 new layout closes it, turning the display builds it again. While it is open the page's
 subscription carries the panel's fields as well (`hass_protocol::fields_of`). Code: `panel.cpp`
 (the frame), `light_panel.cpp`, `climate_panel.cpp`, `sensor_panel.cpp`, `lock_panel.cpp`,
-`picture_panel.cpp`; the history graph of the sensor and the lock panel is `history_view.cpp`.
+`picture_panel.cpp`, `weather_panel.cpp`; the history graph of the sensor and the lock panel is
+`history_view.cpp`.
 
 ```
 landscape (480x320, 320x240)            portrait (320x480)
@@ -163,12 +165,69 @@ A lock that asks for a code (`code_format`) is not supported: HA refuses the cal
 look ends with the error. The action is pending until HA reports `locked` or `unlocked` (`locking`
 does not end it); `open` waits for nothing, the lock locks again by itself.
 
-## 6. Open points
+## 6. Weather panel
+
+Added 2026-10-13 (your request: a tile and its details, no history). The panel of a `weather.*`
+entity, tested with OpenWeatherMap (One Call 3.0, which has both forecasts). Like the sensor panel
+it has no options: the frame is the portrait one in both orientations. Code: `weather_panel.cpp`.
+
+**Not supported on the TTGO T4's 320x240** (decided 2026-10-13, your request): the rows do not
+fit above the forecast there (only "Feels like" does), and the T4 is a test device. The panel
+works on the WT32-SC01 (480x320), the JC3248W535 (320x480) and the JC4880P443C (dialog).
+
+```
++----+ (icon) Weather
+| <- |        11.8 °C   Cloudy
++----+
+ (thermometer) Feels like    10.2 °C   (drop) Humidity      81%
+ (gauge)       Pressure   1023 hPa     (wind) Wind  25.7 km/h (ENE)
+ (eye)         Visibility  3.7 km      (cloud) Clouds         90%
+ (thermometer) Dew point    8.6 °C
+ Forecast                                  [Daily][Hourly]
+ +---------------------------------------------------------+
+ | Tue   Wed   Thu   Fri   Sat   Sun   Mon   Tue           |
+ | (24)  (24)  (24)  (24)  (24)  (24)  (24)  (24)          |
+ | 15°   19.3° 20.3° 17°   13.3° 10.3° 11°   15.3°          |
+ | 8.5°  12.8° 13.8° 10.5° 6.8°  3.8°  4.5°  8.8°           |
+ +---------------------------------------------------------+
+```
+
+| Part | Content |
+| --- | --- |
+| header | the condition's icon (48 px), the name (16 px) above the temperature (28 px, with its unit), the condition in words right of it |
+| rows | what the entity reports, in this order: feels like, humidity, pressure, wind (speed, unit and the point of the compass of `wind_bearing`), gusts, visibility, clouds, dew point, UV index. A value the entity does not have is left out (OpenWeatherMap has no UV index, and gusts only sometimes). One column when all fit, else two (in reading order) from 400 px width. As many rows as fit above the forecast, spread over the space (gap 4 px to 18 px), placed when the values arrive. A name gives way to its value ("..."). |
+| chips | `Daily` and `Hourly` like the range buttons of the sensor panel, the selected one white; only when the entity has both (`supported_features` bits 1 and 2, both offered until it arrived), else none. The one shown last is kept for the next panel. A tap subscribes the other forecast. |
+| strip | a card with the columns of the forecast, scrolling sideways (drag). Daily: weekday, condition glyph (24 px), the high, the low (8 days). Hourly: `HH:00` (the weekday in white at midnight), glyph, temperature, the chance of precipitation when above 0 (the next 24 hours). Times in the device's time zone (Home Assistant's). |
+| message | in the card while there is nothing to draw: `Loading...`, `No forecast`, or the error (`No forecast of this kind`, `Not connected to Home Assistant`, Home Assistant's own words). An update that fails keeps what is drawn. |
+
+The rows and the forecast keep 12 px from the sides (24 px in the P4's dialog, also from the
+bottom).
+
+The forecast is not part of the entity's state: the panel subscribes it with
+`weather/subscribe_forecast` while it is open (`Backend::subscribe_forecast`, architecture.md
+section 6): the entries come about 300 ms later and again with every update of the integration
+(OpenWeatherMap polls every 10 minutes), the strip keeps its scroll position. Closing the panel or
+changing the chip ends the subscription; the old answers are dropped by their generation.
+An unavailable entity (Home Assistant restarting) has no `supported_features`: both chips stay and
+the selected one stays selected. A forecast that fails is asked for again every 10 s while the
+panel is open (Home Assistant answers "not found" or "not supported" until the integration is
+set up again); what is drawn stays meanwhile.
+An unavailable entity (Home Assistant restarting) has no `supported_features`: both chips stay and
+the selected one stays selected. A forecast that fails is asked for again every 10 s while the
+panel is open (Home Assistant answers "not found" or "not supported" until the integration is
+set up again); what is drawn stays meanwhile.
+Checked on the WT32-SC01 (2026-10-13): the 8 days match the Home Assistant app, the hourly strip
+scrolls, closing and reopening works.
+
+## 7. Open points
 
 * The graph of a sensor needs long term statistics (a `state_class`); a sensor without them shows
   "No statistics for this sensor". Reading its state history instead is possible, but a busy
   sensor's changes may not fit a message (16 KB per 6 hours).
 * The climate panel has one setpoint; `heat_cool` with a low and a high setpoint
   (`target_temp_low`/`_high`) is not read yet and shows `--`.
+* The weather panel: `twice_daily` forecasts are not read; the icon of `partlycloudy` is the day
+  one at night too (the entity's state has no sun position); a forecast has at most 8 days or 24
+  hours (`core::kMaxForecastEntries`); rows that do not fit are left out.
 * The light panel opens only from a dimmer; a light without `dimmer` toggles on a tap. A long
   press could open it (to decide).

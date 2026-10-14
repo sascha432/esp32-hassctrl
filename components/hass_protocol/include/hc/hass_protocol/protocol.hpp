@@ -56,6 +56,18 @@ memory::String render_template_message(uint32_t id, std::string_view template_te
 // {"id":2,"type":"unsubscribe_events","subscription":1}
 memory::String unsubscribe_message(uint32_t id, uint32_t subscription);
 
+// {"id":3,"type":"weather/subscribe_forecast","entity_id":"weather.home","forecast_type":"daily"}:
+// Home Assistant answers with an empty result, then an event with the forecast now and with every
+// update of the integration. It is ended with unsubscribe_message(). `type` Daily or Hourly.
+memory::String forecast_subscribe_message(uint32_t id, std::string_view entity_id, core::ForecastType type);
+
+// Decodes the `event` of that subscription ({"type":"daily","forecast":[...]}) into the first
+// core::kMaxForecastEntries entries. A null forecast is no entries.
+bool decode_forecast(const cJSON *event, memory::Vector<core::ForecastEntry> &out, memory::String &error);
+
+// "2026-10-13T20:00:00+00:00" (also with fractions of a second, "Z" and +HHMM) -> epoch seconds
+bool parse_iso_time(const char *text, uint32_t &epoch);
+
 // The call_service message of an intent for the entity `entity_id`. False with `error` set when
 // the intent does not fit the entity's domain (a press of a light).
 bool call_service_message(uint32_t id, const core::Intent &intent, std::string_view entity_id, memory::String &out,

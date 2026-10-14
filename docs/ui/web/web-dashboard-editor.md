@@ -26,6 +26,8 @@ dashboard as one file is on the System page (web-app.md section 1), not here (de
 * **Grid.** `defaults.grid`, and per area page its own grid or the default. 1x1 to 8x8.
 * **Tiles.** Add from a Home Assistant entity, add an area or a spacer, remove, duplicate, move to
   another page, reorder. Every key of the tile format; the keys a kind does not have are hidden.
+  A weather entity (`weather.*`) is a `weather` tile, 1x1, 1x2 or 2x1, with the icon of the
+  weather by default (the preview cannot show the condition: no live values).
 * **Preview.** The page as the screen draws it (colors of lvgl-design.md section 2), the back
   tile, landscape or portrait, in the aspect of a board. A tile that does not fit shows the error.
   The preview shows whether the page is in automatic order or arranged in that orientation.

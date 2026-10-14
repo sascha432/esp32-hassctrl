@@ -24,6 +24,7 @@ using hc::core::Field;
 constexpr uint32_t kValuesMs = 150;
 uint32_t g_action_ms = 400;
 constexpr uint32_t kHistoryMs = 300;
+constexpr uint32_t kForecastMs = 300;
 constexpr uint32_t kImageMs = 500;
 // a stream plays 5 frames a second
 constexpr uint32_t kStreamFrameMs = 200;
@@ -62,6 +63,7 @@ struct State {
         uint32_t frame = 0;
     } play;
     bool stream_server_down = false;
+    ForecastMode forecast_mode = ForecastMode::Ok;
 };
 
 State g;
@@ -188,6 +190,23 @@ EntityState make_sample(std::string_view id, size_t i)
         s.features = hc::core::kLockOpen;
     } else if (domain == "camera") {
         s.state = "idle";
+    } else if (domain == "weather") {
+        // OpenWeatherMap as the screenshots of HA show it (2026-10-13): no gusts, no UV index
+        s.state = "cloudy";
+        s.temperature = 11.8f;
+        s.temperature_unit = "\xc2\xb0" "C";
+        s.apparent_temperature = 10.2f;
+        s.humidity = 81;
+        s.pressure = 1023;
+        s.pressure_unit = "hPa";
+        s.wind_speed = 25.74f;
+        s.wind_speed_unit = "km/h";
+        s.wind_bearing = 67;
+        s.visibility = 3.74f;
+        s.visibility_unit = "km";
+        s.cloud_coverage = 90;
+        s.dew_point = 8.6f;
+        s.features = hc::core::kForecastDaily | hc::core::kForecastHourly;
     } else if (domain == "script") {
         s.state = "off";
     } else {
@@ -438,6 +457,56 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
         }
     }
     g.queue.push_back({lv_tick_get() + kHistoryMs, std::move(history)});
+}
+
+void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::ForecastType type,
+                        uint32_t generation)
+{
+    using hc::core::ForecastType;
+    if (type == ForecastType::None) {
+        std::printf("[sim] forecast ends\n");
+        return;
+    }
+    const bool daily = type == ForecastType::Daily;
+    std::printf("[sim] %s forecast of %.*s\n", daily ? "daily" : "hourly", static_cast<int>(entity_id.size()),
+                entity_id.data());
+    hc::core::Forecast forecast;
+    forecast.generation = generation;
+    forecast.entity = entity;
+    forecast.type = type;
+    if (g.forecast_mode == ForecastMode::Loading) {
+        return; // no answer: the panel shows "Loading..."
+    }
+    if (!hass_connected()) {
+        forecast.error = "not connected to Home Assistant";
+    } else if (g.forecast_mode == ForecastMode::Error) {
+        forecast.error = "forecast not supported for this entity";
+    } else {
+        // from the start of this day or hour, the conditions in turn so every glyph is seen
+        const auto now = static_cast<uint32_t>(std::time(nullptr));
+        const uint32_t step = daily ? 86400 : 3600;
+        const uint32_t first = now / step * step;
+        const size_t count = daily ? 8 : hc::core::kMaxForecastEntries;
+        for (size_t i = 0; i < count; i++) {
+            hc::core::ForecastEntry entry;
+            entry.time = first + static_cast<uint32_t>(i) * step;
+            entry.condition = static_cast<hc::core::Condition>(1 + i % 15);
+            const double wave = std::sin(static_cast<double>(i) * (daily ? 0.9 : 0.27));
+            entry.temperature = static_cast<float>(std::round((daily ? 15.0 : 12.0) + 5.0 * wave) * 10) / 10.0f +
+                                (i % 3 == 0 ? 0.0f : 0.3f);
+            if (daily) {
+                entry.templow = entry.temperature - 6.5f;
+            }
+            entry.precipitation_probability = static_cast<int8_t>(i % 4 == 1 ? 0 : (i * 17) % 100);
+            forecast.entries.push_back(entry);
+        }
+    }
+    g.queue.push_back({lv_tick_get() + kForecastMs, std::move(forecast)});
+}
+
+void set_forecast_mode(ForecastMode mode)
+{
+    g.forecast_mode = mode;
 }
 
 // A landscape: the sky, a hill, a house, and a sun at `phase` (0..1) of its way across the sky.

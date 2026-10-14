@@ -24,6 +24,7 @@ struct View {
     core::TileKind kind = core::TileKind::Spacer;
     bool large = false;    // the cell is large enough for the large fonts
     bool tall = false;     // spans two rows (dimmer and climate 1x2)
+    bool wide = false;     // a weather tile of two columns: the icon beside the text
     lv_obj_t *card = nullptr;
     lv_obj_t *icon = nullptr;
     lv_obj_t *value = nullptr;

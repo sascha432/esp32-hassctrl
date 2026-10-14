@@ -416,6 +416,17 @@ bool run_step(const std::string &step)
             return false;
         }
         sim::set_stream_server(argument == "up");
+    } else if (verb == "forecast") {
+        if (argument == "ok") {
+            sim::set_forecast_mode(sim::ForecastMode::Ok);
+        } else if (argument == "loading") {
+            sim::set_forecast_mode(sim::ForecastMode::Loading);
+        } else if (argument == "error") {
+            sim::set_forecast_mode(sim::ForecastMode::Error);
+        } else {
+            std::fprintf(stderr, "forecast needs ok, loading or error\n");
+            return false;
+        }
     } else if (verb == "rotate") {
         ui::rotation::rotate_clockwise();
     } else if (verb == "shot") {
@@ -468,6 +479,7 @@ void usage()
         "                         alert TEXT (an event message in the alert strip, 5 s)\n"
         "                         info TEXT (a progress message in the alert strip that stays)\n"
         "                         stream down|up (the stream's server ends and refuses streams, or answers again)\n"
+        "                         forecast ok|loading|error (how the next forecast subscription answers)\n"
         "                         tap TEXT (a label on the screen) | tap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"
