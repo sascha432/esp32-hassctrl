@@ -126,12 +126,12 @@ TEST(layout_rejects_a_tile_that_does_not_fit)
     for (const char *entity : {"climate.a", "climate.b", "climate.c", "climate.d", "climate.e"}) {
         layout.add_tile(0, entity_tile(layout, entity));
     }
-    CHECK_STR(problem_of(layout), "no free 1x2 block left in the 4x2 grid of its page");
+    CHECK_STR(problem_of(layout), "no free 1x2 block left in the landscape 4x2 grid of its page");
 
     Layout small;
     small.grid = {1, 1};
     small.add_tile(0, entity_tile(small, "camera.a"));
-    CHECK_STR(problem_of(small), "a 2x2 tile does not fit into the 1x1 grid of its page");
+    CHECK_STR(problem_of(small), "a 2x2 tile does not fit into the landscape 1x1 grid of its page");
 }
 
 TEST(layout_portrait_falls_back_to_the_first_cell)
@@ -375,7 +375,7 @@ TEST(layout_resets_an_arrangement)
     REQUIRE(problem_of(tight) == "ok");
     const auto reset = reset_arrangement(tight, 0, Orientation::Landscape);
     REQUIRE(!reset.has_value());
-    CHECK_STR(std::string(reset.error().message), "no free 1x2 block left in the 2x2 grid of its page");
+    CHECK_STR(std::string(reset.error().message), "no free 1x2 block left in the landscape 2x2 grid of its page");
     CHECK(tight.tiles[2].has_landscape); // unchanged
 }
 

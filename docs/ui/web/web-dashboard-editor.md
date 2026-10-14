@@ -31,6 +31,13 @@ dashboard as one file is on the System page (web-app.md section 1), not here (de
 * **Preview.** The page as the screen draws it (colors of lvgl-design.md section 2), the back
   tile, landscape or portrait, in the aspect of a board. A tile that does not fit shows the error.
   The preview shows whether the page is in automatic order or arranged in that orientation.
+  The device checks both orientations, so a page arranged in the orientation not shown can
+  refuse a tile or a size the shown one has room for (your report, 2026-10-13: a 1x2 picture
+  tile set in portrait, the landscape side full). The problem names the orientation; a click on
+  it switches the preview to the orientation that has the problem and selects the tile; the
+  inspector's "Position" line shows "no place, show landscape" as a link. The size select is
+  `columns x rows` in landscape; in portrait its hint says what the size turns into (1x2 shows
+  as 2x1).
 * **Drag in the preview**: in automatic order a drag reorders the list (the tile takes the place of
   the tile it is dropped on: after it when dragged forward, before it when dragged back); in an
   arranged page it moves the tile to the cell and pushes the tiles there aside ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 6). A drag in an automatic page onto an empty cell

@@ -252,7 +252,7 @@ TEST(config_reports_problems_of_core_at_the_tile)
                           "tiles:\n"
                           "  - entity: sensor.a\n"
                           "  - entity: sensor.b\n");
-    CHECK_STR(import_error(full), "hass.yaml:5: no free 1x1 block left in the 1x1 grid of its page");
+    CHECK_STR(import_error(full), "hass.yaml:5: no free 1x1 block left in the landscape 1x1 grid of its page");
 }
 
 TEST(config_checks_includes)

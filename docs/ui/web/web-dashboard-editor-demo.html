@@ -410,8 +410,8 @@ function place(p, o) {
     }
     if (found) { take(found.c, found.r, w, h, t._k); res.cells[t._k] = found; }
     else if (o === "p") { res.cells[t._k] = { c: 0, r: 0, w, h }; res.fallback[t._k] = true; }
-    else if (w > C || h > R) res.errors[t._k] = `a ${w}x${h} tile does not fit into the ${C}x${R} grid of its page`;
-    else res.errors[t._k] = `no free ${w}x${h} block left in the ${C}x${R} grid of its page`;
+    else if (w > C || h > R) res.errors[t._k] = `a ${w}x${h} tile does not fit into the ${o === "p" ? "portrait" : "landscape"} ${C}x${R} grid of its page`;
+    else res.errors[t._k] = `no free ${w}x${h} block left in the ${o === "p" ? "portrait" : "landscape"} ${C}x${R} grid of its page`;
   }
   res.used = used;
   return res;

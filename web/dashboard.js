@@ -235,7 +235,7 @@ window.hcEditor = (() => {
       }
       if (found) { take(found.c, found.r, w, h, t._k); res.cells[t._k] = found; }
       else if (o === "p") { res.cells[t._k] = { c: 0, r: 0, w, h }; res.fallback[t._k] = true; }
-      else res.errors[t._k] = w > C || h > R ? `a ${w}x${h} tile does not fit into the ${C}x${R} grid` : `no free ${w}x${h} block left`;
+      else res.errors[t._k] = w > C || h > R ? `a ${w}x${h} tile does not fit into the ${oname(o)} ${C}x${R} grid` : `no free ${w}x${h} block left in the ${oname(o)} ${C}x${R} grid`;
     }
     return res;
   }
@@ -581,7 +581,10 @@ window.hcEditor = (() => {
     const field = (label, html, hint = "") => `<div class="row-field"><label class="form-label">${label}</label>${html}${hint ? `<div class="form-text mt-0">${hint}</div>` : ""}</div>`;
     const cellText = (o) => {
       const pl = place(loc.page, o), c = pl.cells[t._k], v = t[okey(o)];
-      return v ? `<b>${v[0]},${v[1]}</b> (arranged)` : c ? `auto, ${c.c},${c.r}${pl.fallback[t._k] ? " (fallback)" : ""}` : '<span class="text-danger">no place</span>';
+      if (v) return `<b>${v[0]},${v[1]}</b> (arranged)`;
+      if (c) return `auto, ${c.c},${c.r}${pl.fallback[t._k] ? " (fallback)" : ""}`;
+      // no block in the orientation not shown: a click shows it
+      return o === orient ? '<span class="text-danger">no place</span>' : `<a href="#" class="text-danger" data-act="orient" data-o="${o}">no place, show ${oname(o)}</a>`;
     };
     const movable = pages().filter((x) => x.key !== loc.page.key && !(t.type === "area" && isInside(x.key, t._k)));
     const known = [...entitiesInUse()].sort();
@@ -606,7 +609,7 @@ window.hcEditor = (() => {
       body += field("Size", `<select class="form-select form-select-sm" data-field="size">
           <option value="">automatic (${def[0]}x${def[1]})</option>
           ${sizes.map(([c, r]) => `<option value="${c}x${r}" ${t.size && t.size[0] === c && t.size[1] === r ? "selected" : ""}>${c}x${r}</option>`).join("")}
-        </select>`, "columns x rows, in landscape");
+        </select>`, orient === "p" ? `columns x rows in landscape; portrait turns it, ${(t.size || def).join("x")} shows as ${spanOf(t, "p").join("x")}` : "columns x rows, in landscape");
     }
     if (k === "light") body += field("Step of + and − (%)", `<input class="form-control form-control-sm" type="number" min="1" max="50" data-field="step" value="${t.step ?? ""}" placeholder="default">`);
     if (k === "climate") body += field("Step (°)", `<input class="form-control form-control-sm" type="number" min="0.1" max="5" step="0.1" data-field="step" value="${t.step ?? ""}" placeholder="from Home Assistant">`);
@@ -858,7 +861,13 @@ window.hcEditor = (() => {
     save: (el) => { el.disabled = true; save().catch((e) => ctx.toast(e.message, "danger")).finally(() => { el.disabled = false; }); },
     reload: async () => { await load(); ctx.toast("Loaded the dashboard of the device.", "info"); draw(); },
     overwrite: () => save(true).catch((e) => ctx.toast(e.message, "danger")),
-    "goto-problem": () => { if (check.k) actions.select({ dataset: { k: check.k } }); },
+    "goto-problem": () => {
+      if (!check.k) return;
+      // a problem of the orientation not shown (an arranged page full there): show that one
+      const loc = locate(check.k), other = orient === "l" ? "p" : "l";
+      if (loc && !place(loc.page, orient).errors[check.k] && place(loc.page, other).errors[check.k]) orient = other;
+      actions.select({ dataset: { k: check.k } });
+    },
     add: (el) => openPicker(el.dataset.c !== undefined ? { c: +el.dataset.c, r: +el.dataset.r } : null),
     "pick-entity": () => openPicker(null, sel),
     pick: (el) => {

@@ -292,12 +292,12 @@ std::expected<void, Problem> place(Layout &layout, PageIndex index, Orientation 
                 continue;
             }
         } else if (span.cols > size.cols || span.rows > size.rows) {
-            return tile_problem(t, format("a %ux%u tile does not fit into the %ux%u grid of its page",
-                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows),
+            return tile_problem(t, format("a %ux%u tile does not fit into the %s %ux%u grid of its page",
+                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows), name,
                                           static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
         } else if (!grid.first_fit(span, at)) {
-            return tile_problem(t, format("no free %ux%u block left in the %ux%u grid of its page",
-                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows),
+            return tile_problem(t, format("no free %ux%u block left in the %s %ux%u grid of its page",
+                                          static_cast<unsigned>(span.cols), static_cast<unsigned>(span.rows), name,
                                           static_cast<unsigned>(size.cols), static_cast<unsigned>(size.rows)));
         }
         grid.take(at, span);

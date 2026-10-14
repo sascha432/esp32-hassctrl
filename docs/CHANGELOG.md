@@ -2,6 +2,13 @@
 
 ## 2026-10-13
 
+- Web editor (your report): a tile size the portrait preview had room for was refused with
+  "no free 1x2 block left in the 5x4 grid of its page" and nothing said that the landscape
+  side of the page (arranged, the camera tiles in a band of two rows) was full. The device's
+  error names the orientation and the grid ("... in the landscape 5x4 grid ..."), a click on the
+  problem switches the preview to the orientation that has it, "no place" in the Position line
+  is a link to that orientation, and the size hint in portrait says what the landscape size
+  turns into (1x2 shows as 2x1). Four host tests check the new texts.
 - JC4880P443C: the PPA's first scale of a camera image after most boots never finished, so the
   P4 decoded in software for the rest of the run (TODO of 2026-10-11). Silicon bug DIG-734
   (esp-idf issue 19023, the user's find): the driver's workaround sets the SRM engine's bypass

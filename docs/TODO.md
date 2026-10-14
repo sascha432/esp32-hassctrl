@@ -693,6 +693,13 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         page after a save from the web UI (by the area tile's id), the editor no longer names
         the screen, the Import & export tab counts pages and tiles of every level.
   - [x] `web/icons.svg`: MDI paths from `tools/build_icons.py`, flashed on the WT32; icons confirmed by you (2026-10-10).
+  - [x] **Bug (your report): a size the portrait preview has room for is refused** (2026-10-13):
+        on the Cameras page (5x4, arranged in landscape with the camera tiles in rows 1 and 2) a
+        new 1x2 picture tile placed in portrait got "no free 1x2 block left in the 5x4 grid of its
+        page" without a word that landscape was full. Now the error names the orientation and
+        the grid, a click on the problem switches the preview to that orientation, "no place"
+        in the Position line is a link there, the size hint in portrait says what the size turns
+        into. The rule stays (lvgl-dashboard.md section 6, see Open decisions). Host tests 96.
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,
@@ -1388,6 +1395,12 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
 
 Dashboard ([architecture.md](architecture.md) section 14):
 
+- [ ] **Landscape strict, portrait falls back** (2026-10-13, after your report above): a tile
+      without a cell that finds no block is an error in landscape and the first cell in
+      portrait. On a page arranged in both orientations the asymmetry shows: an edit in portrait
+      can be refused by landscape. My vote: keep it, a fallback over the back tile would hide
+      layout mistakes on the screen the file is written for; the message now says where the
+      room is missing. Your call.
 - [x] **Discussed 2026-10-07.** Decided: only `defaults` (grid, more later) and `tiles`; URL,
       token, poll and the other connection values are not part of the dashboard; no reload by
       file size; the web UI edits areas and tiles, the screen only allows a few settings; YAML

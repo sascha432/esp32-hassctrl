@@ -204,7 +204,10 @@ Tiles are moved in the edit mode (section 7) and in the web editor
 * Rules (`core::finish`): a given cell must lie inside the grid with the whole span, must not
   overlap another tile, and must not be the back tile's cell of an area page. Each is an error in
   both orientations, naming the tile. A tile without a cell that finds no room is an error in
-  landscape and falls back to the first cell in portrait (as today).
+  landscape and falls back to the first cell in portrait (as today). The error names the
+  orientation and the grid ("no free 1x2 block left in the landscape 5x4 grid of its page",
+  2026-10-13): a page arranged in landscape can be full there while the portrait preview of
+  the web editor still has room (your report).
 * **Moving writes the whole page.** When a tile is moved (screen or web), every tile of that page
   gets its current cell in that orientation, not only the moved one. The page then stays as it was
   arranged, also when a tile is added later (it takes the first free block). The other orientation
