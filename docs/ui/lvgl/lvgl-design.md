@@ -49,8 +49,9 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 | accent | (see below) | `#00ffff` | an action on its way (the runner, a pending setpoint), the sensor graph |
 
 Colors with one owner, kept next to their code: the edit mode's "fits" outline `0x2ecc71`
-(`edit_mode.cpp`), the splash's logo colors (`splash.cpp`), the dialog veil black at 50 %
-(`panel.cpp`), the alert strip at 60 % (`overlay.cpp`).
+(`edit_mode.cpp`), the splash's logo colors (`splash.cpp`), the dialog veil black at 80 %
+(`panel.cpp`), the alert strip at 90 % (`overlay.cpp`). The body of a panel dialog is `kDialog`
+(0x161d25, 2026-10-13): lighter than the page it lies on, darker than its cards.
 
 QR codes are always drawn black on a white card with a quiet zone (`theme::qr_card`), also in the
 dark theme: phone cameras do not read light-on-dark codes reliably.
@@ -198,7 +199,7 @@ Every message on the screen has one place (decided 2026-10-12):
 
 The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
 
-* Black at 60 % with rounded bottom corners, as wide as its text up to 90 % of the display, the
+* Black at 90 % (60 % until 2026-10-13: the tiles showed through) with rounded bottom corners, as wide as its text up to 90 % of the display, the
   text in `font_normal()`, wrapped and centered. It starts with a symbol: `LV_SYMBOL_WARNING`
   for an error, `LV_SYMBOL_WIFI` while connecting, `LV_SYMBOL_DOWN` for the hint. The text color
   says its weight: `kAlert` for problems, `kTextValue` for progress, `kTextLabel` for the hint.

@@ -35,7 +35,7 @@ the alert strip is shown, its whole area also starts the pull-down (built).
 ### 1.1 Alert strip
 
 Messages on the dashboard appear in the **alert strip** (decided): a panel at the top center,
-touching the top edge, with rounded bottom corners and a background at 60 % opacity over the
+touching the top edge, with rounded bottom corners and a background at 90 % opacity (60 % until 2026-10-13) over the
 dashboard. The same style is used for every error, warning and hint on the screen, also over the
 panels and the camera view (decided 2026-10-12: no popups for messages; the rules are in
 [lvgl-design.md](lvgl-design.md) section 8). It **slides down from the top** when it appears

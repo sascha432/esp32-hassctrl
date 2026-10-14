@@ -14,6 +14,9 @@ constexpr uint32_t kBackground = 0x0b0f14;
 constexpr uint32_t kBar = 0x12181f;
 constexpr uint32_t kCard = 0x182029;
 constexpr uint32_t kCardAlt = 0x161d25;
+// the body of a panel dialog (JC4880P443C): lighter than the page it lies on, so the dialog stands
+// out of the dimmed page, darker than its cards
+constexpr uint32_t kDialog = 0x161d25;
 constexpr uint32_t kBorder = 0x2b3844;
 constexpr uint32_t kText = 0xffffff;
 constexpr uint32_t kTextValue = 0xc8d4dd;

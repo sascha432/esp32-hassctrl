@@ -1,6 +1,6 @@
 # TODO
 
-State as of 2026-10-12: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-13: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01 (COM9), the JC3248W535 (COM10) and the JC4880P443C (COM11); the TTGO T4 (COM13) is a
 test device only. Step 7 (LVGL 9) has not started. What is next is in "Next steps" at the end.
 The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
@@ -129,7 +129,10 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       dialog (440x600 in portrait, opaque, page behind dimmed 50 %, slides down from above the
       screen and back up in 250 ms, a tap beside it closes it); fonts Montserrat 16/18/20/26/36
       instead of 12/14/16/20/28 (+117 KB firmware). Design approved by the user in the sim; tested
-      on the board by the user (2026-10-08; the fade was replaced by the slide).
+      on the board by the user (2026-10-08; the fade was replaced by the slide). 2026-10-13: the
+      dialog did not stand out of the dimmed page on the board (your report): veil 80 %, dialog
+      body `theme::kDialog` 0x161d25, alert strip 90 % on all boards; variant picked by you in the
+      sim (B of A/B), flashed on the P4.
 - [x] **Check the start orientation** on the WT32 leaning on the desk: it should be upright
       within about a second after boot, without turning it. Working, confirmed by you 2026-10-10.
 - [x] PSRAM of the WT32: the device page says 4 MB (decided 2026-10-07), whatever the boot log

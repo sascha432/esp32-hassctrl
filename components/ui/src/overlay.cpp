@@ -19,7 +19,7 @@ namespace t = theme;
 constexpr lv_coord_t kZoneWidth = 160;
 constexpr lv_coord_t kDragDistance = 24;
 constexpr uint32_t kUpdateMs = 500;
-constexpr lv_opa_t kStripOpacity = LV_OPA_60;
+constexpr lv_opa_t kStripOpacity = LV_OPA_90;
 // a Home Assistant problem is shown once it lasts this long: a reconnect or a restart of Home
 // Assistant does not flash the strip
 constexpr uint32_t kHassProblemMs = 10000;

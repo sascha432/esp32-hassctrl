@@ -64,7 +64,7 @@ constexpr lv_coord_t kDialogHeight = 420;
 constexpr lv_coord_t kDialogPortraitWidth = 440;
 constexpr lv_coord_t kDialogPortraitHeight = 600;
 constexpr lv_coord_t kDialogRadius = 12;
-constexpr lv_opa_t kVeilOpacity = LV_OPA_50;
+constexpr lv_opa_t kVeilOpacity = LV_OPA_80;
 constexpr uint32_t kSlideMs = 250;
 // the slide's progress: 0 above the screen, kShown in the middle
 constexpr int32_t kShown = 1000;
@@ -481,7 +481,7 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         lv_obj_align(body, LV_ALIGN_TOP_MID, 0, 0);
         lv_obj_set_style_radius(body, kDialogRadius, 0);
         lv_obj_set_style_bg_opa(body, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(body, t::color(t::kBackground), 0);
+        lv_obj_set_style_bg_color(body, t::color(t::kDialog), 0);
         lv_obj_set_style_border_width(body, 1, 0);
         lv_obj_set_style_border_color(body, t::color(t::kBorder), 0);
         lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLLABLE);
