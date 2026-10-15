@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <unistd.h>
 
 #include "sdkconfig.h"
@@ -831,6 +832,21 @@ int cmd_sound(int argc, char **argv)
         hc::audio::play_file(argv[2]);
         return 0;
     }
+    // what Home Assistant's hassctrl_say event does: an MP3 from an address or a path of HA, or a
+    // text spoken by a tts entity
+    if (std::strcmp(argv[1], "url") == 0 && argc == 3) {
+        hc::hass::say({}, {}, {}, argv[2]);
+        return 0;
+    }
+    if (std::strcmp(argv[1], "say") == 0 && argc >= 4) {
+        std::string text;
+        for (int i = 3; i < argc; i++) {
+            text += i > 3 ? " " : "";
+            text += argv[i];
+        }
+        hc::hass::say(text, argv[2], {}, {});
+        return 0;
+    }
 #endif
     if (std::strcmp(argv[1], "volume") == 0 && argc == 3) {
         hc::audio::set_volume(static_cast<uint8_t>(std::atoi(argv[2])));
@@ -852,7 +868,7 @@ int cmd_sound(int argc, char **argv)
         return 0;
     }
 #endif
-    return usage("sound [volume <percent>|tone [hz] [ms]|click|tick|play <file>|alarm [file]|stop|ring]");
+    return usage("sound [volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]");
 }
 #endif
 
@@ -1094,7 +1110,7 @@ void register_commands()
     add("light", "light sensor: values, calibration while adding a board", "[calibrate <lux>|reset|backlight|watch [s]|points]",
         cmd_light);
 #if CONFIG_HC_AUDIO
-    add("sound", "speaker: volume, test tone, touch sound", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|alarm [file]|stop|ring]", cmd_sound);
+    add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
 #endif
 #if CONFIG_HC_VIBRATION
     add("vibrate", "vibration motor: the click, a pulse, the alarm pattern", "[click|<ms>|alarm|stop|status]", cmd_vibrate);

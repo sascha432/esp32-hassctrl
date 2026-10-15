@@ -170,4 +170,16 @@ struct Found {
 // task for `timeout_ms`.
 size_t discover(Found *out, size_t max, uint32_t timeout_ms);
 
+// Sounds from Home Assistant (docs/architecture.md section 9.6): the hassctrl_say event
+// (hass_protocol::kSayEvent) names a text to speak or an MP3; a task of its own (say.cpp) asks
+// Home Assistant for the speech, downloads the MP3 into PSRAM and hands it to the player, which
+// takes the buffer (heap_caps_malloc, freed with heap_caps_free). A newer sound stops a download
+// on its way. Set before start(); without a player the event is not subscribed.
+using SoundPlayer = void (*)(uint8_t *mp3, size_t size);
+void set_sound_player(SoundPlayer player);
+
+// What the event does, without it (the console): `message` spoken by the tts entity `engine` in
+// `language` (empty: the engine's), or the MP3 at `url` (a path of Home Assistant or an address).
+void say(std::string_view message, std::string_view engine, std::string_view language, std::string_view url);
+
 } // namespace hc::hass

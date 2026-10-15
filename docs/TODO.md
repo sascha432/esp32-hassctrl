@@ -1133,7 +1133,27 @@ Your report of the second version (2026-10-09):
       assembly in IRAM, by Espressif, for speed), 12 bytes in internal RAM. The 5 KB of internal
       RAM a playing file still took on the S3 were stdio's FILE buffer and its cache: the file is
       read with open/read now, internal RAM stays at 39 KB while it plays.
-- [ ] Later: sounds from HTTP (Home Assistant TTS), what plays them.
+- [x] Sounds from HTTP (Home Assistant TTS), what plays them (2026-10-14, your choice: an event
+      of Home Assistant): the event `hassctrl_say` with a `message` and a tts `engine`, or the
+      `url` of an MP3, `device` picks the device (architecture.md section 9.6, the Home Assistant
+      side in docs/dashboard-sample/hass.yaml). Downloaded into PSRAM by a task of its own, then
+      played as an announcement (touch sounds wait, an alarm comes first). Console
+      `sound say <tts entity> <text>`, `sound url <url>`. 99 host tests. On the JC3248W535 over
+      the console: speech of tts.google_en_com 19 to 29 KB in 0.5 to 0.9 s, HTTP 404 and HA's
+      500 for an unknown engine are logged, an 8.7 MB MP3 is refused (1 MB), redirects to https
+      work; internal RAM after a sound as before (32 KB free).
+- [x] Heard on the JC4880P443C (you, 2026-10-14): the event from Home Assistant's Developer tools
+      ("Hello") and `sound say` on the console. The JC3248W535 has no speaker connected now, it
+      was tested over the console only. P4 at 100 %: no restart.
+- [x] Priority on the P4 (you, 2026-10-14): taps do not click while it speaks, the alarm takes
+      over.
+- [ ] Check for you on the P4: an event with another `device` name stays silent.
+- [x] The event's `options` go to the engine (2026-10-14, your request after asking for the
+      speed): Google Translate has `tld` (the accent) only, no speed. `tld` works (you,
+      2026-10-14).
+- [ ] Open: a WAV from an engine that cannot give MP3 is refused (HA converts with
+      `preferred_format`, so it should not come); a `media_player` entity (DLNA renderer) only
+      if `tts.speak` or Music Assistant are wanted.
 
 ## Vibration (2026-10-09)
 

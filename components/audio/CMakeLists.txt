@@ -9,7 +9,7 @@ if(CONFIG_HC_AUDIO)
     endif()
     if(CONFIG_HC_AUDIO_MP3)
         # the decoder comes from idf_component.yml, only with this option
-        list(APPEND srcs "src/file_source.cpp")
+        list(APPEND srcs "src/mp3_source.cpp")
     endif()
 endif()
 

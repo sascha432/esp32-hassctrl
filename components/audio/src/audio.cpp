@@ -6,13 +6,14 @@
 
 #include "driver/i2s_std.h"
 #include "esp_check.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "source.hpp"
 #if CONFIG_HC_AUDIO_MP3
-#include "file_source.hpp"
+#include "mp3_source.hpp"
 #endif
 
 namespace hc::audio {
@@ -55,14 +56,19 @@ constexpr uint32_t kStackSize = 3072;
 // above the LVGL task (4), so a busy screen does not starve the DMA buffers
 constexpr UBaseType_t kPriority = 5;
 
-enum class Kind : uint8_t { Samples, Tone, Beeps, File, StopAlarm };
+enum class Kind : uint8_t { Samples, Tone, Beeps, File, Buffer, StopAlarm };
 
 struct Request {
     Kind kind;
     bool alarm; // full volume, only another alarm or StopAlarm replaces it
+    // a sound from Home Assistant: only an alarm or another announcement replaces it
+    bool announcement;
     bool loop;
     const int16_t *samples;
     uint32_t count;
+    // Buffer: an MP3 the request owns (play_mp3)
+    uint8_t *data;
+    size_t size;
     uint16_t hz;
     char path[kMaxPath];
 };
@@ -83,11 +89,19 @@ int32_t gain_of(uint8_t percent)
     return p * p * 32768 / 10000;
 }
 
+// a request that does not play: the buffer it owns goes
+void drop(const Request &request)
+{
+    if (request.kind == Kind::Buffer) {
+        heap_caps_free(request.data);
+    }
+}
+
 // The task's state: the sound that plays and the channel
 class Player {
 public:
     // a request from the queue: it replaces the sound that plays, except a normal sound over an
-    // alarm
+    // alarm or an announcement, and an announcement over an alarm
     void accept(const Request &request)
     {
         if (request.kind == Kind::StopAlarm) {
@@ -98,13 +112,15 @@ public:
             }
             return;
         }
-        if (alarm_ && !request.alarm) {
+        if ((alarm_ && !request.alarm) || (announcement_ && !request.alarm && !request.announcement)) {
+            drop(request);
             return;
         }
         finish();
         active_ = open(request);
         if (active_ != nullptr) {
             alarm_ = request.alarm;
+            announcement_ = request.announcement;
             loop_ = request.loop;
             g_alarm.store(alarm_);
         }
@@ -195,6 +211,14 @@ private:
             }
 #endif
             return nullptr;
+        case Kind::Buffer:
+#if CONFIG_HC_AUDIO_MP3
+            // the buffer is the source's now
+            if (file_.open(request.data, request.size)) {
+                return &file_;
+            }
+#endif
+            return nullptr;
         case Kind::StopAlarm:
             break;
         }
@@ -210,6 +234,7 @@ private:
 #endif
         active_ = nullptr;
         alarm_ = false;
+        announcement_ = false;
         g_alarm.store(false);
     }
 
@@ -273,10 +298,11 @@ private:
     detail::ToneSource tone_;
     detail::BeepsSource beeps_;
 #if CONFIG_HC_AUDIO_MP3
-    detail::FileSource file_;
+    detail::Mp3Source file_;
 #endif
     Source *active_ = nullptr;
     bool alarm_ = false;
+    bool announcement_ = false;
     bool loop_ = false;
     // samples in the DMA buffer being filled
     uint32_t fill_ = 0;
@@ -319,10 +345,13 @@ void post(const Request &request)
         return;
     }
     if (!request.alarm && request.kind != Kind::StopAlarm && g_volume.load(std::memory_order_relaxed) == 0) {
+        drop(request);
         return;
     }
     // a full queue (four sounds within one chunk) drops this one
-    xQueueSend(g_queue, &request, 0);
+    if (xQueueSend(g_queue, &request, 0) != pdTRUE) {
+        drop(request);
+    }
 }
 
 Request make(Kind kind)
@@ -360,7 +389,7 @@ esp_err_t start(const Config &config)
     std_config.gpio_cfg.din = I2S_GPIO_UNUSED;
     esp_err_t err = i2s_channel_init_std_mode(g_channel, &std_config);
 #if CONFIG_HC_AUDIO_MP3
-    detail::FileSource::init();
+    detail::Mp3Source::init();
 #endif
     if (err == ESP_OK) {
         g_queue = xQueueCreate(kQueueLength, sizeof(Request));
@@ -426,6 +455,19 @@ void play_file(const char *path)
 {
     Request request = make(Kind::File);
     std::snprintf(request.path, sizeof(request.path), "%s", path);
+    post(request);
+}
+
+void play_mp3(uint8_t *data, size_t size)
+{
+    if (g_queue == nullptr) {
+        heap_caps_free(data);
+        return;
+    }
+    Request request = make(Kind::Buffer);
+    request.announcement = true;
+    request.data = data;
+    request.size = size;
     post(request);
 }
 #endif

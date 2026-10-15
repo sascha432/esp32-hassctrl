@@ -3,9 +3,71 @@
 A Home Assistant touch panel for ESP32, ESP32-S3 and ESP32-P4 boards, built on ESP-IDF 6.1 with
 LVGL. Design: [docs/architecture.md](docs/architecture.md), UI: [docs/ui/](docs/ui/README.md),
 new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
-[docs/TODO.md](docs/TODO.md).
+[docs/TODO.md](docs/TODO.md), what changed: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ![docs/ui/images/jc4880p443c_dashboard1.jpg](docs/ui/images/jc4880p443c_dashboard1.jpg)
+
+## Features
+
+<!-- Keep this list current: a feature that is new, changed or gone changes it in the same commit (CLAUDE.md). -->
+
+**Dashboard**
+
+- Tiles for lights (switch, or a dimmer with a level drag), switches, buttons, scenes and scripts,
+  thermostats, locks, sensors and binary sensors, cameras and weather, with Material Design icons.
+- Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.
+- A grid per page up to 32x32, tiles up to 8x8; size, place and visibility per orientation.
+- Panels a tile opens: light (level, color, color temperature, effects), climate (target, modes,
+  presets, fan), sensor (history graph of 12 to 48 h, on/off timeline), lock (lock, unlock, open,
+  timeline), weather (current values, daily and hourly forecast).
+- Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant), a full
+  screen live view that comes back by itself after a dropped stream.
+- Edit mode on the screen: long press, drag tiles around, remove them, per orientation.
+- Live values over one WebSocket to Home Assistant (`wss://` with certificate check), feedback
+  while an action runs or fails, a start screen until the first values come, an alert strip for
+  errors and hints.
+
+**Screen and device**
+
+- Dark theme on LVGL 8.4. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
+  display, sound, camera, alarm, system.
+- Brightness, dimming and screen off after a time, automatic brightness from a light sensor,
+  rotation from an orientation sensor or by hand.
+- Touch feedback (click, slider ticks, vibration) and an alarm clock with beeps or MP3 files, on
+  boards with a speaker or a motor. Home Assistant makes the device speak a text (tts) or play an
+  MP3 with the event `hassctrl_say`.
+- The JC4880P443C's camera: preview and picture settings on the screen, an MJPEG stream and JPEG
+  snapshots on the web, behind a login.
+
+**Setup and network**
+
+- First setup from the screen or from a phone over the device's hotspot with a captive portal;
+  QR codes to join the hotspot and to open the web UI.
+- Up to 5 saved Wi-Fi networks in a chosen order or by signal, fast reconnect, mDNS
+  (`hassctrl-xxxx.local`), time from SNTP with the time zone of Home Assistant.
+
+**Web UI**
+
+- Status, Home Assistant (URL, token, connection test), Wi-Fi, hotspot, camera, the dashboard
+  editor (preview per orientation, entity picker, YAML import with includes and export), logs with
+  a debug mode, system (backup export and import, updates, restart, factory reset). Plain HTTP
+  with a login.
+
+**Updates and recovery**
+
+- Firmware and file system updates over the network: file upload, URL download or
+  `tools/update.py`; every image is checked for chip, project and board; a firmware that does
+  not confirm itself is rolled back.
+- A recovery app in its own partition with the same Wi-Fi, hotspot and login, a web page built
+  into it and a text screen; 4 MB boards update through it.
+- Settings in NVS, secrets never in a file that can be downloaded; the dashboard and the web
+  files on LittleFS.
+
+**Development**
+
+- A Windows version of the UI with sample states and scripted screenshots, host tests on MSVC for
+  the pure components, a serial console with screenshots and virtual taps, one build script for
+  every board and app.
 
 ## Build
 
@@ -38,7 +100,7 @@ console command `c6 update <url>`, see its device page.
 ## Tests on the PC
 
 The pure components (`memory`, `formats`, `core`, `config`, `hass_protocol`, the URL code of
-`hass`) are compiled for the PC with MSVC of Visual Studio 2022 and tested there. No ESP-IDF
+`hass`, the network choice of `network`) are compiled for the PC with MSVC of Visual Studio 2022 and tested there. No ESP-IDF
 activation is needed; the script finds Visual Studio and the cmake and ninja that ESP-IDF
 installs. cJSON comes from `managed_components/`, so build the firmware once first.
 
@@ -107,7 +169,9 @@ python tools/build.py wt32_sc01 -p COM9 flash
 python tools/build_fs.py wt32_sc01 -p COM9
 ```
 
-The ports of the developer's boards: WT32-SC01 COM9, JC3248W535 COM10, JC4880P443C COM11.
+The ports of the developer's boards: WT32-SC01 COM9, JC3248W535 COM10, JC4880P443C COM11,
+TTGO T4 COM13. `python tools/screenshot.py COM9 out.png` takes a screenshot of a running board
+over the serial console.
 
 ## Web UI
 
@@ -121,7 +185,9 @@ built-in page; `/recovery` always serves that page.
 The image replaces the whole partition, where the dashboard (`/fs/dashboard.json`) lives too.
 Over serial, `build_fs.py` reads the board's partition first and keeps every file outside `/www`
 (`--fresh` keeps nothing). An upload on the System page or with `update.py` does not: export the
-dashboard first (Dashboard, Import & export) and import it afterwards.
+dashboard first (Dashboard, Import & export) and import it afterwards. A dashboard of format
+version 1 (a firmware before 2026-10-14) is converted once with `python tools/convert_dashboard.py`
+before the import.
 
 ## Update over the network
 
@@ -137,4 +203,5 @@ python tools/update.py 192.168.0.206 filesystem build/ttgo_t4/fs/storage.bin
 The password is asked for, or taken from `HC_PASSWORD`.
 
 `python tools/test_web.py 192.168.0.206` checks the web server of a running device (login,
-refusals, load, a stalled client); it changes nothing on the device.
+refusals, load, a stalled client); it changes nothing on the device. `python tools/test_dashboard.py
+192.168.0.206` checks the dashboard API; it replaces the dashboard on the device with the sample.

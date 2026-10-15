@@ -197,4 +197,15 @@ bool call_service_message(uint32_t id, const core::Intent &intent, std::string_v
     return true;
 }
 
+memory::String subscribe_events_message(uint32_t id, std::string_view event_type)
+{
+    return write([&](JsonWriter &w) {
+        w.begin_object()
+            .number("id", id)
+            .string("type", "subscribe_events")
+            .string("event_type", event_type.data(), event_type.size())
+            .end_object();
+    });
+}
+
 } // namespace hc::hass_protocol

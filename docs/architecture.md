@@ -107,7 +107,7 @@ agents.
 | `core` | `memory` | yes | Domain model: `Layout` (pages, tiles, grid placement; running), `EntityStore` (live entity state; running), intents (running), pending/optimistic logic |
 | `config` | `core`, `formats`, `cjson` | yes | Reads the stored dashboard (JSON) and the `hass.yaml` import with its includes into a `core::Layout`, validates it, reports errors with file and line, writes the JSON and the YAML export (section 5, "Dashboard configuration") |
 | `hass_protocol` | `core`, `formats`, `cjson` | yes | The field table; builds `render_template` templates from the tiles of a page, builds `call_service` (running) / statistics / history commands, decodes messages into core types |
-| `hass` | `hass_protocol`, `esp_websocket_client`, `esp_http_client`, `cjson` | no | The session task: connect, auth, reconnect, ping, request ids, subscriptions, chunked statistics, camera fetch |
+| `hass` | `hass_protocol`, `esp_websocket_client`, `esp_http_client`, `cjson` | no | The session task: connect, auth, reconnect, ping, request ids, subscriptions, chunked statistics, camera fetch, the sounds of the hassctrl_say event |
 | `ui` | `core`, `lvgl` | no | Screens, tile views, panels, theme, fonts. Turns touches into intents, store changes into widget updates |
 | `board` | `esp_lcd`, panel and touch drivers | no | Brings up display, touch and backlight for the selected board, returns `esp_lcd` handles. No LVGL, so the recovery app can use it too |
 | `platform` | `littlefs`, `esp_sntp`, `nvs_flash` | no | LittleFS mount, NVS, time sync, log setup |
@@ -481,6 +481,9 @@ What changes:
 * Camera images use `esp_http_client` and a JPEG decoder (`esp_new_jpeg` in software, the
   hardware JPEG driver on the P4), in the media worker: three tasks on the P4, one on the ESP32
   and the S3 (internal RAM), see ui/lvgl/lvgl-camera.md "Camera image".
+* Sounds from Home Assistant: on a board with MP3 (`set_sound_player`) the hass task subscribes
+  the event `hassctrl_say` after `auth_ok` (`subscribe_events`; Home Assistant allows a custom
+  event to administrators only, a refusal is logged). The rest is in section 9.6.
 
 ---
 
@@ -881,7 +884,8 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
 * **One task owns the I2S channel** (priority 5, above LVGL; 5 KB internal stack with MP3, of
   which decoding used 2.1 KB, 3 KB without): sounds are posted to a queue of four; the task takes
   the newest, which replaces the one that plays (quick taps do not queue up clicks). The task
-  reads 128 samples at a time from a `Source` (memory, tone, the built-in beeps, an MP3 file)
+  reads 128 samples at a time from a `Source` (memory, tone, the built-in beeps, an MP3 file or
+  buffer)
   and looks for a newer sound between them. On both boards the channel runs all the time
   (`Info::audio_always_on`); between sounds the DMA sends zeros (`auto_clear`). Stopping it a
   second after the last sound made the amplifier's wake-up audible: the P4's first click after a
@@ -928,7 +932,7 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
     IRAM on the ESP32-S3.
   * Memory: the library allocates through weak `media_lib_module_malloc/calloc/realloc` and
     `media_lib_free`, which call `malloc`; every block under 16 KB went to internal RAM
-    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`, the default on the S3 and P4), 25 KB of the 33 KB left. `file_source.cpp` defines
+    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`, the default on the S3 and P4), 25 KB of the 33 KB left. `mp3_source.cpp` defines
     them and prefers PSRAM: while a file plays the internal RAM stays where it was (39 KB on the
     JC3248W535).
   * The dependency is fetched for the targets of the boards with audio (`target in [esp32s3,
@@ -947,10 +951,31 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
   or Snooze, at most 10 minutes. It needs the clock (SNTP); the time zone comes from Home
   Assistant. A snooze lives in RAM only: a restart while snoozed forgets it.
 
-**Later**: sounds from HTTP URLs (a Home Assistant TTS or media URL) through a reader task and a
-ring buffer in PSRAM, so the audio task never waits on the network; WAV (the codec has a WAV
-parser); what plays them (a doorbell or notification event, a dashboard action). The ES8311's
-microphone input is not used.
+* **Sounds from Home Assistant** (2026-10-14, with `CONFIG_HC_AUDIO_MP3`): an automation fires
+  the event `hassctrl_say` with a `message` and a text-to-speech `engine` (a tts entity;
+  `language` and the engine's `options` map optional, e.g. Google Translate's `tld`; none of
+  Google's sets the speed), or a `url` of an MP3; `device` (the host name, or a list of them) picks
+  the devices, without it every one plays (`hass_protocol::decode_say`, host tested). Chosen over
+  a `media_player` entity (it would need a DLNA renderer or an integration of its own) and over
+  a web API on the device (Home Assistant would need its login); the event reuses the
+  connection and the token. `docs/dashboard-sample/hass.yaml` shows the Home Assistant side.
+  * `hass/src/say.cpp`, a task that exists only while a sound is on its way (6 KB of stack, 8 KB
+    with https or another server's address): a message goes to `POST /api/tts_get_url` with
+    the event's options and `preferred_format: mp3` and one channel over them (Home Assistant
+    converts what the engine makes), the
+    path of the answer is fetched from the device's own address of Home Assistant (the `url` of
+    the answer is built from HA's configured address). A path of the event is Home Assistant's,
+    with the token; another server's address gets no token, also after a redirect (up to three,
+    a new client each: `esp_http_client` kept its transport and sent plain HTTP to the https of
+    a redirect). The whole MP3 goes into PSRAM, at most 1 MB (a sentence of Google's TTS is
+    20 to 30 KB, under a second on the JC3248W535), so the audio task never waits on the network.
+    A newer sound stops a download between two reads. A WAV is refused with a log line.
+  * `audio::play_mp3` takes the buffer; the MP3 source decodes it in place and frees it at the
+    end. It is an announcement: only an alarm or another announcement replaces it, the touch
+    sounds are dropped while it plays; it plays at the volume (0: silent).
+  * Console: `sound say <tts entity> <text>` and `sound url <url>` do what the event does.
+
+The ES8311's microphone input is not used.
 
 ### 9.7 Vibration
 

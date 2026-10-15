@@ -113,4 +113,48 @@ memory::String history_message(uint32_t id, core::HistoryKind kind, std::string_
 bool decode_history(const cJSON *result, core::HistoryKind kind, std::string_view entity_id,
                     memory::Vector<core::HistoryPoint> &out, memory::String &error);
 
+// --------------------------------------------------------------------- sounds (hassctrl_say)
+
+// The event Home Assistant fires to make a device speak or play a sound (docs/architecture.md
+// section 9.6): its data names the device (optional, the host name or a list of them), and a
+// `message` for text to speech with its `engine` (a tts entity), `language` and the engine's
+// `options` (both optional), or a `url` of an MP3: a path of Home Assistant ("/local/door.mp3") or a whole http(s) address.
+constexpr const char *kSayEvent = "hassctrl_say";
+
+// {"id":9,"type":"subscribe_events","event_type":"hassctrl_say"}
+memory::String subscribe_events_message(uint32_t id, std::string_view event_type);
+
+struct Say {
+    memory::String message;
+    memory::String engine;
+    memory::String language;
+    // the event's `options` as JSON text ("{\"tld\":\"co.uk\"}"), empty: none
+    memory::String options;
+    memory::String url;
+};
+
+enum class SayResult : uint8_t {
+    Play,     // for this device: `out` holds what to play
+    NotForUs, // it names other devices
+    Invalid,  // `error` says what is missing
+};
+
+// Decodes the `event` of the subscription ({"event_type":..., "data":{...}}) for the device
+// `device_name` (compared without case).
+SayResult decode_say(const cJSON *event, std::string_view device_name, Say &out, memory::String &error);
+
+// The body of POST /api/tts_get_url: the message with its engine, language and options, as a mono
+// MP3 (HA converts what the engine makes): `preferred_format` and `preferred_sample_channels` are
+// always the device's, whatever the options say.
+memory::String tts_url_request(const Say &say);
+
+// The path of the answer to it ({"url": "http://.../api/tts_proxy/x.mp3", "path": "/api/..."});
+// the device fetches it from its own address of Home Assistant, not from the one HA thinks it has.
+bool decode_tts_url(const cJSON *answer, memory::String &path);
+
+// The address to fetch a sound from: a path is Home Assistant's (`ha_url` "http://h:8123"),
+// fetched with the token; a whole address as it is, with the token only when it is Home
+// Assistant's. False when it is neither.
+bool sound_url(std::string_view ha_url, std::string_view url, memory::String &out, bool &authorize);
+
 } // namespace hc::hass_protocol

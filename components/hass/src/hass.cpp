@@ -23,6 +23,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "hc/hass_protocol/protocol.hpp"
+#include "hc/platform/device.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/time_sync.hpp"
 
@@ -155,6 +156,8 @@ struct Connection {
 std::mutex g_mutex;
 Status g_status{};
 char g_token[kTokenSize] = {};
+// set before start(), read by the task
+SoundPlayer g_sound_player = nullptr;
 
 // The task's events, created with the first use: the UI subscribes its page before start() when
 // the dashboard is loaded fast (the P4: 80 ms before), and that subscription waits in the queue.
@@ -433,6 +436,8 @@ struct Session {
     QueryState query;
     // the get_config request after the authentication (the time zone)
     uint32_t config_id = 0;
+    // the subscription of the hassctrl_say event; 0: none
+    uint32_t say_id = 0;
     PendingCall calls[kMaxCalls] = {};
     size_t next_call = 0;
 };
@@ -610,6 +615,7 @@ void close_connection()
     s.page.id = 0;
     s.page.next_render = 0;
     s.forecast.id = 0;
+    s.say_id = 0;
     for (PendingCall &call : s.calls) {
         if (call.id != 0) {
             report_failed(call.entity, "the connection to Home Assistant broke");
@@ -736,6 +742,36 @@ void send_ping()
     cJSON_AddStringToObject(message, "type", "ping");
     if (!send_json(message)) {
         retry_later("the ping could not be sent");
+    }
+}
+
+// the hassctrl_say event, when there is a player for its sounds
+void subscribe_say()
+{
+    if (g_sound_player == nullptr) {
+        return;
+    }
+    s.say_id = s.next_id++;
+    if (!send_text(hass_protocol::subscribe_events_message(s.say_id, hass_protocol::kSayEvent))) {
+        retry_later("the event subscription could not be sent");
+    }
+}
+
+void on_say_event(const cJSON *root)
+{
+    hass_protocol::Say say;
+    memory::String error;
+    switch (hass_protocol::decode_say(cJSON_GetObjectItemCaseSensitive(root, "event"), platform::device_name(), say,
+                                      error)) {
+    case hass_protocol::SayResult::Play:
+        ESP_LOGI(kTag, "%s: %s", hass_protocol::kSayEvent, !say.message.empty() ? say.message.c_str() : say.url.c_str());
+        detail::start_say(std::move(say));
+        break;
+    case hass_protocol::SayResult::NotForUs:
+        break;
+    case hass_protocol::SayResult::Invalid:
+        ESP_LOGW(kTag, "%s: %s", hass_protocol::kSayEvent, error.c_str());
+        break;
     }
 }
 
@@ -901,6 +937,10 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         on_forecast_event(root);
         return;
     }
+    if (std::strcmp(type, "event") == 0 && id == s.say_id && s.say_id != 0) {
+        on_say_event(root);
+        return;
+    }
     QueryState &q = s.query;
     if (std::strcmp(type, "event") == 0 && id == q.id && q.id != 0) {
         const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
@@ -933,6 +973,15 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
     const bool success = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "success"));
     const cJSON *error = cJSON_GetObjectItemCaseSensitive(root, "error");
     const char *message = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(error, "message"));
+    if (id == s.say_id && s.say_id != 0) {
+        if (!success) {
+            // only an administrator may subscribe events that are not on HA's short list
+            s.say_id = 0;
+            ESP_LOGW(kTag, "%s not subscribed: %s (the token of an administrator is needed)", hass_protocol::kSayEvent,
+                     message != nullptr ? message : "refused");
+        }
+        return;
+    }
     if (id == s.history.id && s.history.id != 0) {
         on_history(root, success, message);
         return;
@@ -1003,6 +1052,7 @@ void on_message(const char *data, size_t length)
         send_get_config();
         render_page();
         render_forecast();
+        subscribe_say();
     } else if (std::strcmp(type, "auth_invalid") == 0) {
         const char *reason = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "message"));
         // Home Assistant's own words ("Invalid access token or password"); the state says the rest
@@ -1453,7 +1503,26 @@ void deliver_event(core::HassEvent event)
     deliver(std::move(event));
 }
 
+SoundPlayer sound_player()
+{
+    return g_sound_player;
+}
+
 } // namespace detail
+
+void set_sound_player(SoundPlayer player)
+{
+    g_sound_player = player;
+}
+
+void say(std::string_view message, std::string_view engine, std::string_view language, std::string_view url)
+{
+    detail::start_say({.message = memory::String(message),
+                       .engine = memory::String(engine),
+                       .language = memory::String(language),
+                       .options = {},
+                       .url = memory::String(url)});
+}
 
 bool take_event(HassEvent &out)
 {

@@ -393,6 +393,77 @@ TEST(protocol_messages)
     CHECK(out.find(R"("color_temp_kelvin":2700)") != std::string::npos);
 }
 
+TEST(protocol_say)
+{
+    CHECK_STR(subscribe_events_message(9, kSayEvent).c_str(),
+              R"({"id":9,"type":"subscribe_events","event_type":"hassctrl_say"})");
+
+    Say say;
+    hc::memory::String error;
+    Json all(cJSON_Parse(R"({"event_type":"hassctrl_say","data":{"message":"Hallo","engine":"tts.piper"}})"));
+    REQUIRE(decode_say(all.get(), "hassctrl-1a2b", say, error) == SayResult::Play);
+    CHECK_STR(say.message.c_str(), "Hallo");
+    CHECK_STR(say.engine.c_str(), "tts.piper");
+    CHECK(say.language.empty() && say.url.empty());
+    CHECK_STR(tts_url_request(say).c_str(), R"({"engine_id":"tts.piper","message":"Hallo",)"
+                                            R"("options":{"preferred_format":"mp3","preferred_sample_channels":1}})");
+    say.language = "de";
+    CHECK_STR(tts_url_request(say).c_str(), R"({"engine_id":"tts.piper","message":"Hallo","language":"de",)"
+                                            R"("options":{"preferred_format":"mp3","preferred_sample_channels":1}})");
+
+    // the device by its host name, without case, or in a list
+    Json one(cJSON_Parse(R"({"data":{"device":"HassCtrl-1A2B","url":"/local/door.mp3"}})"));
+    REQUIRE(decode_say(one.get(), "hassctrl-1a2b", say, error) == SayResult::Play);
+    CHECK_STR(say.url.c_str(), "/local/door.mp3");
+    CHECK(decode_say(one.get(), "hassctrl-9999", say, error) == SayResult::NotForUs);
+    Json list(cJSON_Parse(R"({"data":{"device":["hassctrl-9999","hassctrl-1a2b"],"url":"/local/door.mp3"}})"));
+    CHECK(decode_say(list.get(), "hassctrl-1a2b", say, error) == SayResult::Play);
+    CHECK(decode_say(list.get(), "hassctrl-0000", say, error) == SayResult::NotForUs);
+
+    // the engine's options pass, the device's format stays
+    Json options(cJSON_Parse(R"({"data":{"message":"Hi","engine":"tts.google_en_com",)"
+                             R"("options":{"tld":"co.uk","preferred_format":"wav","preferred_sample_rate":22050}}})"));
+    REQUIRE(decode_say(options.get(), "hassctrl-1a2b", say, error) == SayResult::Play);
+    CHECK_STR(say.options.c_str(), R"({"tld":"co.uk","preferred_format":"wav","preferred_sample_rate":22050})");
+    CHECK_STR(tts_url_request(say).c_str(), R"({"engine_id":"tts.google_en_com","message":"Hi","options":)"
+                                            R"({"tld":"co.uk","preferred_sample_rate":22050,"preferred_format":"mp3",)"
+                                            R"("preferred_sample_channels":1}})");
+    Json not_a_map(cJSON_Parse(R"({"data":{"message":"Hi","engine":"tts.x","options":"slow"}})"));
+    CHECK(decode_say(not_a_map.get(), "hassctrl-1a2b", say, error) == SayResult::Invalid);
+    CHECK_STR(error.c_str(), "options is not a map");
+
+    Json empty(cJSON_Parse(R"({"data":{}})"));
+    CHECK(decode_say(empty.get(), "hassctrl-1a2b", say, error) == SayResult::Invalid);
+    CHECK_STR(error.c_str(), "neither a message nor a url");
+    Json no_engine(cJSON_Parse(R"({"data":{"message":"Hallo"}})"));
+    CHECK(decode_say(no_engine.get(), "hassctrl-1a2b", say, error) == SayResult::Invalid);
+    CHECK_STR(error.c_str(), "a message needs its engine (a tts entity)");
+
+    hc::memory::String path;
+    Json answer(cJSON_Parse(R"({"url":"https://ha.example.com/api/tts_proxy/abc.mp3","path":"/api/tts_proxy/abc.mp3"})"));
+    REQUIRE(decode_tts_url(answer.get(), path));
+    CHECK_STR(path.c_str(), "/api/tts_proxy/abc.mp3");
+    Json old(cJSON_Parse(R"({"url":"http://192.168.1.2:8123/api/tts_proxy/abc.mp3"})"));
+    REQUIRE(decode_tts_url(old.get(), path));
+    CHECK_STR(path.c_str(), "/api/tts_proxy/abc.mp3");
+    Json broken(cJSON_Parse(R"({"message":"Must specify platform and message"})"));
+    CHECK(!decode_tts_url(broken.get(), path));
+
+    hc::memory::String url;
+    bool authorize = false;
+    REQUIRE(sound_url("http://h:8123", "/local/door.mp3", url, authorize));
+    CHECK_STR(url.c_str(), "http://h:8123/local/door.mp3");
+    CHECK(authorize);
+    REQUIRE(sound_url("http://h:8123", "http://h:8123/local/door.mp3", url, authorize));
+    CHECK(authorize);
+    REQUIRE(sound_url("http://h:8123", "http://h:81234/door.mp3", url, authorize));
+    CHECK(!authorize);
+    REQUIRE(sound_url("http://h:8123", "https://example.com/door.mp3", url, authorize));
+    CHECK_STR(url.c_str(), "https://example.com/door.mp3");
+    CHECK(!authorize);
+    CHECK(!sound_url("http://h:8123", "media-source://tts/x", url, authorize));
+}
+
 TEST(protocol_picker_messages)
 {
     // the search text goes in as a variable: quotes and Jinja need no escaping

@@ -2,6 +2,12 @@
 
 ## 2026-10-14
 
+- README: a feature list at the top, kept current with every change (CLAUDE.md); the host test
+  list names `network`, the T4's port, the conversion of a version 1 dashboard, the screenshot
+  and dashboard test tools.
+- Sounds from Home Assistant: the event `hassctrl_say` speaks a text (a tts entity) or plays an
+  MP3 URL on boards with a speaker; console `sound say` / `sound url` (architecture.md 9.6).
+  The event's `options` go to the engine (Google Translate: `tld`, the accent; confirmed by you).
 - The alert strip shows at most 3 lines, a longer message ends in "..." (approved by you).
 - Web files: a client that does not take gzip gets 406 instead of compressed data (`curl` needs
   `--compressed`).

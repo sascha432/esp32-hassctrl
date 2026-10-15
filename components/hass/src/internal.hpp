@@ -9,6 +9,7 @@
 #include "esp_err.h"
 #include "hc/core/entity.hpp"
 #include "hc/hass/hass.hpp"
+#include "hc/hass_protocol/protocol.hpp"
 
 namespace hc::hass::detail {
 
@@ -37,6 +38,12 @@ void deliver_event(core::HassEvent event);
 
 // the UI took a frame of the stream that plays (media.cpp decodes the next one)
 void frame_taken();
+
+// the player of set_sound_player(), nullptr: none
+SoundPlayer sound_player();
+
+// fetches and plays a sound of the hassctrl_say event (say.cpp); a newer one replaces it
+void start_say(hass_protocol::Say say);
 
 // A zeroed buffer a decoder reads all the time (its tables and lines; media.cpp): internal RAM,
 // which is faster, only while it leaves 32 KB free (Wi-Fi, lwIP and TLS allocate at any moment and

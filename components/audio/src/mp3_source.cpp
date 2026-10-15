@@ -1,4 +1,4 @@
-#include "file_source.hpp"
+#include "mp3_source.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -55,17 +55,17 @@ extern "C" void media_lib_free(void *buffer)
 
 namespace hc::audio::detail {
 
-FileSource::~FileSource()
+Mp3Source::~Mp3Source()
 {
     close();
 }
 
-void FileSource::init()
+void Mp3Source::init()
 {
     esp_mp3_dec_register();
 }
 
-bool FileSource::open(const char *path)
+bool Mp3Source::open(const char *path)
 {
     close();
     file_ = ::open(path, O_RDONLY);
@@ -73,12 +73,8 @@ bool FileSource::open(const char *path)
         ESP_LOGW(kTag, "%s: cannot open", path);
         return false;
     }
-    esp_audio_simple_dec_cfg_t config{};
-    config.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3;
     in_ = static_cast<uint8_t *>(allocate(kInSize));
-    frame_ = static_cast<uint8_t *>(allocate(kFrameSize));
-    frame_size_ = kFrameSize;
-    if (in_ == nullptr || frame_ == nullptr || esp_audio_simple_dec_open(&config, &decoder_) != ESP_AUDIO_ERR_OK) {
+    if (in_ == nullptr || !open_decoder()) {
         ESP_LOGW(kTag, "%s: no memory for the decoder", path);
         close();
         return false;
@@ -86,7 +82,31 @@ bool FileSource::open(const char *path)
     return true;
 }
 
-void FileSource::close()
+bool Mp3Source::open(uint8_t *data, size_t size)
+{
+    close();
+    // the whole MP3 is the input: nothing more to read
+    in_ = data;
+    in_end_ = size;
+    end_of_file_ = true;
+    if (data == nullptr || size == 0 || !open_decoder()) {
+        ESP_LOGW(kTag, "no memory for the decoder");
+        close();
+        return false;
+    }
+    return true;
+}
+
+bool Mp3Source::open_decoder()
+{
+    esp_audio_simple_dec_cfg_t config{};
+    config.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3;
+    frame_ = static_cast<uint8_t *>(allocate(kFrameSize));
+    frame_size_ = kFrameSize;
+    return frame_ != nullptr && esp_audio_simple_dec_open(&config, &decoder_) == ESP_AUDIO_ERR_OK;
+}
+
+void Mp3Source::close()
 {
     if (decoder_ != nullptr) {
         esp_audio_simple_dec_close(decoder_);
@@ -104,20 +124,26 @@ void FileSource::close()
     pcm_count_ = pcm_position_ = 0;
 }
 
-bool FileSource::restart()
+bool Mp3Source::restart()
 {
-    if (file_ < 0 || ::lseek(file_, 0, SEEK_SET) != 0) {
+    if (decoder_ == nullptr) {
         return false;
     }
+    if (file_ >= 0) {
+        if (::lseek(file_, 0, SEEK_SET) != 0) {
+            return false;
+        }
+        in_end_ = 0;
+        end_of_file_ = false;
+    }
     esp_audio_simple_dec_reset(decoder_);
-    in_start_ = in_end_ = 0;
-    end_of_file_ = false;
+    in_start_ = 0;
     pcm_count_ = pcm_position_ = 0;
     return true;
 }
 
 // what is left of the input to the front, the rest from the file
-bool FileSource::fill()
+bool Mp3Source::fill()
 {
     if (end_of_file_) {
         return false;
@@ -131,7 +157,7 @@ bool FileSource::fill()
     return true;
 }
 
-bool FileSource::decode()
+bool Mp3Source::decode()
 {
     for (;;) {
         if (in_start_ == in_end_ && !fill()) {
@@ -190,7 +216,7 @@ bool FileSource::decode()
     }
 }
 
-size_t FileSource::read(int16_t *out, size_t max)
+size_t Mp3Source::read(int16_t *out, size_t max)
 {
     if (decoder_ == nullptr || (pcm_position_ == pcm_count_ && !decode())) {
         return 0;

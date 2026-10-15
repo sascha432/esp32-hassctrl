@@ -38,7 +38,7 @@
 #hass:
 #  url: http://homeassistant.local:8123
 #  # a long-lived access token (Home Assistant: your profile, Security). Without it the stored
-#  # token stays.
+#  # token stays. Sounds from Home Assistant (below, `sound`) need the token of an administrator.
 #  token: paste-a-long-lived-access-token-here
 #  # only for https with a self-signed certificate: its SHA-256, trusted on the device
 #  certificate: "AB:CD:..."
@@ -86,6 +86,24 @@
 #  light_max_lx: 350        # 1 to 100000
 
 # Sounds and vibration, on boards that have them.
+#
+# Home Assistant makes a device with a speaker talk or play an MP3 with the event `hassctrl_say`,
+# no setting here (an action in an automation or script of Home Assistant, not in this file):
+#
+#   - event: hassctrl_say
+#     event_data:
+#       device: hassctrl-1a2b     # its name (top of its web UI); without it every device plays
+#       message: The washing machine is done
+#       engine: tts.google_en_com # a text-to-speech entity of Home Assistant
+#       language: en              # optional
+#       options:                  # optional, the engine's own (Google Translate: tld, the accent)
+#         tld: co.uk
+#       # or instead of message: url: /local/doorbell.mp3 (a file of Home Assistant's www folder,
+#       # or a whole http(s) address), an MP3 of at most 1 MB
+#
+# Developer tools, Events fires it by hand (event type hassctrl_say, the event_data as data).
+#
+# It plays at the volume below; an alarm that rings comes first.
 #sound:
 #  volume: 50               # 0 to 100
 #  tap_sound: true

@@ -4,7 +4,8 @@
 // CONFIG_HC_AUDIO. One task owns the I2S channel and plays one sound at a time: a newer sound
 // replaces the one that plays, so quick taps do not queue up clicks. An alarm sound is the
 // exception: it plays at full volume whatever the volume is, and only stop_alarm() or another
-// alarm sound replaces it. The channel runs only while a sound plays and stops a second after the
+// alarm sound replaces it. An announcement (play_mp3) is one in between: only an alarm or another
+// announcement replaces it, the touch sounds are dropped while it plays. The channel runs only while a sound plays and stops a second after the
 // last one, unless Config::keep_running.
 //
 // The built-in sounds are 16 bit mono PCM at kSampleRate; an MP3 file (CONFIG_HC_AUDIO_MP3) plays
@@ -67,6 +68,10 @@ void play_tick();
 #if CONFIG_HC_AUDIO_MP3
 // An MP3 file at the volume; a file that cannot be read is logged and skipped.
 void play_file(const char *path);
+
+// An MP3 in memory at the volume, as an announcement (a sound from Home Assistant). Takes `data`
+// (heap_caps_malloc; PSRAM is fine), also when it does not play: freed with heap_caps_free.
+void play_mp3(uint8_t *data, size_t size);
 #endif
 
 // The alarm: an MP3 file (CONFIG_HC_AUDIO_MP3), or the built-in beeps when `path` is empty or

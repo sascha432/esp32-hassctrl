@@ -11,6 +11,8 @@
 - Boards and ports: see README.md ("Flash") and docs/TODO.md. Flash the board under test after a change.
 - **Icon list changed** (`components/core/src/icons.cpp`, `UI_GLYPHS` in `tools/build_icons.py`): run `python tools/build_icons.py`
   (fonts of ui and `web/icons.svg`), commit the generated files with the change, flash firmware and web image.
+- **Feature list with every change.** `README.md` starts with the list of features. A feature that
+  is new, changed or gone changes the list in the same commit; keep it short, one line per point.
 - **Docs with every change.** Update the affected `docs/*.md` (architecture, adding-a-board, CHANGELOG, the
   pages under `docs/ui` and `docs/devices`) in the same commit as the code. Check `docs/TODO.md`: mark items
   done or changed, add new open points, update the state lines.

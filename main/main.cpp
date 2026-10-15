@@ -183,6 +183,10 @@ void start_audio(const hc::board::Info &board)
         return;
     }
     ui_sound::apply_stored_volume();
+#if CONFIG_HC_AUDIO_MP3
+    // the sounds of Home Assistant's hassctrl_say event (before hass::start)
+    hc::hass::set_sound_player(hc::audio::play_mp3);
+#endif
 }
 #endif
 
