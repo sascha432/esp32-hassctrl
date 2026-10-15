@@ -37,6 +37,7 @@
 #include "hc/orientation/orientation.hpp"
 #include "hc/platform/device.hpp"
 #include "hc/platform/storage.hpp"
+#include "hc/motion/motion.hpp"
 #include "hc/relay/relay.hpp"
 #include "hc/platform/system_info.hpp"
 #include "hc/platform/time_sync.hpp"
@@ -474,14 +475,14 @@ extern "C" void app_main()
 #endif
 
     const auto &board = hc::board::info();
-    ESP_LOGI(kTag, "board %s, panel %ux%u, touch %s", board.name, board.width, board.height,
-             board.has_touch ? "yes" : "no");
+    ESP_LOGI(kTag, "board %s%s%s, panel %ux%u, touch %s", board.name, board.variant != nullptr ? " variant " : "",
+             board.variant != nullptr ? board.variant : "", board.width, board.height, board.has_touch ? "yes" : "no");
 
     hc::board::Handles handles{};
     if (hc::board::init(handles) == ESP_OK) {
         lv_disp_t *disp = start_lvgl(handles);
         const bool imu = disp != nullptr && board.imu_address != 0 && handles.i2c != nullptr &&
-                         hc::orientation::start(handles.i2c, board.imu_address, board.imu_axes, board.imu_offset, on_rotation, nullptr) == ESP_OK;
+                         hc::orientation::start(handles.i2c, board.imu_address, board.imu_axes.data(), board.imu_offset.data(), on_rotation, nullptr) == ESP_OK;
         // optional per device: automatic brightness when one answers
         const bool bh1750 = handles.i2c != nullptr &&
                             hc::light_sensor::start(handles.i2c, board.light_sensor_scale) == ESP_OK;
@@ -498,8 +499,14 @@ extern "C" void app_main()
         }
 #endif
         // before hass::start; Home Assistant's entities switch the relays
-        if (hc::relay::start(board.relay_gpios, std::size(board.relay_gpios)) == ESP_OK && hc::relay::running()) {
+        if (hc::relay::start(board.relay_gpios.data(), board.relay_gpios.size()) == ESP_OK && hc::relay::running()) {
             hc::hass::set_relay_handler([](unsigned relay, bool on) { hc::relay::set(relay, on); });
+        }
+        // the motion sensor's state goes to Home Assistant's text helper (hass queues it until connected)
+        if (board.motion_gpio >= 0 &&
+            hc::motion::start(board.motion_gpio, board.motion_active_high,
+                              [](bool occupied) { hc::hass::publish_motion(occupied); }) != ESP_OK) {
+            ESP_LOGW(kTag, "motion sensor did not start");
         }
         if (disp != nullptr && lvgl_port_lock(0)) {
             const hc::ui::Options ui_options{.slide_pages = board.ui_slide_pages,

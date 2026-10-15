@@ -422,6 +422,18 @@ TEST(protocol_relays)
     CHECK(!decode_relays(bad.get(), states));
 }
 
+TEST(protocol_motion)
+{
+    CHECK_STR(device_entity_name("HassCtrl-7E7D").c_str(), "hassctrl_7e7d");
+    CHECK_STR(motion_entity_id("hassctrl-7e7d").c_str(), "input_text.hassctrl_7e7d_motion");
+    CHECK_STR(motion_message(12, "hassctrl-7e7d", true).c_str(),
+              R"({"id":12,"type":"call_service","domain":"input_text","service":"set_value",)"
+              R"("service_data":{"value":"Occupied"},"target":{"entity_id":"input_text.hassctrl_7e7d_motion"}})");
+    Json clear(cJSON_Parse(motion_message(13, "hassctrl-7e7d", false).c_str()));
+    REQUIRE(clear);
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(cJSON_GetObjectItem(clear.get(), "service_data"), "value")), "Clear");
+}
+
 TEST(protocol_say)
 {
     CHECK_STR(subscribe_events_message(9, kSayEvent).c_str(),

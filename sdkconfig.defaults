@@ -4,6 +4,8 @@
 #   sdkconfig.defaults                 this file
 #   boards/<board>/sdkconfig.defaults  target, flash, PSRAM, partition table, board choice
 #   sdkconfig.<app>                    main or recovery, if the file exists
+#   boards/<board>/variants/<variant>/sdkconfig.defaults
+#                                      a variant of the board (not in git), if the file exists
 #
 # tools/build.py passes the layers; the generated sdkconfig lives in the build directory.
 

@@ -155,6 +155,10 @@ memory::String tts_url_request(const Say &say);
 // with "-" as "_" ("hassctrl-7e7d": hassctrl_7e7d_relay_1).
 constexpr unsigned kMaxRelays = 4;
 
+// The device's name as the first part of its entity ids: "hassctrl_7e7d" for "hassctrl-7e7d"
+// (letters and digits in lower case, anything else "_").
+memory::String device_entity_name(std::string_view device_name);
+
 // "hassctrl_7e7d_relay_" for "hassctrl-7e7d"
 memory::String relay_entity_prefix(std::string_view device_name);
 
@@ -171,6 +175,19 @@ struct RelayStates {
 // Decodes the `result` of that subscription (an object, or the same as a JSON string); numbers
 // beyond kMaxRelays are ignored. False when it is not an object.
 bool decode_relays(const cJSON *result, RelayStates &out);
+
+// ----------------------------------------------------------------------------- motion sensor
+
+// The motion sensor of a board (docs/architecture.md section 9.7b) sets the text helper
+// input_text.<device>_motion, which the user creates in Home Assistant, to one of these.
+constexpr const char *kMotionOccupied = "Occupied";
+constexpr const char *kMotionClear = "Clear";
+
+// "input_text.hassctrl_7e7d_motion" for "hassctrl-7e7d"
+memory::String motion_entity_id(std::string_view device_name);
+
+// The call_service message that sets the helper: input_text.set_value with the value for `occupied`.
+memory::String motion_message(uint32_t id, std::string_view device_name, bool occupied);
 
 // The path of the answer to it ({"url": "http://.../api/tts_proxy/x.mp3", "path": "/api/..."});
 // the device fetches it from its own address of Home Assistant, not from the one HA thinks it has.

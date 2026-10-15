@@ -125,7 +125,12 @@ struct Query {
     std::shared_ptr<QueryWait> wait;
 };
 
-using Command = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast>;
+// the state of the motion sensor for input_text.<device>_motion
+struct Motion {
+    bool occupied = false;
+};
+
+using Command = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast, Motion>;
 
 struct Event {
     EventType type = EventType::Reconnect;
@@ -443,6 +448,11 @@ struct Session {
     uint32_t relay_id = 0;
     // what the handler was told last, bit n-1 for relay n; a connection starts again
     hass_protocol::RelayStates relays;
+    // the motion sensor's state to publish, -1: none yet; the call on its way (0: none), and
+    // whether a failed one was logged on this connection
+    int8_t motion = -1;
+    uint32_t motion_id = 0;
+    bool motion_failed = false;
     PendingCall calls[kMaxCalls] = {};
     size_t next_call = 0;
 };
@@ -623,6 +633,8 @@ void close_connection()
     s.say_id = 0;
     s.relay_id = 0;
     s.relays = {};
+    s.motion_id = 0;
+    s.motion_failed = false;
     for (PendingCall &call : s.calls) {
         if (call.id != 0) {
             report_failed(call.entity, "the connection to Home Assistant broke");
@@ -795,6 +807,20 @@ void subscribe_relays()
     }
 }
 
+// the motion sensor's state to Home Assistant's helper, when connected and there is one
+void send_motion()
+{
+    if (!s.authenticated || s.motion < 0) {
+        return;
+    }
+    s.motion_id = s.next_id++;
+    const bool occupied = s.motion != 0;
+    ESP_LOGI(kTag, "motion -> %s", occupied ? hass_protocol::kMotionOccupied : hass_protocol::kMotionClear);
+    if (!send_text(hass_protocol::motion_message(s.motion_id, platform::device_name(), occupied))) {
+        retry_later("the motion state could not be sent");
+    }
+}
+
 // a state of the template: the handler hears of every relay that is new or changed. A relay whose
 // entity is gone keeps its state.
 void on_relay_event(const cJSON *root)
@@ -936,6 +962,14 @@ void on_command(Command &command)
         render_forecast();
         return;
     }
+    if (const auto *motion = std::get_if<Motion>(&command)) {
+        const int8_t state = motion->occupied ? 1 : 0;
+        if (state != s.motion) {
+            s.motion = state;
+            send_motion();
+        }
+        return;
+    }
     auto &call = std::get<Call>(command);
     if (!s.authenticated) {
         report_failed(call.intent.entity, "not connected to Home Assistant");
@@ -1039,6 +1073,16 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         }
         return;
     }
+    if (id == s.motion_id && s.motion_id != 0) {
+        s.motion_id = 0;
+        if (!success && !s.motion_failed) {
+            // once per connection; the next change of the sensor tries again
+            s.motion_failed = true;
+            ESP_LOGW(kTag, "motion not published: %s (create the text helper %s in Home Assistant)",
+                     message != nullptr ? message : "refused", hass_protocol::motion_entity_id(platform::device_name()).c_str());
+        }
+        return;
+    }
     if (id == s.history.id && s.history.id != 0) {
         on_history(root, success, message);
         return;
@@ -1111,6 +1155,7 @@ void on_message(const char *data, size_t length)
         render_forecast();
         subscribe_say();
         subscribe_relays();
+        send_motion();
     } else if (std::strcmp(type, "auth_invalid") == 0) {
         const char *reason = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "message"));
         // Home Assistant's own words ("Invalid access token or password"); the state says the rest
@@ -1576,6 +1621,11 @@ void set_sound_player(SoundPlayer player)
 void set_relay_handler(RelayHandler handler)
 {
     g_relay_handler = handler;
+}
+
+void publish_motion(bool occupied)
+{
+    post_command(Motion{.occupied = occupied});
 }
 
 void say(std::string_view message, std::string_view engine, std::string_view language, std::string_view url)

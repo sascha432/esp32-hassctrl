@@ -1,5 +1,8 @@
 tmp1/**
 
+# private variants of a board (docs/adding-a-board.md "Variants")
+boards/*/variants/
+
 # build output (tools/build.py: build/<board>/<app>)
 build/
 managed_components/

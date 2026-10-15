@@ -16,6 +16,7 @@
 #include "esp_log.h"
 
 #include "backlight.hpp"
+#include "hc_board_variant.hpp"
 
 // the board tag of every image built for this board (hc::board::ImageTag); CMakeLists.txt keeps it
 extern "C" constexpr hc::board::ImageTag hc_image_tag __attribute__((section(".rodata_custom_desc"), used)) = {
@@ -29,7 +30,9 @@ constexpr const char *kTag = "board";
 
 // The controller memory is portrait 320x480. The base orientation is landscape 480x320, the
 // orientation of the old firmware (LovyanGFX rotation 1): row/column exchange, no mirroring.
-constexpr Info kInfo{
+// The add-ons (LDR, motor, the MPU6050 calibration) are those of the developer's unit, an example;
+// another unit's go into a variant (hc_board_variant.hpp).
+constexpr Info kInfo = variant::apply(Info{
     .name = "WT32-SC01",
     .width = 480,
     .height = 320,
@@ -60,7 +63,7 @@ constexpr Info kInfo{
     // the other way up than the screen reads at rotation 0.
     .imu_axes = {0.0106f, 0.9999f, 0.0131f, 0.9991f, -0.0111f, 0.0418f},
     .imu_offset = {-0.1248f, -0.5314f, 0.2124f},
-};
+});
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));
 

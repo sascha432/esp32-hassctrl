@@ -22,12 +22,18 @@ struct JsonDeleter {
 
 } // namespace
 
+memory::String device_entity_name(std::string_view device_name)
+{
+    memory::String name;
+    for (const char c : device_name) {
+        name += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '_';
+    }
+    return name;
+}
+
 memory::String relay_entity_prefix(std::string_view device_name)
 {
-    memory::String prefix;
-    for (const char c : device_name) {
-        prefix += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '_';
-    }
+    memory::String prefix = device_entity_name(device_name);
     prefix += "_relay_";
     return prefix;
 }

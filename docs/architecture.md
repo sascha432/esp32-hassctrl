@@ -52,7 +52,9 @@ Non-goals for the first version (seams are left for them, see section 9):
   `idf_component.yml`, locked in `dependencies.lock` (committed).
 * One build directory per board and application. Board selection is a Kconfig choice set by the
   board's defaults file. `tools/build.py` passes the layers and the target; see the README for the
-  commands.
+  commands. The layers, a later one wins: `sdkconfig.defaults`, `boards/<board>/sdkconfig.defaults`,
+  `sdkconfig.<app>`, then the `sdkconfig.defaults` of a variant (section 8, "Variants") when the
+  build is for one (`<board>.<variant>`, build directory `build/<board>.<variant>/<app>`).
 * One ESP-IDF project builds both applications: `HC_APP=main` or `HC_APP=recovery` excludes the
   other application's top-level component (section 9.5).
 * FreeRTOS tick 1 ms (`CONFIG_FREERTOS_HZ=1000`, `sdkconfig.main`). esp_lvgl_port sleeps at
@@ -554,6 +556,16 @@ const Info &info();                    // name, resolution, has_touch, psram
   Kconfig option is selected (`if(CONFIG_HC_BOARD_WT32_SC01)` in the component's CMake).
   No `#ifdef` chains inside shared sources.
 * Pins and panel parameters live in the board's own source file, not in Kconfig.
+* **Variants** (2026-10-15): the add-ons of one unit (an LDR, a motor, relays, the calibration of
+  its MPU6050, a config option) are a private directory `boards/<board>/variants/<name>/`, ignored
+  by git. Its `hc_board_variant.hpp` is a copy of `components/board/src/variant/hc_board_variant.hpp`
+  whose constexpr `variant::apply(Info)` changes the fields of the board's `Info`; every board file
+  builds its `kInfo` through it, and `tools/build.py <board>.<name>` puts the variant's directory
+  on the include path instead of the default, which changes nothing. An `sdkconfig.defaults` in
+  the directory is the last config layer. The board file in the repository keeps an example of
+  every add-on (the developer's unit). `Info::variant` names it in the boot log and on Settings,
+  System; the image tag (`ImageTag`) stays the board type, so every image of the type is accepted
+  by the update check. Steps: [adding-a-board.md](adding-a-board.md) "Variants".
 * The backlight is PWM through the LEDC peripheral at 25 kHz (decided: 1, 5 and 25 kHz look the
   same on the WT32-SC01, so the highest one stays). Brightness in percent goes through a
   perceptual curve, the inverse of the CIE lightness (decided: it feels smooth down to the
@@ -573,6 +585,8 @@ const Info &info();                    // name, resolution, has_touch, psram
   (section 9.7).
 * A MIPI-CSI camera: the board's Kconfig option selects `HC_BOARD_HAS_CAMERA`, which builds the
   `camera` component; the sensor is found on the board's I2C bus (`Handles::i2c`, section 9.8).
+* Relays (`Info::relay_gpios`, section 9.7a) and a motion sensor (`Info::motion_gpio`, section
+  9.7b) are plain GPIOs named in `Info`; their components are always built and idle without a pin.
 * **Touch input** (`touch_input`, since 2026-10-09): a task samples the touch controller every
   10 ms (priority 5) and queues every change; LVGL's read takes them in order, all waiting ones in
   one read (`continue_reading`). esp_lvgl_port read the controller in the LVGL task every 30 ms
@@ -1037,6 +1051,28 @@ the host name with `_` (`hassctrl-7e7d` is `input_boolean.hassctrl_7e7d_relay_1`
   next change overrides it.
 * Two entities with the same number (a switch and an input_boolean): the last one listed wins.
 
+### 9.7b Motion sensor
+
+Component `motion` (2026-10-15): a PIR on a GPIO of the board (`Info::motion_gpio`, -1: none;
+`Info::motion_active_high`: the level of its output while it sees motion). The other way round
+from the relays: the device tells Home Assistant. It sets the text helper
+`input_text.<device>_motion` (`input_text.hassctrl_7e7d_motion`, the host name with `_`) to
+`Occupied` or `Clear`; the user creates the helper (Settings, Devices, Helpers, Text), nothing is
+configured on the device. The JC4880P443C: GPIO 34 of the expansion header, active low.
+
+* **Pin**: an input with the internal pull toward the level that means clear (pull-down for an
+  active high sensor, pull-up for active low), so an unplugged sensor reads clear. An esp_timer
+  samples it every 100 ms; a level that holds for two samples is the state (a PIR holds its output
+  for seconds, an interrupt would add nothing). Every change, and the first state, goes to the
+  handler `main` gave it: `hass::publish_motion`.
+* **Publishing**: a command of the hass task (`Motion`); the task remembers the last state, sends
+  `input_text.set_value` (hass_protocol `motion_message`, `target.entity_id`) when it is
+  connected and the state changed, and sends the last state again after every `auth_ok`, so the
+  helper follows the sensor across reconnects. A failed call (no such helper) is logged once per
+  connection with the entity id to create; the next change tries again. A normal token is enough.
+* Console `motion [status|occupied|clear]`: the state, or a state sent by hand to try the helper
+  without the sensor; the sensor's next change overrides it.
+
 ### 9.8 Camera
 
 The JC4880P443C's camera, an OV02C10 (2 MP) on the 15-pin MIPI-CSI connector
@@ -1089,13 +1125,14 @@ esp32-hassctrl/
   sdkconfig.main, sdkconfig.recovery (+ .esp32, .esp32p4)   per application and target
   partitions/                    4mb.csv, 16mb.csv
   boards/<name>/sdkconfig.defaults   target, flash, PSRAM, board choice
+  boards/<name>/variants/<variant>/  private (not in git): hc_board_variant.hpp, sdkconfig.defaults
   boards/jc4880p443c/c6/         ESP-IDF project of the board's ESP32-C6 (esp_hosted coprocessor)
   main/                          app_main and the wiring: ui_backend, ui_sound, backup, camera_preview
   recovery/                      the recovery app (section 9.5): its own app_main, same components
   components/
     <name>/      include/hc/<name>/*.hpp  src/   one per component of sections 3 and 9.4
     ui/          src/ flat: one file per screen, tile view, panel, Settings page; src/fonts/
-    board/       include/hc/board/board.hpp  boards/<name>/
+    board/       include/hc/board/board.hpp  boards/<name>/  src/variant/ the variant that changes nothing
     camera/      ov02c10/ the vendor's sensor driver with its changes (README)
     esp_driver_ppa/  overrides the IDF's PPA driver: its sources, ppa_srm.c with the DIG-734 flag forced (README)
   host/

@@ -26,6 +26,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | speaker amplifier on I2S (often missing from the datasheet: look at working configurations of the module) | `Info::audio_*`, `select HC_BOARD_HAS_AUDIO` (step 9) |
 | vibration motor and its GPIO | `Info::vibration_gpio`, `select HC_BOARD_HAS_VIBRATION` (step 10) |
 | relays for Home Assistant | `Info::relay_gpios` (up to 4, all four named: `{32, -1, -1, -1}`; -1 = none), see architecture.md 9.7a |
+| motion sensor (PIR) and the level of its output while it sees motion | `Info::motion_gpio` (-1 = none), `Info::motion_active_high`, see architecture.md 9.7b |
 | camera connector (MIPI-CSI): lanes, SCCB bus and address, power enable and reset pins, a clock from the chip or on the module, the MIPI PHY supply; the sensor on the module (chip ID) | device page, `select HC_BOARD_HAS_CAMERA` (step 11) |
 
 ## 2. Create the files
@@ -37,6 +38,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | `components/board/CMakeLists.txt` | `if(CONFIG_HC_BOARD_<NAME>)` adds `boards/<name>/<name>.cpp` |
 | `components/board/boards/<name>/<name>.cpp` | `Info`, `init()` and the backlight functions, like the existing boards |
 | `components/board/idf_component.yml` | the panel and touch drivers from the component registry |
+| `boards/<name>/variants/<variant>/` | not in git: the add-ons of one unit, see "Variants" at the end |
 
 The `Info` fields:
 
@@ -129,7 +131,9 @@ Check in the boot log:
       and `orient capture flat` lying on the table with the screen up. Opposite poses cancel the
       offset. The console then prints the gain, the angle between 0 and 90 (refused unless 85 to
       95), the tilt of the module, and the lines `.imu_axes = {...}` and `.imu_offset = {...}` for
-      the board info. Rest is decided from the accelerometer alone (the reading changes less than
+      the board info, then the same as `info.imu_axes = {...};` for the variant of the unit (the
+      calibration is the module's, not the board type's: the board file keeps one as the example,
+      every other unit gets a variant, see "Variants"). Rest is decided from the accelerometer alone (the reading changes less than
       0.05 g between two samples, `orient` shows the largest change of the last second, about 0.01
       at rest); the gyroscope is not used, because a module can read 12 deg/s at rest, near the
       old limit of 15, and noise on it delayed a new orientation at random. Rebuild, check all four
@@ -196,7 +200,9 @@ Steps:
 ## 10. Vibration motor (if the board has one)
 
 - [ ] The motor's GPIO goes into `Info::vibration_gpio` (high = on, through a transistor), and the
-      board's Kconfig choice entry gets `select HC_BOARD_HAS_VIBRATION`.
+      board's Kconfig choice entry gets `select HC_BOARD_HAS_VIBRATION`. A motor on a header, not
+      part of the board type: the board file keeps it as the example, another unit's pin and pulse
+      go into its variant (see "Variants"); the same for an LDR and for relays.
 - [ ] The boot log shows `vibration: motor on GPIO .., click .. ms`. `vibrate 300`, then
       `vibrate status` right away (`on`) and a second later (`off`).
 - [ ] **The click length, measured by the developer**: try `vibrate <ms>` from short to long
@@ -249,6 +255,30 @@ OV02C10 of the JC4880P443C (docs/devices/JC4880P443C, "Camera", and architecture
 - [ ] Device page: verified settings, where they came from, the measurements of steps 4 and 6.
 - [ ] `docs/architecture.md` section 8: the board in the board table.
 - [ ] `docs/TODO.md`: what is still open for the board.
+
+## Variants: one unit's add-ons, outside git
+
+The board file in the repository holds the board type and, as an example, the add-ons of the
+developer's unit: the WT32-SC01's LDR on GPIO 34, motor on 27 and the calibration of its MPU6050,
+the JC4880P443C's relay 1 on GPIO 32. A unit wired differently is a **variant**: a private
+directory the repository ignores (`.gitignore`: `boards/*/variants/`).
+
+1. Create `boards/<board>/variants/<name>/` (`<name>`: letters, digits, underscore) and copy
+   `components/board/src/variant/hc_board_variant.hpp` into it.
+2. In the copy, `apply()` changes what differs on this unit: `info.variant = "<name>";` first (the
+   boot log and Settings, System show it), then the pins (`light_ldr_gpio`, `vibration_gpio` and
+   `vibration_click_ms`, `relay_gpios`, `motion_gpio` with `motion_active_high`), the calibration (`imu_axes` and `imu_offset` as console
+   `orient capture` prints them under "variant:", `light_sensor_*`, `backlight_min_duty`) or a
+   `ui_*` field. Everything else stays the board's.
+3. A config option for this unit only (no audio, a font, `CONFIG_HC_BOARD_BRING_UP=y` while
+   measuring): an `sdkconfig.defaults` next to it, the last layer, so it wins over every other.
+4. Build, flash and write the web image with the name `<board>.<name>`:
+   `python tools/build.py wt32_sc01.kitchen -p COM9 flash monitor`, then
+   `python tools/build_fs.py wt32_sc01.kitchen -p COM9`. The output is in `build/wt32_sc01.kitchen/`.
+   The boot log shows `board WT32-SC01 variant kitchen`.
+
+The image tag stays the board type: an update built for the board or for any of its variants is
+accepted by every unit of the type (the add-ons of the wrong variant are then just not there).
 
 ## Power: restarts with "power on" or "brownout"
 

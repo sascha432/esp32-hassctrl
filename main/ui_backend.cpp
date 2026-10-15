@@ -186,7 +186,13 @@ void device_info(hc::ui::DeviceInfo &out)
 {
     out = {};
     copy(out.name, hc::platform::device_name());
-    copy(out.board, hc::board::info().name);
+    // "WT32-SC01 (kitchen)" when built for a variant of the board
+    const auto &board = hc::board::info();
+    if (board.variant != nullptr) {
+        std::snprintf(out.board, sizeof(out.board), "%s (%s)", board.name, board.variant);
+    } else {
+        copy(out.board, board.name);
+    }
     copy(out.firmware, esp_app_get_description()->version);
     out.uptime_s = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
     out.heap_internal_kb = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);

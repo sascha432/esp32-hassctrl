@@ -16,6 +16,7 @@
 #include "esp_log.h"
 
 #include "backlight.hpp"
+#include "hc_board_variant.hpp"
 
 // the board tag of every image built for this board (hc::board::ImageTag); CMakeLists.txt keeps it
 extern "C" constexpr hc::board::ImageTag hc_image_tag __attribute__((section(".rodata_custom_desc"), used)) = {
@@ -29,7 +30,8 @@ constexpr const char *kTag = "board";
 
 // The base orientation is the panel's own, portrait 320x480: no row/column exchange, which the
 // controller would have to do while it takes the whole frame (to be checked, adding-a-board step 4).
-constexpr Info kInfo{
+// A unit's add-ons go into a variant (hc_board_variant.hpp).
+constexpr Info kInfo = variant::apply(Info{
     .name = "JC3248W535",
     .width = 320,
     .height = 480,
@@ -58,7 +60,7 @@ constexpr Info kInfo{
     // a tap about a second after the last sound caught the NS4168 waking or going to sleep: that
     // click was quieter (2026-10-09)
     .audio_always_on = true,
-};
+});
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));
 

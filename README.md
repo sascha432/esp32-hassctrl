@@ -38,6 +38,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
   MP3 with the event `hassctrl_say`.
 - Local GPIO pins switched from Home Assistant: an `input_boolean` or `switch` named after the device
   (`input_boolean.<device>_relay_1`) drives a pin of the board, found by name, no setup.
+- A motion sensor on a GPIO of the board sets the text helper `input_text.<device>_motion` in Home
+  Assistant to Occupied or Clear, again after every reconnect.
 - The JC4880P443C's camera: preview and picture settings on the screen, an MJPEG stream and JPEG
   snapshots on the web, behind a login.
 
@@ -70,6 +72,9 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - A Windows version of the UI with sample states and scripted screenshots, host tests on MSVC for
   the pure components, a serial console with screenshots and virtual taps, one build script for
   every board and app.
+- Board variants: a private folder per unit, outside git, changes the add-ons of a board (pins of
+  the LDR, motor and relays, sensor calibration) and its config; the board in the repository is
+  the example.
 
 ## Build
 
@@ -84,6 +89,7 @@ PowerShell call (also for `tools/build_fs.py` and `tools/update.py`).
 python tools/build.py wt32_sc01                      # build the main firmware
 python tools/build.py wt32_sc01 --app recovery       # build the recovery app
 python tools/build.py wt32_sc01 menuconfig           # configure one board and app
+python tools/build.py wt32_sc01.kitchen              # the variant "kitchen" of the board
 ```
 
 ## Boards
@@ -94,6 +100,15 @@ python tools/build.py wt32_sc01 menuconfig           # configure one board and a
 | Guition JC3248W535 | `jc3248w535` | ESP32-S3, 320x480 QSPI panel (whole frames only) |
 | Guition JC4880P443C-I-W | `jc4880p443c` | ESP32-P4, 480x800 MIPI-DSI, Wi-Fi through an ESP32-C6 |
 | LilyGO TTGO T4 | `ttgo_t4` | test device only, no touch |
+
+**Variants.** One unit of a board with other add-ons than the board file in the repository
+(the pins of its LDR, vibration motor or relays, the calibration of its MPU6050, a config option)
+is a variant: a private directory `boards/<board>/variants/<name>/`, ignored by git, with a copy
+of `components/board/src/variant/hc_board_variant.hpp` that changes those fields and, if wanted,
+an `sdkconfig.defaults` read last. It is built, flashed and given its web image as
+`<board>.<name>` (`wt32_sc01.kitchen`, output in `build/wt32_sc01.kitchen/`). The board files in
+the repository keep an example of every add-on. Steps: [docs/adding-a-board.md](docs/adding-a-board.md)
+"Variants".
 
 Pins, verified settings and quirks: [docs/devices/](docs/devices/). The ESP32-C6 of the
 JC4880P443C has firmware of its own (`boards/jc4880p443c/c6`), updated from the P4 with the

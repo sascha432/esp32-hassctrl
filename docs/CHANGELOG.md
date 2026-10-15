@@ -2,6 +2,11 @@
 
 ## 2026-10-15
 
+- Motion sensor: a PIR on `Info::motion_gpio` (active high or low) sets `input_text.<device>_motion` in
+  Home Assistant to Occupied or Clear, again after a reconnect. P4: GPIO 34, active low. Console `motion`.
+  Confirmed by you with the helper in Home Assistant.
+- Board variants: `boards/<board>/variants/<name>/` (not in git) with `hc_board_variant.hpp` changes a
+  unit's add-ons and config; built as `<board>.<name>`. Console `orient capture` prints both forms.
 - Relays: an entity `input_boolean.<device>_relay_<n>` (or `switch.`) switches GPIO `Info::relay_gpios[n-1]`;
   found by name, followed live. P4: relay 1 on GPIO 32. Console `relay`.
 

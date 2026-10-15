@@ -17,6 +17,7 @@
 #include "esp_log.h"
 
 #include "backlight.hpp"
+#include "hc_board_variant.hpp"
 
 // the board tag of every image built for this board (hc::board::ImageTag); CMakeLists.txt keeps it
 extern "C" constexpr hc::board::ImageTag hc_image_tag __attribute__((section(".rodata_custom_desc"), used)) = {
@@ -28,7 +29,8 @@ namespace {
 
 constexpr const char *kTag = "board";
 
-constexpr Info kInfo{
+// a unit's add-ons go into a variant (hc_board_variant.hpp)
+constexpr Info kInfo = variant::apply(Info{
     .name = "TTGO T4",
     .width = 240,
     .height = 320,
@@ -47,7 +49,7 @@ constexpr Info kInfo{
     // no sensor built in: a module on a cable sees the room as it is
     .light_sensor_scale = 1.0f,
     .light_sensor_backlight_lux = 0.0f,
-};
+});
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));
 

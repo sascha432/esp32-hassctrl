@@ -4,6 +4,7 @@
 // the backlight with esp_lcd and hands out the handles. No LVGL here, so the recovery app can use
 // it too; the main firmware passes the handles to esp_lvgl_port.
 
+#include <array>
 #include <cstdint>
 
 #include "driver/i2c_master.h"
@@ -13,8 +14,15 @@
 
 namespace hc::board {
 
+// The constants of a board type. A variant of the board, one unit's add-ons (an LDR, a motor,
+// relays, the calibration of its MPU6050), is a private copy of hc_board_variant.hpp in
+// boards/<board>/variants/<name>/ whose apply() changes the fields below; the board file in the
+// repository keeps an example of every add-on (docs/adding-a-board.md "Variants").
 struct Info {
     const char *name;
+    // the variant this firmware was built for (hc::board::variant::apply), nullptr: the board as
+    // it is in the repository
+    const char *variant = nullptr;
     // resolution in the base orientation, the one LVGL sees at rotation 0
     uint16_t width;
     uint16_t height;
@@ -85,14 +93,19 @@ struct Info {
     // Relay n+1 on this GPIO (high = on, through a transistor or a relay board), -1: none. Home
     // Assistant switches them (hc::relay, docs/architecture.md section 9.7a). A board that sets one
     // names all four ({32, -1, -1, -1}): the entries left out of an initializer are 0, a pin.
-    int8_t relay_gpios[4] = {-1, -1, -1, -1};
+    std::array<int8_t, 4> relay_gpios = {-1, -1, -1, -1};
+    // A motion sensor (PIR) on this GPIO, -1: none. Its state goes to Home Assistant as
+    // input_text.<device>_motion, "Occupied" or "Clear" (hc::motion, docs/architecture.md 9.7b).
+    int8_t motion_gpio = -1;
+    // the level of the sensor's output while it sees motion
+    bool motion_active_high = true;
     // How the MPU6050 sits on this board type, measured by the developer when the board is added
     // (docs/adding-a-board.md, console `orient`): gravity in the module's axes with the panel upright
     // in the base orientation (3 floats), then turned 90 degrees clockwise (3 floats). All zero = the
     // fixed mapping of the old firmware (module mirrored on the back of the panel).
-    float imu_axes[6] = {};
+    std::array<float, 6> imu_axes = {};
     // What the module reads too much in every pose (found at the same time, same console command), g.
-    float imu_offset[3] = {};
+    std::array<float, 3> imu_offset = {};
     // The look of the UI on this board type (hc::ui::Options): dashboard pages slide (every
     // board since 2026-10-14, a swipe fires the slide; false switches without the animation),
     // the panels of a dimmer, a climate and a sensor are dialogs over the page, the fonts are

@@ -7,10 +7,12 @@ board built with CONFIG_HC_AUDIO_MP3, the sounds of sounds/ (docs/architecture.m
                                                      the board's own files (the dashboard)
     python tools/build_fs.py <board> -p COM9 --fresh the same without keeping anything
 
-Every file of web/ goes gzipped to /www (the web server sends file.gz with gzip encoding), the MP3
-files of sounds/ as they are to /sounds (the board's build/<board>/main/sdkconfig tells). The
-image has the size of the "storage" partition of the board's partition table. Upload it on the
-System page of the web UI, or with tools/update.py <device> filesystem <image>.
+<board> is the name given to tools/build.py, a variant included (wt32_sc01.kitchen). Every file
+of web/ goes gzipped to /www (the web server sends file.gz with gzip encoding), the MP3 files of
+sounds/ as they are to /sounds. The image has the size of the "storage" partition of the
+partition table; both come from the firmware's build/<board>/main/sdkconfig, so the firmware is
+built first. Upload it on the System page of the web UI, or with tools/update.py <device>
+filesystem <image>.
 
 The image replaces the whole partition. With -p the partition of the board is read first and
 every file outside /www and /sounds (dashboard.json) goes into the new image, so a web UI update keeps the
@@ -49,13 +51,18 @@ def fail(message: str) -> None:
     sys.exit(f"build_fs.py: {message}")
 
 
-def partition_table(board: str) -> Path:
-    defaults = ROOT / "boards" / board / "sdkconfig.defaults"
-    if not defaults.is_file():
-        fail(f"unknown board '{board}'")
-    match = re.search(r'^CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="([^"]+)"', defaults.read_text(encoding="utf-8"), re.M)
+def firmware_sdkconfig(board: str) -> str:
+    """The generated sdkconfig of the main firmware: the partition table and the audio options."""
+    sdkconfig = ROOT / "build" / board / "main" / "sdkconfig"
+    if not sdkconfig.is_file():
+        fail(f"{sdkconfig.relative_to(ROOT)} is missing: build the firmware first (python tools/build.py {board})")
+    return sdkconfig.read_text(encoding="utf-8")
+
+
+def partition_table(sdkconfig: str) -> Path:
+    match = re.search(r'^CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="([^"]+)"', sdkconfig, re.M)
     if not match:
-        fail(f"{defaults} names no partition table")
+        fail("the firmware's sdkconfig names no partition table")
     return ROOT / match.group(1)
 
 
@@ -99,11 +106,8 @@ def stage(root: Path) -> list[tuple[str, int, int]]:
     return files
 
 
-def has_mp3(board: str) -> bool:
-    sdkconfig = ROOT / "build" / board / "main" / "sdkconfig"
-    if not sdkconfig.is_file():
-        fail(f"{sdkconfig.relative_to(ROOT)} is missing: build the firmware first (the sounds depend on it)")
-    return re.search(r"^CONFIG_HC_AUDIO_MP3=y$", sdkconfig.read_text(encoding="utf-8"), re.M) is not None
+def has_mp3(sdkconfig: str) -> bool:
+    return re.search(r"^CONFIG_HC_AUDIO_MP3=y$", sdkconfig, re.M) is not None
 
 
 def stage_sounds(root: Path) -> list[tuple[str, int, int]]:
@@ -156,18 +160,19 @@ def keep_device_files(port: str, out_dir: Path, root: Path) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("board")
+    parser.add_argument("board", help="the name given to tools/build.py, a variant included (wt32_sc01.kitchen)")
     parser.add_argument("-p", "--port", help="write the image to the board over this serial port")
     parser.add_argument("--fresh", action="store_true", help="with -p: do not keep the board's own files")
     args = parser.parse_args()
 
-    size = storage_size(partition_table(args.board))
+    sdkconfig = firmware_sdkconfig(args.board)
+    size = storage_size(partition_table(sdkconfig))
     out_dir = ROOT / "build" / args.board / "fs"
     root = out_dir / "root"
     image = out_dir / "storage.bin"
     out_dir.mkdir(parents=True, exist_ok=True)
     files = stage(root)
-    if has_mp3(args.board):
+    if has_mp3(sdkconfig):
         files += stage_sounds(root)
     if args.port and not args.fresh:
         for name in keep_device_files(args.port, out_dir, root):

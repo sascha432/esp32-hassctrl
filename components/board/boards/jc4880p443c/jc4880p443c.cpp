@@ -20,6 +20,7 @@
 
 #include "backlight.hpp"
 #include "es8311.hpp"
+#include "hc_board_variant.hpp"
 
 // the board tag of every image built for this board (hc::board::ImageTag); CMakeLists.txt keeps it
 extern "C" constexpr hc::board::ImageTag hc_image_tag __attribute__((section(".rodata_custom_desc"), used)) = {
@@ -32,8 +33,9 @@ namespace {
 constexpr const char *kTag = "board";
 
 // The base orientation is the panel's own, portrait 480x800. A DPI panel scans a frame buffer and
-// cannot rotate: LVGL rotates in software (Info::mipi_dsi).
-constexpr Info kInfo{
+// cannot rotate: LVGL rotates in software (Info::mipi_dsi). The add-ons (motor, relay) are those
+// of the developer's unit, an example; another unit's go into a variant (hc_board_variant.hpp).
+constexpr Info kInfo = variant::apply(Info{
     .name = "JC4880P443C",
     .width = 480,
     .height = 800,
@@ -68,13 +70,16 @@ constexpr Info kInfo{
     .vibration_click_ms = 50,
     // relay 1 on the expansion header, switched by Home Assistant (user, 2026-10-15)
     .relay_gpios = {32, -1, -1, -1},
+    // a PIR on the expansion header, its output low while it sees motion (user, 2026-10-15)
+    .motion_gpio = 34,
+    .motion_active_high = false,
     // the large screen: panels are dialogs, larger fonts (user, 2026-10-08); the pages slide on
     // every board since 2026-10-14
     .ui_panel_dialogs = true,
     .ui_large_fonts = true,
     // twice the 4 px of the smaller screens (your choice on the device, 2026-10-09)
     .ui_tile_gap = 7,
-};
+});
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));
 

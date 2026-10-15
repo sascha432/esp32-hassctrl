@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build, flash and monitor one board and one application with idf.py.
 
-    python tools/build.py <board> [--app main|recovery] [idf.py actions and options ...]
+    python tools/build.py <board>[.<variant>] [--app main|recovery] [idf.py actions and options ...]
 
 Examples:
     python tools/build.py wt32_sc01                          build the main firmware
@@ -10,6 +10,8 @@ Examples:
                                                              recovery app (factory partition)
     python tools/build.py wt32_sc01 -p COM9 flash monitor    main firmware to ota_0, then monitor
     python tools/build.py wt32_sc01 menuconfig
+    python tools/build.py wt32_sc01.kitchen -p COM9 flash    the variant "kitchen" of the board:
+                                                             boards/wt32_sc01/variants/kitchen/
 
 Run it in a terminal prepared with the ESP-IDF activation script (EIM:
 C:\\Espressif\\tools\\Microsoft.v6.1.PowerShell_profile.ps1).
@@ -17,8 +19,13 @@ C:\\Espressif\\tools\\Microsoft.v6.1.PowerShell_profile.ps1).
 Each board and application gets its own build directory, build/<board>/<app>, with its own
 sdkconfig. The ESP-IDF defaults are layered (docs/architecture.md section 2):
 sdkconfig.defaults, boards/<board>/sdkconfig.defaults, sdkconfig.<app>, each followed by its
-<layer>.<target> variant when it exists (sdkconfig.main.esp32). When a layer is newer than
+<layer>.<target> file when it exists (sdkconfig.main.esp32). When a layer is newer than
 the generated sdkconfig, the sdkconfig is regenerated, so menuconfig changes are temporary.
+
+A variant of a board (docs/adding-a-board.md "Variants"): one unit's add-ons as a private
+directory boards/<board>/variants/<variant>/ (not in git) with hc_board_variant.hpp (the changes
+to the board's Info) and, if wanted, one more sdkconfig.defaults, the last layer. It builds in
+build/<board>.<variant>/<app>.
 
 Flashing the main firmware is different from a plain `idf.py flash`: idf.py writes the app to the
 factory partition, which holds the recovery app. This script writes the main firmware to ota_0
@@ -109,17 +116,28 @@ def main() -> None:
     if "IDF_PATH" not in os.environ:
         fail("IDF_PATH is not set, run the ESP-IDF activation script first")
 
+    name = board
+    board, _, variant = name.partition(".")
     board_defaults = ROOT / "boards" / board / "sdkconfig.defaults"
     if not board_defaults.is_file():
         boards = sorted(p.name for p in (ROOT / "boards").iterdir() if p.is_dir())
         fail(f"unknown board '{board}', known boards: {', '.join(boards)}")
+    variant_dir = None
+    if variant:
+        variant_dir = ROOT / "boards" / board / "variants" / variant
+        if not re.fullmatch(r"[a-z0-9_]+", variant) or not variant_dir.is_dir():
+            variants = sorted(p.name for p in variant_dir.parent.iterdir() if p.is_dir()) if variant_dir.parent.is_dir() else []
+            known = f"known variants of {board}: {', '.join(variants)}" if variants else f"{board} has no variants"
+            fail(f"unknown variant '{variant}' ({variant_dir.relative_to(ROOT)} is missing), {known}")
 
     layers = [ROOT / "sdkconfig.defaults", board_defaults]
     app_layer = ROOT / f"sdkconfig.{app}"
     if app_layer.is_file():
         layers.append(app_layer)
+    if variant_dir is not None and (variant_dir / "sdkconfig.defaults").is_file():
+        layers.append(variant_dir / "sdkconfig.defaults")
 
-    build_dir = ROOT / "build" / board / app
+    build_dir = ROOT / "build" / name / app
 
     # ESP-IDF applies the defaults only when it creates the sdkconfig, so a changed layer would be
     # ignored by an existing build directory. The sdkconfig is regenerated instead; menuconfig
@@ -144,11 +162,14 @@ def main() -> None:
         "-D", f"IDF_TARGET={board_target(board_defaults)}",
         "-D", f"HC_APP={app}",
     ]
+    if variant_dir is not None:
+        # forward slashes: CMake reads a backslash in a -D value as an escape
+        idf += ["-D", f"HC_VARIANT_DIR={variant_dir.as_posix()}"]
 
     actions = args or ["build"]
     flash_main = app == "main" and any(a in FLASH_ACTIONS for a in actions)
     # the web UI image belongs to the main firmware (tools/build_fs.py)
-    fs_image = [sys.executable, str(ROOT / "tools" / "build_fs.py"), board]
+    fs_image = [sys.executable, str(ROOT / "tools" / "build_fs.py"), name]
     if not flash_main:
         run(idf + actions)
         if app == "main" and "build" in actions:

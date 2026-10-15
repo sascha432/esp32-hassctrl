@@ -37,6 +37,7 @@
 #include "hc/touch_input/touch_input.hpp"
 #include "hc/ui/ui.hpp"
 #include "hc/uidebug/uidebug.hpp"
+#include "hc/motion/motion.hpp"
 #include "hc/relay/relay.hpp"
 #include "hc/vibration/vibration.hpp"
 #include "freertos/FreeRTOS.h"
@@ -570,11 +571,17 @@ int cmd_orient(int argc, char **argv)
                     "against the panel, the offsets of the two pairs differ by %.2f g\n",
                     static_cast<double>(m.gain), static_cast<double>(m.angle_deg), static_cast<double>(m.tilt_deg),
                     static_cast<double>(m.offset_mismatch));
-        std::printf("board info:\n    .imu_axes = {%.4ff, %.4ff, %.4ff, %.4ff, %.4ff, %.4ff},\n"
-                    "    .imu_offset = {%.4ff, %.4ff, %.4ff},\n",
-                    static_cast<double>(m.axes[0]), static_cast<double>(m.axes[1]), static_cast<double>(m.axes[2]),
-                    static_cast<double>(m.axes[3]), static_cast<double>(m.axes[4]), static_cast<double>(m.axes[5]),
-                    static_cast<double>(m.offset[0]), static_cast<double>(m.offset[1]), static_cast<double>(m.offset[2]));
+        // as the lines of a board file, and of the variant of this unit (hc_board_variant.hpp)
+        const auto print = [&m](const char *title, const char *prefix, char end) {
+            std::printf("%s\n    %simu_axes = {%.4ff, %.4ff, %.4ff, %.4ff, %.4ff, %.4ff}%c\n"
+                        "    %simu_offset = {%.4ff, %.4ff, %.4ff}%c\n",
+                        title, prefix, static_cast<double>(m.axes[0]), static_cast<double>(m.axes[1]),
+                        static_cast<double>(m.axes[2]), static_cast<double>(m.axes[3]), static_cast<double>(m.axes[4]),
+                        static_cast<double>(m.axes[5]), end, prefix, static_cast<double>(m.offset[0]),
+                        static_cast<double>(m.offset[1]), static_cast<double>(m.offset[2]), end);
+        };
+        print("board info:", ".", ',');
+        print("variant:", "info.", ';');
         return 0;
     }
     if (argc == 2 && std::strcmp(argv[1], "raw") == 0) {
@@ -933,6 +940,26 @@ int cmd_relay(int argc, char **argv)
     return 0;
 }
 
+// The motion sensor: its state, or a state sent to Home Assistant by hand (to try the helper
+// without the sensor; the sensor's next change overrides it)
+int cmd_motion(int argc, char **argv)
+{
+    if (!hc::motion::running()) {
+        std::printf("no motion sensor\n");
+        return 1;
+    }
+    if (argc == 1 || std::strcmp(argv[1], "status") == 0) {
+        std::printf("sensor on GPIO %d, active %s: %s\n", hc::motion::gpio(), hc::motion::active_high() ? "high" : "low",
+                    hc::motion::occupied() ? "occupied" : "clear");
+        return 0;
+    }
+    if (argc != 2 || (std::strcmp(argv[1], "occupied") != 0 && std::strcmp(argv[1], "clear") != 0)) {
+        return usage("motion [status|occupied|clear]");
+    }
+    hc::hass::publish_motion(std::strcmp(argv[1], "occupied") == 0);
+    return 0;
+}
+
 // the samples of the touch controller (hc::touch_input), for a board whose touch misbehaves
 int cmd_touch(int argc, char **argv)
 {
@@ -1141,6 +1168,7 @@ void register_commands()
     add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
 #endif
     add("relay", "GPIO relays: the state, or one switched", "[status|<n> on|off]", cmd_relay);
+    add("motion", "motion sensor: the state, or one sent to Home Assistant", "[status|occupied|clear]", cmd_motion);
 #if CONFIG_HC_VIBRATION
     add("vibrate", "vibration motor: the click, a pulse, the alarm pattern", "[click|<ms>|alarm|stop|status]", cmd_vibrate);
 #endif

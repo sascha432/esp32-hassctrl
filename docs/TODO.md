@@ -482,6 +482,12 @@ Open:
       ESP-IDF's custom app description (`hc::board::ImageTag`, right after `esp_app_desc_t`),
       checked with the first bytes before anything is written. Tested on the T4 with a WT32
       image: "the firmware is for the WT32-SC01, this is the TTGO T4", nothing erased.
+- [x] **Board variants** (2026-10-15): one unit's add-ons (LDR, motor, relays, MPU6050 calibration,
+      a config option) as a private `boards/<board>/variants/<name>/` the repository ignores, its
+      `hc_board_variant.hpp` changing the board's `Info` at compile time (`variant::apply`), built as
+      `<board>.<name>` (architecture.md section 8, adding-a-board.md "Variants"). The board files
+      keep the developer's units as the example. The image tag stays the board type. Console
+      `orient capture` prints the calibration in both forms.
 - [x] **Recovery app screen** (built and tested on the WT32 by the user, 2026-10-10,
       `recovery/recovery.cpp`, architecture.md section 9.5): board, firmware in flash, Wi-Fi with
       its IP, the hotspot (always on in the recovery app, `network::force_hotspot`) and a QR code
@@ -1294,6 +1300,17 @@ A permanent feature of the JC4880P443C (relay 1 on GPIO 32), no longer a test.
       Built, flashed, `relay 1 on|off` toggles the pin.
 - [x] Test with Home Assistant (you, 2026-10-15): the pin follows the entity at once. A template over
       `states.<domain>` was delayed up to a second by Home Assistant's rate limit; it names the entities now.
+
+## Motion sensor (2026-10-15)
+
+Component `motion` (architecture.md section 9.7b): a PIR on `Info::motion_gpio` sets the text helper
+`input_text.<device>_motion` to Occupied / Clear. The JC4880P443C and its kitchen variant: GPIO 34, active low.
+
+- [x] Component (100 ms sampling, two samples), `motion_message` (host test `protocol_motion`), the hass
+      command with the resend after `auth_ok`, console `motion`; built and flashed on the P4.
+- [x] Test with Home Assistant (confirmed by you, 2026-10-15): `input_text.hassctrl_7e7d_motion` follows
+      the sensor; `motion occupied` from the console sets it by hand. Without the helper the log
+      warns once per connection.
 
 ## Known issues
 
