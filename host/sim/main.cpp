@@ -517,7 +517,7 @@ bool parse_size(const char *text, Options &o, char *board, size_t board_size)
         {"jc3248", 320, 480, "JC3248W535", {}},
         {"t4", 320, 240, "TTGO T4", {}},
         {"vga", 640, 480, "640x480 panel", {}},
-        {"p4", 480, 800, "JC4880P443C", {.slide_pages = true, .panel_dialogs = true, .large_fonts = true, .tile_gap = 8}},
+        {"p4", 480, 800, "JC4880P443C", {.slide_pages = true, .panel_dialogs = true, .large_fonts = true, .tile_gap = 7}},
     };
     for (const Preset &p : presets) {
         if (std::strcmp(p.name, text) == 0) {

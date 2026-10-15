@@ -21,10 +21,13 @@ CONFIG_SPIRAM_SPEED_200M=y
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 
 # the larger fonts of this board (Info::ui_large_fonts, hc::ui::theme): 16, 18, 20, 26, 36 and
-# 24 for the items of the panels' lists
+# 24 for the items of the panels' lists; Settings are larger again: 18, 22, 24, 32, 34 and 28
 CONFIG_LV_FONT_MONTSERRAT_18=y
 CONFIG_LV_FONT_MONTSERRAT_24=y
 CONFIG_LV_FONT_MONTSERRAT_26=y
+CONFIG_LV_FONT_MONTSERRAT_22=y
+CONFIG_LV_FONT_MONTSERRAT_32=y
+CONFIG_LV_FONT_MONTSERRAT_34=y
 CONFIG_LV_FONT_MONTSERRAT_36=y
 
 # Wi-Fi through the ESP32-C6 (esp_hosted + esp_wifi_remote, components/network): SDIO slot 1,

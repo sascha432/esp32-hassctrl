@@ -722,7 +722,7 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         The tile looks per shape (step 3) came the same day; the swipe on the screen (step 4)
         is below under Open decisions.
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
-      spinner's track at 50 %. The P4's tile gap is 8 px (your choice after trying 5).
+      spinner's track at 50 %. The P4's tile gap is 7 px (was 8, your request 2026-10-14).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,
       steppers, options row, list items and sliders (docs/ui/lvgl/lvgl-panels.md), the color
       temperature marker a rounded bar. Fix: the climate `+`/`-` in portrait did nothing (the arc

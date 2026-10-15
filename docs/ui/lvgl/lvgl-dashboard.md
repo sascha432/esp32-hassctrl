@@ -106,7 +106,7 @@ The logo comes from the icon of dashboardicons.com, rendered by `tools/build_log
 
 The dashboard uses the whole screen; the pull-down at the top center opens Settings
 (section 1). A page is its grid of tiles (1x1 to 32x32, `core::kMaxGrid`; 2026-10-14, your request, was 8x8), 8 px from the screen edges, 4 px
-between tiles (8 px on the JC4880P443C's 800x480, `Options::tile_gap`, 2026-10-09), radius 8. Portrait uses the transposed grid and the tile spans turned with it
+between tiles (7 px on the JC4880P443C's 800x480, `Options::tile_gap`, 2026-10-09), radius 8. Portrait uses the transposed grid and the tile spans turned with it
 (docs/architecture.md section 5, "Orientation"). Turning the display builds the page again.
 
 ```

@@ -74,6 +74,13 @@ start by `Options::large_fonts`:
 A width that holds text (a column of labels, a chip) is `theme::scaled(px)`: `px` with the normal
 set, 30 % more with the large one.
 
+**Settings mode** (large-font boards only, the JC4880P443C): while Settings are open
+(`settings::open()` to `close()`) `theme::set_settings_mode(true)` makes fonts, gaps, rows and
+panels another 28 % larger. Fonts 18 / 22 / 24 / 32 for small / normal / medium / large, 34 huge and 28 for
+the items (Montserrat 22, 32 and 34 are built in additionally); sizes go through `theme::dim(px)`,
+`row_height()`, `pad()`, `radius()` and `status_bar_height()` (128 %), `scaled()` becomes 155 %.
+Dashboard and panels keep the large set.
+
 One-line texts whose width comes from the layout are set with `theme::line_text()`: a text that is
 too wide ends in `...` and is fitted again when the display turns (LVGL's `LV_LABEL_LONG_DOT` cuts
 at spaces first). A tile value that does not fit steps down through the font sizes instead
@@ -92,7 +99,7 @@ Reference: 480 x 320 at about 165 DPI (3.5 inch, WT32-SC01).
 | page padding | 8 px, 6 px between rows | `theme::kPad`, `theme::column()` |
 | card, row and button radius | 12 px | `theme::kRadius` |
 | tile radius | 8 px | `tiles.cpp` |
-| dashboard margin, tile gap | 8 px, 4 px (8 px with `Options::tile_gap` on the P4) | `dashboard.cpp` |
+| dashboard margin, tile gap | 8 px, 4 px (7 px with `Options::tile_gap` on the P4) | `dashboard.cpp` |
 | switch | 52 x 28 px | `theme::toggle()` |
 | panel steppers | 64 px round, 80 px in the P4's dialogs | `panel::kStepSize` |
 | popup | 200 x 200 px square at the display's center | `settings::popup()` |
@@ -123,7 +130,7 @@ Turning the display builds the shown screen again in the new size.
 | --- | --- | --- | --- | --- |
 | WT32-SC01 | 480 x 320 | 3.5" | 165 | reference |
 | JC3248W535 | 320 x 480 | 3.5" | 165 | none |
-| JC4880P443C | 480 x 800 | 4.3" | 217 | `slide_pages`, `panel_dialogs`, `large_fonts`, `tile_gap` 8 |
+| JC4880P443C | 480 x 800 | 4.3" | 217 | `slide_pages`, `panel_dialogs`, `large_fonts`, `tile_gap` 7 |
 
 TTGO T4 (240 x 320, no touch) is retired (2026-10-10) and no longer a layout target.
 

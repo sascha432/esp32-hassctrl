@@ -71,7 +71,7 @@ constexpr Info kInfo{
     .ui_panel_dialogs = true,
     .ui_large_fonts = true,
     // twice the 4 px of the smaller screens (your choice on the device, 2026-10-09)
-    .ui_tile_gap = 8,
+    .ui_tile_gap = 7,
 };
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));

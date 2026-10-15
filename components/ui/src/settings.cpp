@@ -131,13 +131,13 @@ void on_back(lv_event_t *)
 lv_obj_t *build_bar(lv_obj_t *parent)
 {
     lv_obj_t *bar = t::plain(parent);
-    lv_obj_set_size(bar, lv_pct(100), t::kStatusBarHeight);
+    lv_obj_set_size(bar, lv_pct(100), t::status_bar_height());
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(bar, t::color(t::kBar), 0);
-    lv_obj_set_style_pad_hor(bar, t::kPad, 0);
+    lv_obj_set_style_pad_hor(bar, t::pad(), 0);
     lv_obj_set_flex_flow(bar, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(bar, 10, 0);
+    lv_obj_set_style_pad_column(bar, t::dim(10), 0);
 
     // `<` and the title are one touch target, as wide as the title
     lv_obj_t *back = t::plain(bar);
@@ -145,7 +145,7 @@ lv_obj_t *build_bar(lv_obj_t *parent)
     lv_obj_set_flex_grow(back, 1);
     lv_obj_set_flex_flow(back, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(back, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(back, 8, 0);
+    lv_obj_set_style_pad_column(back, t::dim(8), 0);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
     sound::tappable(back);
     lv_obj_add_event_cb(back, on_back, LV_EVENT_CLICKED, nullptr);
@@ -224,15 +224,15 @@ lv_obj_t *dialog_card(lv_obj_t *parent)
     lv_obj_t *card = t::plain(parent);
     lv_obj_set_width(card, lv_pct(85));
     lv_obj_set_height(card, LV_SIZE_CONTENT);
-    lv_obj_set_style_max_width(card, 420, 0);
+    lv_obj_set_style_max_width(card, t::dim(420), 0);
     lv_obj_center(card);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(card, t::color(t::kCard), 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, t::color(t::kBorder), 0);
-    lv_obj_set_style_radius(card, t::kRadius, 0);
-    lv_obj_set_style_pad_all(card, 16, 0);
-    lv_obj_set_style_pad_row(card, 10, 0);
+    lv_obj_set_style_radius(card, t::radius(), 0);
+    lv_obj_set_style_pad_all(card, t::dim(16), 0);
+    lv_obj_set_style_pad_row(card, t::dim(10), 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     // taps on the card do not reach the backdrop, which closes a popup
     lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
@@ -266,6 +266,7 @@ void init(lv_disp_t *disp, const Backend &backend, lv_obj_t *dashboard)
 void open(Page page)
 {
     if (g.screen == nullptr) {
+        t::set_settings_mode(true);
         build_screen();
         g.timer = lv_timer_create(on_tick, 1000, nullptr);
         lv_scr_load_anim(g.screen, LV_SCR_LOAD_ANIM_MOVE_BOTTOM, kAnimationMs, 0, false);
@@ -282,6 +283,7 @@ void open(Page page)
 void open_alone(Page page, lv_obj_t *return_to, const char *text)
 {
     if (g.screen == nullptr) {
+        t::set_settings_mode(true);
         build_screen();
         g.timer = lv_timer_create(on_tick, 1000, nullptr);
         lv_scr_load_anim(g.screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, kAnimationMs, 0, false);
@@ -298,6 +300,7 @@ void close()
         return;
     }
     close_dialog();
+    t::set_settings_mode(false);
     lv_timer_del(g.timer);
     g.timer = nullptr;
     g.refresh = nullptr;
@@ -376,7 +379,7 @@ void confirm(const char *title, const char *text, const char *action, bool dange
     lv_obj_set_size(buttons, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(buttons, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(buttons, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_top(buttons, 6, 0);
+    lv_obj_set_style_pad_top(buttons, t::dim(6), 0);
     t::button(buttons, "Cancel", on_dialog_cancel);
     t::button(buttons, action, on_dialog_confirm, nullptr, danger);
 }
@@ -390,7 +393,7 @@ lv_obj_t *popup(const char *title, uint32_t timeout_ms, void (*on_close)())
     // A square of a fixed size, centered, with its content placed by hand (no flow): when the
     // display turns, the card and everything in it stay where they are.
     lv_obj_set_style_max_width(card, LV_COORD_MAX, 0);
-    lv_obj_set_size(card, kPopupSize, kPopupSize);
+    lv_obj_set_size(card, t::dim(kPopupSize), t::dim(kPopupSize));
     lv_obj_set_layout(card, 0);
     lv_obj_t *heading = t::label(card, title, t::font_large(), t::kText);
     lv_obj_align(heading, LV_ALIGN_TOP_MID, 0, 0);

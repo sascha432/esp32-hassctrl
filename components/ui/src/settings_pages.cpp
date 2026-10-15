@@ -41,9 +41,9 @@ lv_obj_t *button_row(lv_obj_t *parent)
     lv_obj_t *obj = t::plain(parent);
     lv_obj_set_size(obj, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_style_pad_column(obj, 8, 0);
-    lv_obj_set_style_pad_row(obj, 8, 0);
-    lv_obj_set_style_pad_top(obj, 6, 0);
+    lv_obj_set_style_pad_column(obj, t::dim(8), 0);
+    lv_obj_set_style_pad_row(obj, t::dim(8), 0);
+    lv_obj_set_style_pad_top(obj, t::dim(6), 0);
     return obj;
 }
 
@@ -135,8 +135,10 @@ void stepper_step(lv_event_t *event)
 lv_obj_t *stepper_button(lv_obj_t *row, const char *symbol, Stepper *st)
 {
     lv_obj_t *button = lv_btn_create(row);
-    lv_obj_set_size(button, 40, 36);
-    lv_obj_set_style_radius(button, t::kRadius, 0);
+    // more padding around the symbol: 3 px, 5 px in settings mode (the P4)
+    const lv_coord_t extra = t::dim(100) != 100 ? 5 : 3;
+    lv_obj_set_size(button, t::dim(40) + extra, t::dim(36) + extra);
+    lv_obj_set_style_radius(button, t::radius(), 0);
     lv_obj_set_style_shadow_width(button, 0, 0);
     lv_obj_set_style_bg_color(button, t::color(t::kBorder), 0);
     lv_obj_set_style_bg_color(button, t::color(t::kActive), LV_STATE_PRESSED);
@@ -158,10 +160,14 @@ void stepper_row(lv_obj_t *parent, const char *name, const int32_t *times, int32
     auto *st = new Stepper{times, index, t::row_value(row), on_change, 0};
     lv_obj_add_event_cb(
         row, [](lv_event_t *e) { delete static_cast<Stepper *>(lv_event_get_user_data(e)); }, LV_EVENT_DELETE, st);
-    lv_obj_move_to_index(stepper_button(row, LV_SYMBOL_MINUS, st), 1);
+    lv_obj_t *minus = stepper_button(row, LV_SYMBOL_MINUS, st);
+    lv_obj_move_to_index(minus, 1);
     stepper_button(row, LV_SYMBOL_PLUS, st);
+    // the row grows with the buttons: at least 6 px above and below them
+    lv_obj_update_layout(minus); // the button's size is only set in the layout
+    lv_obj_set_height(row, LV_MAX(t::row_height(), lv_obj_get_height(minus) + 12));
     // a fixed width, so the buttons stay where they are while the text changes
-    lv_obj_set_width(st->value, 84);
+    lv_obj_set_width(st->value, t::dim(84));
     lv_obj_set_style_text_align(st->value, LV_TEXT_ALIGN_CENTER, 0);
     stepper_show(*st);
 }
@@ -457,6 +463,7 @@ lv_obj_t *text_area(lv_obj_t *parent, const char *placeholder, bool password)
     lv_textarea_set_password_mode(area, password);
     lv_textarea_set_placeholder_text(area, placeholder);
     lv_obj_set_flex_grow(area, 1);
+    lv_obj_set_style_text_font(area, &t::font_medium(), 0);
     lv_obj_set_style_bg_color(area, t::color(t::kCard), 0);
     lv_obj_set_style_text_color(area, t::color(t::kText), 0);
     lv_obj_set_style_border_color(area, t::color(t::kBorder), 0);
@@ -514,8 +521,8 @@ Built password(lv_obj_t *content, const char *ssid)
     lv_obj_set_width(form, lv_pct(100));
     lv_obj_set_flex_grow(form, 1);
     lv_obj_set_flex_flow(form, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(form, t::kPad, 0);
-    lv_obj_set_style_pad_row(form, 6, 0);
+    lv_obj_set_style_pad_all(form, t::pad(), 0);
+    lv_obj_set_style_pad_row(form, t::dim(6), 0);
     lv_obj_add_flag(form, LV_OBJ_FLAG_SCROLLABLE);
 
     g_name_area = nullptr;
@@ -533,7 +540,7 @@ Built password(lv_obj_t *content, const char *ssid)
     lv_obj_t *eye = t::button(line, LV_SYMBOL_EYE_OPEN, [](lv_event_t *) {
         lv_textarea_set_password_mode(g_password_area, !lv_textarea_get_password_mode(g_password_area));
     });
-    lv_obj_set_style_min_width(eye, t::kRowHeight, 0);
+    lv_obj_set_style_min_width(eye, t::row_height(), 0);
     t::button(line, "Connect", on_connect);
 
     g_keyboard = keyboard::create(content);
@@ -608,7 +615,7 @@ Built hotspot(lv_obj_t *content)
 
     char qr[128];
     t::wifi_qr_text(qr, sizeof(qr), w.hotspot_ssid, w.hotspot_password);
-    t::qr_card(wrap, qr, 140);
+    t::qr_card(wrap, qr, t::dim(140));
     return {"Hotspot", hotspot_refresh};
 }
 
@@ -673,7 +680,7 @@ Built home_assistant(lv_obj_t *content)
         if (text[0] == 0) {
             lv_obj_add_flag(g_ha_retry, LV_OBJ_FLAG_HIDDEN);
         }
-        lv_obj_set_style_pad_bottom(g_ha_retry, 4, 0);
+        lv_obj_set_style_pad_bottom(g_ha_retry, t::dim(4), 0);
         t::caption_value(info, "Address", h.url);
         if (h.version[0] != 0) {
             t::caption_value(info, "Version", h.version);
@@ -693,7 +700,7 @@ Built home_assistant(lv_obj_t *content)
     } else {
         text_block(info, "Address and token are entered in the web UI. Scan the code or open:");
         text_block(info, address, t::kText);
-        t::qr_card(wrap, address, 140);
+        t::qr_card(wrap, address, t::dim(140));
     }
     return {"Home Assistant", ha_refresh};
 }
@@ -764,14 +771,14 @@ void open_rotation_popup()
     // the degrees under the title, the square Rotate button at the exact center of the card, the
     // sensor button at the bottom
     g_popup_degrees = t::label(card, "", t::font_normal(), t::kTextValue);
-    lv_obj_align(g_popup_degrees, LV_ALIGN_TOP_MID, 0, 26);
+    lv_obj_align(g_popup_degrees, LV_ALIGN_TOP_MID, 0, t::dim(26));
     popup_degrees_text();
     lv_obj_t *rotate = t::button(card, "", [](lv_event_t *) {
         rotation::rotate_clockwise();
         settings::popup_touch();
         popup_degrees_text();
     });
-    lv_obj_set_size(rotate, 72, 72);
+    lv_obj_set_size(rotate, t::dim(72), t::dim(72));
     lv_obj_set_style_min_width(rotate, 0, 0);
     lv_obj_set_style_text_align(lv_obj_get_child(rotate, 0), LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(lv_obj_get_child(rotate, 0), LV_SYMBOL_REFRESH "\nRotate");
@@ -781,7 +788,7 @@ void open_rotation_popup()
             rotation::set_locked(false);
             settings::close_popup();
         });
-        lv_obj_set_height(sensor, 32);
+        lv_obj_set_height(sensor, t::dim(32));
         lv_obj_align(sensor, LV_ALIGN_BOTTOM_MID, 0, 0);
     }
 }
@@ -871,12 +878,6 @@ Built display(lv_obj_t *content)
         }
     });
     display_refresh();
-    DeviceInfo device{};
-    be().device_info(device);
-    char text[64];
-    std::snprintf(text, sizeof(text), "%s, %d x %d", device.board, static_cast<int>(lv_disp_get_hor_res(nullptr)),
-                  static_cast<int>(lv_disp_get_ver_res(nullptr)));
-    text_block(col, text);
     return {"Display", display_refresh};
 }
 
@@ -940,7 +941,7 @@ lv_obj_t *text_block(lv_obj_t *parent, const char *text, uint32_t color)
 lv_obj_t *section(lv_obj_t *parent, const char *text)
 {
     lv_obj_t *obj = t::label(parent, text, t::font_small(), t::kTextLabel);
-    lv_obj_set_style_pad_top(obj, 6, 0);
+    lv_obj_set_style_pad_top(obj, t::dim(6), 0);
     return obj;
 }
 
@@ -967,11 +968,11 @@ lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t m
     lv_obj_set_size(card, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(card, t::color(t::kCard), 0);
-    lv_obj_set_style_radius(card, t::kRadius, 0);
-    lv_obj_set_style_pad_hor(card, 12, 0);
-    lv_obj_set_style_pad_top(card, 10, 0);
-    lv_obj_set_style_pad_bottom(card, 6, 0);
-    lv_obj_set_style_pad_row(card, 2, 0);
+    lv_obj_set_style_radius(card, t::radius(), 0);
+    lv_obj_set_style_pad_hor(card, t::dim(12), 0);
+    lv_obj_set_style_pad_top(card, t::dim(10), 0);
+    lv_obj_set_style_pad_bottom(card, t::dim(6), 0);
+    lv_obj_set_style_pad_row(card, t::dim(2), 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
     lv_obj_t *head = t::plain(card);
@@ -991,8 +992,8 @@ lv_obj_t *slider_card(lv_obj_t *parent, const char *name, int32_t min, int32_t m
     // overflow), so the rows next to it keep their touches.
     lv_obj_t *track = t::plain(card);
     lv_obj_set_size(track, lv_pct(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(track, 16, 0);
-    lv_obj_set_style_pad_ver(track, 16, 0);
+    lv_obj_set_style_pad_hor(track, t::dim(16), 0);
+    lv_obj_set_style_pad_ver(track, t::dim(16), 0);
     lv_obj_clear_flag(track, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(track, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
     lv_obj_t *slider = t::slider(track, min, max, value);

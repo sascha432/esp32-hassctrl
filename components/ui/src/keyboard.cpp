@@ -60,6 +60,7 @@ lv_obj_t *create(lv_obj_t *parent)
     lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_UPPER, kUpper, kTextControl);
     lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_SPECIAL, kSpecial, kSpecialControl);
 
+    lv_obj_set_style_text_font(kb, &t::font_normal(), LV_PART_ITEMS);
     lv_obj_set_style_bg_color(kb, t::color(t::kBar), 0);
     lv_obj_set_style_bg_color(kb, t::color(t::kCard), LV_PART_ITEMS);
     lv_obj_set_style_text_color(kb, t::color(t::kText), LV_PART_ITEMS);

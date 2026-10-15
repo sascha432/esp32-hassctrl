@@ -50,6 +50,18 @@ const lv_font_t &font_item();
 // with the large ones
 lv_coord_t scaled(lv_coord_t px);
 
+// Settings mode (large-font boards only, the 800x480 JC4880P443C): while Settings are open, fonts
+// (18, 22, 24, 32, 34 and 28 for the items), gaps, rows and panels are another 28 % larger. Switched
+// by settings::open()/close(); a no-op where the large fonts are off or not built in.
+void set_settings_mode(bool on);
+// `px` times the current metric scale (100 %, 128 % in settings mode)
+lv_coord_t dim(lv_coord_t px);
+// kStatusBarHeight, kRowHeight, kPad and kRadius at the current metric scale
+lv_coord_t status_bar_height();
+lv_coord_t row_height();
+lv_coord_t pad();
+lv_coord_t radius();
+
 lv_color_t color(uint32_t hex);
 
 // an object without the default theme styles

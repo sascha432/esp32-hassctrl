@@ -81,9 +81,9 @@ void choice_row(lv_obj_t *parent, const char *name, const char *const *labels, i
                 }
             },
             c);
-        lv_obj_set_height(button, 36);
-        lv_obj_set_style_min_width(button, 52, 0);
-        lv_obj_set_style_pad_hor(button, 10, 0);
+        lv_obj_set_height(button, t::dim(36));
+        lv_obj_set_style_min_width(button, t::dim(52), 0);
+        lv_obj_set_style_pad_hor(button, t::dim(10), 0);
         c->buttons[i] = button;
     }
     choice_show(*c, selected);
@@ -256,8 +256,8 @@ Built camera_login_page(lv_obj_t *content)
     lv_obj_set_width(form, lv_pct(100));
     lv_obj_set_flex_grow(form, 1);
     lv_obj_set_flex_flow(form, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(form, t::kPad, 0);
-    lv_obj_set_style_pad_row(form, 6, 0);
+    lv_obj_set_style_pad_all(form, t::pad(), 0);
+    lv_obj_set_style_pad_row(form, t::dim(6), 0);
     lv_obj_add_flag(form, LV_OBJ_FLAG_SCROLLABLE);
 
     auto line = [&]() {
@@ -265,7 +265,7 @@ Built camera_login_page(lv_obj_t *content)
         lv_obj_set_size(row, lv_pct(100), LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(row, 6, 0);
+        lv_obj_set_style_pad_column(row, t::dim(6), 0);
         return row;
     };
     g_user_area = text_area(line(), "username", false);
@@ -278,7 +278,7 @@ Built camera_login_page(lv_obj_t *content)
     lv_obj_t *eye = t::button(second, LV_SYMBOL_EYE_OPEN, [](lv_event_t *) {
         lv_textarea_set_password_mode(g_secret_area, !lv_textarea_get_password_mode(g_secret_area));
     });
-    lv_obj_set_style_min_width(eye, t::kRowHeight, 0);
+    lv_obj_set_style_min_width(eye, t::row_height(), 0);
     t::button(second, "Save", on_save);
 
     g_login_keyboard = keyboard::create(content);
@@ -357,14 +357,14 @@ Built camera_preview_page(lv_obj_t *content)
     lv_obj_set_flex_flow(content, landscape ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
 
     // the box in the frame's shape: as wide as there is room, the controls take the rest
-    lv_coord_t box_w = landscape ? width - kPreviewBarWidth : width;
+    lv_coord_t box_w = landscape ? width - t::dim(kPreviewBarWidth) : width;
     lv_coord_t box_h = i.width > 0 ? static_cast<lv_coord_t>(int32_t{box_w} * i.height / i.width) : box_w / 2;
     if (box_h > height) {
         box_h = height;
         box_w = i.height > 0 ? static_cast<lv_coord_t>(int32_t{box_h} * i.width / i.height) : box_w;
     }
     lv_obj_t *holder = t::plain(content);
-    lv_obj_set_size(holder, landscape ? width - kPreviewBarWidth : width, landscape ? height : box_h);
+    lv_obj_set_size(holder, landscape ? width - t::dim(kPreviewBarWidth) : width, landscape ? height : box_h);
     g_box = t::plain(holder);
     lv_obj_set_size(g_box, box_w, box_h);
     lv_obj_center(g_box);
@@ -380,7 +380,7 @@ Built camera_preview_page(lv_obj_t *content)
         LV_EVENT_DELETE, nullptr);
 
     lv_obj_t *bar = t::column(content);
-    lv_obj_set_size(bar, landscape ? kPreviewBarWidth : width, LV_SIZE_CONTENT);
+    lv_obj_set_size(bar, landscape ? t::dim(kPreviewBarWidth) : width, LV_SIZE_CONTENT);
     lv_obj_set_flex_grow(bar, 1);
 
     lv_obj_t *auto_row = t::row(bar, "Auto exposure", "", false, nullptr);
@@ -421,7 +421,7 @@ Built camera_preview_page(lv_obj_t *content)
     lv_obj_t *buttons = t::plain(bar);
     lv_obj_set_size(buttons, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(buttons, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_column(buttons, t::kPad, 0);
+    lv_obj_set_style_pad_column(buttons, t::pad(), 0);
     flag_button(buttons, "Mirror", p.mirror, [](lv_event_t *event) {
         CameraPicture changed = picture();
         changed.mirror = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);

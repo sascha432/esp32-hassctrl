@@ -125,11 +125,11 @@ void time_card(lv_obj_t *parent, const AlarmSettings &s)
     lv_obj_set_size(card, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(card, t::color(t::kCard), 0);
-    lv_obj_set_style_radius(card, t::kRadius, 0);
-    lv_obj_set_style_pad_all(card, 8, 0);
+    lv_obj_set_style_radius(card, t::radius(), 0);
+    lv_obj_set_style_pad_all(card, t::dim(8), 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(card, 8, 0);
+    lv_obj_set_style_pad_column(card, t::dim(8), 0);
 
     lv_obj_t *hour = roller(card, 24, s.hour);
     t::label(card, ":", t::font_large(), t::kText);
@@ -184,7 +184,7 @@ void day_buttons(lv_obj_t *parent, const AlarmSettings &s)
     lv_obj_set_size(row, lv_pct(100), LV_SIZE_CONTENT);
     // seven in one line, also at 320 px
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_column(row, 4, 0);
+    lv_obj_set_style_pad_column(row, t::dim(4), 0);
     for (const uint8_t bit : kDayOrder) {
         lv_obj_t *button =
             t::button(row, core::day_name(bit), on_day, reinterpret_cast<void *>(static_cast<intptr_t>(bit)));

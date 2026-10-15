@@ -2,6 +2,10 @@
 
 ## 2026-10-14
 
+- JC4880P443C: Settings larger (about 28 %: fonts one step up, rows, gaps, padding, thicker sliders
+  with a larger knob); dashboard tile gap 7 px (was 8). Confirmed by you on the P4.
+- Settings: the +/- buttons of the time steppers larger (3 px, 5 px on the P4), 6 px above and below
+  them; the board name and resolution line is gone from Display.
 - Edit mode: no area opens, no page swipe, no dots; the tile under the finger is outlined orange;
   click and pulse on start and on the remove dialog, ticks while a tile snaps to cells; the hold
   that started it no longer asks to remove the tile (confirmed by you on the P4).

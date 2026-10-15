@@ -98,7 +98,16 @@ constexpr Fonts kLargeFonts{130, &lv_font_montserrat_16, &lv_font_montserrat_18,
                             &lv_font_montserrat_26, &lv_font_montserrat_36, &lv_font_montserrat_24};
 #endif
 
+// Settings on the large-font boards: one font step up from the large set (about 155 % of the normal set)
+#if LV_FONT_MONTSERRAT_22 && LV_FONT_MONTSERRAT_32 && LV_FONT_MONTSERRAT_34
+constexpr Fonts kSettingsFonts{155, &lv_font_montserrat_18, &lv_font_montserrat_22, &lv_font_montserrat_24,
+                               &lv_font_montserrat_32, &lv_font_montserrat_34, &lv_font_montserrat_28};
+#endif
+constexpr int kSettingsMetricPercent = 128;
+
 const Fonts *g_fonts = &kFonts;
+bool g_large = false;
+int g_metric = 100;
 
 } // namespace
 
@@ -106,11 +115,50 @@ void use_large_fonts(bool large)
 {
 #if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_24 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
     g_fonts = large ? &kLargeFonts : &kFonts;
+    g_large = large;
 #else
     if (large) {
         LV_LOG_WARN("large fonts are not built in (Montserrat 18, 24, 26, 36)");
     }
 #endif
+}
+
+void set_settings_mode(bool on)
+{
+#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_24 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36 &&     LV_FONT_MONTSERRAT_22 && LV_FONT_MONTSERRAT_32 && LV_FONT_MONTSERRAT_34
+    if (g_large) {
+        g_fonts = on ? &kSettingsFonts : &kLargeFonts;
+        g_metric = on ? kSettingsMetricPercent : 100;
+    }
+#else
+    (void)on;
+#endif
+}
+
+lv_coord_t dim(lv_coord_t px)
+{
+    return static_cast<lv_coord_t>((px * g_metric + 50) / 100);
+}
+
+lv_coord_t status_bar_height()
+{
+    return dim(kStatusBarHeight);
+}
+
+lv_coord_t row_height()
+{
+    return dim(kRowHeight);
+}
+
+lv_coord_t pad()
+{
+    return dim(kPad);
+}
+
+
+lv_coord_t radius()
+{
+    return dim(kRadius);
 }
 
 const lv_font_t &font_small()
@@ -194,15 +242,15 @@ lv_obj_t *row(lv_obj_t *parent, const char *text, const char *value, bool opens_
               void *user_data)
 {
     lv_obj_t *obj = plain(parent);
-    lv_obj_set_size(obj, lv_pct(100), kRowHeight);
+    lv_obj_set_size(obj, lv_pct(100), row_height());
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(obj, color(kCard), 0);
     lv_obj_set_style_bg_color(obj, color(kBorder), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(obj, kRadius, 0);
-    lv_obj_set_style_pad_hor(obj, 12, 0);
+    lv_obj_set_style_radius(obj, radius(), 0);
+    lv_obj_set_style_pad_hor(obj, dim(12), 0);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(obj, 8, 0);
+    lv_obj_set_style_pad_column(obj, dim(8), 0);
 
     lv_obj_t *name = label(obj, "", font_medium(), kText);
     // The name is as wide as its text up to 60 % of the row, the value takes all the rest: a
@@ -237,9 +285,9 @@ lv_obj_t *row_value(lv_obj_t *row)
 lv_obj_t *button(lv_obj_t *parent, const char *text, lv_event_cb_t callback, void *user_data, bool danger)
 {
     lv_obj_t *obj = lv_btn_create(parent);
-    lv_obj_set_height(obj, kRowHeight);
-    lv_obj_set_style_min_width(obj, 96, 0);
-    lv_obj_set_style_radius(obj, kRadius, 0);
+    lv_obj_set_height(obj, row_height());
+    lv_obj_set_style_min_width(obj, dim(96), 0);
+    lv_obj_set_style_radius(obj, radius(), 0);
     lv_obj_set_style_shadow_width(obj, 0, 0);
     lv_obj_set_style_bg_color(obj, color(danger ? kError : kCard), 0);
     lv_obj_set_style_bg_color(obj, color(kActive), LV_STATE_PRESSED);
@@ -256,7 +304,7 @@ lv_obj_t *button(lv_obj_t *parent, const char *text, lv_event_cb_t callback, voi
 lv_obj_t *toggle(lv_obj_t *parent, bool on, lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *obj = lv_switch_create(parent);
-    lv_obj_set_size(obj, 52, 28);
+    lv_obj_set_size(obj, dim(52), dim(28));
     lv_obj_set_style_bg_color(obj, color(kBorder), LV_PART_MAIN);
     lv_obj_set_style_bg_color(obj, color(kActive), static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(obj, color(kText), LV_PART_KNOB);
@@ -299,7 +347,13 @@ lv_obj_t *slider(lv_obj_t *parent, int32_t min, int32_t max, int32_t value)
     lv_obj_set_style_bg_color(obj, color(kActive), LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(obj, color(kText), LV_PART_KNOB);
     // the knob covers the end of the track, so the slider keeps a gap to the edges
-    lv_obj_set_style_pad_all(obj, 4, LV_PART_KNOB);
+    // settings mode: a thicker track and a larger round knob
+    if (dim(100) != 100) {
+        lv_obj_set_height(obj, dim(12));
+        lv_obj_set_style_pad_all(obj, dim(8), LV_PART_KNOB);
+    } else {
+        lv_obj_set_style_pad_all(obj, 4, LV_PART_KNOB);
+    }
     // At 0 and 100 % half of the knob lies outside the slider, where its container took the
     // touches: a drag that started there did nothing. The slider takes touches as far as the knob
     // reaches (and a little more for a finger).
@@ -312,8 +366,8 @@ lv_obj_t *column(lv_obj_t *parent)
     lv_obj_t *obj = plain(parent);
     lv_obj_set_size(obj, lv_pct(100), lv_pct(100));
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(obj, kPad, 0);
-    lv_obj_set_style_pad_row(obj, 6, 0);
+    lv_obj_set_style_pad_all(obj, pad(), 0);
+    lv_obj_set_style_pad_row(obj, dim(6), 0);
     lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(obj, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_ACTIVE);
@@ -327,7 +381,7 @@ lv_obj_t *caption_value(lv_obj_t *parent, const char *caption, const char *value
     lv_obj_t *text = label(parent, value, font, kText);
     lv_obj_set_width(text, lv_pct(100));
     lv_label_set_long_mode(text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_bottom(text, 4, 0);
+    lv_obj_set_style_pad_bottom(text, dim(4), 0);
     return text;
 }
 
@@ -339,8 +393,8 @@ lv_obj_t *qr_card(lv_obj_t *parent, const char *data, lv_coord_t size)
     lv_obj_set_size(card, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(card, lv_color_white(), 0);
-    lv_obj_set_style_radius(card, 8, 0);
-    lv_obj_set_style_pad_all(card, 10, 0);
+    lv_obj_set_style_radius(card, dim(8), 0);
+    lv_obj_set_style_pad_all(card, dim(10), 0);
     lv_obj_t *qr = lv_qrcode_create(card, size, lv_color_black(), lv_color_white());
     lv_qrcode_update(qr, data, static_cast<uint32_t>(std::strlen(data)));
     return card;
@@ -384,12 +438,12 @@ void apply_split(lv_obj_t *wrap)
 lv_obj_t *split(lv_obj_t *content)
 {
     lv_obj_t *wrap = column(content);
-    lv_obj_set_style_pad_column(wrap, 12, 0);
-    lv_obj_set_style_pad_row(wrap, 12, 0);
+    lv_obj_set_style_pad_column(wrap, dim(12), 0);
+    lv_obj_set_style_pad_row(wrap, dim(12), 0);
     lv_obj_t *info = plain(wrap);
     lv_obj_set_height(info, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(info, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(info, 8, 0);
+    lv_obj_set_style_pad_row(info, dim(8), 0);
     lv_obj_add_event_cb(wrap, [](lv_event_t *event) { apply_split(lv_event_get_target(event)); },
                         LV_EVENT_SIZE_CHANGED, nullptr);
     lv_obj_update_layout(wrap);
