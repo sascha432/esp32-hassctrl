@@ -1440,8 +1440,8 @@ Dashboard ([architecture.md](architecture.md) section 14):
 - [x] Your requests of 2026-10-14 (afternoon): grid up to 32x32, dots 50 % / 100 % larger,
       full-screen panels slide in from the right, the card decides the font size. Built,
       host tests 98, sim; flashed on all three boards. Confirmed working by you (2026-10-14).
-- [ ] Edit mode: a swipe right on an empty cell of a swipe page goes back; not tried on a
-      device yet (sim only). The `.tar` files in your backups folder hold version 1 files
+- [x] Edit mode has no page swipe, no dots and no opening of areas any more (your request,
+      2026-10-14, confirmed working on the P4). The `.tar` files in your backups folder hold version 1 files
       and were not converted (the YAML backups were).
 - [x] **Swipe navigation per area** (2026-10-14; the first build, a strip of the main page
       and its areas, was not what you asked for and is gone): `swipe: true` on an area takes
@@ -1452,7 +1452,7 @@ Dashboard ([architecture.md](architecture.md) section 14):
       drag only on an up or down lock. Tried in the sim and on the boards over the console,
       confirmed working by you (2026-10-14). Free
       internal RAM on the WT32 39 KB (largest block 21 KB) before and right after a swipe; the
-      two pages of a slide fit. Not tried: edit mode swiping on a device.
+      two pages of a slide fit.
 - [x] **Tile looks for every shape** (step 3 of the plan of 2026-10-14, built the same day):
       the shape follows the span (tall, wide, one-cell look), the climate's bars down the left
       and right of a wide card, the wide row (icon left, texts right) for the other kinds,
