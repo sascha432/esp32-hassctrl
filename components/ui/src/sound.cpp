@@ -233,6 +233,26 @@ void settings_changed()
                 g.backend->vibrate_click != nullptr;
 }
 
+void confirm()
+{
+    if (g.backend == nullptr) {
+        return;
+    }
+    if (g.vibrate) {
+        g.backend->vibrate_click();
+    }
+    if (g.tap_sound) {
+        g.backend->play_touch_sound();
+    }
+}
+
+void snap()
+{
+    if (g.backend != nullptr && g.slider_sound) {
+        tick();
+    }
+}
+
 void tappable(lv_obj_t *obj)
 {
     lv_obj_add_flag(obj, kTappable);

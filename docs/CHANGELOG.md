@@ -2,6 +2,11 @@
 
 ## 2026-10-14
 
+- Edit mode: no area opens, no page swipe, no dots; the tile under the finger is outlined orange;
+  click and pulse on start and on the remove dialog, ticks while a tile snaps to cells; the hold
+  that started it no longer asks to remove the tile (confirmed by you on the P4).
+- Docs: the alarm wakes and undims the screen and keeps it on while it rings (architecture.md 9.6).
+- Web UI Logs page: a bar right of the messages drags the page wider, kept in the browser.
 - README: a feature list at the top, kept current with every change (CLAUDE.md); the host test
   list names `network`, the T4's port, the conversion of a version 1 dashboard, the screenshot
   and dashboard test tools.

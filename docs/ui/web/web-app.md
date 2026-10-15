@@ -174,7 +174,8 @@ PSRAM, the oldest lines go first, empty after a restart. Errors and warnings are
 Debug (stored) keeps info messages as well (ESP-IDF has no "notice"). The console's `log` level
 only changes the serial output. Filter: Errors, Warnings and errors, Everything (the default).
 Times are the device's clock once it is set, else `+h:mm:ss` since the start. Download saves the
-whole log as text. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` `debug=1|0`,
+whole log as text. The bar right of the box drags the page wider than its 800 px (2026-10-14),
+kept in the browser, a double-click goes back to the default. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` `debug=1|0`,
 `GET /api/log.txt` one line per message, `<unix time or 0> <esp_log line>`.
 
 ```

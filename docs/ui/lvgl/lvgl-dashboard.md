@@ -291,16 +291,19 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   on a tile or on an empty cell. No tile uses a long press today (only the steppers of the panels
   repeat on hold), and a dimmer's drag starts with movement, so they do not collide. The tile under
   the finger does not act (no toggle, no panel). The bar and the outlines of the tiles show the
-  start.
-* **While editing**: the tiles keep their look with an outline; taps do nothing except on an
-  area tile, which opens its page in edit mode too, and the back tile, which goes back. The
+  start, and a click and a pulse (`sound::confirm()`) confirm it. The hold that started it does
+  not count as a remove press; the finger can drag the tile it is on straight away.
+* **While editing**: the tiles keep their look with an outline; taps do nothing except on the
+  back tile, which goes back. Areas do not open, there is no swipe and the dots are hidden (2026-10-14). The
   pull-down for Settings is off; the edit bar (44 px) takes the top and the grid shrinks by its
   height while editing, so no tile is covered. Pages slide as usual.
+* **Press**: the tile under the finger is outlined orange until the finger lifts (confirmed by you on the P4, 2026-10-14).
 * **Move**: drag a tile; it follows the finger, the block under it is outlined, green when the
   tile can go there (the tiles in the way are pushed aside, section 6), red when not. Release on
-  green moves it, on red it snaps back. The page becomes arranged in the current orientation.
+  green moves it, on red it snaps back. Every cell the tile snaps to ticks like a slider
+  (`sound::snap()`, follows the slider sound switch). The page becomes arranged in the current orientation.
 * **Remove**: a long press on a tile while editing (without moving) asks "Remove Ceiling?" with
-  Remove and Cancel. An area names the tiles of its page that go with it. The back tile cannot be moved
+  Remove and Cancel; the dialog opens with a click and a pulse. An area names the tiles of its page that go with it. The back tile cannot be moved
   or removed.
 * **Reset** sets the page back to automatic order in this orientation (after a confirm); a tile
   without room in list order is left out of the screen, not refused (2026-10-14).

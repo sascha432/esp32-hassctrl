@@ -50,7 +50,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 
 - Status, Home Assistant (URL, token, connection test), Wi-Fi, hotspot, camera, the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
-  a debug mode, system (backup export and import, updates, restart, factory reset). Plain HTTP
+  a debug mode and a width to drag, system (backup export and import, updates, restart, factory reset). Plain HTTP
   with a login.
 
 **Updates and recovery**

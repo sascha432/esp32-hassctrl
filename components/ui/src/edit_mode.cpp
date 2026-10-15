@@ -7,7 +7,7 @@
 #include "dashboard.hpp"
 #include "overlay.hpp"
 #include "settings.hpp"
-#include "swipe.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 
 namespace hc::ui::edit {
@@ -21,6 +21,8 @@ constexpr lv_coord_t kSlop = 10;
 // the outline of the block a drag would take
 constexpr uint32_t kFits = 0x2ecc71;
 constexpr lv_coord_t kOutline = 3;
+// the outline of the tile under the finger
+constexpr uint32_t kPressed = 0xff9800;
 
 bool touch_point(lv_point_t &out)
 {
@@ -56,6 +58,8 @@ struct Watch {
 };
 
 Watch g_watch;
+// the finger that started edit mode is still down: its hold must not ask to remove a tile
+bool g_carried = false;
 
 void cancel_watch()
 {
@@ -73,7 +77,10 @@ void on_watch_timer(lv_timer_t *)
     g_watch.obj = nullptr;
     // the tile under the finger goes with the page that is built again, which ends its press: the
     // tile does not act on the release, and the finger goes on as a press on the edit layer
+    sound::confirm();
     dashboard::start_editing();
+    // the finger is still down: its hold must not ask to remove a tile, a drag may move it
+    g_carried = true;
 }
 
 void on_watch(lv_event_t *event)
@@ -165,6 +172,16 @@ bool hit(lv_point_t point)
     return false;
 }
 
+// the tile under the finger is outlined orange, the outline of the dashboard's edit look returns
+// on release
+void mark_pressed(bool pressed)
+{
+    if (g.card == nullptr) {
+        return;
+    }
+    lv_obj_set_style_outline_color(g.card, t::color(pressed ? kPressed : (g.tile == core::kNone ? t::kBorder : t::kTextLabel)), 0);
+}
+
 void on_remove(void *context)
 {
     const auto tile = static_cast<core::TileIndex>(reinterpret_cast<uintptr_t>(context));
@@ -194,6 +211,7 @@ void on_long_press(lv_timer_t *)
     } else {
         std::snprintf(text, sizeof(text), "The tile goes from the dashboard when you tap Done.");
     }
+    sound::confirm();
     settings::confirm(title, text, "Remove", true, on_remove, reinterpret_cast<void *>(static_cast<uintptr_t>(g.tile)));
 }
 
@@ -237,6 +255,7 @@ void drag(lv_point_t point)
     const core::Cell cell{static_cast<uint8_t>(col), static_cast<uint8_t>(row)};
     if (!(cell == g.target)) {
         show_target(cell);
+        sound::snap();
     }
 }
 
@@ -268,7 +287,10 @@ void on_layer(lv_event_t *event)
         g.at = point;
         g.long_pressed = false;
         g.dragging = false;
-        if (hit(point) && !g.back) {
+        if (hit(point)) {
+            mark_pressed(true);
+        }
+        if (g.card != nullptr && !g.back && !g_carried) {
             g.timer = lv_timer_create(on_long_press, kLongPressMs, nullptr);
             lv_timer_set_repeat_count(g.timer, 1);
         }
@@ -287,32 +309,25 @@ void on_layer(lv_event_t *event)
         }
         if (g.dragging) {
             drag(point);
-        } else if (g.tile == core::kNone && !g.back) {
-            // a sideways drag on an empty cell or the band of dots swipes to another page
-            const lv_coord_t dx = static_cast<lv_coord_t>(point.x - g.at.x);
-            const lv_coord_t dy = static_cast<lv_coord_t>(point.y - g.at.y);
-            if (LV_ABS(dx) >= swipe::kSwipeStart && LV_ABS(dx) > LV_ABS(dy)) {
-                cancel_timer();
-                lv_indev_wait_release(lv_indev_get_act());
-                dashboard::swiped(dx < 0 ? 1 : -1);
-            }
         }
         break;
     case LV_EVENT_RELEASED:
         cancel_timer();
+        mark_pressed(false);
+        g_carried = false;
         if (g.dragging) {
             end_drag();
         } else if (!g.long_pressed && !moved(g.at, point)) {
-            // a tap: areas and the back tile still change the page
+            // a tap: only the back tile changes the page, areas do not open
             if (g.back) {
                 dashboard::back();
-            } else if (g.tile != core::kNone && dashboard::layout().tiles[g.tile].kind == core::TileKind::Area) {
-                dashboard::open_page(dashboard::layout().tiles[g.tile].opens);
             }
         }
         break;
     case LV_EVENT_PRESS_LOST:
         cancel_timer();
+        mark_pressed(false);
+        g_carried = false;
         if (g.dragging) {
             g.moved.reset();
             end_drag();

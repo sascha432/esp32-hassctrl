@@ -161,7 +161,7 @@ void build_page(Slide slide = Slide::None)
     // band of dots takes the bottom
     const lv_coord_t top = editing() ? edit::kBarHeight : 0;
     const auto chain = core::swipe_chain(layout, g.page);
-    const bool dots = chain.size() >= 2;
+    const bool dots = chain.size() >= 2 && !editing(); // no navigation while editing
     const lv_coord_t bottom = dots ? swipe::dots_height() : 0;
     const uint8_t cols = portrait ? page.grid.rows : page.grid.cols;
     const uint8_t rows = portrait ? page.grid.cols : page.grid.rows;

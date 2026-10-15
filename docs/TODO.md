@@ -528,6 +528,9 @@ Open:
   - [x] Try the Logs page in the browser (works, you, 2026-10-10).
   - [x] JC3248W535 and JC4880P443C: recovery app, main firmware and web image flashed, `/api/log`
         answers on both (2026-10-10).
+  - [x] Your request (2026-10-14): a bar right of the message box drags the page's width (wider
+        than 800 px, double-click for the default, kept in the browser). WT32 web image flashed;
+        your try open.
   - [x] P4: every boot logged `E lcd_panel: esp_lcd_panel_swap_xy(60): swap_xy is not supported by
         this panel`. Caller: esp_lvgl_port (LVGL 8) sets the orientation once in `lvgl_port_add_disp_dsi`
         even with `sw_rotate`. The ST7701 driver has no swap_xy, so the board file gives the panel a

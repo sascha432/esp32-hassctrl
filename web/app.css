@@ -39,5 +39,10 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 /* the log: newest at the bottom, scrolls inside the card */
 .app-log { max-height: 60vh; overflow: auto; font-size: .75rem; white-space: pre-wrap; overflow-wrap: anywhere;
   background: var(--bs-tertiary-bg); border-radius: var(--bs-border-radius); padding: .5rem; }
+/* the border right of the log, dragged for the page's width */
+.app-grip { width: .75rem; flex-shrink: 0; cursor: ew-resize; touch-action: none; display: flex; align-items: center;
+  justify-content: center; }
+.app-grip::after { content: ""; width: .25rem; height: 3rem; border-radius: .125rem; background: var(--bs-border-color); }
+.app-grip:hover::after { background: var(--bs-secondary-color); }
 .app-log .log-E { color: var(--bs-danger-text-emphasis); }
 .app-log .log-W { color: var(--bs-warning-text-emphasis); }

@@ -36,6 +36,14 @@ inline bool page_available()
 // the sound settings changed (Settings, Sound)
 void settings_changed();
 
+// A click and a pulse for something that happens without a tap: a long press that did its job
+// (edit mode starts, the remove dialog opens). Follows the tap sound and vibration switches.
+void confirm();
+
+// A tick for a step the user did not set with a slider: a dragged tile snaps to another cell.
+// Follows the slider sound switch, rate limited like the slider's ticks.
+void snap();
+
 // `obj`, a plain lv_obj, is a tap target: a tile, a row of Settings, a button made of a plain object
 void tappable(lv_obj_t *obj);
 

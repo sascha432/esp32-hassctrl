@@ -946,8 +946,9 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
   `tools/build_sounds.py` to mono 22.05 kHz 48 kbit/s MP3, 206 KB together.
 * **Alarm clock** (`CONFIG_HC_AUDIO_ALARM`): the time, the days (none: once, then it turns itself
   off), the snooze time and the sound are stored in the settings NVS (`ui` / `alarm`) at once.
-  When its minute comes (`core::alarm_due`, plain C++ with host tests), the UI wakes the screen,
-  shows the alarm screen over everything and plays the sound in a loop at full volume until Stop
+  When its minute comes (`core::alarm_due`, plain C++ with host tests), the UI wakes the screen
+  (from off or dimmed to the user's brightness, and the first touch is not swallowed; `power::wake()`
+  again on every check while it rings, so the screen neither dims nor turns off), shows the alarm screen over everything and plays the sound in a loop at full volume until Stop
   or Snooze, at most 10 minutes. It needs the clock (SNTP); the time zone comes from Home
   Assistant. A snooze lives in RAM only: a restart while snoozed forgets it.
 

@@ -152,6 +152,7 @@ async function route() {
   clearInterval(refreshTimer);
   // the dashboard editor uses the whole width, every other page one column
   $("#page").classList.toggle("app-wide", name === "dashboard");
+  $("#page").style.maxWidth = "";
   try {
     session = await api("/api/session");
   } catch (e) {
@@ -820,7 +821,10 @@ const views = {
           <option value="I" selected>Everything</option>
         </select>
       </div>
-      <pre id="log-lines" class="app-log mb-3">Loading ...</pre>
+      <div class="d-flex mb-3">
+        <pre id="log-lines" class="app-log flex-grow-1 mb-0">Loading ...</pre>
+        <div id="log-grip" class="app-grip" title="Drag to resize, double-click for the default"></div>
+      </div>
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <button id="log-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
         <button id="log-download" class="btn btn-outline-secondary" type="button">Download</button>
@@ -868,6 +872,21 @@ const views = {
       }).filter(Boolean);
       draw();
     };
+    // the border right of the box drags the page's width, kept in this browser; a double-click goes
+    // back to the 800 px column. The page stays centered: it grows by twice the drag.
+    const page = $("#page"), grip = $("#log-grip");
+    const size = (w) => { page.style.maxWidth = w ? `${Math.max(480, w)}px` : ""; };
+    size(Number(localStorage.getItem("logWidth")) || 0);
+    grip.onpointerdown = (e) => {
+      const x0 = e.clientX, w0 = page.offsetWidth;
+      grip.setPointerCapture(e.pointerId);
+      grip.onpointermove = (m) => size(w0 + 2 * (m.clientX - x0));
+      grip.onpointerup = grip.onpointercancel = () => {
+        grip.onpointermove = null;
+        localStorage.setItem("logWidth", page.offsetWidth);
+      };
+    };
+    grip.ondblclick = () => { size(0); localStorage.removeItem("logWidth"); };
     $("#log-filter").onchange = draw;
     $("#log-refresh").onclick = (e) => busy(e.target, load);
     $("#log-download").onclick = () => {
