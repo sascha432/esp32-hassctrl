@@ -103,6 +103,10 @@
 #
 # Developer tools, Events fires it by hand (event type hassctrl_say, the event_data as data).
 #
+# Relays: a board with relay GPIOs (the JC4880P443C: relay 1) follows entities of Home Assistant,
+# no setting here: `input_boolean.<device>_relay_<n>` or `switch.<device>_relay_<n>`, <device> the
+# name of the device with "_" (hassctrl-7e7d: input_boolean.hassctrl_7e7d_relay_1). On = GPIO high.
+#
 # It plays at the volume below; an alarm that rings comes first.
 #sound:
 #  volume: 50               # 0 to 100

@@ -6,7 +6,7 @@ if(CONFIG_HC_BOARD_HAS_CAMERA)
     list(APPEND srcs "camera_preview.cpp")
 endif()
 idf_component_register(SRCS ${srcs}
-                       PRIV_REQUIRES app_update audio camera config esp_mm dashboard esp_app_format esp_timer board hass heap memory light_sensor logbuf devconsole esp_event frame_display network orientation platform touch_input ui uidebug vibration webserver)
+                       PRIV_REQUIRES app_update audio camera config esp_mm dashboard esp_app_format esp_timer board hass heap memory light_sensor logbuf devconsole esp_event frame_display network orientation platform relay touch_input ui uidebug vibration webserver)
 
 # LVGL allocates from PSRAM (main/lvgl/hc_lv_mem.h). Its Kconfig only names the header, so the
 # functions are set here, on the LVGL library alone.

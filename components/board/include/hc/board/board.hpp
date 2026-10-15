@@ -82,6 +82,10 @@ struct Info {
     // developer with console `vibrate <ms>` when the motor is added (docs/adding-a-board.md).
     // Motors differ a lot: shorter pulses than this one do nothing.
     uint16_t vibration_click_ms = 0;
+    // Relay n+1 on this GPIO (high = on, through a transistor or a relay board), -1: none. Home
+    // Assistant switches them (hc::relay, docs/architecture.md section 9.7a). A board that sets one
+    // names all four ({32, -1, -1, -1}): the entries left out of an initializer are 0, a pin.
+    int8_t relay_gpios[4] = {-1, -1, -1, -1};
     // How the MPU6050 sits on this board type, measured by the developer when the board is added
     // (docs/adding-a-board.md, console `orient`): gravity in the module's axes with the panel upright
     // in the base orientation (3 floats), then turned 90 degrees clockwise (3 floats). All zero = the

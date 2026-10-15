@@ -158,6 +158,7 @@ Status g_status{};
 char g_token[kTokenSize] = {};
 // set before start(), read by the task
 SoundPlayer g_sound_player = nullptr;
+RelayHandler g_relay_handler = nullptr;
 
 // The task's events, created with the first use: the UI subscribes its page before start() when
 // the dashboard is loaded fast (the P4: 80 ms before), and that subscription waits in the queue.
@@ -438,6 +439,10 @@ struct Session {
     uint32_t config_id = 0;
     // the subscription of the hassctrl_say event; 0: none
     uint32_t say_id = 0;
+    // the render_template subscription of the relay entities; 0: none
+    uint32_t relay_id = 0;
+    // what the handler was told last, bit n-1 for relay n; a connection starts again
+    hass_protocol::RelayStates relays;
     PendingCall calls[kMaxCalls] = {};
     size_t next_call = 0;
 };
@@ -616,6 +621,8 @@ void close_connection()
     s.page.next_render = 0;
     s.forecast.id = 0;
     s.say_id = 0;
+    s.relay_id = 0;
+    s.relays = {};
     for (PendingCall &call : s.calls) {
         if (call.id != 0) {
             report_failed(call.entity, "the connection to Home Assistant broke");
@@ -772,6 +779,45 @@ void on_say_event(const cJSON *root)
     case hass_protocol::SayResult::Invalid:
         ESP_LOGW(kTag, "%s: %s", hass_protocol::kSayEvent, error.c_str());
         break;
+    }
+}
+
+// the entities of the relays, when the board has some
+void subscribe_relays()
+{
+    if (g_relay_handler == nullptr) {
+        return;
+    }
+    s.relay_id = s.next_id++;
+    s.relays = {};
+    if (!send_text(hass_protocol::render_template_message(s.relay_id, hass_protocol::relay_template(platform::device_name())))) {
+        retry_later("the relay subscription could not be sent");
+    }
+}
+
+// a state of the template: the handler hears of every relay that is new or changed. A relay whose
+// entity is gone keeps its state.
+void on_relay_event(const cJSON *root)
+{
+    const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
+    if (const char *error = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "error"))) {
+        ESP_LOGW(kTag, "relay template: %s", error);
+        return;
+    }
+    hass_protocol::RelayStates now;
+    if (!hass_protocol::decode_relays(cJSON_GetObjectItemCaseSensitive(event, "result"), now)) {
+        ESP_LOGW(kTag, "the relay template result is not an object");
+        return;
+    }
+    for (unsigned relay = 1; relay <= hass_protocol::kMaxRelays; relay++) {
+        const uint8_t bit = static_cast<uint8_t>(1u << (relay - 1));
+        const bool on = (now.on & bit) != 0;
+        if ((now.seen & bit) != 0 && ((s.relays.seen & bit) == 0 || ((s.relays.on & bit) != 0) != on)) {
+            ESP_LOGI(kTag, "relay %u %s", relay, on ? "on" : "off");
+            g_relay_handler(relay, on);
+            s.relays.seen |= bit;
+            s.relays.on = static_cast<uint8_t>((s.relays.on & ~bit) | (on ? bit : 0));
+        }
     }
 }
 
@@ -941,6 +987,10 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         on_say_event(root);
         return;
     }
+    if (std::strcmp(type, "event") == 0 && id == s.relay_id && s.relay_id != 0) {
+        on_relay_event(root);
+        return;
+    }
     QueryState &q = s.query;
     if (std::strcmp(type, "event") == 0 && id == q.id && q.id != 0) {
         const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
@@ -979,6 +1029,13 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
             s.say_id = 0;
             ESP_LOGW(kTag, "%s not subscribed: %s (the token of an administrator is needed)", hass_protocol::kSayEvent,
                      message != nullptr ? message : "refused");
+        }
+        return;
+    }
+    if (id == s.relay_id && s.relay_id != 0) {
+        if (!success) {
+            s.relay_id = 0;
+            ESP_LOGW(kTag, "relays not subscribed: %s", message != nullptr ? message : "refused");
         }
         return;
     }
@@ -1053,6 +1110,7 @@ void on_message(const char *data, size_t length)
         render_page();
         render_forecast();
         subscribe_say();
+        subscribe_relays();
     } else if (std::strcmp(type, "auth_invalid") == 0) {
         const char *reason = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "message"));
         // Home Assistant's own words ("Invalid access token or password"); the state says the rest
@@ -1513,6 +1571,11 @@ SoundPlayer sound_player()
 void set_sound_player(SoundPlayer player)
 {
     g_sound_player = player;
+}
+
+void set_relay_handler(RelayHandler handler)
+{
+    g_relay_handler = handler;
 }
 
 void say(std::string_view message, std::string_view engine, std::string_view language, std::string_view url)

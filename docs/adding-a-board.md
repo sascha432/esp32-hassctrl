@@ -25,6 +25,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | shared I2C bus and the sensors on it (MPU6050 address) | board source file, `Info::imu_address` |
 | speaker amplifier on I2S (often missing from the datasheet: look at working configurations of the module) | `Info::audio_*`, `select HC_BOARD_HAS_AUDIO` (step 9) |
 | vibration motor and its GPIO | `Info::vibration_gpio`, `select HC_BOARD_HAS_VIBRATION` (step 10) |
+| relays for Home Assistant | `Info::relay_gpios` (up to 4, all four named: `{32, -1, -1, -1}`; -1 = none), see architecture.md 9.7a |
 | camera connector (MIPI-CSI): lanes, SCCB bus and address, power enable and reset pins, a clock from the chip or on the module, the MIPI PHY supply; the sensor on the module (chip ID) | device page, `select HC_BOARD_HAS_CAMERA` (step 11) |
 
 ## 2. Create the files

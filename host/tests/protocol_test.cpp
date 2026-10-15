@@ -393,6 +393,35 @@ TEST(protocol_messages)
     CHECK(out.find(R"("color_temp_kelvin":2700)") != std::string::npos);
 }
 
+TEST(protocol_relays)
+{
+    CHECK_STR(relay_entity_prefix("hassctrl-7e7d").c_str(), "hassctrl_7e7d_relay_");
+    CHECK_STR(relay_entity_prefix("HassCtrl-7E7D").c_str(), "hassctrl_7e7d_relay_");
+    const hc::memory::String text = relay_template("hassctrl-7e7d");
+    // the entities are named (no states.<domain>: that is rate limited by Home Assistant)
+    CHECK(text.find("states.") == hc::memory::String::npos);
+    CHECK(text.find("['input_boolean.hassctrl_7e7d_relay_1','switch.hassctrl_7e7d_relay_1',"
+                    "'input_boolean.hassctrl_7e7d_relay_2'") != hc::memory::String::npos);
+    CHECK(text.find("'switch.hassctrl_7e7d_relay_4']") != hc::memory::String::npos);
+
+    RelayStates states;
+    Json object(cJSON_Parse(R"({"1":"on","2":"off","3":"unavailable","7":"on"})"));
+    REQUIRE(decode_relays(object.get(), states));
+    CHECK(states.seen == 0b0111);
+    CHECK(states.on == 0b0001);
+    // the same as a JSON string (older Home Assistant)
+    Json text_result(cJSON_CreateString(R"({"2":"on"})"));
+    REQUIRE(decode_relays(text_result.get(), states));
+    CHECK(states.seen == 0b0010);
+    CHECK(states.on == 0b0010);
+    // no entity: nothing seen
+    Json none(cJSON_Parse("{}"));
+    REQUIRE(decode_relays(none.get(), states));
+    CHECK(states.seen == 0 && states.on == 0);
+    Json bad(cJSON_CreateString("nope"));
+    CHECK(!decode_relays(bad.get(), states));
+}
+
 TEST(protocol_say)
 {
     CHECK_STR(subscribe_events_message(9, kSayEvent).c_str(),

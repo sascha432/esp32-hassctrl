@@ -37,6 +37,7 @@
 #include "hc/touch_input/touch_input.hpp"
 #include "hc/ui/ui.hpp"
 #include "hc/uidebug/uidebug.hpp"
+#include "hc/relay/relay.hpp"
 #include "hc/vibration/vibration.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -905,6 +906,33 @@ int cmd_vibrate(int argc, char **argv)
 }
 #endif
 
+// The relays without Home Assistant: their state, or one switched (Home Assistant overrides it
+// with its next change)
+int cmd_relay(int argc, char **argv)
+{
+    if (!hc::relay::running()) {
+        std::printf("no relays\n");
+        return 1;
+    }
+    if (argc == 1 || std::strcmp(argv[1], "status") == 0) {
+        for (unsigned relay = 1; relay <= hc::relay::kMaxRelays; relay++) {
+            if (hc::relay::gpio_of(relay) >= 0) {
+                std::printf("relay %u on GPIO %d: %s\n", relay, hc::relay::gpio_of(relay), hc::relay::is_on(relay) ? "on" : "off");
+            }
+        }
+        return 0;
+    }
+    const int relay = std::atoi(argv[1]);
+    if (argc != 3 || relay < 1 || (std::strcmp(argv[2], "on") != 0 && std::strcmp(argv[2], "off") != 0)) {
+        return usage("relay [status|<n> on|off]");
+    }
+    if (!hc::relay::set(static_cast<unsigned>(relay), std::strcmp(argv[2], "on") == 0)) {
+        std::printf("no relay %d\n", relay);
+        return 1;
+    }
+    return 0;
+}
+
 // the samples of the touch controller (hc::touch_input), for a board whose touch misbehaves
 int cmd_touch(int argc, char **argv)
 {
@@ -1112,6 +1140,7 @@ void register_commands()
 #if CONFIG_HC_AUDIO
     add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
 #endif
+    add("relay", "GPIO relays: the state, or one switched", "[status|<n> on|off]", cmd_relay);
 #if CONFIG_HC_VIBRATION
     add("vibrate", "vibration motor: the click, a pulse, the alarm pattern", "[click|<ms>|alarm|stop|status]", cmd_vibrate);
 #endif

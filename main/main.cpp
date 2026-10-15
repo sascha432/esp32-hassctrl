@@ -37,6 +37,7 @@
 #include "hc/orientation/orientation.hpp"
 #include "hc/platform/device.hpp"
 #include "hc/platform/storage.hpp"
+#include "hc/relay/relay.hpp"
 #include "hc/platform/system_info.hpp"
 #include "hc/platform/time_sync.hpp"
 #include "hc/touch_input/touch_input.hpp"
@@ -496,6 +497,10 @@ extern "C" void app_main()
             ESP_LOGW(kTag, "vibration motor did not start");
         }
 #endif
+        // before hass::start; Home Assistant's entities switch the relays
+        if (hc::relay::start(board.relay_gpios, std::size(board.relay_gpios)) == ESP_OK && hc::relay::running()) {
+            hc::hass::set_relay_handler([](unsigned relay, bool on) { hc::relay::set(relay, on); });
+        }
         if (disp != nullptr && lvgl_port_lock(0)) {
             const hc::ui::Options ui_options{.slide_pages = board.ui_slide_pages,
                                              .panel_dialogs = board.ui_panel_dialogs,

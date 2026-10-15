@@ -1285,6 +1285,16 @@ test: the picture over the dashboard and a fixed login guest / password.
       menu entry, `/api/camera` 404).
 - [x] Your look at the web UI's Camera page (layout, saving): approved and tested by you (2026-10-14).
 
+## Relays (2026-10-15)
+
+Component `relay` (architecture.md section 9.7a): `input_boolean.<device>_relay_<n>` / `switch.` switches a GPIO.
+A permanent feature of the JC4880P443C (relay 1 on GPIO 32), no longer a test.
+
+- [x] Template, decoder (host tests `protocol_relays`), handler in hass, console `relay`; P4 relay 1 on GPIO 32.
+      Built, flashed, `relay 1 on|off` toggles the pin.
+- [x] Test with Home Assistant (you, 2026-10-15): the pin follows the entity at once. A template over
+      `states.<domain>` was delayed up to a second by Home Assistant's rate limit; it names the entities now.
+
 ## Known issues
 
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the

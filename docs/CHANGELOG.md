@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15
+
+- Relays: an entity `input_boolean.<device>_relay_<n>` (or `switch.`) switches GPIO `Info::relay_gpios[n-1]`;
+  found by name, followed live. P4: relay 1 on GPIO 32. Console `relay`.
+
 ## 2026-10-14
 
 - JC4880P443C: Settings larger (about 28 %: fonts one step up, rows, gaps, padding, thicker sliders

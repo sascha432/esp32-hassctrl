@@ -61,6 +61,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/hass_protocol/src/history.cpp
     ${HC_ROOT}/components/hass_protocol/src/picker.cpp
     ${HC_ROOT}/components/hass_protocol/src/say.cpp
+    ${HC_ROOT}/components/hass_protocol/src/relay.cpp
     ${HC_ROOT}/components/memory/src/large.cpp
     ${HC_ROOT}/components/network/src/merge.cpp
     ${HC_ROOT}/components/network/src/selection.cpp

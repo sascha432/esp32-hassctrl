@@ -148,6 +148,30 @@ SayResult decode_say(const cJSON *event, std::string_view device_name, Say &out,
 // always the device's, whatever the options say.
 memory::String tts_url_request(const Say &say);
 
+// ------------------------------------------------------------------------------------ relays
+
+// The relays of a board (docs/architecture.md section 9.7a) are switched by entities found by
+// name: input_boolean.<device>_relay_<n> or switch.<device>_relay_<n>, <device> the host name
+// with "-" as "_" ("hassctrl-7e7d": hassctrl_7e7d_relay_1).
+constexpr unsigned kMaxRelays = 4;
+
+// "hassctrl_7e7d_relay_" for "hassctrl-7e7d"
+memory::String relay_entity_prefix(std::string_view device_name);
+
+// The template of one render_template subscription: a JSON object of relay number -> state of
+// the entities of the device ({"1":"on","2":"off"}), "{}" without any.
+memory::String relay_template(std::string_view device_name);
+
+// Bit n-1 of both: relay n. `seen`: an entity has this relay; `on`: its state is "on".
+struct RelayStates {
+    uint8_t seen = 0;
+    uint8_t on = 0;
+};
+
+// Decodes the `result` of that subscription (an object, or the same as a JSON string); numbers
+// beyond kMaxRelays are ignored. False when it is not an object.
+bool decode_relays(const cJSON *result, RelayStates &out);
+
 // The path of the answer to it ({"url": "http://.../api/tts_proxy/x.mp3", "path": "/api/..."});
 // the device fetches it from its own address of Home Assistant, not from the one HA thinks it has.
 bool decode_tts_url(const cJSON *answer, memory::String &path);

@@ -36,6 +36,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - Touch feedback (click, slider ticks, vibration) and an alarm clock with beeps or MP3 files, on
   boards with a speaker or a motor. Home Assistant makes the device speak a text (tts) or play an
   MP3 with the event `hassctrl_say`.
+- Local GPIO pins switched from Home Assistant: an `input_boolean` or `switch` named after the device
+  (`input_boolean.<device>_relay_1`) drives a pin of the board, found by name, no setup.
 - The JC4880P443C's camera: preview and picture settings on the screen, an MJPEG stream and JPEG
   snapshots on the web, behind a login.
 

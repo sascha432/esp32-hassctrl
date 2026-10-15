@@ -182,4 +182,13 @@ void set_sound_player(SoundPlayer player);
 // `language` (empty: the engine's), or the MP3 at `url` (a path of Home Assistant or an address).
 void say(std::string_view message, std::string_view engine, std::string_view language, std::string_view url);
 
+// Relays (docs/architecture.md section 9.7a): entities named input_boolean.<device>_relay_<n> or
+// switch.<device>_relay_<n> (<device>: the host name with "_", hassctrl_7e7d_relay_1) switch the
+// board's relays. One render_template subscription finds them and follows their state; the handler
+// is called from the hass task for a relay (1 to hass_protocol::kMaxRelays) whenever its state
+// changes, and once for each entity there is after a connection. Set before start(); without a
+// handler nothing is subscribed.
+using RelayHandler = void (*)(unsigned relay, bool on);
+void set_relay_handler(RelayHandler handler);
+
 } // namespace hc::hass

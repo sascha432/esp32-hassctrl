@@ -1016,6 +1016,27 @@ JC4880P443C, GPIO 28 of the expansion header.
   at all, also none with the alarm. Stored in the settings NVS (`ui` / `vibrate`) a few seconds
   after the change. The Sound page is there with audio or a motor.
 
+### 9.7a Relays
+
+Component `relay` (2026-10-15): relay n (1 to 4) is a GPIO of the board (`Info::relay_gpios`, -1: none;
+high = on, through a transistor or a relay board). Home Assistant switches it with an entity found by its
+name, nothing to configure: `input_boolean.<device>_relay_<n>` or `switch.<device>_relay_<n>`, `<device>`
+the host name with `_` (`hassctrl-7e7d` is `input_boolean.hassctrl_7e7d_relay_1`).
+
+* **Subscription**: after `auth_ok` the hass task subscribes one `render_template` (hass_protocol
+  `relay_template`): it reads the states of the named entities (relays 1 to 4 in both domains) as
+  `{"1":"on","2":"off"}`; an entity that does not exist is left out. The ids are listed, not searched
+  with `states.<domain>`: Home Assistant delays a template that watches a whole domain by up to a
+  second (found 2026-10-15, a toggle took about 500 ms), one that names its entities renders at once.
+  The result also is the initial state. A normal token is enough.
+* **Handler**: `hass::set_relay_handler` (set by `main` when the board has a relay) hears of every relay
+  that is new or changed; after a reconnect each entity is told once. Any state but `on`
+  (`off`, `unavailable`, `unknown`) is off. A relay whose entity disappears keeps its state.
+* **Pins**: low before they become outputs, so a relay is off while the board starts and until Home
+  Assistant has answered. Console `relay [status|<n> on|off]` switches one by hand; Home Assistant's
+  next change overrides it.
+* Two entities with the same number (a switch and an input_boolean): the last one listed wins.
+
 ### 9.8 Camera
 
 The JC4880P443C's camera, an OV02C10 (2 MP) on the 15-pin MIPI-CSI connector
