@@ -502,10 +502,15 @@ extern "C" void app_main()
         if (hc::relay::start(board.relay_gpios.data(), board.relay_pullup.data(), board.relay_gpios.size()) == ESP_OK && hc::relay::running()) {
             hc::hass::set_relay_handler([](unsigned relay, bool on) { hc::relay::set(relay, on); });
         }
-        // the motion sensor's state goes to Home Assistant's text helper (hass queues it until connected)
+        // the motion sensor's state goes to Home Assistant's text helper (hass queues it until connected);
+        // loading the display settings hands it the hold time (the UI does not run yet, no lock)
+        if (board.motion_gpio >= 0) {
+            hc::ui::DisplaySettings display{};
+            ui_backend().display_settings(display);
+        }
         if (board.motion_gpio >= 0 &&
             hc::motion::start(board.motion_gpio, board.motion_active_high,
-                              [](bool occupied) { hc::hass::publish_motion(occupied); }) != ESP_OK) {
+                              [](bool detected) { hc::hass::publish_motion(detected); }) != ESP_OK) {
             ESP_LOGW(kTag, "motion sensor did not start");
         }
         if (disp != nullptr && lvgl_port_lock(0)) {

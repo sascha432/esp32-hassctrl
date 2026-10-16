@@ -1302,6 +1302,10 @@ A permanent feature of the JC4880P443C (relay 1 on GPIO 32), no longer a test.
       `states.<domain>` was delayed up to a second by Home Assistant's rate limit; it names the entities now.
 - [x] `Info::relay_pullup` (2026-10-16): open drain with the internal pullup, closed at boot; kitchen variant
       relay 1. Confirmed by you: the opto module switches on the internal pullup.
+- [x] Kitchen variant (2026-10-16, your report): 20-30 brownouts in a row, each right after "relay 1 off",
+      with the relay wire on GPIO 32 and nothing on its other end; fine after moving the wire to GPIO 28.
+      Cause unclear (`relay 1 off` on GPIO 32 without the wire: no reset). Relay 1 on GPIO 28 now, confirmed
+      by you; the variant also turns the FPS overlay off.
 
 ## History buttons (2026-10-15)
 
@@ -1344,6 +1348,9 @@ Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen v
 - [x] Wake on motion (2026-10-16, your request): Settings, Display, "Wake on motion" (on by default);
       motion brightens a dimmed screen, turns it on and keeps it on. Sim checked at 480x800 and 480x320
       (no row without a sensor); confirmed by you on the kitchen P4.
+- [x] Motion hold (2026-10-16, your request): the sensor resets after 1-2 s and flickered the helper; now it
+      stays Detected until the sensor saw nothing for 1 to 60 min (Settings, Display, "Motion hold", default
+      5 min). Sim checked at 480x800 and 480x320; confirmed by you on the kitchen P4.
 
 ## Known issues
 

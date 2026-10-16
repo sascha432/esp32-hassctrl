@@ -50,7 +50,21 @@ constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
                                                    .rotation_locked = false,
                                                    .light_min_lux = 0.0f,
                                                    .light_max_lux = 350.0f,
-                                                   .wake_on_motion = true};
+                                                   .wake_on_motion = true,
+                                                   .motion_hold_s = hc::motion::kDefaultHoldS};
+// The layout before the motion hold.
+struct DisplaySettingsV5 {
+    uint8_t brightness;
+    uint8_t dim_brightness;
+    uint16_t dim_after_s;
+    uint32_t off_after_s;
+    bool auto_brightness;
+    uint8_t rotation;
+    bool rotation_locked;
+    float light_min_lux;
+    float light_max_lux;
+    bool wake_on_motion;
+};
 // The layout before "Wake on motion".
 struct DisplaySettingsV4 {
     uint8_t brightness;
@@ -92,11 +106,18 @@ static_assert(sizeof(DisplaySettingsV3) != sizeof(DisplaySettingsV2));
 static_assert(sizeof(DisplaySettingsV3) != kDisplaySettingsV1);
 static_assert(sizeof(DisplaySettingsV4) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV4) != sizeof(DisplaySettingsV3));
+static_assert(sizeof(DisplaySettingsV5) != sizeof(hc::ui::DisplaySettings));
+static_assert(sizeof(DisplaySettingsV5) != sizeof(DisplaySettingsV4));
 
 // a stored value of any version into the current settings; false when it is none of them
 bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplaySettings &out)
 {
     if (size == sizeof(hc::ui::DisplaySettings)) {
+        std::memcpy(&out, data, size);
+        return true;
+    }
+    if (size == sizeof(DisplaySettingsV5)) {
+        // the motion hold keeps its default
         std::memcpy(&out, data, size);
         return true;
     }
@@ -292,8 +313,12 @@ void display_settings(hc::ui::DisplaySettings &out)
                 stored.light_min_lux = kDisplayDefaults.light_min_lux;
                 stored.light_max_lux = kDisplayDefaults.light_max_lux;
             }
+            if (stored.motion_hold_s < hc::motion::kMinHoldS || stored.motion_hold_s > hc::motion::kMaxHoldS) {
+                stored.motion_hold_s = kDisplayDefaults.motion_hold_s;
+            }
             g_display = stored;
         }
+        hc::motion::set_hold_s(g_display.motion_hold_s);
     }
     out = g_display;
 }
@@ -302,6 +327,7 @@ void set_display_settings(const hc::ui::DisplaySettings &settings)
 {
     g_display = settings;
     g_display_loaded = true;
+    hc::motion::set_hold_s(g_display.motion_hold_s);
     hc::platform::set_blob_later(kUiNamespace, kDisplayKey, &g_display, sizeof(g_display));
 }
 

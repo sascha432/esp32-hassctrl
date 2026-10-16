@@ -41,7 +41,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
-  reported to Home Assistant. Both found by the device's name, no setup (see "Supported hardware").
+  reported to Home Assistant, held Detected for 1 to 60 min after the last motion. Both found by the device's name, no setup (see "Supported hardware").
 
 **Setup and network**
 

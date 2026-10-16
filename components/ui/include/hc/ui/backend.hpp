@@ -92,6 +92,9 @@ struct DisplaySettings {
     // the motion sensor brightens a dimmed screen and turns it on, and keeps it on while it sees
     // motion (only with a motion sensor)
     bool wake_on_motion;
+    // Home Assistant's motion helper stays "Detected" this long after the sensor's last motion,
+    // 60 to 3600 s (only with a motion sensor; hc::motion::set_hold_s)
+    uint32_t motion_hold_s;
 };
 
 // Settings, Sound. The UI plays the touch sounds; the backend stores the settings and sets the

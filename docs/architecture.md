@@ -1068,14 +1068,21 @@ configured on the device. The JC4880P443C: GPIO 34 of the expansion header, acti
 * **Pin**: an input with the internal pull toward the level that means clear (pull-down for an
   active high sensor, pull-up for active low), so an unplugged sensor reads clear. An esp_timer
   samples it every 100 ms; a level that holds for two samples is the state (a PIR holds its output
-  for seconds, an interrupt would add nothing). Every change, and the first state, goes to the
-  handler `main` gave it: `hass::publish_motion`.
+  for seconds, an interrupt would add nothing). That is the sensor's state (`motion::occupied`,
+  what wake on motion uses).
+* **Hold** (2026-10-16): the detected state (`motion::detected`) turns on with the sensor and off
+  only when the sensor saw nothing for the hold time; every motion restarts it, so a sensor that
+  resets after 1-2 s does not flicker the helper. 1 to 60 min, default 5 min
+  (`DisplaySettings::motion_hold_s`, Settings, Display, "Motion hold"; `ui_backend` hands it to
+  `motion::set_hold_s` on loading and on every change, `main` loads it before the sensor starts).
+  Every change of the detected state, and the first one, goes to the handler `main` gave it:
+  `hass::publish_motion`.
 * **Publishing**: a command of the hass task (`Motion`); the task remembers the last state, sends
   `input_text.set_value` (hass_protocol `motion_message`, `target.entity_id`) when it is
   connected and the state changed, and sends the last state again after every `auth_ok`, so the
   helper follows the sensor across reconnects. A failed call (no such helper) is logged once per
   connection with the entity id to create; the next change tries again. A normal token is enough.
-* Console `motion [status|detected|clear]`: the state, or a state sent by hand to try the helper
+* Console `motion [status|detected|clear]`: the sensor's and the held state with the hold time, or a state sent by hand to try the helper
   without the sensor; the sensor's next change overrides it.
 * On the dashboard the helper is a sensor tile; its panel shows the timeline, because a state of
   two words (`core::on_off_words`) counts as on or off like a binary sensor, with the words as the
@@ -1085,7 +1092,8 @@ configured on the device. The JC4880P443C: GPIO 34 of the expansion header, acti
   touch for the dim and off times: a dimmed screen brightens, a screen that is off turns on without
   the wake-up blocker, and it stays on while the sensor sees motion. Its own time stamp, not LVGL's
   activity, so Settings still close after their time without a touch. The display settings blob
-  grew to its fifth layout (older ones are converted, `wake_on_motion` keeps the default).
+  grew to its fifth layout (older ones are converted, `wake_on_motion` keeps the default), with the
+  motion hold to its sixth (`motion_hold_s` keeps the default).
 
 ### 9.8 Camera
 

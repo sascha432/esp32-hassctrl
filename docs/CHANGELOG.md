@@ -2,6 +2,11 @@
 
 ## 2026-10-16
 
+- Motion hold (your request): Home Assistant's motion helper stays Detected until the sensor saw nothing for
+  the hold time (Settings, Display, "Motion hold", 1 to 60 min, default 5 min, backup `motion_hold_s`).
+  Confirmed by you on the kitchen P4.
+- Kitchen variant: relay 1 on GPIO 28 after brownouts with its wire on GPIO 32 (cause unclear, GPIO 32 itself
+  works), no FPS overlay (`sdkconfig.defaults` of the variant). Confirmed by you.
 - Wake on motion (your request): with a motion sensor, motion brightens or turns on the screen and keeps
   it on; Settings, Display has the switch (on by default, backup `wake_on_motion`). Confirmed by you on the
   kitchen P4. Its radar moved to GPIO 49 (GPIO 35 is the boot strap, the first radar died there).

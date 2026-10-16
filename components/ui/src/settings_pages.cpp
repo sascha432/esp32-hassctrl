@@ -77,6 +77,8 @@ constexpr int32_t kDimTimes[] = {0,   10,  15,  20,   30,   45,   60,   90,   12
                                  180, 300, 600, 900, 1200, 1800, 2700, 3600, -1};
 constexpr int32_t kOffTimes[] = {0,    60,   120,  180,   300,   600,   900,   1200,  1800, 2700,
                                  3600, 5400, 7200, 10800, 14400, 21600, 28800, 43200, 86400, -1};
+// the motion hold, 1 min to 1 h (hc::motion::kMinHoldS, kMaxHoldS)
+constexpr int32_t kHoldTimes[] = {60, 120, 180, 240, 300, 600, 900, 1200, 1800, 2700, 3600, -1};
 
 void idle_time_text(int32_t s, char *out, size_t size)
 {
@@ -874,8 +876,14 @@ Built display(lv_obj_t *content)
             changed.wake_on_motion = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
             store(changed);
         });
+        stepper_row(col, "Motion hold", kHoldTimes, static_cast<int32_t>(s.motion_hold_s), [](int32_t seconds) {
+            DisplaySettings changed = display_settings();
+            changed.motion_hold_s = static_cast<uint32_t>(seconds);
+            store(changed);
+        });
         text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it. Wake on motion: "
-                        "motion wakes it too and keeps it on while the sensor sees someone.");
+                        "motion wakes it too and keeps it on while the sensor sees someone. Motion hold: Home "
+                        "Assistant sees \"Detected\" until the sensor saw nobody for this long.");
     } else {
         text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it.");
     }

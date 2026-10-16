@@ -20,12 +20,16 @@ struct State {
     bool active_high = true;
     Handler on_change = nullptr;
     esp_timer_handle_t timer = nullptr;
-    // written by the timer task, read by any task
+    // written by the timer task (hold_s by any), read by any task
     volatile bool occupied = false;
+    volatile bool detected = false;
+    volatile uint32_t hold_s = kDefaultHoldS;
     bool started = false;
+    // the last sample with motion (esp_timer_get_time)
+    int64_t last_motion_us = 0;
     // the level seen last and how many samples in a row it held
     bool last_level = false;
-    unsigned held = 0;
+    unsigned samples = 0;
 };
 
 State g;
@@ -38,26 +42,37 @@ bool read_occupied()
 
 void on_timer(void *)
 {
-    const bool now = read_occupied();
-    if (now == g.last_level) {
-        if (g.held < kStableSamples) {
-            g.held++;
+    const bool level = read_occupied();
+    if (level == g.last_level) {
+        if (g.samples < kStableSamples) {
+            g.samples++;
         }
     } else {
-        g.last_level = now;
-        g.held = 1;
+        g.last_level = level;
+        g.samples = 1;
     }
-    if (g.held < kStableSamples) {
+    if (g.samples < kStableSamples) {
         return;
     }
-    if (g.started && now == g.occupied) {
+    if (!g.started || level != g.occupied) {
+        g.occupied = level;
+        ESP_LOGD(kTag, "sensor %s", level ? "motion" : "none");
+    }
+    // motion turns it on at once and restarts the hold; it turns off a hold time after the last motion
+    const int64_t now_us = esp_timer_get_time();
+    if (level) {
+        g.last_motion_us = now_us;
+    }
+    const bool detected =
+        level || (g.started && g.detected && now_us - g.last_motion_us < static_cast<int64_t>(g.hold_s) * 1000000);
+    if (g.started && detected == g.detected) {
         return;
     }
-    g.occupied = now;
+    g.detected = detected;
     g.started = true;
-    ESP_LOGI(kTag, "%s", now ? "detected" : "clear");
+    ESP_LOGI(kTag, "%s", detected ? "detected" : "clear");
     if (g.on_change != nullptr) {
-        g.on_change(now);
+        g.on_change(detected);
     }
 }
 
@@ -95,6 +110,21 @@ bool running()
 bool occupied()
 {
     return g.occupied;
+}
+
+bool detected()
+{
+    return g.detected;
+}
+
+void set_hold_s(uint32_t seconds)
+{
+    g.hold_s = seconds < kMinHoldS ? kMinHoldS : seconds > kMaxHoldS ? kMaxHoldS : seconds;
+}
+
+uint32_t hold_s()
+{
+    return g.hold_s;
 }
 
 int gpio()

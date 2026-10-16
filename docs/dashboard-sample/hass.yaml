@@ -85,6 +85,7 @@
 #  light_min_lx: 0          # 0 to 100000, less than light_max_lx
 #  light_max_lx: 350        # 1 to 100000
 #  wake_on_motion: true     # a motion sensor wakes the screen and keeps it on
+#  motion_hold_s: 300       # 60 to 3600: Home Assistant sees Detected this long after the last motion
 
 # Sounds and vibration, on boards that have them.
 #
@@ -109,7 +110,7 @@
 # name of the device with "_" (hassctrl-7e7d: input_boolean.hassctrl_7e7d_relay_1). On = GPIO high.
 #
 # Motion sensor: a board with a motion GPIO (the JC4880P443C) sets a text helper of Home Assistant
-# to "Detected" or "Clear", no setting here. Create it in Home Assistant (Settings, Devices,
+# to "Detected" or "Clear"; it stays Detected for `display`, `motion_hold_s` after the last motion. Create it in Home Assistant (Settings, Devices,
 # Helpers, Text) with the entity id `input_text.<device>_motion` (hassctrl-7e7d:
 # input_text.hassctrl_7e7d_motion); without it the log says so once per connection. A sensor
 # tile on the helper shows Detected / Clear and a timeline in its panel.
