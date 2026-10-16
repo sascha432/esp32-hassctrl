@@ -2,6 +2,8 @@
 
 ## 2026-10-16
 
+- Edit mode: the finger that starts it is ignored until it is lifted (no move, no remove dialog, no tap); hold and
+  drag in one move is gone (your decision). Confirmed by you.
 - Lock tile (your report): a double tap locks or unlocks it, a single tap opens the panel (was: a tap on the
   tile never locks). The simulator has a `doubletap X,Y` step. Confirmed by you.
 - Edit mode adds tiles, areas and clocks (your requests): free cells show a dashed "+" as in the web editor; a

@@ -744,9 +744,10 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         (options of your power sensor, then Back and Cancel).
   - [x] Adding a tile, an area and a clock, and changing one, Done included: confirmed by you in
         landscape and portrait on every board (2026-10-16); the lock tile's double tap too.
-  - [ ] Hold and drag in one move (lvgl-dashboard.md section 7.1): the WT32 sent the edit layer
-        no events of the holding finger, so the drag in one move probably does not work there;
-        check on the boards.
+  - [x] Hold and drag in one move removed (2026-10-16, your decision): the finger that starts
+        edit mode is ignored until it is lifted (`lv_indev_wait_release`), so it neither moves the
+        tile nor asks to remove it (that dialog under the hold was the bug). The carried-finger
+        flag, its timer and `compat::pressed` are gone. Confirmed by you.
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 7 px (was 8, your request 2026-10-14).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,

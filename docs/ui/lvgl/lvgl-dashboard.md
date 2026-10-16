@@ -299,8 +299,10 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   on a tile or on an empty cell. No tile uses a long press today (only the steppers of the panels
   repeat on hold), and a dimmer's drag starts with movement, so they do not collide. The tile under
   the finger does not act (no toggle, no panel). The bar and the outlines of the tiles show the
-  start, and a click and a pulse (`sound::confirm()`) confirm it. The hold that started it does
-  not count as a remove press; the finger can drag the tile it is on straight away.
+  start, and a click and a pulse (`sound::confirm()`) confirm it. The finger that started it does
+  nothing more until it is lifted: no remove dialog (asking to remove the tile under the hold was
+  the bug), no move, its release is no tap. A move starts with the next touch (confirmed by you,
+  2026-10-16).
 * **While editing**: the tiles keep their look with an outline; a tap on the back tile goes back,
   on a tile opens its title and options (an area too: it does not open), on a "+" cell adds a tile
   (section 7.2). Areas do not open, there is no swipe and the dots are hidden (2026-10-14). The
@@ -348,10 +350,10 @@ copy. Same behavior, one data path fewer.
   starts below the bar while editing; the cards get an outline (`apply_look` sets the border on
   every update, the outline stays). A new layout from outside while editing drops the copy and
   says so ("Edit dropped"). Done reopens the stored dashboard on the same page.
-* When edit mode starts, the pressed tile is deleted with its page; LVGL then ends that press, so
-  the tile does not act on the release. LVGL may send the edit layer nothing more of that finger
-  (it waits for the release; seen on the WT32, 2026-10-16), so a timer reads the input device
-  until the finger is up (`compat::pressed`); until then a release is no tap.
+* When edit mode starts, LVGL ignores the finger that started it until it is lifted
+  (`lv_indev_wait_release`): no move, no remove dialog, no tap on its release. Hold and drag in
+  one move is not offered (removed 2026-10-16, your decision: it no longer worked, and the hold
+  that went on had asked to remove the tile; confirmed by you).
 * `ui/add_dialog.cpp`: the steps of adding (section 7.2); `ui/entity_picker.cpp`: the entity search
   and the page frame of the steps, children of the edit layer. The "+"
   cells are one object of the edit layer under the bar that draws every free cell itself

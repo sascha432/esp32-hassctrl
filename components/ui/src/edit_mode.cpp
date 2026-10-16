@@ -6,7 +6,6 @@
 
 #include "add_dialog.hpp"
 #include "dashboard.hpp"
-#include "lvgl_compat.hpp"
 #include "overlay.hpp"
 #include "settings.hpp"
 #include "sound.hpp"
@@ -60,23 +59,6 @@ struct Watch {
 };
 
 Watch g_watch;
-// the finger that started edit mode is still down: its hold must not ask to remove a tile, and
-// its release is no tap. LVGL may send the layer nothing of it (its press began on an object of the
-// page that was built again), so a timer looks at the input device until the finger is up.
-bool g_carried = false;
-lv_timer_t *g_carried_timer = nullptr;
-
-void on_carried_timer(lv_timer_t *)
-{
-    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
-        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER && compat::pressed(indev)) {
-            return;
-        }
-    }
-    g_carried = false;
-    lv_timer_del(g_carried_timer);
-    g_carried_timer = nullptr;
-}
 
 void cancel_watch()
 {
@@ -92,14 +74,13 @@ void on_watch_timer(lv_timer_t *)
     // a timer with one repeat is deleted after this call
     g_watch.timer = nullptr;
     g_watch.obj = nullptr;
-    // the tile under the finger goes with the page that is built again, which ends its press: the
-    // tile does not act on the release, and the finger goes on as a press on the edit layer
     sound::confirm();
     dashboard::start_editing();
-    // the finger is still down: its hold must not ask to remove a tile, a drag may move it
-    g_carried = true;
-    if (g_carried_timer == nullptr) {
-        g_carried_timer = lv_timer_create(on_carried_timer, 50, nullptr);
+    // the finger that started it does nothing more until it is lifted: no move, no remove, no tap
+    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            lv_indev_wait_release(indev);
+        }
     }
 }
 
@@ -365,7 +346,7 @@ void on_layer(lv_event_t *event)
         if (hit(point)) {
             mark_pressed(true);
         }
-        if (g.card != nullptr && !g.back && !g_carried) {
+        if (g.card != nullptr && !g.back) {
             g.timer = lv_timer_create(on_long_press, kLongPressMs, nullptr);
             lv_timer_set_repeat_count(g.timer, 1);
         }
@@ -386,15 +367,12 @@ void on_layer(lv_event_t *event)
             drag(point);
         }
         break;
-    case LV_EVENT_RELEASED: {
+    case LV_EVENT_RELEASED:
         cancel_timer();
         mark_pressed(false);
-        // the finger that started edit mode lifts: no tap
-        const bool carried = g_carried;
-        g_carried = false;
         if (g.dragging) {
             end_drag();
-        } else if (!carried && !g.long_pressed && !moved(g.at, point)) {
+        } else if (!g.long_pressed && !moved(g.at, point)) {
             // a tap: the back tile changes the page, a tile opens its title and options, an empty
             // cell adds a tile; areas do not open
             if (g.back) {
@@ -406,11 +384,9 @@ void on_layer(lv_event_t *event)
             }
         }
         break;
-    }
     case LV_EVENT_PRESS_LOST:
         cancel_timer();
         mark_pressed(false);
-        g_carried = false;
         if (g.dragging) {
             g.moved.reset();
             end_drag();
