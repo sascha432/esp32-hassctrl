@@ -233,5 +233,5 @@ scrolls, closing and reopening works.
 * The weather panel: `twice_daily` forecasts are not read; the icon of `partlycloudy` is the day
   one at night too (the entity's state has no sun position); a forecast has at most 8 days or 24
   hours (`core::kMaxForecastEntries`); rows that do not fit are left out.
-* The light panel opens only from a dimmer; a light without `dimmer` toggles on a tap. A long
-  press could open it (to decide).
+* The light panel opens from a dimmer on a tap, from a light without `dimmer` that dims on a
+  double tap (a light that only switches gets the sensor panel with its timeline).

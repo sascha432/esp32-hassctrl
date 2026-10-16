@@ -9,8 +9,8 @@
 //
 //   {"0":{"s":"on","b":180},"1":{"s":"heat","t":21.5,"c":20.8,"a":"heating"}}
 //
-// Which fields an entity gets follows from its tiles on the page (a light without `dimmer` does
-// not need its color modes, a tile with its own name not the friendly_name). The fields of the open
+// Which fields an entity gets follows from its tiles on the page (a sensor with `decimals` does
+// not need its rounded state, a tile with its own name not the friendly_name). The fields of the open
 // panel are added while it is open. Template and decoder read the same table, so they cannot
 // drift apart.
 

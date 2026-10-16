@@ -225,7 +225,7 @@ struct FieldSpec {
 
 * `hass_protocol::fields_of(tile, panel)` says which fields a tile needs: the state always, the
   `friendly_name` only without a name of the tile, icon and device class only without an icon,
-  the brightness for a light, the color modes only for a `dimmer`, the panel fields only while the panel is open.
+  the brightness and the color modes for a light, the panel fields only while the panel is open.
 * `hass_protocol` builds the template of the visible page from it, every value as
   `state_attr(e,'<attribute>')|tojson`, and decodes a result back into `EntityUpdate`s, from the
   same table.
@@ -378,7 +378,7 @@ Tile format, details (decided 2026-10-07):
 
   | Domain | Tile | Tap |
   | --- | --- | --- |
-  | `light` | without `dimmer`: switch; with `dimmer: true`: level fill | toggle after the double-tap window, double tap opens the timeline; with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel (with a history button) |
+  | `light` | without `dimmer`: switch; with `dimmer: true`: level fill | toggle after the double-tap window, double tap opens the timeline (the light panel when the light dims); with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel (with a history button) |
   | `switch`, `input_boolean`, `fan`, `automation` | switch | toggle |
   | `button`, `input_button`, `scene`, `script` | button | press, `turn_on` for scene and script |
   | `climate` | climate; two rows tall it has the `+`/`-` bars | as before |

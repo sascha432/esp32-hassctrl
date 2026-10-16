@@ -2,6 +2,8 @@
 
 ## 2026-10-16
 
+- Your report: a double tap on a plain light tile of a light that dims opens the light panel, not the sensor
+  graph (the page subscribes the color modes of every light). Confirmed by you.
 - Clock tile (`type: clock`, your request): digital or analog, 24 or 12 h, seconds, date, the device's time
   zone or `zone: Europe/London` (evaluated by core, not the C library); web editor, sample, 110 host tests.
   Confirmed by you on the JC3248W535.

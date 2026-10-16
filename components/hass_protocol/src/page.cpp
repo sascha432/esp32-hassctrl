@@ -337,8 +337,9 @@ FieldMask fields_of(const core::Tile &tile, bool panel)
         }
         break;
     case TileKind::Light:
-        // a light without `dimmer` shows its level while it is on
-        fields |= tile.dimmer ? kDimmer : bit(Field::Brightness);
+        // a light without `dimmer` shows its level while it is on; the color modes tell its double
+        // tap whether it opens the light panel
+        fields |= kDimmer;
         if (panel) {
             fields |= kLightPanel;
         }

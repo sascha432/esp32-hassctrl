@@ -82,6 +82,7 @@ struct State {
     lv_coord_t screen_width = 0;
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
+    bool light = false; // the light panel, else the panel of the tile's kind
     lv_obj_t *name = nullptr;
     std::string shown_name;
 };
@@ -201,6 +202,21 @@ void on_root_delete(lv_event_t *)
     lock_panel::forget();
     picture_panel::forget();
     weather_panel::forget();
+}
+
+// A light tile gets the light panel with `dimmer`, or when its light dims: a supported color mode
+// other than onoff, or a reported level. A light without `dimmer` that only switches has the
+// sensor panel with its timeline.
+bool light_panel_for(const core::Tile &tile, const core::EntityState &state)
+{
+    if (tile.kind != core::TileKind::Light) {
+        return false;
+    }
+    if (tile.dimmer || state.brightness >= 0 || state.last_brightness >= 0) {
+        return true;
+    }
+    return std::any_of(state.color_modes.begin(), state.color_modes.end(),
+                       [](const auto &mode) { return mode != "onoff"; });
 }
 
 } // namespace
@@ -521,7 +537,9 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         // opened by a tap: from above the screen; built again after a turn: in place
         place(appear ? 0 : kShown);
     }
-    const bool light = kind == core::TileKind::Light && layout.tiles[tile].dimmer;
+    // chosen once: update() fills the panel that was built
+    const bool light = light_panel_for(layout.tiles[tile], dashboard::state(g.entity));
+    g.light = light;
     // the sensor panel's frame: no options, the control takes the whole width
     const bool compact = !light && kind != core::TileKind::Climate && kind != core::TileKind::Lock;
     Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, compact, dialog);
@@ -586,8 +604,8 @@ void update(core::EntityIndex entity)
         g.shown_name = name;
         t::line_text(g.name, name.c_str());
     }
-    // the same choice as build(): a light without dimmer has the sensor panel
-    if (tile.kind == core::TileKind::Light && tile.dimmer) {
+    // the panel build() chose
+    if (g.light) {
         light_panel::update();
     } else if (tile.kind == core::TileKind::Climate) {
         climate_panel::update();

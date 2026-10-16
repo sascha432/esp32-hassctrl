@@ -741,7 +741,7 @@ Home Assistant values (2026-10-07, running on the T4 against your Home Assistant
   the unit, the name).
 - `hass_protocol` (new, pure, host tested): one field table (code, attribute, kind) drives the
   template and the decoder. The fields come from the tiles of the page: a tile with its own name
-  does not fetch the `friendly_name`, a light without `dimmer` only its state and brightness, a sensor with
+  does not fetch the `friendly_name`, a light without `dimmer` only its state, brightness and color modes, a sensor with
   `decimals` no rounded state; the open panel adds its fields. Result as an object or as text.
   `call_service` messages for all intents (toggle, press, `turn_on` for scene and script, level,
   temperature, modes, effect, color, color temperature), checked against the domain.
@@ -1324,6 +1324,10 @@ panel left of the power button.
 - [x] Your report: the panel of a double-tapped light had no icon and no state. `panel::update` sent
       every light tile to the light panel's update, which has nothing for a plain light; it now picks
       the panel as `build` does (dimmer or not).
+- [x] Your report (2026-10-16): the double tap on a plain light tile of a dimmable light opened the
+      sensor graph. `panel::build` now gives a light tile the light panel when it has `dimmer` or its
+      light dims (a color mode other than `onoff`, or a reported level); the page subscribes the color
+      modes of every light for that. Confirmed by you.
 - [x] Climate graph on the P4 with the Lyric thermostat: 70 points over 24 h, checked over the console.
 - [x] Confirmed by you on the P4 (2026-10-15): the timeline of a switch after a double tap, the light
       panel's button, the climate graph (the console's virtual taps are too slow for the 300 ms

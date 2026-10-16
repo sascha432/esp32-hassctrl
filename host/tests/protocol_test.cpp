@@ -63,7 +63,7 @@ TEST(protocol_fields_follow_the_tile)
 {
     Layout layout;
     Tile plain = entity_tile(layout, "light.lamp");
-    CHECK(fields_of(plain, false) == (bit(Field::State) | bit(Field::Brightness)));
+    CHECK(fields_of(plain, false) == (bit(Field::State) | bit(Field::Brightness) | bit(Field::ColorModes)));
     plain.dimmer = true;
     CHECK(fields_of(plain, false) == (bit(Field::State) | bit(Field::Brightness) | bit(Field::ColorModes)));
     CHECK((fields_of(plain, true) & bit(Field::EffectList)) != 0);

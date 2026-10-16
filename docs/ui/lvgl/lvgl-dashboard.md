@@ -139,7 +139,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 
 | Tile | Content, top to bottom | Tap |
 | --- | --- | --- |
-| switch, light without `dimmer` | icon (48 px), name; a light that is on and reports a level shows it under the icon ("44 %", the icon then 24 px) | toggles once the double-tap window (300 ms) has passed; a double tap opens the sensor panel with the on/off timeline ([lvgl-panels.md](lvgl-panels.md) section 4) |
+| switch, light without `dimmer` | icon (48 px), name; a light that is on and reports a level shows it under the icon ("44 %", the icon then 24 px) | toggles once the double-tap window (300 ms) has passed; a double tap opens the light panel when the light dims (a color mode other than `onoff`, or a reported level; [lvgl-panels.md](lvgl-panels.md) section 2), else the sensor panel with the on/off timeline (section 4) |
 | button, scene, script | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
 | lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | opens the lock panel; a tap on the tile never locks or unlocks |
