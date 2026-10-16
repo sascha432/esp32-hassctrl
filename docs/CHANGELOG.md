@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16
+
+- Relays: `Info::relay_pullup` for a module without its own pullup: open drain with the internal pullup,
+  closed while the board starts. The kitchen variant's relay 1 uses it. Confirmed by you, with its
+  motion sensor (a radar, active high) too.
+
 ## 2026-10-15
 
 - History in more places (your request): a double tap on a switch or plain light tile opens the sensor

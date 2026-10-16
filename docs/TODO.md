@@ -1300,6 +1300,8 @@ A permanent feature of the JC4880P443C (relay 1 on GPIO 32), no longer a test.
       Built, flashed, `relay 1 on|off` toggles the pin.
 - [x] Test with Home Assistant (you, 2026-10-15): the pin follows the entity at once. A template over
       `states.<domain>` was delayed up to a second by Home Assistant's rate limit; it names the entities now.
+- [x] `Info::relay_pullup` (2026-10-16): open drain with the internal pullup, closed at boot; kitchen variant
+      relay 1. Confirmed by you: the opto module switches on the internal pullup.
 
 ## History buttons (2026-10-15)
 

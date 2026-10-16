@@ -499,7 +499,7 @@ extern "C" void app_main()
         }
 #endif
         // before hass::start; Home Assistant's entities switch the relays
-        if (hc::relay::start(board.relay_gpios.data(), board.relay_gpios.size()) == ESP_OK && hc::relay::running()) {
+        if (hc::relay::start(board.relay_gpios.data(), board.relay_pullup.data(), board.relay_gpios.size()) == ESP_OK && hc::relay::running()) {
             hc::hass::set_relay_handler([](unsigned relay, bool on) { hc::relay::set(relay, on); });
         }
         // the motion sensor's state goes to Home Assistant's text helper (hass queues it until connected)

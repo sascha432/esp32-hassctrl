@@ -1047,7 +1047,9 @@ the host name with `_` (`hassctrl-7e7d` is `input_boolean.hassctrl_7e7d_relay_1`
   that is new or changed; after a reconnect each entity is told once. Any state but `on`
   (`off`, `unavailable`, `unknown`) is off. A relay whose entity disappears keeps its state.
 * **Pins**: low before they become outputs, so a relay is off while the board starts and until Home
-  Assistant has answered. Console `relay [status|<n> on|off]` switches one by hand; Home Assistant's
+  Assistant has answered. A relay with `Info::relay_pullup` (a module without its own pullup, closed
+  while its input is high) is open drain with the internal pullup instead: closed while the board
+  starts, low opens it. Console `relay [status|<n> on|off]` switches one by hand; Home Assistant's
   next change overrides it.
 * Two entities with the same number (a switch and an input_boolean): the last one listed wins.
 

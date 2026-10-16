@@ -3,7 +3,9 @@
 // Relays on GPIOs (docs/architecture.md section 9.7a): relay n (1 to kMaxRelays) is a GPIO, high =
 // on, through a transistor or a relay board. Home Assistant switches them (hc::hass::set_relay_handler),
 // the console `relay` too. Every pin is low before it becomes an output, so a relay is off while
-// the board starts; the state follows Home Assistant once it is connected.
+// the board starts; the state follows Home Assistant once it is connected. A relay on the pullup
+// (a module without its own, closed while its input is high) is open drain with the internal
+// pullup: low opens it, released closes it, and it is closed (on) while the board starts.
 
 #include <cstddef>
 
@@ -13,8 +15,9 @@ namespace hc::relay {
 
 constexpr size_t kMaxRelays = 4;
 
-// Relay n+1 on `gpios[n]` for n < `count`; a negative entry: no relay n+1.
-esp_err_t start(const signed char *gpios, size_t count);
+// Relay n+1 on `gpios[n]` for n < `count`; a negative entry: no relay n+1. `pullups[n]`: relay
+// n+1 on the internal pullup, open drain.
+esp_err_t start(const signed char *gpios, const bool *pullups, size_t count);
 
 // At least one relay is set up.
 bool running();

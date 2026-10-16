@@ -82,7 +82,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - Chips: ESP32, ESP32-S3, ESP32-P4 (+ ESP32-C6 Wi-Fi)
 - Panels: SPI (ST7796S, ILI9341), QSPI (AXS15231B), MIPI-DSI (ST7701S)
 - Touch: FT6336U, GT911, AXS15231B
-- Local GPIO switch: up to 4 relays, from `input_boolean.<device>_relay_<n>` / `switch.`
+- Local GPIO switch: up to 4 relays, from `input_boolean.<device>_relay_<n>` / `switch.`; optional internal pullup (open drain, closed at boot)
 - Local GPIO sensor: motion sensor (PIR, active high or low), to `input_text.<device>_motion`
 - Orientation sensor: MPU6050
 - Light sensor: BH1750 or LDR

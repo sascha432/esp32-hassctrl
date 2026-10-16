@@ -14,7 +14,7 @@ int g_gpio[kMaxRelays] = {-1, -1, -1, -1};
 
 } // namespace
 
-esp_err_t start(const signed char *gpios, size_t count)
+esp_err_t start(const signed char *gpios, const bool *pullups, size_t count)
 {
     esp_err_t result = ESP_OK;
     for (size_t n = 0; n < kMaxRelays && n < count; n++) {
@@ -27,19 +27,22 @@ esp_err_t start(const signed char *gpios, size_t count)
             result = ESP_ERR_INVALID_ARG;
             continue;
         }
-        // low before it becomes an output: the relay must not switch while the board starts
-        gpio_set_level(static_cast<gpio_num_t>(gpio), 0);
+        // the off level before it becomes an output: the relay must not switch while the board
+        // starts. A relay on the pullup is closed by default: released (high) until Home Assistant answers.
+        const bool pullup = pullups[n];
+        gpio_set_level(static_cast<gpio_num_t>(gpio), pullup ? 1 : 0);
         gpio_config_t io{};
         io.pin_bit_mask = 1ULL << gpio;
-        // input too, so is_on() reads what the pin really drives
-        io.mode = GPIO_MODE_INPUT_OUTPUT;
+        // input too, so is_on() reads what the pin really drives; on the pullup only low is driven
+        io.mode = pullup ? GPIO_MODE_INPUT_OUTPUT_OD : GPIO_MODE_INPUT_OUTPUT;
+        io.pull_up_en = pullup ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
         if (gpio_config(&io) != ESP_OK) {
             ESP_LOGW(kTag, "relay %u: GPIO %d did not configure", static_cast<unsigned>(n + 1), gpio);
             result = ESP_FAIL;
             continue;
         }
         g_gpio[n] = gpio;
-        ESP_LOGI(kTag, "relay %u on GPIO %d", static_cast<unsigned>(n + 1), gpio);
+        ESP_LOGI(kTag, "relay %u on GPIO %d%s", static_cast<unsigned>(n + 1), gpio, pullup ? ", pullup" : "");
     }
     return result;
 }

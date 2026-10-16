@@ -94,6 +94,9 @@ struct Info {
     // Assistant switches them (hc::relay, docs/architecture.md section 9.7a). A board that sets one
     // names all four ({32, -1, -1, -1}): the entries left out of an initializer are 0, a pin.
     std::array<int8_t, 4> relay_gpios = {-1, -1, -1, -1};
+    // Relay n+1 is a module without its own pullup, closed while its input is high: open drain with
+    // the internal pullup, closed (on) while the board starts instead of off.
+    std::array<bool, 4> relay_pullup = {};
     // A motion sensor (PIR) on this GPIO, -1: none. Its state goes to Home Assistant as
     // input_text.<device>_motion, "Detected" or "Clear" (hc::motion, docs/architecture.md 9.7b).
     int8_t motion_gpio = -1;
