@@ -34,6 +34,8 @@ void set_rotation(uint8_t rotation);
 void set_board(const char *board_name);
 // a light sensor with this much light in the room; without, auto brightness has no effect
 void set_ambient_light(bool present, float lux);
+// a motion sensor, which never sees motion; without, Settings have no "Wake on motion"
+void set_motion_sensor(bool present);
 
 // the backlight the UI asked for, in percent (the window title shows it)
 uint8_t backlight_percent();

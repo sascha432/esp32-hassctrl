@@ -46,6 +46,10 @@ struct Context {
     // what it held before the start (on_first_frame)
     bool lit = false;
     uint32_t started = 0;
+    // the last check that saw motion (DisplaySettings::wake_on_motion); the idle time counts from
+    // it as from a touch. Not LVGL's activity: Settings close after a time without a touch.
+    bool motion_seen = false;
+    uint32_t motion_at = 0;
     void (*monitor)(lv_disp_drv_t *, uint32_t, uint32_t) = nullptr;
 };
 
@@ -195,13 +199,23 @@ void on_check(lv_timer_t *)
         LV_LOG_WARN("no frame after %lu ms, backlight on", static_cast<unsigned long>(kFirstFrameTimeoutMs));
         light();
     }
-    if (g.state == State::Off) {
-        return; // only the blocker wakes it
-    }
     DisplaySettings s{};
     g.backend->display_settings(s);
+    bool occupied = false;
+    if (s.wake_on_motion && g.backend->motion(occupied) && occupied) {
+        g.motion_seen = true;
+        g.motion_at = lv_tick_get();
+        // woken by motion: the next touch works as usual
+        lv_obj_add_flag(g.blocker, LV_OBJ_FLAG_HIDDEN);
+    } else if (g.state == State::Off) {
+        return; // only the blocker or motion wakes it
+    }
     const bool automatic = update_auto(s);
-    const State state = wanted(lv_disp_get_inactive_time(g.disp), s);
+    uint32_t idle = lv_disp_get_inactive_time(g.disp);
+    if (s.wake_on_motion && g.motion_seen) {
+        idle = std::min(idle, lv_tick_elaps(g.motion_at));
+    }
+    const State state = wanted(idle, s);
     if (g.previewing) {
         return;
     }

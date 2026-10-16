@@ -14,6 +14,7 @@
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/hass/hass.hpp"
 #include "hc/light_sensor/light_sensor.hpp"
+#include "hc/motion/motion.hpp"
 #include "hc/network/network.hpp"
 #include "hc/platform/device.hpp"
 #include "hc/platform/settings.hpp"
@@ -48,7 +49,20 @@ constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
                                                    .rotation = 0,
                                                    .rotation_locked = false,
                                                    .light_min_lux = 0.0f,
-                                                   .light_max_lux = 350.0f};
+                                                   .light_max_lux = 350.0f,
+                                                   .wake_on_motion = true};
+// The layout before "Wake on motion".
+struct DisplaySettingsV4 {
+    uint8_t brightness;
+    uint8_t dim_brightness;
+    uint16_t dim_after_s;
+    uint32_t off_after_s;
+    bool auto_brightness;
+    uint8_t rotation;
+    bool rotation_locked;
+    float light_min_lux;
+    float light_max_lux;
+};
 // The layout before the two lights of the automatic brightness.
 struct DisplaySettingsV3 {
     uint8_t brightness;
@@ -76,12 +90,29 @@ static_assert(sizeof(DisplaySettingsV2) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV3) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV3) != sizeof(DisplaySettingsV2));
 static_assert(sizeof(DisplaySettingsV3) != kDisplaySettingsV1);
+static_assert(sizeof(DisplaySettingsV4) != sizeof(hc::ui::DisplaySettings));
+static_assert(sizeof(DisplaySettingsV4) != sizeof(DisplaySettingsV3));
 
 // a stored value of any version into the current settings; false when it is none of them
 bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplaySettings &out)
 {
     if (size == sizeof(hc::ui::DisplaySettings)) {
         std::memcpy(&out, data, size);
+        return true;
+    }
+    if (size == sizeof(DisplaySettingsV4)) {
+        // "Wake on motion" keeps its default
+        DisplaySettingsV4 old;
+        std::memcpy(&old, data, size);
+        out.brightness = old.brightness;
+        out.dim_brightness = old.dim_brightness;
+        out.dim_after_s = old.dim_after_s;
+        out.off_after_s = old.off_after_s;
+        out.auto_brightness = old.auto_brightness;
+        out.rotation = old.rotation;
+        out.rotation_locked = old.rotation_locked;
+        out.light_min_lux = old.light_min_lux;
+        out.light_max_lux = old.light_max_lux;
         return true;
     }
     if (size == sizeof(DisplaySettingsV3)) {
@@ -274,6 +305,15 @@ void set_display_settings(const hc::ui::DisplaySettings &settings)
     hc::platform::set_blob_later(kUiNamespace, kDisplayKey, &g_display, sizeof(g_display));
 }
 
+bool motion(bool &occupied)
+{
+    if (!hc::motion::running()) {
+        return false;
+    }
+    occupied = hc::motion::occupied();
+    return true;
+}
+
 // The sensor also sees the screen: the board's share of it at full brightness, scaled by the
 // backlight of the moment, is taken off.
 bool ambient_lux(float &out)
@@ -421,6 +461,7 @@ const hc::ui::Backend g_backend{
     .set_display_settings = set_display_settings,
     .set_backlight = [](uint8_t percent) { hc::board::set_backlight(percent); },
     .ambient_lux = ambient_lux,
+    .motion = motion,
     // nullptr without the options (ui_sound.cpp)
     .sound_settings = ui_sound::sound_settings,
     .set_sound_settings = ui_sound::set_sound_settings,

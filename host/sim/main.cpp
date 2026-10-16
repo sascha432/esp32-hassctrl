@@ -43,6 +43,7 @@ struct Options {
     ui::Options ui;
     bool lux_set = false;
     float lux = 0.0f;
+    bool motion = false;
     // docs/dashboard-sample/hass.yaml unless --dashboard names another
     std::string dashboard = HC_SOURCE_ROOT "/docs/dashboard-sample/hass.yaml";
     std::string page;
@@ -474,6 +475,7 @@ void usage()
         "  --rotation 0-3       start in this rotation (LVGL's steps, counterclockwise)\n"
         "  --sensor             behave as a board with an orientation sensor (Rotate locks it)\n"
         "  --lux N              a light sensor with N lux in the room\n"
+        "  --motion             a motion sensor that sees no motion (Settings, Wake on motion)\n"
         "  --do STEP            a scripted step, repeatable, run in order after the start:\n"
         "                         page NAME | scenario NAME | rotate | wait MS | shot FILE\n"
         "                         alert TEXT (an event message in the alert strip, 5 s)\n"
@@ -597,6 +599,8 @@ bool parse(int argc, char **argv, Options &o)
                 return false;
             }
             o.rotation = static_cast<uint8_t>(std::atoi(v));
+        } else if (arg == "--motion") {
+            o.motion = true;
         } else if (arg == "--lux") {
             if ((v = value()) == nullptr) {
                 return false;
@@ -682,6 +686,7 @@ int main(int argc, char **argv)
     if (o.lux_set) {
         sim::set_ambient_light(true, o.lux);
     }
+    sim::set_motion_sensor(o.motion);
     sim::start_scenario(static_cast<size_t>(o.scenario));
 
     ui::start(lv_disp_get_default(), sim::backend(), o.sensor, o.ui);

@@ -865,7 +865,20 @@ Built display(lv_obj_t *content)
         changed.off_after_s = static_cast<uint32_t>(seconds);
         store(changed);
     });
-    text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it.");
+    // only with a motion sensor
+    bool occupied = false;
+    if (be().motion(occupied)) {
+        lv_obj_t *motion = t::row(col, "Wake on motion", "", false, nullptr);
+        t::toggle(motion, s.wake_on_motion, [](lv_event_t *event) {
+            DisplaySettings changed = display_settings();
+            changed.wake_on_motion = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
+            store(changed);
+        });
+        text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it. Wake on motion: "
+                        "motion wakes it too and keeps it on while the sensor sees someone.");
+    } else {
+        text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it.");
+    }
 
     // Rotation: one row. With the sensor in charge it locks the rotation; locked or without a
     // sensor it opens the popup that turns the screen.

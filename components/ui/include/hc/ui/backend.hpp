@@ -89,6 +89,9 @@ struct DisplaySettings {
     // at `brightness`. light_min_lux < light_max_lux.
     float light_min_lux;
     float light_max_lux;
+    // the motion sensor brightens a dimmed screen and turns it on, and keeps it on while it sees
+    // motion (only with a motion sensor)
+    bool wake_on_motion;
 };
 
 // Settings, Sound. The UI plays the touch sounds; the backend stores the settings and sets the
@@ -172,6 +175,9 @@ struct Backend {
     // the light of the room in lux (calibrated, without the screen's own light); false without a
     // light sensor
     bool (*ambient_lux)(float &lux);
+    // whether the motion sensor sees motion now; false without a motion sensor (board::Info::
+    // motion_gpio), and then Settings have no "Wake on motion"
+    bool (*motion)(bool &occupied);
 
     // Sound: nullptr when the firmware has no audio (CONFIG_HC_AUDIO); false when the audio output
     // did not start. Settings leave the Sound page out then.

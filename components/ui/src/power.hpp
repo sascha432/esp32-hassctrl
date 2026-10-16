@@ -1,6 +1,8 @@
 #pragma once
 
 // Screen power (Settings, Display): the backlight follows the idle time of the touch screen.
+// With a motion sensor and "Wake on motion" motion counts as a touch: it brightens a dimmed screen,
+// turns it on (and the next touch works as usual) and keeps it on while the sensor sees motion.
 //
 //   Active   the user's brightness
 //   Dimmed   after `dim_after_s` without a touch: the dimmed brightness. A touch brightens the

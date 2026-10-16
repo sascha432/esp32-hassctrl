@@ -1,6 +1,6 @@
 # TODO
 
-State as of 2026-10-14: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-16: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01 (COM9), the JC3248W535 (COM10) and the JC4880P443C (COM11); the TTGO T4 (COM13) is a
 test device only. Step 7 (LVGL 9) has not started. What is next is in "Next steps" at the end.
 The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
@@ -1329,7 +1329,7 @@ panel left of the power button.
 
 Component `motion` (architecture.md section 9.7b): a PIR on `Info::motion_gpio` sets the text helper
 `input_text.<device>_motion` to Detected / Clear (Occupied until your change of 2026-10-15, to match Home
-Assistant's motion sensors). The JC4880P443C and its kitchen variant: GPIO 34, active low.
+Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen variant: a radar on GPIO 49, active high.
 
 - [x] Component (100 ms sampling, two samples), `motion_message` (host test `protocol_motion`), the hass
       command with the resend after `auth_ok`, console `motion`; built and flashed on the P4.
@@ -1339,6 +1339,11 @@ Assistant's motion sensors). The JC4880P443C and its kitchen variant: GPIO 34, a
 - [x] A tile on the helper showed no history (your report, 2026-10-15): the sensor panel asked for
       statistics, which a text entity has none of, and the timeline knew `on`/`off` only. Now a state
       of two words (`core::on_off_words`) gets the timeline with its own words as the legend.
+- [x] Kitchen radar (2026-10-16): GPIO 35 is the P4's boot-mode strap and the first radar died there;
+      the replacement is on GPIO 49, active high (3.3 V with motion, 0 V without), confirmed by you.
+- [x] Wake on motion (2026-10-16, your request): Settings, Display, "Wake on motion" (on by default);
+      motion brightens a dimmed screen, turns it on and keeps it on. Sim checked at 480x800 and 480x320
+      (no row without a sensor); confirmed by you on the kitchen P4.
 
 ## Known issues
 

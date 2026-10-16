@@ -34,7 +34,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - Dark theme on LVGL 8.4. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
   display, sound, camera, alarm, system.
 - Brightness, dimming and screen off after a time, automatic brightness from a light sensor,
-  rotation from an orientation sensor or by hand.
+  rotation from an orientation sensor or by hand, wake on motion with a motion sensor.
 - Touch feedback (click, slider ticks, vibration) and an alarm clock with beeps or MP3 files, on
   boards with a speaker or a motor. Home Assistant makes the device speak a text (tts) or play an
   MP3 with the event `hassctrl_say`.
@@ -83,7 +83,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - Panels: SPI (ST7796S, ILI9341), QSPI (AXS15231B), MIPI-DSI (ST7701S)
 - Touch: FT6336U, GT911, AXS15231B
 - Local GPIO switch: up to 4 relays, from `input_boolean.<device>_relay_<n>` / `switch.`; optional internal pullup (open drain, closed at boot)
-- Local GPIO sensor: motion sensor (PIR, active high or low), to `input_text.<device>_motion`
+- Local GPIO sensor: motion sensor (PIR or radar, active high or low), to `input_text.<device>_motion`, wakes the screen
 - Orientation sensor: MPU6050
 - Light sensor: BH1750 or LDR
 - Vibration motor

@@ -999,7 +999,9 @@ JC4880P443C, GPIO 28 of the expansion header.
 
 * **Wiring**: the motor through a transistor or a MOSFET with a flyback diode, the GPIO on its
   gate or base; high = on. A GPIO cannot drive a motor alone. The P4's test motor: 3 V, 70 mA,
-  on 3.3 V through a 2N2222 with 470 Ohm at the base.
+  on 3.3 V through a 2N2222 with 470 Ohm at the base. The kitchen variant: the same motor through an
+  AO3400 (N-MOSFET) with 300 Ohm at the gate and 6.2 kOhm from the gate to GND, which keeps it off
+  while the pin floats at boot.
 * **Option**: `CONFIG_HC_VIBRATION` (menu "hassctrl vibration"), on by default where the board
   offers it (`select HC_BOARD_HAS_VIBRATION`, the pin in `board::Info::vibration_gpio`, like the
   LDR of the WT32-SC01). Without it the component has no sources; the Backend entries are
@@ -1078,6 +1080,12 @@ configured on the device. The JC4880P443C: GPIO 34 of the expansion header, acti
 * On the dashboard the helper is a sensor tile; its panel shows the timeline, because a state of
   two words (`core::on_off_words`) counts as on or off like a binary sensor, with the words as the
   legend.
+* **Wake on motion** (2026-10-16, Settings, Display, `DisplaySettings::wake_on_motion`, on by
+  default): the UI's power check (every 200 ms) asks `Backend::motion` and counts motion as a
+  touch for the dim and off times: a dimmed screen brightens, a screen that is off turns on without
+  the wake-up blocker, and it stays on while the sensor sees motion. Its own time stamp, not LVGL's
+  activity, so Settings still close after their time without a touch. The display settings blob
+  grew to its fifth layout (older ones are converted, `wake_on_motion` keeps the default).
 
 ### 9.8 Camera
 

@@ -201,6 +201,7 @@ void write_display(backup::Writer &out)
     out.boolean("rotation_locked", s.rotation_locked);
     out.number("light_min_lx", std::lround(s.light_min_lux));
     out.number("light_max_lx", std::lround(s.light_max_lux));
+    out.boolean("wake_on_motion", s.wake_on_motion);
 }
 
 void read_display(const Node &value, bool apply, backup::Report &report)
@@ -229,6 +230,7 @@ void read_display(const Node &value, bool apply, backup::Report &report)
         s.light_min_lux = static_cast<float>(light_min);
         s.light_max_lux = static_cast<float>(light_max);
     }
+    fields.boolean("wake_on_motion", s.wake_on_motion);
     fields.finish();
     if (apply) {
         ui_backend().set_display_settings(s);

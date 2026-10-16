@@ -2,9 +2,13 @@
 
 ## 2026-10-16
 
+- Wake on motion (your request): with a motion sensor, motion brightens or turns on the screen and keeps
+  it on; Settings, Display has the switch (on by default, backup `wake_on_motion`). Confirmed by you on the
+  kitchen P4. Its radar moved to GPIO 49 (GPIO 35 is the boot strap, the first radar died there).
 - Relays: `Info::relay_pullup` for a module without its own pullup: open drain with the internal pullup,
   closed while the board starts. The kitchen variant's relay 1 uses it. Confirmed by you, with its
   motion sensor (a radar, active high) too.
+- Docs: the kitchen variant's vibration motor runs through an AO3400 (300 Ohm gate, 6.2 kOhm pulldown).
 
 ## 2026-10-15
 

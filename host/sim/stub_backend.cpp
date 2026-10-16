@@ -42,7 +42,10 @@ constexpr DisplaySettings kDisplayDefaults{.brightness = 100,
                                            .off_after_s = 3600,
                                            .auto_brightness = true,
                                            .rotation = 0,
-                                           .rotation_locked = false};
+                                           .rotation_locked = false,
+                                           .light_min_lux = 0.0f,
+                                           .light_max_lux = 350.0f,
+                                           .wake_on_motion = true};
 
 enum class Sta : uint8_t { NoNetworks, Scanning, Connecting, Connected, WaitingToRetry };
 enum class Hass : uint8_t { NotSetUp, Connected, TokenRejected, Disconnected };
@@ -119,6 +122,7 @@ size_t g_scenario = 0;
 std::string g_board = "WT32-SC01";
 bool g_has_sensor = false;
 float g_lux = 100.0f;
+bool g_has_motion = false;
 uint8_t g_backlight = 100;
 
 template <size_t N> void copy(char (&out)[N], const std::string &in)
@@ -552,6 +556,12 @@ bool ambient_lux(float &lux)
     return true;
 }
 
+bool motion(bool &occupied)
+{
+    occupied = false;
+    return g_has_motion;
+}
+
 void hass_info(HassInfo &out)
 {
     update();
@@ -676,6 +686,7 @@ const hc::ui::Backend kBackend{
     .set_display_settings = set_display_settings,
     .set_backlight = set_backlight,
     .ambient_lux = ambient_lux,
+    .motion = motion,
     .sound_settings = sound_settings,
     .set_sound_settings = set_sound_settings,
     .play_touch_sound = [] { print("touch sound"); },
@@ -779,6 +790,11 @@ void set_ambient_light(bool present, float lux)
 {
     g_has_sensor = present;
     g_lux = lux;
+}
+
+void set_motion_sensor(bool present)
+{
+    g_has_motion = present;
 }
 
 uint8_t backlight_percent()
