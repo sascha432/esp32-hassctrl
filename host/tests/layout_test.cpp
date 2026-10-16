@@ -603,3 +603,134 @@ TEST(layout_removes_a_tile_and_an_area_with_its_pages)
     REQUIRE(!empty.has_value());
     CHECK_STR(std::string(empty.error().message), "the area has no tiles");
 }
+
+NewTile entity_new(const char *entity, bool dimmer = false)
+{
+    NewTile added;
+    added.entity = entity;
+    added.tile.dimmer = dimmer;
+    return added;
+}
+
+TEST(layout_adds_an_entity_tile_at_a_cell)
+{
+    Layout layout = switches(5); // a b c d / e, free: (1,1) (2,1) (3,1)
+    REQUIRE(problem_of(layout) == "ok");
+    const auto added = add_tile(layout, 0, entity_new("light.x", true), L, {3, 1});
+    REQUIRE(added.has_value());
+    REQUIRE(added->tiles.size() == 6);
+    const Tile &x = added->tiles[5];
+    CHECK(x.kind == TileKind::Light && x.dimmer && x.id == 6);
+    CHECK(added->entities.size() == 6 && added->entity_id(x) == "light.x");
+    CHECK(x.in(L).shown && x.in(L).cell == (Cell{3, 1}));
+    // the others keep their cells, the page is arranged in landscape, portrait stays automatic
+    CHECK(added->tiles[4].in(L).cell == (Cell{0, 1}) && added->tiles[4].in(L).has_cell);
+    CHECK(x.in(P).shown && !x.in(P).has_cell);
+
+    // an entity of the dashboard: no new entry, the tile shares it; dimmer only for lights
+    const auto again = add_tile(*added, 0, entity_new("switch.a", true), L, {1, 1});
+    REQUIRE(again.has_value());
+    CHECK(again->entities.size() == 6 && again->tiles[6].entity == 0 && !again->tiles[6].dimmer);
+
+    // a full page has no room, and an id that is no entity id is refused
+    Layout full = switches(8);
+    REQUIRE(problem_of(full) == "ok");
+    const auto no_room = add_tile(full, 0, entity_new("switch.i"), L, {3, 1});
+    REQUIRE(!no_room.has_value());
+    CHECK_STR(std::string(no_room.error().message), "no room for the tile there");
+    const auto wrong = add_tile(layout, 0, entity_new("Light.X"), L, {3, 1});
+    REQUIRE(!wrong.has_value());
+    CHECK_STR(std::string(wrong.error().message), "'Light.X' is not an entity id");
+}
+
+TEST(layout_adds_a_clock_and_an_area_with_its_first_tile)
+{
+    Layout layout = switches(5);
+    REQUIRE(problem_of(layout) == "ok");
+
+    // a 2x1 clock with its options and a name
+    NewTile clock;
+    clock.tile.kind = TileKind::Clock;
+    clock.tile.name = "Time";
+    clock.tile.seconds = true;
+    clock.tile.in(L).has_size = true;
+    clock.tile.in(L).size = {2, 1};
+    const auto with_clock = add_tile(layout, 0, clock, L, {1, 1});
+    REQUIRE(with_clock.has_value());
+    const Tile &c = with_clock->tiles[5];
+    CHECK(c.kind == TileKind::Clock && c.seconds && c.name == "Time" && c.entity == kNone);
+    CHECK(c.in(L).cell == (Cell{1, 1}) && c.in(L).size == (Span{2, 1}));
+
+    // an area opens a page with its first tile
+    NewTile area;
+    area.tile.kind = TileKind::Area;
+    area.tile.name = "Kitchen";
+    area.tile.swipe = true;
+    area.first_entity = "light.kitchen";
+    area.first.dimmer = true;
+    const auto with_area = add_tile(layout, 0, area, L, {3, 1});
+    REQUIRE(with_area.has_value());
+    REQUIRE(with_area->pages.size() == 2 && with_area->tiles.size() == 7);
+    const Tile &a = with_area->tiles[5];
+    CHECK(a.kind == TileKind::Area && a.swipe && a.opens == 1 && a.in(L).cell == (Cell{3, 1}));
+    const Tile &first = with_area->tiles[with_area->pages[1].tiles[0]];
+    CHECK(first.kind == TileKind::Light && first.dimmer && with_area->entity_id(first) == "light.kitchen");
+
+    // an area needs a name
+    area.tile.name.clear();
+    const auto unnamed = add_tile(layout, 0, area, L, {3, 1});
+    REQUIRE(!unnamed.has_value());
+    CHECK_STR(std::string(unnamed.error().message), "an area needs a name");
+}
+
+TEST(layout_changes_a_tile)
+{
+    Layout layout = switches(5); // a b c d / e, free: (1,1) (2,1) (3,1)
+    layout.add_tile(0, entity_tile(layout, "sensor.t"));
+    REQUIRE(problem_of(layout) == "ok"); // t at (1,1)
+
+    // a name and the decimals of a sensor; nothing else changes
+    NewTile changed;
+    changed.tile.name = "Inside";
+    changed.tile.decimals = 1;
+    changed.tile.in(L).size = {1, 1};
+    const auto named = change_tile(layout, 5, changed, L);
+    REQUIRE(named.has_value());
+    CHECK(named->tiles[5].name == "Inside" && named->tiles[5].decimals == 1);
+    CHECK(named->tiles[5].in(L).cell == (Cell{1, 1}) && !named->tiles[5].in(L).has_cell);
+
+    // another entity of another domain: the kind follows, the sensor's keys go, a light's dimmer stays
+    changed.entity = "light.x";
+    changed.tile.dimmer = true;
+    const auto light = change_tile(*named, 5, changed, L);
+    REQUIRE(light.has_value());
+    const Tile &x = light->tiles[5];
+    CHECK(x.kind == TileKind::Light && x.dimmer && x.decimals == -1 && light->entity_id(x) == "light.x");
+
+    // 2x1 keeps the cell and pushes nothing (2,1 is free); 4x1 has no room at (1,1)
+    changed.tile.in(L).size = {2, 1};
+    const auto wide = change_tile(*light, 5, changed, L);
+    REQUIRE(wide.has_value());
+    CHECK(wide->tiles[5].in(L).cell == (Cell{1, 1}) && wide->tiles[5].in(L).size == (Span{2, 1}));
+    CHECK(wide->tiles[4].in(L).cell == (Cell{0, 1}));
+    changed.tile.in(L).size = {4, 1};
+    const auto too_wide = change_tile(*light, 5, changed, L);
+    REQUIRE(!too_wide.has_value());
+    CHECK_STR(std::string(too_wide.error().message), "no room for 4x1 there");
+
+    // a clock turned digital loses its border
+    Layout clocks;
+    Tile clock;
+    clock.kind = TileKind::Clock;
+    clock.style = ClockStyle::Analog;
+    clock.border = true;
+    clocks.add_tile(0, clock);
+    REQUIRE(problem_of(clocks) == "ok");
+    NewTile digital;
+    digital.tile.seconds = true;
+    digital.tile.in(L).size = {1, 1};
+    const auto changed_clock = change_tile(clocks, 0, digital, L);
+    REQUIRE(changed_clock.has_value());
+    CHECK(changed_clock->tiles[0].style == ClockStyle::Digital && !changed_clock->tiles[0].border &&
+          changed_clock->tiles[0].seconds);
+}

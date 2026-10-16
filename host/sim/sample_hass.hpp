@@ -8,6 +8,7 @@
 // a gap of an hour, or on/off changes with an unavailable hour; it arrives 300 ms after the request.
 // A weather entity reports OpenWeatherMap's values; its forecast is made up as well.
 // A camera image is a drawn landscape whose sun moves with the clock, 500 ms after the request.
+// The entity search of the edit mode finds made-up entities.
 // Nothing arrives while the scenario's Home Assistant is not connected.
 
 #include <memory>
@@ -44,6 +45,11 @@ void stop_stream();
 // after the subscription (once; the real one comes again with every update of the integration).
 void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::ForecastType type,
                         uint32_t generation);
+// The entity search of the edit mode: the entities of the dashboard and a made-up house of 120
+// more, filtered like Home Assistant's template, 300 ms after the request; the details of one
+// (lights dim unless their id has "onoff").
+void find_entities(std::string_view query, size_t max, uint32_t generation);
+void fetch_entity(std::string_view entity_id, uint32_t generation);
 // how the forecast answers (step `forecast`): with the entries, never (Loading...), or an error
 enum class ForecastMode : uint8_t { Ok, Loading, Error };
 void set_forecast_mode(ForecastMode mode);

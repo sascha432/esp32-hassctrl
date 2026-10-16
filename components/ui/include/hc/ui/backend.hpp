@@ -241,6 +241,12 @@ struct Backend {
     // integration, until the next call; `type` None ends it. nullptr: no forecasts.
     void (*subscribe_forecast)(std::string_view entity_id, core::EntityIndex entity, core::ForecastType type,
                                uint32_t generation);
+    // The entity search of the edit mode (docs/ui/lvgl/lvgl-dashboard.md section 7): the entities
+    // whose id or friendly name has every word of `query`, at most `max`, back through take_event
+    // as a core::EntityList stamped with `generation`. nullptr: no adding of tiles on the screen.
+    void (*find_entities)(std::string_view query, size_t max, uint32_t generation);
+    // what a new tile needs of `entity_id`, back as a core::EntityDetails
+    void (*fetch_entity)(std::string_view entity_id, uint32_t generation);
     // The camera image of `entity_id` as a `width` x `height` frame in the display's pixel format
     // (lv_color_t); it comes back through take_event as a core::Image stamped with `generation`.
     // `stream`: the tile's MJPEG stream, whose first frame is the image; empty: Home Assistant's.

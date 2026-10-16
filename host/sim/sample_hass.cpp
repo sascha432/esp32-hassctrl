@@ -26,6 +26,7 @@ uint32_t g_action_ms = 400;
 constexpr uint32_t kHistoryMs = 300;
 constexpr uint32_t kForecastMs = 300;
 constexpr uint32_t kImageMs = 500;
+constexpr uint32_t kEntityQueryMs = 300;
 // a stream plays 5 frames a second
 constexpr uint32_t kStreamFrameMs = 200;
 // the first frame this long after the connection, like a go2rtc that first starts ffmpeg
@@ -293,7 +294,14 @@ bool save_dashboard(const hc::core::Layout &layout, uint32_t revision, char *err
 void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::PageIndex page, hc::core::Orientation,
                     hc::core::TileIndex, uint32_t generation)
 {
-    const bool known = layout && g.layout && layout->entities.size() == g.layout->entities.size();
+    // the copy of the edit mode has the same entities, and those of the tiles added to it at the end
+    const bool known = layout && g.layout && layout->entities.size() >= g.layout->entities.size();
+    if (known) {
+        g.samples.resize(g.layout->entities.size());
+        for (size_t i = g.samples.size(); i < layout->entities.size(); i++) {
+            g.samples.push_back(make_sample(layout->entities[i], i));
+        }
+    }
     g.shown = known ? std::move(layout) : nullptr;
     g.page = known ? page : hc::core::kNone;
     g.generation = generation;
@@ -647,6 +655,94 @@ void stop_stream()
         std::printf("[sim] stream stopped\n");
     }
     g.play = {};
+}
+
+namespace {
+
+// the made-up house of the entity search: every room has every thing
+std::vector<std::string> house()
+{
+    static const char *const kRooms[] = {"kitchen", "living_room", "bedroom", "office", "bathroom",
+                                         "hallway", "garage", "garden", "attic", "basement"};
+    static const char *const kThings[] = {"light.%s_ceiling", "light.%s_lamp_onoff", "switch.%s_socket",
+                                          "sensor.%s_temperature", "sensor.%s_humidity", "binary_sensor.%s_motion",
+                                          "climate.%s", "cover.%s_blind", "lock.%s_door", "fan.%s_fan",
+                                          "scene.%s_evening", "camera.%s"};
+    std::vector<std::string> ids;
+    for (const char *room : kRooms) {
+        for (const char *thing : kThings) {
+            char id[64];
+            std::snprintf(id, sizeof(id), thing, room);
+            ids.emplace_back(id);
+        }
+    }
+    return ids;
+}
+
+std::string lower(std::string_view text)
+{
+    std::string out(text);
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; });
+    return out;
+}
+
+} // namespace
+
+void find_entities(std::string_view query, size_t max, uint32_t generation)
+{
+    std::printf("[sim] entity search '%.*s'\n", static_cast<int>(query.size()), query.data());
+    hc::core::EntityList list;
+    list.generation = generation;
+    if (!hass_connected()) {
+        list.error = "not connected to Home Assistant";
+        queue_at(lv_tick_get() + kEntityQueryMs, std::move(list));
+        return;
+    }
+    std::vector<std::string> ids = house();
+    if (g.layout) {
+        for (const auto &id : g.layout->entities) {
+            ids.emplace_back(id.data(), id.size());
+        }
+    }
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    // every word has to be in the id or the name, as in Home Assistant's template
+    std::vector<std::string> words;
+    std::string text = lower(query);
+    for (size_t at = 0; at < text.size();) {
+        const size_t end = std::min(text.find(' ', at), text.size());
+        if (end > at) {
+            words.push_back(text.substr(at, end - at));
+        }
+        at = end + 1;
+    }
+    for (const std::string &id : ids) {
+        const hc::memory::String name = friendly(std::string_view(id).substr(id.find('.') + 1));
+        const std::string haystack = id + " " + lower(name);
+        if (!std::all_of(words.begin(), words.end(), [&](const std::string &w) { return contains(haystack, w); })) {
+            continue;
+        }
+        if (list.rows.size() == max) {
+            list.more = true;
+            break;
+        }
+        list.rows.push_back({hc::memory::String(id.c_str()), name});
+    }
+    queue_at(lv_tick_get() + kEntityQueryMs, std::move(list));
+}
+
+void fetch_entity(std::string_view entity_id, uint32_t generation)
+{
+    hc::core::EntityDetails details;
+    details.generation = generation;
+    details.id = hc::memory::String(entity_id);
+    if (!hass_connected()) {
+        details.error = "not connected to Home Assistant";
+    } else {
+        details.dimmer = entity_id.starts_with("light.") && !contains(entity_id, "onoff");
+    }
+    queue_at(lv_tick_get() + kEntityQueryMs, std::move(details));
 }
 
 bool take_event(hc::core::HassEvent &out)

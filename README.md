@@ -23,10 +23,12 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
   (target, modes, presets, fan, room temperature graph), sensor (history graph of 12 to 48 h; a
   timeline for on/off and other two-word states such as Detected/Clear), lock (lock, unlock, open,
   timeline), weather (current values, daily and hourly forecast). A double tap on a switch opens
-  its timeline, on a light that dims the light panel.
+  its timeline, on a light that dims the light panel; a double tap on a lock locks or unlocks it.
 - Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant), a full
   screen live view that comes back by itself after a dropped stream.
-- Edit mode on the screen: long press, drag tiles around, remove them, per orientation.
+- Edit mode on the screen: long press, drag tiles around, remove them, per orientation; a "+" on
+  every free cell adds a tile (entity found by a search in Home Assistant), an area or a clock;
+  a tap on a tile changes its title, entity and options.
 - Live values over one WebSocket to Home Assistant (`wss://` with certificate check), feedback
   while an action runs or fails, a start screen until the first values come, an alert strip for
   errors and hints.

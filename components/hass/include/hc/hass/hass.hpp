@@ -159,6 +159,13 @@ bool list_entities(std::string_view domain, std::string_view query, uint32_t tim
                    memory::String &error);
 bool entity_details(std::string_view entity_id, uint32_t timeout_ms, memory::String &json, memory::String &error);
 
+// The same for the screen's edit mode (docs/ui/lvgl/lvgl-dashboard.md section 7), without
+// blocking: the answer comes back through take_event as a core::EntityList (at most `max` rows) or
+// core::EntityDetails stamped with `generation`, with the error set when it failed. They share the
+// one query of the web editor's picker: a newer request of either replaces the one on its way.
+void find_entities(std::string_view query, size_t max, uint32_t timeout_ms, uint32_t generation);
+void fetch_entity(std::string_view entity_id, uint32_t timeout_ms, uint32_t generation);
+
 // A Home Assistant instance found on the network.
 struct Found {
     char name[48]; // its location name ("Home")

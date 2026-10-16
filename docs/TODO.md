@@ -727,6 +727,26 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
         conversion once (`docs/.retracted/dashboard` too, the host test of it fails until then).
         The tile looks per shape (step 3) came the same day; the swipe on the screen (step 4)
         is below under Open decisions.
+  - [x] **Adding tiles on the screen** (2026-10-16, your request: a search field to find an
+        entity; ui/lvgl/lvgl-dashboard.md section 7.2): a tap on an empty cell in edit mode opens
+        the search (keyboard, Home Assistant filters, 30 rows), a row adds a 1x1 tile there.
+        Host tests 112. Tried on the WT32 against your Home Assistant (search, pick, live value of
+        the new tile; then Cancel, your dashboard is unchanged) and with Done in the Windows
+        version. Found on the way: the first tap after the long press was swallowed (LVGL sent
+        the edit layer nothing of the holding finger); fixed.
+  - [x] Free cells show a dashed "+", a keyboard button hides the keyboard, and adding goes in
+        steps (your requests, 2026-10-16): title and type (tile, area, clock), the entity, the
+        options; an area comes with its first tile. 113 host tests; all three kinds tried in the
+        Windows version (Done included), a clock on the WT32 (then Cancel).
+  - [x] Changing a tile (your request, 2026-10-16): a tap on a tile in edit mode opens its
+        title, then its options with its entity (`core::change_tile`, host tests 114). Tried in
+        the Windows version (title, another entity of another domain, 2x1, Save) and on the WT32
+        (options of your power sensor, then Back and Cancel).
+  - [x] Adding a tile, an area and a clock, and changing one, Done included: confirmed by you in
+        landscape and portrait on every board (2026-10-16); the lock tile's double tap too.
+  - [ ] Hold and drag in one move (lvgl-dashboard.md section 7.1): the WT32 sent the edit layer
+        no events of the holding finger, so the drag in one move probably does not work there;
+        check on the boards.
 - [x] Approved by you (2026-10-09): the climate panel opening on the modes while off, the camera
       spinner's track at 50 %. The P4's tile gap is 7 px (was 8, your request 2026-10-14).
 - [x] Dimmer and climate panels on the P4 (2026-10-09, your drafts): larger header buttons,

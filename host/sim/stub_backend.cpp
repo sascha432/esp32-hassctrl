@@ -711,6 +711,8 @@ const hc::ui::Backend kBackend{
     .take_event = sim::take_event,
     .fetch_history = sim::fetch_history,
     .subscribe_forecast = sim::subscribe_forecast,
+    .find_entities = sim::find_entities,
+    .fetch_entity = sim::fetch_entity,
     .fetch_image = sim::fetch_image,
     .play_stream = sim::play_stream,
     .stop_stream = sim::stop_stream,

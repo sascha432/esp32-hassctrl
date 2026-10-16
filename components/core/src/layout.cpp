@@ -626,4 +626,110 @@ std::expected<Layout, Problem> remove_tile(const Layout &layout, TileIndex tile)
     return out;
 }
 
+std::expected<Layout, Problem> add_tile(const Layout &layout, PageIndex page, NewTile added, Orientation o, Cell cell)
+{
+    Layout out = layout;
+    // an entity's tile: its kind follows the domain (a light keeps `dimmer` only as a light)
+    const auto bind = [&](Tile &tile, const memory::String &entity) -> std::expected<void, Problem> {
+        if (entity.empty()) {
+            return {};
+        }
+        if (!valid_entity_id(entity)) {
+            return std::unexpected(Problem{kNone, page, format("'%s' is not an entity id", entity.c_str())});
+        }
+        tile.kind = kind_of_entity(entity);
+        tile.entity = out.intern(entity);
+        tile.dimmer = tile.dimmer && tile.kind == TileKind::Light;
+        return {};
+    };
+    if (auto bound = bind(added.tile, added.entity); !bound) {
+        return std::unexpected(std::move(bound.error()));
+    }
+    const TileIndex index = out.add_tile(page, std::move(added.tile));
+    if (out.tiles[index].kind == TileKind::Area) {
+        if (auto bound = bind(added.first, added.first_entity); !bound) {
+            return std::unexpected(std::move(bound.error()));
+        }
+        const PageIndex inner = out.add_page(page, index);
+        out.add_tile(inner, std::move(added.first));
+    }
+    if (auto finished = finish(out); !finished) {
+        return std::unexpected(std::move(finished.error()));
+    }
+    // the new tile took the first free block (or none); the move keeps every other tile in its cell
+    if (!move_tile(out, index, o, cell)) {
+        return std::unexpected(Problem{index, page, memory::String("no room for the tile there")});
+    }
+    return out;
+}
+
+std::expected<Layout, Problem> change_tile(const Layout &layout, TileIndex index, const NewTile &changed, Orientation o)
+{
+    Layout out = layout;
+    Tile &tile = out.tiles[index];
+    const Tile &from = changed.tile;
+    tile.name = from.name;
+    if (has_entity(tile.kind) && !changed.entity.empty() && changed.entity != out.entity_id(tile)) {
+        if (!valid_entity_id(changed.entity)) {
+            return std::unexpected(Problem{index, tile.page, format("'%s' is not an entity id", changed.entity.c_str())});
+        }
+        const TileKind kind = kind_of_entity(changed.entity);
+        if (kind != tile.kind) {
+            // the keys of the old kind
+            tile.kind = kind;
+            tile.decimals = -1;
+            tile.unit.clear();
+            tile.step = 0;
+            tile.refresh_s = 0;
+            tile.stream.clear();
+        }
+        tile.entity = out.intern(changed.entity);
+    }
+    switch (tile.kind) {
+    case TileKind::Light:
+        tile.dimmer = from.dimmer;
+        break;
+    case TileKind::Sensor:
+        tile.decimals = from.decimals;
+        break;
+    case TileKind::Clock:
+        tile.style = from.style;
+        tile.hours12 = from.hours12;
+        tile.seconds = from.seconds;
+        tile.date = from.date;
+        if (tile.style == ClockStyle::Digital) {
+            tile.border = false;
+            tile.ticks = ClockTicks::Hour;
+        }
+        break;
+    case TileKind::Area:
+        tile.swipe = from.swipe;
+        break;
+    default:
+        tile.dimmer = false;
+        break;
+    }
+    if (auto finished = finish(out); !finished) {
+        return std::unexpected(std::move(finished.error()));
+    }
+    const Span size = from.in(o).size;
+    Placement &p = out.tiles[index].in(o);
+    if (size == p.size) {
+        return out;
+    }
+    p.has_size = true;
+    p.size = size;
+    if (!p.shown) {
+        // not on the screen in `o`: it keeps its place in the list
+        static_cast<void>(finish(out));
+        return out;
+    }
+    // the same cell with the new size, the tiles in the way pushed aside
+    if (!move_tile(out, index, o, p.cell)) {
+        return std::unexpected(Problem{index, tile.page, format("no room for %ux%u there", static_cast<unsigned>(size.cols),
+                                                                static_cast<unsigned>(size.rows))});
+    }
+    return out;
+}
+
 } // namespace hc::core

@@ -217,4 +217,27 @@ void reset_arrangement(Layout &layout, PageIndex page, Orientation o);
 // problem, as in finish().
 std::expected<Layout, Problem> remove_tile(const Layout &layout, TileIndex tile);
 
+// What the edit mode adds (docs/ui/lvgl/lvgl-dashboard.md section 7.2): a tile of an entity, a
+// clock, or an area with the first tile of its page.
+struct NewTile {
+    Tile tile;               // its kind (not for an entity: the domain decides), name and options
+    memory::String entity;   // the entity of a tile of one, else empty
+    Tile first;              // an area: the first tile of its page
+    memory::String first_entity;
+};
+
+// The layout with `added` at the end of `page`, moved to `cell` in `o` as move_tile() does (the
+// other tiles keep their cells); finished. New entities go to the end of the entity table, so the
+// indices of the others stay valid. A problem when a rule is broken (an entity id, an area without
+// a name or too deep) or the tile cannot go to `cell`.
+std::expected<Layout, Problem> add_tile(const Layout &layout, PageIndex page, NewTile added, Orientation o, Cell cell);
+
+// The layout with what the edit mode changes of `tile` (section 7.2): from `changed.tile` its name,
+// a light's dimmer, a sensor's decimals, a clock's style, 12 hours, seconds and date, an area's
+// swipe, and its size in `o`; `changed.entity` (an entity's tile, may be another one: its domain
+// decides the kind, the keys the new kind does not have go). The other keys stay. A larger size
+// keeps the tile's cell and pushes the tiles in the way aside, as move_tile() does; finished. A
+// problem when a rule is broken or the size has no room there.
+std::expected<Layout, Problem> change_tile(const Layout &layout, TileIndex tile, const NewTile &changed, Orientation o);
+
 } // namespace hc::core

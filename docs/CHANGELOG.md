@@ -2,6 +2,12 @@
 
 ## 2026-10-16
 
+- Lock tile (your report): a double tap locks or unlocks it, a single tap opens the panel (was: a tap on the
+  tile never locks). The simulator has a `doubletap X,Y` step. Confirmed by you.
+- Edit mode adds tiles, areas and clocks (your requests): free cells show a dashed "+" as in the web editor; a
+  tap asks title and type, then the entity (a search, Home Assistant filters), then the options. A tap on a tile
+  opens the same steps to change its title, entity and options. Confirmed by you in landscape and portrait on
+  every board.
 - Your report: a double tap on a plain light tile of a light that dims opens the light panel, not the sensor
   graph (the page subscribes the color modes of every light). Confirmed by you.
 - Clock tile (`type: clock`, your request): digital or analog, 24 or 12 h, seconds, date, the device's time

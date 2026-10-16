@@ -82,7 +82,8 @@ memory::String tile_name(core::TileIndex tile);
 bool editing();
 // edits a copy of the layout from now on, on the page that is shown
 void start_editing();
-// the edited copy after a move, a removal or a reset (same entities); the page is built again
+// the edited copy after a move, a removal, a reset (same entities) or an added tile (new entities
+// at the end); the page is built again
 void set_edited(core::Layout layout);
 // builds the page again from the edited copy (a drag that did not fit goes back)
 void redraw_page();

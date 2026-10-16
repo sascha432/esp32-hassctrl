@@ -116,7 +116,9 @@ its WebSocket session.
   would not fit the 16 KB a message of the connection may have); `more` says rows were left out.
 * **One-shot templates** (built): the hass task subscribes the template, takes the first result
   and ends the subscription; the web server's task waits for it, 6 s at most (503 with the reason
-  otherwise: no connection, template error, timeout). One at a time, a newer one replaces it. The
+  otherwise: no connection, template error, timeout). One at a time, a newer one replaces it; the
+  screen's entity search (edit mode, [lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 7.2)
+  shares the slot, its answer goes to the UI instead of a waiting task. The
   search text and the entity id go in as `variables` of `render_template`, so nothing is escaped
   into the template. Template and result handling are in `hass_protocol/picker.cpp` (host tests).
 * **Details of one entity** for a new tile: `GET /api/hass/entity?id=` answers `{"id", "name",
@@ -188,7 +190,8 @@ Below 800 px the columns stack: the page as a dropdown, the preview, the tile fo
 5. **Icons** (`web/icons.svg`) and the **entity picker** (built 2026-10-09).
 6. **Version 2** (2026-10-14): sizes and hiding per orientation, overflow instead of errors,
    the tray, the swipe checkbox of an area; the mock-up page removed.
-7. Later: adding tiles and sizes on the screen. Not planned: live values in the web preview
+7. Adding tiles, areas and clocks on the screen (2026-10-16, [lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section
+   7.2, with the picker's template). Later: sizes on the screen. Not planned: live values in the web preview
    (decided 2026-10-09).
 
 ## 7. Open points

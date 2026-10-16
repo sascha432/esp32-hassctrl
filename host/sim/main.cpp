@@ -266,6 +266,20 @@ void tap(lv_coord_t x, lv_coord_t y)
     lv_win32_pointer_override(false, 0, 0, false);
 }
 
+// two taps 150 ms apart, inside the tiles' double-tap window (300 ms)
+void double_tap(lv_coord_t x, lv_coord_t y)
+{
+    for (int i = 0; i < 2; i++) {
+        finger(x, y, false);
+        pump(2 * LV_INDEV_DEF_READ_PERIOD);
+        finger(x, y, true);
+        pump(2 * LV_INDEV_DEF_READ_PERIOD);
+        finger(x, y, false);
+        pump(i == 0 ? 2 * LV_INDEV_DEF_READ_PERIOD : 350);
+    }
+    lv_win32_pointer_override(false, 0, 0, false);
+}
+
 void swipe(lv_coord_t x1, lv_coord_t y1, lv_coord_t x2, lv_coord_t y2, uint32_t ms)
 {
     finger(x1, y1, false);
@@ -442,6 +456,12 @@ bool run_step(const std::string &step)
             return false;
         }
         tap(at.x, at.y);
+    } else if (verb == "doubletap") {
+        if (!numbers(argument, 2, n)) {
+            std::fprintf(stderr, "doubletap needs x,y\n");
+            return false;
+        }
+        double_tap(static_cast<lv_coord_t>(n[0]), static_cast<lv_coord_t>(n[1]));
     } else if (verb == "swipe") {
         if (!numbers(argument, 4, n)) {
             std::fprintf(stderr, "swipe needs x1,y1,x2,y2[,ms]\n");
@@ -482,7 +502,7 @@ void usage()
         "                         info TEXT (a progress message in the alert strip that stays)\n"
         "                         stream down|up (the stream's server ends and refuses streams, or answers again)\n"
         "                         forecast ok|loading|error (how the next forecast subscription answers)\n"
-        "                         tap TEXT (a label on the screen) | tap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
+        "                         tap TEXT (a label on the screen) | tap X,Y | doubletap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"
         "  --action-ms MS       an action changes the sample state this long after the tap (default 400)\n"

@@ -39,6 +39,9 @@ static_assert(hc::ui::kMaxSavedNetworks == net::kMaxNetworks);
 constexpr const char *kUiNamespace = "ui";
 constexpr const char *kHintKey = "hint";
 
+// the entity search of the edit mode waits this long for Home Assistant, as the web editor's picker
+constexpr uint32_t kEntityQueryTimeoutMs = 6000;
+
 constexpr const char *kDisplayKey = "display";
 // dims after 5 minutes, turns off after an hour
 constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
@@ -515,6 +518,14 @@ const hc::ui::Backend g_backend{
     .take_event = hc::hass::take_event,
     .fetch_history = hc::hass::fetch_history,
     .subscribe_forecast = hc::hass::subscribe_forecast,
+    .find_entities =
+        [](std::string_view query, size_t max, uint32_t generation) {
+            hc::hass::find_entities(query, max, kEntityQueryTimeoutMs, generation);
+        },
+    .fetch_entity =
+        [](std::string_view entity_id, uint32_t generation) {
+            hc::hass::fetch_entity(entity_id, kEntityQueryTimeoutMs, generation);
+        },
     .fetch_image = fetch_image,
     .play_stream = play_stream,
     .stop_stream = hc::hass::stop_stream,

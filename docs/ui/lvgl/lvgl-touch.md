@@ -36,7 +36,7 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
 | swipe page (an area with `swipe`), any tile | drag to the right | back to the parent page ([lvgl-dashboard.md](lvgl-dashboard.md) section 9) | the direction is decided after 10 px, 40 px sideways swipe; the tile under the finger is not tapped |
 | dot band (swipe page) | tap on the left half | back | the band is 24 px high, the dots 9 px (32 and 12 on the P4) |
 | dashboard page | long press, moving less than 10 px | starts the edit mode | 1000 ms |
-| edit mode | drag a tile; long press on a tile; drag to the right on an empty cell | moves it; asks to remove it; back from a swipe page | [lvgl-dashboard.md](lvgl-dashboard.md) section 7 |
+| edit mode | drag a tile; long press on a tile; tap on a tile; tap on an empty cell; drag to the right on an empty cell | moves it; asks to remove it; its title, entity and options; a "+" cell: the steps of adding a tile, area or clock there; back from a swipe page | [lvgl-dashboard.md](lvgl-dashboard.md) section 7 |
 | panel steppers | tap; hold | one step; a step every 250 ms | `panel::kStepRepeatMs` |
 | panel sliders, color wheel, arc | drag | sent on release | |
 | P4 panel dialog | tap on the dimmed page | closes the dialog | |

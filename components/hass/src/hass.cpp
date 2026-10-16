@@ -102,7 +102,8 @@ struct SubscribeForecast {
     uint32_t generation = 0;
 };
 
-// A one-shot template of the entity picker; the web server's task waits for `wait`.
+// A one-shot template of the entity picker: the web server's task waits for `wait`; without one
+// the answer goes to the UI (the search of the screen's edit mode) stamped with `generation`.
 struct QueryWait {
     SemaphoreHandle_t done = xSemaphoreCreateBinary();
     memory::String json;
@@ -121,8 +122,10 @@ struct Query {
     bool details = false;
     memory::String domain;
     memory::String text; // the search text, or the entity id of the details
+    size_t max = hass_protocol::kEntityListMax;
     uint32_t timeout_ms = 0;
     std::shared_ptr<QueryWait> wait;
+    uint32_t generation = 0;
 };
 
 // the state of the motion sensor for input_text.<device>_motion
@@ -408,7 +411,11 @@ struct ForecastState {
 
 // The picker's query on its way: one at a time, a new one replaces it. Owned by the hass task.
 struct QueryState {
-    std::shared_ptr<QueryWait> wait;
+    bool active = false;
+    bool details = false;
+    std::shared_ptr<QueryWait> wait; // null: the answer goes to the UI
+    uint32_t generation = 0;
+    memory::String text;
     uint32_t id = 0;
     int64_t deadline = 0;
 };
@@ -480,12 +487,35 @@ bool configured()
 bool send_text(const memory::String &text);
 void send_history_chunk();
 
-// the answer of the picker's query to the waiting task; its subscription ends after the first
-// result
+// the answer of the picker's query to the screen: the rows or the details, or the error
+void query_to_ui(const QueryState &q, const char *error, const memory::String &json)
+{
+    if (q.details) {
+        core::EntityDetails details;
+        details.generation = q.generation;
+        details.id = q.text;
+        if (error == nullptr && !hass_protocol::parse_entity_details(json, details)) {
+            error = "the answer is not an entity";
+        }
+        details.error = error != nullptr ? error : "";
+        deliver(std::move(details));
+        return;
+    }
+    core::EntityList list;
+    list.generation = q.generation;
+    if (error == nullptr && !hass_protocol::parse_entity_list(json, list)) {
+        error = "the answer is not a list of entities";
+    }
+    list.error = error != nullptr ? error : "";
+    deliver(std::move(list));
+}
+
+// the answer of the picker's query to the waiting task or the UI; its subscription ends after the
+// first result
 void query_done(const char *error, memory::String json = {})
 {
     QueryState &q = s.query;
-    if (!q.wait) {
+    if (!q.active) {
         return;
     }
     if (q.id != 0 && s.authenticated) {
@@ -493,28 +523,37 @@ void query_done(const char *error, memory::String json = {})
     }
     if (error != nullptr) {
         ESP_LOGW(kTag, "entity query: %s", error);
-        q.wait->error = error;
-    } else {
-        q.wait->json = std::move(json);
     }
-    xSemaphoreGive(q.wait->done);
+    if (!q.wait) {
+        query_to_ui(q, error, json);
+    } else {
+        if (error != nullptr) {
+            q.wait->error = error;
+        } else {
+            q.wait->json = std::move(json);
+        }
+        xSemaphoreGive(q.wait->done);
+    }
     q = {};
 }
 
 void start_query(Query query)
 {
     query_done("replaced by a newer request");
+    QueryState &q = s.query;
+    q.active = true;
+    q.details = query.details;
+    q.wait = std::move(query.wait);
+    q.generation = query.generation;
+    q.text = std::move(query.text);
     if (!s.authenticated) {
-        s.query.wait = std::move(query.wait);
         query_done("not connected to Home Assistant");
         return;
     }
-    QueryState &q = s.query;
-    q.wait = std::move(query.wait);
     q.id = s.next_id++;
     q.deadline = now_ms() + query.timeout_ms;
-    const memory::String message = query.details ? hass_protocol::entity_details_message(q.id, query.text)
-                                                 : hass_protocol::entity_list_message(q.id, query.domain, query.text);
+    const memory::String message = q.details ? hass_protocol::entity_details_message(q.id, q.text)
+                                             : hass_protocol::entity_list_message(q.id, query.domain, q.text, query.max);
     if (!send_text(message)) {
         q.id = 0;
         query_done("the request could not be sent");
@@ -1255,7 +1294,7 @@ void on_timers()
     } else if (s.history.id != 0 && now >= s.history.deadline) {
         history_done("Home Assistant did not answer the history request");
     }
-    if (s.query.wait && now >= s.query.deadline) {
+    if (s.query.active && now >= s.query.deadline) {
         query_done("Home Assistant did not answer in time");
     }
 
@@ -1590,6 +1629,26 @@ bool entity_details(std::string_view entity_id, uint32_t timeout_ms, memory::Str
     q.details = true;
     q.text = memory::String(entity_id);
     return run_query(std::move(q), timeout_ms, json, error);
+}
+
+void find_entities(std::string_view query, size_t max, uint32_t timeout_ms, uint32_t generation)
+{
+    Query q;
+    q.text = memory::String(query);
+    q.max = max;
+    q.timeout_ms = timeout_ms;
+    q.generation = generation;
+    post_command(std::move(q));
+}
+
+void fetch_entity(std::string_view entity_id, uint32_t timeout_ms, uint32_t generation)
+{
+    Query q;
+    q.details = true;
+    q.text = memory::String(entity_id);
+    q.timeout_ms = timeout_ms;
+    q.generation = generation;
+    post_command(std::move(q));
 }
 
 namespace detail {

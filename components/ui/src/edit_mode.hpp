@@ -4,8 +4,8 @@
 // starts it; the dashboard then draws a copy of the layout and this layer lies over the page: a
 // bar with Reset, Cancel and Done at the top, and a transparent layer that takes every touch. A
 // drag moves a tile (core::move_tile: the tiles in the way are pushed aside), a long press on a
-// tile asks to remove it, a tap on an area or the back tile changes the page. Done stores the
-// copy, Cancel drops it.
+// tile asks to remove it, a tap on the back tile changes the page, a tap on an empty cell opens the
+// entity search (entity_picker.hpp) and adds a tile there. Done stores the copy, Cancel drops it.
 
 #include "lvgl.h"
 

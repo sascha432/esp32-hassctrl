@@ -4,7 +4,9 @@
 #include <cstdio>
 #include <memory>
 
+#include "add_dialog.hpp"
 #include "dashboard.hpp"
+#include "lvgl_compat.hpp"
 #include "overlay.hpp"
 #include "settings.hpp"
 #include "sound.hpp"
@@ -58,8 +60,23 @@ struct Watch {
 };
 
 Watch g_watch;
-// the finger that started edit mode is still down: its hold must not ask to remove a tile
+// the finger that started edit mode is still down: its hold must not ask to remove a tile, and
+// its release is no tap. LVGL may send the layer nothing of it (its press began on an object of the
+// page that was built again), so a timer looks at the input device until the finger is up.
 bool g_carried = false;
+lv_timer_t *g_carried_timer = nullptr;
+
+void on_carried_timer(lv_timer_t *)
+{
+    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER && compat::pressed(indev)) {
+            return;
+        }
+    }
+    g_carried = false;
+    lv_timer_del(g_carried_timer);
+    g_carried_timer = nullptr;
+}
 
 void cancel_watch()
 {
@@ -81,6 +98,9 @@ void on_watch_timer(lv_timer_t *)
     dashboard::start_editing();
     // the finger is still down: its hold must not ask to remove a tile, a drag may move it
     g_carried = true;
+    if (g_carried_timer == nullptr) {
+        g_carried_timer = lv_timer_create(on_carried_timer, 50, nullptr);
+    }
 }
 
 void on_watch(lv_event_t *event)
@@ -120,6 +140,9 @@ struct Layer {
     lv_obj_t *title = nullptr;
     lv_obj_t *reset = nullptr;
     lv_obj_t *outline = nullptr;
+    // draws a dashed cell with a "+" where a tap adds a tile (the look of the web editor)
+    lv_obj_t *cells = nullptr;
+    memory::Vector<core::Cell> free;
 
     // the press on the layer
     lv_point_t at{};
@@ -238,6 +261,58 @@ void show_target(core::Cell cell)
     lv_obj_set_style_border_color(g.outline, t::color(g.moved ? kFits : t::kError), 0);
 }
 
+// ------------------------------------------------------------------------------ adding a tile
+
+// the cell under `point`; false in the gap between cells or outside the grid
+bool cell_at(lv_point_t point, core::Cell &out)
+{
+    const dashboard::Grid &grid = dashboard::grid();
+    const lv_coord_t x = static_cast<lv_coord_t>(point.x - grid.left);
+    const lv_coord_t y = static_cast<lv_coord_t>(point.y - grid.top);
+    const lv_coord_t step_x = static_cast<lv_coord_t>(grid.cell_w + grid.gap);
+    const lv_coord_t step_y = static_cast<lv_coord_t>(grid.cell_h + grid.gap);
+    if (x < 0 || y < 0 || step_x <= 0 || step_y <= 0 || x % step_x >= grid.cell_w || y % step_y >= grid.cell_h) {
+        return false;
+    }
+    const int col = x / step_x;
+    const int row = y / step_y;
+    if (col >= grid.cols || row >= grid.rows) {
+        return false;
+    }
+    out = {static_cast<uint8_t>(col), static_cast<uint8_t>(row)};
+    return true;
+}
+
+// a tap on a "+" cell: the steps of adding (add_dialog.hpp), the new tile goes to that cell
+void start_add(lv_point_t point)
+{
+    const Backend &backend = dashboard::backend();
+    core::Cell cell;
+    if (backend.find_entities == nullptr || !cell_at(point, cell)) {
+        return;
+    }
+    const core::Layout &layout = dashboard::layout();
+    const core::PageIndex page = dashboard::current_page();
+    const core::Orientation o = orientation();
+    // spacers are not drawn: the cell looks empty but is not
+    for (const core::TileIndex t : layout.pages[page].tiles) {
+        const core::Placement &p = layout.tiles[t].in(o);
+        if (layout.tiles[t].kind == core::TileKind::Spacer && p.shown && cell.col >= p.cell.col &&
+            cell.col < p.cell.col + p.size.cols && cell.row >= p.cell.row && cell.row < p.cell.row + p.size.rows) {
+            message("A spacer keeps this cell free", "remove it in the web editor");
+            return;
+        }
+    }
+    // the steps only when a 1x1 tile can go there (a clock needs no entity)
+    core::NewTile probe;
+    probe.tile.kind = core::TileKind::Clock;
+    if (auto tried = core::add_tile(layout, page, std::move(probe), o, cell); !tried) {
+        message("No room for a tile here", tried.error().message.c_str());
+        return;
+    }
+    add::open(g.root, page, o, cell);
+}
+
 void drag(lv_point_t point)
 {
     const dashboard::Grid &grid = dashboard::grid();
@@ -311,19 +386,27 @@ void on_layer(lv_event_t *event)
             drag(point);
         }
         break;
-    case LV_EVENT_RELEASED:
+    case LV_EVENT_RELEASED: {
         cancel_timer();
         mark_pressed(false);
+        // the finger that started edit mode lifts: no tap
+        const bool carried = g_carried;
         g_carried = false;
         if (g.dragging) {
             end_drag();
-        } else if (!g.long_pressed && !moved(g.at, point)) {
-            // a tap: only the back tile changes the page, areas do not open
+        } else if (!carried && !g.long_pressed && !moved(g.at, point)) {
+            // a tap: the back tile changes the page, a tile opens its title and options, an empty
+            // cell adds a tile; areas do not open
             if (g.back) {
                 dashboard::back();
+            } else if (g.card == nullptr) {
+                start_add(point);
+            } else if (g.tile != core::kNone) {
+                add::change(g.root, g.tile, orientation());
             }
         }
         break;
+    }
     case LV_EVENT_PRESS_LOST:
         cancel_timer();
         mark_pressed(false);
@@ -369,6 +452,78 @@ void on_reset(lv_event_t *)
                       "Reset", false, on_reset_confirmed, nullptr);
 }
 
+// the cells of the shown page that no tile covers (spacers included, they are not drawn) and that
+// are not the back tile's
+void find_free_cells()
+{
+    g.free.clear();
+    const dashboard::Grid &grid = dashboard::grid();
+    const core::Layout &layout = dashboard::layout();
+    const core::PageIndex page = dashboard::current_page();
+    if (page >= layout.pages.size()) {
+        return;
+    }
+    memory::Vector<bool> used(static_cast<size_t>(grid.cols) * grid.rows, false);
+    const auto take = [&](core::Cell at, core::Span size) {
+        for (unsigned row = at.row; row < at.row + size.rows && row < grid.rows; row++) {
+            for (unsigned col = at.col; col < at.col + size.cols && col < grid.cols; col++) {
+                used[row * grid.cols + col] = true;
+            }
+        }
+    };
+    if (core::has_back_tile(layout, page)) {
+        take({0, 0}, {1, 1});
+    }
+    for (const core::TileIndex t : layout.pages[page].tiles) {
+        const core::Placement &p = layout.tiles[t].in(grid.orientation);
+        if (p.shown) {
+            take(p.cell, p.size);
+        }
+    }
+    for (uint8_t row = 0; row < grid.rows; row++) {
+        for (uint8_t col = 0; col < grid.cols; col++) {
+            if (!used[row * grid.cols + col]) {
+                g.free.push_back({col, row});
+            }
+        }
+    }
+}
+
+void on_draw_cells(lv_event_t *event)
+{
+    if (g.free.empty()) {
+        return;
+    }
+    lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(event);
+    const dashboard::Grid &grid = dashboard::grid();
+    lv_draw_line_dsc_t line;
+    lv_draw_line_dsc_init(&line);
+    line.color = t::color(t::kBorder);
+    line.width = 1;
+    line.dash_width = 4;
+    line.dash_gap = 4;
+    lv_draw_label_dsc_t plus;
+    lv_draw_label_dsc_init(&plus);
+    plus.color = t::color(t::kTextMuted);
+    plus.font = &t::font_large();
+    plus.align = LV_TEXT_ALIGN_CENTER;
+    const lv_coord_t plus_h = lv_font_get_line_height(plus.font);
+    for (const core::Cell cell : g.free) {
+        const lv_coord_t x1 = static_cast<lv_coord_t>(grid.left + cell.col * (grid.cell_w + grid.gap));
+        const lv_coord_t y1 = static_cast<lv_coord_t>(grid.top + cell.row * (grid.cell_h + grid.gap));
+        const lv_coord_t x2 = static_cast<lv_coord_t>(x1 + grid.cell_w - 1);
+        const lv_coord_t y2 = static_cast<lv_coord_t>(y1 + grid.cell_h - 1);
+        // LVGL 8 dashes only straight lines: four sides, square corners
+        const lv_point_t corners[] = {{x1, y1}, {x2, y1}, {x2, y2}, {x1, y2}};
+        for (size_t i = 0; i < 4; i++) {
+            lv_draw_line(ctx, &line, &corners[i], &corners[(i + 1) % 4]);
+        }
+        const lv_area_t area{x1, static_cast<lv_coord_t>((y1 + y2 - plus_h) / 2), x2,
+                             static_cast<lv_coord_t>((y1 + y2 + plus_h) / 2)};
+        lv_draw_label(ctx, &plus, &area, "+", nullptr);
+    }
+}
+
 lv_obj_t *bar_button(lv_obj_t *bar, const char *text, lv_event_cb_t callback)
 {
     lv_obj_t *button = t::button(bar, text, callback);
@@ -398,6 +553,11 @@ void open(lv_obj_t *screen)
     for (const lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST}) {
         lv_obj_add_event_cb(g.root, on_layer, code, nullptr);
     }
+    // under everything else of the layer; it takes no touches, they go to the layer
+    g.cells = t::plain(g.root);
+    lv_obj_set_size(g.cells, LV_PCT(100), LV_PCT(100));
+    lv_obj_clear_flag(g.cells, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(g.cells, on_draw_cells, LV_EVENT_DRAW_MAIN, nullptr);
 
     lv_obj_t *bar = t::plain(g.root);
     lv_obj_set_size(bar, LV_PCT(100), kBarHeight);
@@ -442,6 +602,11 @@ void refresh()
     } else {
         lv_obj_add_flag(g.reset, LV_OBJ_FLAG_HIDDEN);
     }
+    // the empty cells offer adding only with the entity search
+    if (dashboard::backend().find_entities != nullptr) {
+        find_free_cells();
+    }
+    lv_obj_invalidate(g.cells);
     if (g.outline != nullptr) {
         lv_obj_move_foreground(g.outline);
     }
@@ -450,12 +615,15 @@ void refresh()
 void close()
 {
     cancel_timer();
+    add::close();
     if (g.root != nullptr) {
         // called from the events of the bar's buttons
         lv_obj_del_async(g.root);
     }
     g.root = nullptr;
     g.outline = nullptr;
+    g.cells = nullptr;
+    g.free.clear();
     g.moved.reset();
     g.dragging = false;
 }

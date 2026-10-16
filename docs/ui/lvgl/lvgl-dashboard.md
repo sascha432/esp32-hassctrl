@@ -142,7 +142,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | switch, light without `dimmer` | icon (48 px), name; a light that is on and reports a level shows it under the icon ("44 %", the icon then 24 px) | toggles once the double-tap window (300 ms) has passed; a double tap opens the light panel when the light dims (a color mode other than `onoff`, or a reported level; [lvgl-panels.md](lvgl-panels.md) section 2), else the sensor panel with the on/off timeline (section 4) |
 | button, scene, script | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
-| lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | opens the lock panel; a tap on the tile never locks or unlocks |
+| lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | a double tap locks an unlocked or open lock and unlocks a locked one (2026-10-16, your request; was: never from the tile); jammed or unavailable it opens the panel instead; a single tap opens the lock panel once the double-tap window (300 ms) has passed |
 | dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom; off or unavailable the icon over the name, as a light without `dimmer`; the same in every shape | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
 | climate, tall | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
 | climate, wide | the `-` bar down the left, the `+` bar down the right; between them the stack of the tall look when the card is at least 110 px high inside the padding, else the one-cell line | as the tall one |
@@ -301,8 +301,9 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   the finger does not act (no toggle, no panel). The bar and the outlines of the tiles show the
   start, and a click and a pulse (`sound::confirm()`) confirm it. The hold that started it does
   not count as a remove press; the finger can drag the tile it is on straight away.
-* **While editing**: the tiles keep their look with an outline; taps do nothing except on the
-  back tile, which goes back. Areas do not open, there is no swipe and the dots are hidden (2026-10-14). The
+* **While editing**: the tiles keep their look with an outline; a tap on the back tile goes back,
+  on a tile opens its title and options (an area too: it does not open), on a "+" cell adds a tile
+  (section 7.2). Areas do not open, there is no swipe and the dots are hidden (2026-10-14). The
   pull-down for Settings is off; the edit bar (44 px) takes the top and the grid shrinks by its
   height while editing, so no tile is covered. Pages slide as usual.
 * **Press**: the tile under the finger is outlined orange until the finger lifts (confirmed by you on the P4, 2026-10-14).
@@ -313,6 +314,9 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
 * **Remove**: a long press on a tile while editing (without moving) asks "Remove Ceiling?" with
   Remove and Cancel; the dialog opens with a click and a pulse. An area names the tiles of its page that go with it. The back tile cannot be moved
   or removed.
+* **Add**: every free cell shows a dashed border with a "+" (the web editor's look; not on a
+  spacer's cell or the back tile); a tap on one adds a tile, an area or a clock there in three
+  steps (section 7.2).
 * **Reset** sets the page back to automatic order in this orientation (after a confirm); a tile
   without room in list order is left out of the screen, not refused (2026-10-14).
 * **Done** saves; **Cancel** drops all changes of this edit session. A save or a remove that
@@ -324,7 +328,7 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   session lives in RAM until Done: a reset or a power loss drops it. A new layout from the web UI
   or an import while editing drops the session too (it would conflict) and says so in the alert
   strip.
-* No adding of tiles and no change of sizes on the screen yet. Tiles hidden or without room in
+* No change of sizes on the screen yet. Tiles hidden or without room in
   the shown orientation are not part of the edit: a tile cannot be moved into or out of the
   overflow on the screen (web editor only). A sideways drag on an empty cell goes back from a
   swipe page (section 9).
@@ -345,9 +349,16 @@ copy. Same behavior, one data path fewer.
   every update, the outline stays). A new layout from outside while editing drops the copy and
   says so ("Edit dropped"). Done reopens the stored dashboard on the same page.
 * When edit mode starts, the pressed tile is deleted with its page; LVGL then ends that press, so
-  the tile does not act on the release, and a finger that stays down goes on as a press on the
-  edit layer: hold and drag in one move works.
-* `core`: `move_tile`, `reset_arrangement`, `remove_tile` (section 6).
+  the tile does not act on the release. LVGL may send the edit layer nothing more of that finger
+  (it waits for the release; seen on the WT32, 2026-10-16), so a timer reads the input device
+  until the finger is up (`compat::pressed`); until then a release is no tap.
+* `ui/add_dialog.cpp`: the steps of adding (section 7.2); `ui/entity_picker.cpp`: the entity search
+  and the page frame of the steps, children of the edit layer. The "+"
+  cells are one object of the edit layer under the bar that draws every free cell itself
+  (`LV_EVENT_DRAW_MAIN`: four dashed lines and a "+"; LVGL 8 has no dashed border, and a 32x32
+  grid would be a thousand objects).
+* `core`: `move_tile`, `reset_arrangement`, `remove_tile` (section 6), `add_tile` (`NewTile`: an
+  entity's tile, a clock, or an area with its first tile), `change_tile`.
 * `dashboard::save_layout` writes the copy through `save_json` (JSON out and in again, so the
   stored dashboard is what the file holds); `Backend::save_dashboard` calls it.
 * **The write runs in the LVGL task** (changed from the proposal "off the UI task"): a worker task
@@ -357,6 +368,71 @@ copy. Same behavior, one data path fewer.
 * Spacers are not drawn on the screen, also not while editing: they are pushed aside like any tile
   but cannot be picked up or removed there (web editor only).
 * The tiles keep their look while editing (values included), with an outline; the bar is 44 px.
+
+### 7.2 Adding a tile
+
+Built 2026-10-16 and confirmed by you in landscape and portrait on every board (your requests: a
+search field to find an entity; the "+" cells of the web editor;
+"ask first for the title and type, if a tile is added a second dialog comes up for the entity,
+after selection a third dialog for options"). Every free cell of the page shows a dashed border
+with a "+"; a tap on one opens the steps, each a page over the edit layer with the edit bar's look:
+
+```
+1  New tile                  [Cancel] [Next]     2  Entity of the tile    [Back]
+   (Tile) ( Area ) ( Clock )                        [ ceil              ] [kbd]
+   [ title               ] [kbd]                    | Attic Ceiling   light.attic_ceiling |
+   q w e r t y u i o p ...  (OK: Next)              | Kitchen Ceiling ✓ light.kitchen_... |
+
+3  Options of Kitchen        [Back] [Add]        4  An area: First tile of Kitchen [Back]
+   Size in landscape (1x1) (2x1) (1x2) (2x2)        the search of step 2; a row adds
+   Light:  Dimmer               [on]                the area with that tile
+   Sensor: Decimals (Auto) (0) (1) (2)
+   Clock:  Analog / 12 hours / Seconds / Date
+   Area:   Swipe navigation     [off]   [Next]
+```
+
+* **Start**: a tap on a "+" cell (not in the gap between cells). No steps when the cell cannot
+  take a 1x1 tile: a spacer there says "A spacer keeps this cell free" (spacers are not drawn),
+  a full page "No room for a tile here". In the alert strip.
+* **1. Title and type**: Tile (of an entity), Area or Clock, and the title (the tile's `name`;
+  empty: Home Assistant's friendly name, or no name for a clock; an area needs one). OK on the
+  keyboard is Next. Tile and Area need the Home Assistant connection for the search; without it
+  the step says so.
+* **2. Entity** (a tile): the search. Home Assistant filters with the template of the web
+  editor's picker (`hass_protocol/picker.cpp`, [web-dashboard-editor.md](../web/web-dashboard-editor.md)
+  section 3), at most 30 rows (about 60 LVGL objects); every word in the id or the friendly name,
+  so "light kitchen" filters by domain (no domain filter, decided with you). The field starts
+  empty: the first entities by id. A search goes out 400 ms after the last key, or at once on OK.
+  A ✓ marks an entity a tile shows already. A tap on a row asks for its details (a light's color
+  modes) and goes on.
+* **3. Options** (decided with you, the rest stays in the web editor: icon, unit, step, stream,
+  time zone, the clock's border and ticks): the size in the shown orientation (the sizes the grid
+  has room for), a light's `dimmer` (preset from Home Assistant: more color modes than `onoff`),
+  a sensor's decimals, the clock's style, 12 hours, seconds and date, an area's swipe navigation.
+  Add puts it into the edited copy; a problem (no room for 2x2 there) stays on the step.
+* **4. First tile** (an area): an area page needs a tile (`finish()`), so the area comes with
+  its first one, found by the same search. The page stays where it is.
+* **Placement**: `core::add_tile` appends the tile to the page and moves it to the tapped cell
+  like a drag (`move_tile`): the other tiles keep their cells, the page becomes arranged in this
+  orientation. The new tile shows its values at once: the screen's entity store grows with the
+  edited copy's entity table.
+* **Changing a tile** (2026-10-16, your request: "when I tap a tile I need to adjust title and
+  options and entity"): a tap on a tile in edit mode opens the same steps with its values. Step 1
+  is the title (the placeholder is the name it shows now; the type stays, an entity's domain
+  decides it), then the options with Save, and for an entity's tile an **Entity** row on top that
+  opens the search; the entity picked comes back to the options. Another domain changes the kind
+  (`core::change_tile`: the keys the new kind does not have go). A size or decimals beyond the
+  usual choices (set in the web editor) is one more choice, so it is not lost unseen; the keys the
+  screen does not offer stay as they are. A larger size keeps the cell and pushes the tiles in the
+  way aside; "no room for 2x2 there" stays on the step.
+* **Back** goes one step back with what was chosen; **Cancel** (step 1) drops it all. The keyboard
+  button beside a field hides the keyboard (your request: landscape has little room), the field or
+  the button brings it back.
+* **Answers** come back through `take_event` as `core::EntityList` and `core::EntityDetails`,
+  stamped with a generation; the screen drops older ones. The search shares the one query slot of
+  the hass task with the web editor's picker: a newer request of either replaces the one on its way.
+* **Memory**: the answer is parsed in the hass task into PSRAM; on the WT32 the internal heap was
+  the same with the steps open (38 KB free, 2026-10-16).
 
 ## 8. Open points
 

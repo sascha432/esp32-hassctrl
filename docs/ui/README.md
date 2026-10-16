@@ -40,7 +40,7 @@ Shared by the touch screen and the web UI. New terms go here first.
 | **Status bar** | the bar at the top of Settings and the setup screens. The dashboard has none | decided |
 | **Pull-down** | the swipe down from the top center that opens Settings | decided |
 | **Alert strip** | the message panel at the top center of the dashboard, for errors, warnings and hints | decided |
-| **Edit mode** | moving and removing tiles on the screen | decided |
+| **Edit mode** | moving, removing, adding and changing tiles (areas, clocks) on the screen | decided |
 | **Recovery page**, **recovery app** | the web page built into the firmware; the small firmware in its own partition | decided |
 
 Code and developer docs use the ESP-IDF terms (AP, STA). Users never see them. The UI is English

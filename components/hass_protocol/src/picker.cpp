@@ -1,8 +1,10 @@
-// The entity picker of the web editor (docs/ui/web/web-dashboard-editor.md section 3): one render_template
+// The entity picker of the web editor (docs/ui/web/web-dashboard-editor.md section 3) and the
+// search of the screen's edit mode (docs/ui/lvgl/lvgl-dashboard.md section 7): one render_template
 // each, filtered on Home Assistant's side, since get_states of a large house is more than the
 // device's RAM. The search text and the entity id go in as variables, so they need no escaping in
 // the template.
 
+#include <cstring>
 #include <memory>
 
 #include "cJSON.h"
@@ -51,9 +53,16 @@ memory::String write(Body body)
     return out;
 }
 
+using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+
+Json parse(std::string_view text)
+{
+    return Json(cJSON_ParseWithLength(text.data(), text.size()), cJSON_Delete);
+}
+
 } // namespace
 
-memory::String entity_list_message(uint32_t id, std::string_view domain, std::string_view query)
+memory::String entity_list_message(uint32_t id, std::string_view domain, std::string_view query, size_t max)
 {
     return write([&](JsonWriter &w) {
         w.begin_object()
@@ -63,7 +72,7 @@ memory::String entity_list_message(uint32_t id, std::string_view domain, std::st
             .begin_object("variables")
             .string("d", domain.data(), domain.size())
             .string("q", query.data(), query.size())
-            .number("n", static_cast<int64_t>(kEntityListMax))
+            .number("n", static_cast<int64_t>(max < kEntityListMax ? max : kEntityListMax))
             .number("b", kListBudget)
             .end_object()
             .boolean("report_errors", true)
@@ -104,6 +113,49 @@ bool template_result_json(const cJSON *result, memory::String &out)
     }
     out = text;
     cJSON_free(text);
+    return true;
+}
+
+bool parse_entity_list(std::string_view json, core::EntityList &out)
+{
+    out.more = false;
+    out.rows.clear();
+    const Json root = parse(json);
+    const cJSON *rows = cJSON_GetObjectItemCaseSensitive(root.get(), "rows");
+    if (!cJSON_IsArray(rows)) {
+        return false;
+    }
+    out.more = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root.get(), "more"));
+    const cJSON *row = nullptr;
+    cJSON_ArrayForEach(row, rows)
+    {
+        const char *id = cJSON_GetStringValue(cJSON_GetArrayItem(row, 0));
+        const char *name = cJSON_GetStringValue(cJSON_GetArrayItem(row, 1));
+        if (id == nullptr) {
+            continue;
+        }
+        out.rows.push_back({memory::String(id), memory::String(name != nullptr ? name : "")});
+    }
+    return true;
+}
+
+bool parse_entity_details(std::string_view json, core::EntityDetails &out)
+{
+    const Json root = parse(json);
+    const char *id = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root.get(), "id"));
+    if (id == nullptr) {
+        return false;
+    }
+    out.id = id;
+    out.missing = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root.get(), "missing"));
+    // the rule of the web editor (web/dashboard.js): a light dims when it has a color mode besides onoff
+    out.dimmer = false;
+    const cJSON *mode = nullptr;
+    cJSON_ArrayForEach(mode, cJSON_GetObjectItemCaseSensitive(root.get(), "color_modes"))
+    {
+        const char *name = cJSON_GetStringValue(mode);
+        out.dimmer = out.dimmer || (name != nullptr && std::strcmp(name, "onoff") != 0);
+    }
     return true;
 }
 

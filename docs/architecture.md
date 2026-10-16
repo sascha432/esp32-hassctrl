@@ -159,8 +159,9 @@ Two actors own all state. Everything between them is a message.
   (`PageValues{generation, updates}`), never JSON. Parsing a few KB never blocks rendering.
 * **Sending never blocks the UI.** `esp_websocket_client_send_text` takes a lock and can block up
   to its timeout on a bad link, so only the hass task calls it.
-* **To the hass task**: `subscribe_page`, `call_service`, `fetch_history` and the web UI's entity
-  queries post a command to the task's FreeRTOS queue (16 entries), which carries the event type
+* **To the hass task**: `subscribe_page`, `call_service`, `fetch_history` and the entity queries
+  (the web UI's picker, which waits for the answer, and the edit mode's search, whose answer comes
+  back as a `HassEvent`) post a command to the task's FreeRTOS queue (16 entries), which carries the event type
   and a pointer to the heap-allocated `std::variant` (a FreeRTOS queue copies raw bytes, which is
   wrong for a variant with strings in it). The socket's events (opened, message, closed), the network's
   and a changed URL or token go through the same queue, so the task waits on one thing. Images go to the media tasks' own
@@ -176,9 +177,9 @@ Two actors own all state. Everything between them is a message.
 
 ```cpp
 // ui -> hass (hass.cpp, private to the task)
-using Command   = std::variant<Subscribe, Call, FetchHistory, Query>;
+using Command   = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast, Motion>;
 // hass -> ui (core/entity.hpp)
-using HassEvent = std::variant<PageValues, ServiceFailed, History, Image>;
+using HassEvent = std::variant<PageValues, ServiceFailed, History, Image, Forecast, EntityList, EntityDetails>;
 ```
 
 ### Stale results
@@ -272,7 +273,7 @@ Decided (2026-10-07):
   2026-10-07): the project is in development, so one format only. `docs/dashboard-sample/` is the
   guide to it and a test file.
 * The device does not have to keep the configuration as YAML. The web UI is the editor for areas
-  and tiles. The screen has an edit mode that moves and removes tiles (2026-10-08,
+  and tiles. The screen has an edit mode that moves, removes (2026-10-08) and adds tiles (2026-10-16,
   [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 7). YAML is the import and export format for
   advanced users, and the import accepts includes.
 * **The web UI goes with the firmware** (rule, 2026-10-09). The web editor (`web/dashboard.js`)

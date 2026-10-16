@@ -81,8 +81,10 @@ constexpr size_t kEntityListMax = 100;
 
 // A render_template whose result is {"more": bool, "rows": [[id, name, domain, device_class,
 // unit], ...]}: the entities of `domain` (empty: all) whose id or friendly name contains `query`
-// (case-insensitive, empty: all), in order of the id, at most kEntityListMax and about 10 KB.
-memory::String entity_list_message(uint32_t id, std::string_view domain, std::string_view query);
+// (case-insensitive, empty: all), in order of the id, at most `max` (up to kEntityListMax) and
+// about 10 KB.
+memory::String entity_list_message(uint32_t id, std::string_view domain, std::string_view query,
+                                   size_t max = kEntityListMax);
 
 // A render_template whose result is {"id", "name", "domain", "state", "icon", "device_class",
 // "unit", "color_modes", "temp_step"} of `entity_id`, or {"id", "missing": true}. The id has to
@@ -92,6 +94,13 @@ memory::String entity_details_message(uint32_t id, std::string_view entity_id);
 // The `result` of a render_template event as JSON text: an object or a list, or the same as a
 // JSON string. False when it is neither.
 bool template_result_json(const cJSON *result, memory::String &out);
+
+// The result of entity_list_message (as template_result_json gives it) as the rows of the
+// screen's search; false when it is not that.
+bool parse_entity_list(std::string_view json, core::EntityList &out);
+
+// The result of entity_details_message; false when it is not that.
+bool parse_entity_details(std::string_view json, core::EntityDetails &out);
 
 // ------------------------------------------------------------------------------- history
 

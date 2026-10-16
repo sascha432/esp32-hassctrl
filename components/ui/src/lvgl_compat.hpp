@@ -65,6 +65,13 @@ inline bool set_touch_feedback(lv_indev_t *indev, void (*callback)(uint8_t code)
     return true;
 }
 
+// a finger is on `indev` as it was read last, also while LVGL ignores it (a press whose object was
+// deleted waits for the release; LVGL 9: lv_indev_get_state)
+inline bool pressed(const lv_indev_t *indev)
+{
+    return indev->proc.state == LV_INDEV_STATE_PRESSED;
+}
+
 #endif
 
 } // namespace hc::ui::compat

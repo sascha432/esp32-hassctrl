@@ -542,6 +542,40 @@ TEST(protocol_picker_messages)
     CHECK(!template_result_json(plain.get(), out));
     Json number(cJSON_CreateNumber(4));
     CHECK(!template_result_json(number.get(), out));
+
+    // the screen asks for fewer rows; more than kEntityListMax is never asked for
+    Json fewer(cJSON_Parse(entity_list_message(5, "", "kitchen", 30).c_str()));
+    CHECK(cJSON_GetObjectItem(cJSON_GetObjectItem(fewer.get(), "variables"), "n")->valueint == 30);
+    Json capped(cJSON_Parse(entity_list_message(6, "", "", 500).c_str()));
+    CHECK(cJSON_GetObjectItem(cJSON_GetObjectItem(capped.get(), "variables"), "n")->valueint ==
+          static_cast<int>(kEntityListMax));
+}
+
+TEST(protocol_picker_answers_for_the_screen)
+{
+    hc::core::EntityList list;
+    REQUIRE(parse_entity_list(R"({"more":true,"rows":[["light.a","Aurora","light",null,null],)"
+                              R"(["sensor.t","","sensor","temperature","°C"],[null,"x"]]})",
+                              list));
+    CHECK(list.more);
+    REQUIRE(list.rows.size() == 2);
+    CHECK_STR(list.rows[0].id.c_str(), "light.a");
+    CHECK_STR(list.rows[0].name.c_str(), "Aurora");
+    CHECK_STR(list.rows[1].name.c_str(), "");
+    CHECK(!parse_entity_list(R"({"id":"x.y","missing":true})", list));
+    CHECK(!parse_entity_list("not json", list));
+
+    hc::core::EntityDetails details;
+    REQUIRE(parse_entity_details(R"({"id":"light.a","color_modes":["onoff"]})", details));
+    CHECK_STR(details.id.c_str(), "light.a");
+    CHECK(!details.dimmer && !details.missing);
+    REQUIRE(parse_entity_details(R"({"id":"light.b","color_modes":["onoff","brightness"]})", details));
+    CHECK(details.dimmer);
+    REQUIRE(parse_entity_details(R"({"id":"switch.c","color_modes":null})", details));
+    CHECK(!details.dimmer);
+    REQUIRE(parse_entity_details(R"({"id":"x.y","missing":true})", details));
+    CHECK(details.missing && !details.dimmer);
+    CHECK(!parse_entity_details(R"({"rows":[]})", details));
 }
 
 TEST(protocol_pending_actions)

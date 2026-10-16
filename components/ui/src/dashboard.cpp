@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "edit_mode.hpp"
+#include "entity_picker.hpp"
 #include "overlay.hpp"
 #include "panel.hpp"
 #include "swipe.hpp"
@@ -301,6 +302,10 @@ void take_events()
             panel::on_history(std::move(*history));
         } else if (auto *forecast = std::get_if<core::Forecast>(&event)) {
             panel::on_forecast(std::move(*forecast));
+        } else if (auto *list = std::get_if<core::EntityList>(&event)) {
+            picker::on_list(std::move(*list));
+        } else if (auto *details = std::get_if<core::EntityDetails>(&event)) {
+            picker::on_details(std::move(*details));
         } else if (const auto *image = std::get_if<core::Image>(&event)) {
             for (auto &view : g.views) {
                 if (view.entity == image->entity) {
@@ -580,6 +585,8 @@ void set_edited(core::Layout layout)
     }
     g.layout = std::make_shared<const core::Layout>(std::move(layout));
     g.edited = true;
+    // an added tile may bring a new entity (at the end of the table)
+    g.store->grow(g.layout->entities.size());
     // a removal only takes pages below the shown one: its index stays
     if (g.page >= g.layout->pages.size()) {
         g.page = 0;

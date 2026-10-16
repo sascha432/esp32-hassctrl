@@ -237,8 +237,32 @@ struct Forecast {
     memory::String error; // empty: it worked (the entries may still be empty)
 };
 
+// The entity search of the screen's edit mode (docs/ui/lvgl/lvgl-dashboard.md section 7): the
+// entities whose id or friendly name has every word of the search, in order of the id.
+struct EntityRow {
+    memory::String id;
+    memory::String name; // friendly_name, up to 40 characters
+};
+
+// `generation` is the one of the search; the UI drops the answers of an older one.
+struct EntityList {
+    uint32_t generation = 0;
+    bool more = false; // rows were left out
+    memory::Vector<EntityRow> rows;
+    memory::String error; // empty: it worked (the rows may still be empty)
+};
+
+// What a new tile needs of its entity.
+struct EntityDetails {
+    uint32_t generation = 0;
+    memory::String id;
+    bool missing = false; // Home Assistant has no such entity
+    bool dimmer = false;  // a light whose supported_color_modes has more than onoff
+    memory::String error;
+};
+
 // What the connection hands to the UI.
-using HassEvent = std::variant<PageValues, ServiceFailed, History, Image, Forecast>;
+using HassEvent = std::variant<PageValues, ServiceFailed, History, Image, Forecast, EntityList, EntityDetails>;
 
 class EntityStore {
 public:
@@ -251,6 +275,13 @@ public:
     const EntityState &state(EntityIndex entity) const
     {
         return _states[entity];
+    }
+    // room for `entities` (a tile was added while editing); the values of the others stay
+    void grow(size_t entities)
+    {
+        if (entities > _states.size()) {
+            _states.resize(entities);
+        }
     }
 
     // Copies the fields of `update` into its entity. True when a value differs from before, so

@@ -270,6 +270,28 @@ void on_single_tap_toggle(lv_timer_t *timer)
     toggle(view);
 }
 
+void on_single_tap(lv_timer_t *timer);
+
+// A double tap on a lock tile: lock when it is unlocked or open, unlock when it is locked, from the
+// state it shows (the pending action's, else the entity's). Jammed, unavailable or unknown: the
+// panel opens instead, it says why.
+void toggle_lock(const View &view)
+{
+    const core::Expectation *pending = dashboard::pending(view.entity);
+    const std::string_view state = pending != nullptr && !pending->state.empty()
+                                       ? std::string_view(pending->state)
+                                       : std::string_view(dashboard::state(view.entity).state);
+    const bool locked = state == "locked" || state == "locking";
+    const bool unlocked = state == "unlocked" || state == "unlocking" || state == "open" || state == "opening";
+    if (!locked && !unlocked) {
+        dashboard::open_panel(view.tile);
+        return;
+    }
+    core::Expectation expected;
+    expected.state = locked ? "unlocked" : "locked";
+    send(view, core::IntentKind::SetLock, locked ? core::kUnlock : core::kLock, std::move(expected));
+}
+
 void on_click(lv_event_t *event)
 {
     auto &view = *static_cast<View *>(lv_event_get_user_data(event));
@@ -307,12 +329,26 @@ void on_click(lv_event_t *event)
         dashboard::act(intent, {});
         break;
     }
+    case TileKind::Lock: {
+        // a double tap locks or unlocks, a single one opens the panel once the window has passed
+        // (as a dimmer; docs/ui/lvgl/lvgl-dashboard.md section 3)
+        const uint32_t now = lv_tick_get();
+        if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
+            lv_timer_del(view.tap_timer);
+            view.tap_timer = nullptr;
+            toggle_lock(view);
+        } else {
+            view.last_tap = now;
+            if (view.tap_timer == nullptr) {
+                view.tap_timer = lv_timer_create(on_single_tap, kDoubleTapMs, &view);
+            }
+        }
+        break;
+    }
     case TileKind::Climate:
     case TileKind::Sensor:
-    case TileKind::Lock:
     case TileKind::Picture:
     case TileKind::Weather:
-        // a lock is never locked or unlocked by a tap on its tile, only in its panel
         dashboard::open_panel(view.tile);
         break;
     default:
