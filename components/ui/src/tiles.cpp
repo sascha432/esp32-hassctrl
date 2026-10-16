@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <initializer_list>
 #include <iterator>
 
 #include "dashboard.hpp"
@@ -38,6 +40,10 @@ constexpr uint32_t kStepSendMs = 700;
 // slow cameras of a page take their turns meanwhile
 constexpr uint32_t kImageWaitMs = 60000;
 constexpr float kDefaultClimateStep = 0.5f;
+// a clock looks at the time this often: once a second, four times with seconds (so a second is
+// never more than a quarter late); it redraws only when the shown time changed
+constexpr uint32_t kClockTickMs = 1000;
+constexpr uint32_t kClockSecondsTickMs = 250;
 
 const lv_font_t &value_font(const View &view)
 {
@@ -68,6 +74,23 @@ void set_text(lv_obj_t *label, const std::string &text)
     }
 }
 
+lv_coord_t text_width(const char *text, const lv_font_t &font)
+{
+    return lv_txt_get_width(text, static_cast<uint32_t>(std::strlen(text)), &font, 0, LV_TEXT_FLAG_NONE);
+}
+
+// the first of `fonts` (largest first) that draws `text` within `width` and `height`, else the last
+const lv_font_t &largest_font(std::initializer_list<const lv_font_t *> fonts, const char *text, lv_coord_t width,
+                              lv_coord_t height = LV_COORD_MAX)
+{
+    for (const lv_font_t *font : fonts) {
+        if (text_width(text, *font) <= width && lv_font_get_line_height(font) <= height) {
+            return *font;
+        }
+    }
+    return **(fonts.end() - 1);
+}
+
 // The value in the largest font of the tile that fits its width ("Detected" and "612 ppm" in a
 // small cell), down to the small font, which is cut off.
 void set_value(const View &view, const std::string &text)
@@ -75,16 +98,9 @@ void set_value(const View &view, const std::string &text)
     if (view.value == nullptr) {
         return;
     }
-    const lv_font_t *const fonts[] = {&value_font(view), &t::font_large(), &t::font_medium(), &t::font_normal(),
-                                      &t::font_small()};
-    const lv_coord_t width = view.value_width;
-    const lv_font_t *chosen = fonts[std::size(fonts) - 1];
-    for (const lv_font_t *font : fonts) {
-        if (lv_txt_get_width(text.c_str(), static_cast<uint32_t>(text.size()), font, 0, LV_TEXT_FLAG_NONE) <= width) {
-            chosen = font;
-            break;
-        }
-    }
+    const lv_font_t *chosen = &largest_font({&value_font(view), &t::font_large(), &t::font_medium(), &t::font_normal(),
+                                             &t::font_small()},
+                                            text.c_str(), view.value_width);
     if (lv_obj_get_style_text_font(view.value, LV_PART_MAIN) != chosen) {
         lv_obj_set_style_text_font(view.value, chosen, 0);
     }
@@ -447,6 +463,10 @@ void on_delete(lv_event_t *event)
         lv_timer_del(view.image_timer);
         view.image_timer = nullptr;
     }
+    if (view.clock_timer != nullptr) {
+        lv_timer_del(view.clock_timer);
+        view.clock_timer = nullptr;
+    }
     if (view.pixels) {
         compat::image_forget(view.image_dsc);
     }
@@ -477,8 +497,9 @@ void apply_look(View &view, const Look &look)
     lv_obj_set_style_border_color(view.card, t::color(look.active ? look.color : t::kBorder), 0);
     runner::set(view.card, look.pending);
     set_color(view.icon, look.active ? t::kText : t::kTextLabel);
-    // the name of a dimmer stands on its fill
-    set_color(view.name, look.active || view.fill != nullptr ? t::kText : t::kTextLabel);
+    // the name of a dimmer stands on its fill, off it is a label like on the other tiles
+    const bool on_fill = view.fill != nullptr && !lv_obj_has_flag(view.fill, LV_OBJ_FLAG_HIDDEN);
+    set_color(view.name, look.active || on_fill ? t::kText : t::kTextLabel);
     set_color(view.value, t::kText);
 }
 
@@ -569,6 +590,276 @@ void update_weather(View &view, const core::EntityState &state, bool known, bool
     t::line_text(view.action, condition.c_str());
 }
 
+// ------------------------------------------------------------------------------- the clock
+
+// Draws the time of the clock view: the device's clock, read through the backend, in the tile's
+// zone (core::local_time) or the device's (the backend's local time, the same as the status bar).
+// `force` redraws although the minute (the second with `seconds`) did not change.
+void tick_clock(View &view, bool force)
+{
+    const Backend &backend = dashboard::backend();
+    const int64_t now = backend.clock();
+    const int64_t key = now == 0 ? 0 : view.seconds ? now : now / 60;
+    if (!force && key == view.clock_shown) {
+        return;
+    }
+    view.clock_shown = key;
+    if (now == 0) {
+        // the clock is not set yet: dashes, the hands at twelve with a muted hub
+        set_text(view.value, view.seconds ? "--:--:--" : "--:--");
+        set_hidden(view.suffix, true);
+        set_hidden(view.date, true);
+        if (view.face != nullptr) {
+            lv_meter_set_indicator_value(view.face, view.hour_hand, 0);
+            lv_meter_set_indicator_value(view.face, view.minute_hand, 0);
+            if (view.second_hand != nullptr) {
+                lv_meter_set_indicator_value(view.face, view.second_hand, 0);
+            }
+            lv_obj_set_style_bg_color(view.face, t::color(t::kTextMuted), LV_PART_INDICATOR);
+        }
+        return;
+    }
+    std::tm local{};
+    if (view.has_zone) {
+        core::local_time(now, view.zone_rule, local);
+    } else {
+        backend.local_time(now, local);
+    }
+    char text[24];
+    int hour = local.tm_hour;
+    if (view.hours12) {
+        hour = hour % 12 == 0 ? 12 : hour % 12;
+    }
+    if (view.seconds) {
+        std::snprintf(text, sizeof(text), view.hours12 ? "%d:%02d:%02d" : "%02d:%02d:%02d", hour, local.tm_min, local.tm_sec);
+    } else {
+        std::snprintf(text, sizeof(text), view.hours12 ? "%d:%02d" : "%02d:%02d", hour, local.tm_min);
+    }
+    set_text(view.value, text);
+    if (view.suffix != nullptr) {
+        set_text(view.suffix, local.tm_hour < 12 ? "AM" : "PM");
+        set_hidden(view.suffix, false);
+    }
+    if (view.face != nullptr) {
+        // the hour hand moves on with the minutes, the minute hand with the seconds when they show
+        lv_meter_set_indicator_value(view.face, view.hour_hand, (local.tm_hour % 12) * 60 + local.tm_min);
+        lv_meter_set_indicator_value(view.face, view.minute_hand,
+                                     view.seconds ? local.tm_min * 60 + local.tm_sec : local.tm_min);
+        if (view.second_hand != nullptr) {
+            lv_meter_set_indicator_value(view.face, view.second_hand, local.tm_sec);
+        }
+        lv_obj_set_style_bg_color(view.face, t::color(t::kText), LV_PART_INDICATOR);
+    }
+    if (view.date != nullptr) {
+        // "Tue 13 Oct"
+        if (std::strftime(text, sizeof(text), "%a %d %b", &local) != 0) {
+            set_text(view.date, text);
+        }
+        set_hidden(view.date, false);
+    }
+}
+
+void on_clock_tick(lv_timer_t *timer)
+{
+    tick_clock(*static_cast<View *>(timer->user_data), false);
+}
+
+// The digital clock: a column of the optional icon, the time (with AM/PM beside it), the date and
+// the name. The time takes the largest font (the digit fonts of 72 and 48 px, then the text fonts)
+// that fits the width and leaves the lines below their room; chosen once, so the digits stay put.
+void create_digital_clock(View &view, const core::Tile &tile, lv_coord_t width, lv_coord_t height)
+{
+    lv_obj_t *col = column(view.card);
+    const bool with_icon = !tile.icon.empty() && tile.icon != "none";
+    const bool with_name = !tile.name.empty();
+    const lv_font_t &date_font = view.large ? t::font_normal() : t::font_small();
+    const lv_font_t &suffix_font = view.large ? t::font_medium() : t::font_small();
+    // the lines above and below the time, with the column's gaps
+    lv_coord_t lines = 0;
+    if (with_icon) {
+        lines += lv_font_get_line_height(&icons::small()) + 2;
+    }
+    if (tile.date) {
+        lines += lv_font_get_line_height(&date_font) + 2;
+    }
+    if (with_name) {
+        lines += lv_font_get_line_height(&name_font(view)) + 2;
+    }
+    const char *sample = tile.seconds ? "00:00:00" : "00:00";
+    lv_coord_t room = view.value_width;
+    if (tile.hours12) {
+        room -= text_width("PM", suffix_font) + 4;
+    }
+    const lv_font_t &font = largest_font({&t::font_digits_72(), &t::font_digits_48(), &t::font_huge(), &t::font_large(),
+                                          &t::font_medium(), &t::font_normal(), &t::font_small()},
+                                         sample, room, static_cast<lv_coord_t>(height - 14 - lines));
+    static_cast<void>(width);
+    if (with_icon) {
+        view.icon = t::label(col, "", icons::small(), t::kTextLabel);
+    }
+    lv_obj_t *row = flex_row(col, 4);
+    view.value = t::label(row, "", font, t::kText);
+    if (tile.hours12) {
+        view.suffix = t::label(row, "", suffix_font, t::kTextLabel);
+    }
+    if (tile.date) {
+        view.date = text(col, date_font, t::kTextValue);
+    }
+    if (with_name) {
+        view.name = name_label(view, col);
+    }
+}
+
+// The face of an analog clock, `d` px across: an lv_meter (the hands are its needles, the ticks
+// its scales; a tick of the hands redraws only their strips). Three scales: the hours (0 to 720
+// minutes of twelve hours), the minutes (0 to 3600 seconds with the second hand, so it creeps
+// on; else 0 to 60) and the seconds. The ticks follow the tile's `ticks`: the hour marks on the
+// hours scale, the minute marks on the minutes scale below them. No major ticks: they draw labels.
+lv_obj_t *analog_face(View &view, const core::Tile &tile, lv_obj_t *parent, lv_coord_t d)
+{
+    lv_obj_t *face = lv_meter_create(parent);
+    lv_obj_remove_style_all(face);
+    lv_obj_set_size(face, d, d);
+    lv_obj_clear_flag(face, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(face, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_coord_t pad = 0;
+    if (tile.border) {
+        const lv_coord_t rim = d >= 200 ? 3 : 2;
+        lv_obj_set_style_radius(face, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_border_width(face, rim, 0);
+        lv_obj_set_style_border_color(face, t::color(t::kTextLabel), 0);
+        pad = rim + 2;
+    }
+    lv_obj_set_style_pad_all(face, pad, 0);
+    const lv_coord_t r = d / 2 - pad;
+    // the hands have round ends; the hub is the meter's own middle
+    lv_obj_set_style_line_rounded(face, true, LV_PART_ITEMS);
+    const lv_coord_t hub = std::max<lv_coord_t>(5, r / 8) | 1;
+    lv_obj_set_style_width(face, hub, LV_PART_INDICATOR);
+    lv_obj_set_style_height(face, hub, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(face, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(face, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(face, t::color(t::kText), LV_PART_INDICATOR);
+
+    // scales: 360 degrees from twelve o'clock (270 in LVGL's terms), clockwise. The minutes scale
+    // first, so the hour marks of the hours scale draw over its minute marks.
+    const auto scale = [&](int32_t max) {
+        lv_meter_scale_t *s = lv_meter_add_scale(face);
+        lv_meter_set_scale_range(face, s, 0, max, 360, 270);
+        lv_meter_set_scale_ticks(face, s, 0, 0, 0, t::color(t::kTextMuted));
+        return s;
+    };
+    lv_meter_scale_t *minutes = scale(tile.seconds ? 3600 : 60);
+    lv_meter_scale_t *hours = scale(720);
+    lv_meter_scale_t *seconds = tile.seconds ? scale(60) : nullptr;
+    // ticks: a face under 30 px of radius shows at most the hour marks
+    core::ClockTicks ticks = tile.ticks;
+    if (ticks == core::ClockTicks::Minute && r < 30) {
+        ticks = core::ClockTicks::Hour;
+    }
+    switch (ticks) {
+    case core::ClockTicks::Quarter:
+        lv_meter_set_scale_ticks(face, hours, 5, std::max<lv_coord_t>(2, r / 25), r / 5, t::color(t::kTextLabel));
+        break;
+    case core::ClockTicks::Minute:
+        lv_meter_set_scale_ticks(face, minutes, 61, 1, r / 10, t::color(t::kTextMuted));
+        [[fallthrough]];
+    case core::ClockTicks::Hour:
+        lv_meter_set_scale_ticks(face, hours, 13, std::max<lv_coord_t>(2, r / 40), r / 6, t::color(t::kTextLabel));
+        break;
+    case core::ClockTicks::None:
+        break;
+    }
+    // the hands, hour first: a later needle draws over an earlier one; lengths as parts of r
+    view.hour_hand = lv_meter_add_needle_line(face, hours, static_cast<uint16_t>(std::max<lv_coord_t>(3, r / 14)),
+                                              t::color(t::kText), static_cast<int16_t>(-r * 45 / 100));
+    view.minute_hand = lv_meter_add_needle_line(face, minutes, static_cast<uint16_t>(std::max<lv_coord_t>(2, r / 20)),
+                                                t::color(t::kText), static_cast<int16_t>(-r * 20 / 100));
+    if (seconds != nullptr) {
+        view.second_hand = lv_meter_add_needle_line(face, seconds, r >= 100 ? 2 : 1, t::color(t::kActive),
+                                                    static_cast<int16_t>(-r * 10 / 100));
+    }
+    view.face = face;
+    return face;
+}
+
+// The analog clock: the face with the date and the name below it; a wide tile puts them beside
+// the face. A face that would be smaller than 40 px drops the date, then the name.
+void create_analog_clock(View &view, const core::Tile &tile, lv_coord_t width, lv_coord_t height)
+{
+    const lv_coord_t inner_w = width - 14;
+    const lv_coord_t inner_h = height - 14;
+    bool with_name = !tile.name.empty();
+    bool with_date = tile.date;
+    const lv_font_t &date_font = view.large ? t::font_normal() : t::font_small();
+    const lv_coord_t name_h = lv_font_get_line_height(&name_font(view)) + 2;
+    const lv_coord_t date_h = lv_font_get_line_height(&date_font) + 2;
+    constexpr lv_coord_t kSmallestFace = 40;
+
+    if (view.wide && (with_name || with_date)) {
+        // the face left, the texts right of it
+        lv_obj_t *row = t::plain(view.card);
+        lv_obj_set_size(row, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(row, 12, 0);
+        lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_EVENT_BUBBLE);
+        const lv_coord_t d = inner_h;
+        analog_face(view, tile, row, d);
+        lv_obj_t *col = t::plain(row);
+        lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(col, 2, 0);
+        lv_obj_clear_flag(col, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(col, LV_OBJ_FLAG_EVENT_BUBBLE);
+        view.value_width = static_cast<lv_coord_t>(inner_w - d - 12);
+        lv_obj_set_width(col, view.value_width);
+        if (with_name) {
+            view.name = t::label(col, "", name_font(view), t::kTextLabel);
+            lv_obj_set_width(view.name, LV_PCT(100));
+        }
+        if (with_date) {
+            view.date = t::label(col, "", date_font, t::kTextValue);
+            lv_obj_set_width(view.date, LV_PCT(100));
+        }
+        return;
+    }
+
+    lv_coord_t d = std::min(inner_w, static_cast<lv_coord_t>(inner_h - (with_name ? name_h : 0) - (with_date ? date_h : 0)));
+    if (d < kSmallestFace && with_date) {
+        with_date = false;
+        d = std::min(inner_w, static_cast<lv_coord_t>(inner_h - (with_name ? name_h : 0)));
+    }
+    if (d < kSmallestFace && with_name) {
+        with_name = false;
+        d = std::min(inner_w, inner_h);
+    }
+    lv_obj_t *col = column(view.card);
+    analog_face(view, tile, col, d);
+    if (with_date) {
+        view.date = text(col, date_font, t::kTextValue);
+    }
+    if (with_name) {
+        view.name = name_label(view, col);
+    }
+}
+
+void create_clock(View &view, const core::Tile &tile, lv_coord_t width, lv_coord_t height)
+{
+    view.hours12 = tile.hours12;
+    view.seconds = tile.seconds;
+    if (const char *rule = tile.zone.empty() ? nullptr : core::time_zone_rule(tile.zone)) {
+        view.has_zone = core::parse_tz_rule(rule, view.zone_rule); // finish() checked the name
+    }
+    if (tile.style == core::ClockStyle::Analog) {
+        create_analog_clock(view, tile, width, height);
+    } else {
+        create_digital_clock(view, tile, width, height);
+    }
+    view.clock_timer = lv_timer_create(on_clock_tick, tile.seconds ? kClockSecondsTickMs : kClockTickMs, &view);
+}
+
 void update_dimmer(View &view, const core::EntityState &state, const core::Expectation *pending, bool available)
 {
     int level = 0;
@@ -581,11 +872,43 @@ void update_dimmer(View &view, const core::EntityState &state, const core::Expec
     }
     lv_obj_set_height(view.fill, static_cast<lv_coord_t>(view.inner_height * std::max(level, 0) / 100));
     set_hidden(view.fill, level <= 0);
-    // switched on, but the level it comes on at is not known yet: no number until HA reports it
-    set_value(view, !available ? std::string("--")
-                    : level < 0 ? std::string("On")
-                    : on        ? std::to_string(level) + " %"
-                                : std::string("Off"));
+    // off and unavailable look like a plain light: the icon over the name
+    const bool off = !available || level == 0;
+    set_hidden(view.value, off);
+    set_hidden(view.off, !off);
+    lv_obj_t *const parent = off ? view.off : view.card;
+    if (lv_obj_get_parent(view.name) != parent) {
+        lv_obj_set_parent(view.name, parent);
+        if (!off) {
+            lv_obj_align(view.name, LV_ALIGN_BOTTOM_MID, 0, 0);
+        }
+    }
+    if (!off) {
+        // switched on, but the level it comes on at is not known yet: no number until HA reports it
+        set_value(view, level < 0 ? std::string("On") : std::to_string(level) + " %");
+    }
+}
+
+// a light without `dimmer`: the level under the icon while it is on and reports one; the icon
+// of a large one-cell card is the small one while the level shows, else the large one
+void update_light(View &view, const core::EntityState &state, const core::Expectation *pending, bool available)
+{
+    if (view.value == nullptr) {
+        return;
+    }
+    bool on = false;
+    const int level = shown_level(state, pending, on);
+    const bool show = available && on && level > 0 && (state.brightness >= 0 || (pending != nullptr && pending->brightness >= 0));
+    set_hidden(view.value, !show);
+    if (show) {
+        set_value(view, std::to_string(level) + " %");
+    }
+    if (view.icon != nullptr && !view.wide) {
+        const lv_font_t *font = show || !view.large ? &icons::small() : &icons::large();
+        if (lv_obj_get_style_text_font(view.icon, LV_PART_MAIN) != font) {
+            lv_obj_set_style_text_font(view.icon, font, 0);
+        }
+    }
 }
 
 } // namespace
@@ -722,6 +1045,10 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
         lv_obj_clear_flag(view.fill, LV_OBJ_FLAG_CLICKABLE);
         view.value = text(view.card, value_font(view), t::kText);
         lv_obj_center(view.value);
+        // off: the icon and the name of a plain light; the name moves into the column (update_dimmer)
+        view.off = column(view.card);
+        view.icon = t::label(view.off, "", view.large ? icons::large() : icons::small(), t::kTextLabel);
+        lv_obj_add_flag(view.off, LV_OBJ_FLAG_HIDDEN);
         view.name = name_label(view, view.card);
         lv_obj_align(view.name, LV_ALIGN_BOTTOM_MID, 0, 0);
         for (const lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED}) {
@@ -784,6 +1111,11 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
         return;
     }
 
+    if (tile.kind == TileKind::Clock) {
+        create_clock(view, tile, width, height);
+        return;
+    }
+
     if (tile.kind == TileKind::Weather && view.wide) {
         // the large icon left, right of it the temperature, the condition and the name
         lv_obj_t *col = wide_row(view, icons::large());
@@ -822,14 +1154,17 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
         return;
     }
 
+    // a light without `dimmer` shows its level while it is on (update_light)
+    const bool light_level = tile.kind == TileKind::Light;
     const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock;
     if (view.wide && tile.kind != TileKind::Picture) {
         // the icon left, the value and the name right of it
         lv_obj_t *col = wide_row(view, view.large ? icons::large() : icons::small());
-        if (has_value) {
+        if (has_value || light_level) {
             view.value = t::label(col, "", value_font(view), t::kText);
             lv_obj_set_width(view.value, LV_PCT(100));
             lv_label_set_long_mode(view.value, LV_LABEL_LONG_CLIP);
+            set_hidden(view.value, light_level);
         }
         view.name = t::label(col, "", name_font(view), t::kTextLabel);
         lv_obj_set_width(view.name, LV_PCT(100));
@@ -840,10 +1175,11 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
     // without a value the icon is the large one
     const bool big_icon = !has_value && view.large;
     view.icon = t::label(col, "", big_icon ? icons::large() : icons::small(), t::kTextLabel);
-    if (has_value) {
+    if (has_value || light_level) {
         view.value = text(col, value_font(view), t::kText);
         lv_obj_set_width(view.value, LV_PCT(100));
         lv_label_set_long_mode(view.value, LV_LABEL_LONG_CLIP);
+        set_hidden(view.value, light_level);
     }
     view.name = name_label(view, col);
     lv_obj_add_event_cb(view.card, on_click, LV_EVENT_CLICKED, &view);
@@ -918,6 +1254,12 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
         update_icon(view, layout, state, true);
         return;
     }
+    if (tile.kind == TileKind::Clock) {
+        apply_look(view, Look{});
+        update_icon(view, layout, state, true);
+        tick_clock(view, true);
+        return;
+    }
     const bool known = state.known != 0;
     const bool available = known && !state.unavailable();
     Look look;
@@ -935,6 +1277,7 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
             break;
         }
         look.active = on;
+        update_light(view, state, pending, available);
         break;
     case TileKind::Switch:
         look.active = on;

@@ -32,3 +32,12 @@
     # forecast in its panel is the one the integration offers.
     - entity: weather.openweathermap
       name: Weather
+    # A clock (no entity): the time of the device, or of `zone`, an IANA name as Home Assistant
+    # lists them (Europe/London, America/New_York). `hours: 12` shows AM/PM (default 24),
+    # `seconds: true` adds the seconds, `date: true` the date under the time ("Tue 13 Oct").
+    # `name` stands under the time; the digits grow with the tile (1x1, 2x1, 2x2).
+    - type: clock
+      name: London
+      zone: Europe/London
+      hours: 12
+      date: true

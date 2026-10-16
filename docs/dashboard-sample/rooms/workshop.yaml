@@ -46,3 +46,16 @@
       # not on the turned screen; the web editor lists it under the portrait preview
       portrait:
         hidden: true
+    # An analog clock: `style: analog`; `ticks` none, quarter, hour (default) or minute; `border:
+    # true` draws the rim; `seconds: true` adds the second hand. Two cells wide, the name and the
+    # date stand beside the face.
+    - type: clock
+      name: Shop Clock
+      style: analog
+      ticks: minute
+      border: true
+      seconds: true
+      date: true
+      landscape:
+        size: 2x1
+        cell: 2,1

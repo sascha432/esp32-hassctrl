@@ -1,18 +1,16 @@
 #include "hc/platform/time_sync.hpp"
 
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <iterator>
 #include <mutex>
-#include <string_view>
 
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_netif_sntp.h"
+#include "hc/core/timezone.hpp"
 #include "hc/platform/settings.hpp"
 
 namespace hc::platform {
@@ -27,24 +25,9 @@ constexpr time_t kValidAfter = 1735689600;
 // IANA names are at most about 30 characters ("America/Argentina/ComodRivadavia")
 constexpr size_t kZoneSize = 48;
 
-struct Zone {
-    std::string_view name;
-    unsigned char rule;
-};
-
-#include "timezones.inc"
-
 std::mutex g_mutex;
 char g_zone[kZoneSize] = {};
 bool g_sntp_ready = false;
-
-const char *rule_of(std::string_view name)
-{
-    const auto *end = std::end(kZones);
-    const auto *found = std::lower_bound(std::begin(kZones), end, name,
-                                         [](const Zone &zone, std::string_view key) { return zone.name < key; });
-    return found != end && found->name == name ? kRules[found->rule] : nullptr;
-}
 
 void apply(const char *rule)
 {
@@ -73,7 +56,7 @@ esp_err_t start_time_sync()
         Settings settings(kNamespace, Settings::Mode::Read);
         char stored[kZoneSize] = {};
         if (settings.ok() && settings.get_string(kKeyZone, stored, sizeof(stored)) == ESP_OK) {
-            if (const char *rule = rule_of(stored)) {
+            if (const char *rule = core::time_zone_rule(stored)) {
                 std::lock_guard lock(g_mutex);
                 std::snprintf(g_zone, sizeof(g_zone), "%s", stored);
                 apply(rule);
@@ -108,7 +91,7 @@ bool time_synced()
 
 bool set_time_zone(const char *iana_name)
 {
-    const char *rule = rule_of(iana_name);
+    const char *rule = core::time_zone_rule(iana_name);
     if (rule == nullptr) {
         ESP_LOGW(kTag, "unknown time zone '%s', the clock stays as it is", iana_name);
         return false;

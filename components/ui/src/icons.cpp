@@ -134,6 +134,9 @@ const char *for_tile(const core::Tile &tile, std::string_view entity_id, const c
     if (tile.kind == core::TileKind::Area) {
         return glyph("folder");
     }
+    if (tile.kind == core::TileKind::Clock) {
+        return nullptr; // the time is the picture
+    }
     constexpr std::string_view kPrefix = "mdi:";
     const std::string_view attribute = state.icon;
     if (attribute.starts_with(kPrefix)) {

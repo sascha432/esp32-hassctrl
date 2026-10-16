@@ -106,7 +106,7 @@ agents.
 | --- | --- | --- | --- |
 | `memory` | nothing | yes | The heap for large data: `main` points it at PSRAM at start, the PC build uses malloc. `memory::Vector` and `memory::String` allocate from it (running) |
 | `formats` | `memory` | yes | `JsonWriter` (the web server's answers and the stored dashboard) and the YAML subset reader of section 5 (running) |
-| `core` | `memory` | yes | Domain model: `Layout` (pages, tiles, grid placement; running), `EntityStore` (live entity state; running), intents (running), pending/optimistic logic |
+| `core` | `memory` | yes | Domain model: `Layout` (pages, tiles, grid placement; running), `EntityStore` (live entity state; running), intents (running), pending/optimistic logic; the time zones: the IANA names with their POSIX rules (`timezones.inc`, built by `tools/build_timezones.py` from the tzdata release on PyPI) and `local_time()`, the rule evaluated in plain C++ for a clock tile with a zone of its own (the C library's TZ is one global, set to the device's zone) |
 | `config` | `core`, `formats`, `cjson` | yes | Reads the stored dashboard (JSON) and the `hass.yaml` import with its includes into a `core::Layout`, validates it, reports errors with file and line, writes the JSON and the YAML export (section 5, "Dashboard configuration") |
 | `hass_protocol` | `core`, `formats`, `cjson` | yes | The field table; builds `render_template` templates from the tiles of a page, builds `call_service` (running) / statistics / history commands, decodes messages into core types |
 | `hass` | `hass_protocol`, `esp_websocket_client`, `esp_http_client`, `cjson` | no | The session task: connect, auth, reconnect, ping, request ids, subscriptions, chunked statistics, camera fetch, the sounds of the hassctrl_say event |
@@ -225,7 +225,7 @@ struct FieldSpec {
 
 * `hass_protocol::fields_of(tile, panel)` says which fields a tile needs: the state always, the
   `friendly_name` only without a name of the tile, icon and device class only without an icon,
-  the brightness only for a `dimmer`, the panel fields only while the panel is open.
+  the brightness for a light, the color modes only for a `dimmer`, the panel fields only while the panel is open.
 * `hass_protocol` builds the template of the visible page from it, every value as
   `state_attr(e,'<attribute>')|tojson`, and decodes a result back into `EntityUpdate`s, from the
   same table.
@@ -360,7 +360,7 @@ YAML import and export (decided 2026-10-07, kept simple):
 Tile format, decided (2026-10-07):
 
 * The kind of a tile follows from the domain of its entity. `type` stays only for the tiles
-  without an entity, `area` and `spacer`. The `dimmer` type is gone: a light tile has the flag
+  without an entity, `area`, `spacer` and `clock` (2026-10-16). The `dimmer` type is gone: a light tile has the flag
   `dimmer`, which shows the level fill, or it acts as a simple switch.
 * Icons: one name per glyph, no duplicates. The names are the MDI names (`lightbulb`,
   `power-plug`).
@@ -385,13 +385,17 @@ Tile format, details (decided 2026-10-07):
   | `camera` | picture, the image fills the tile | as before |
   | `lock` | lock (the state in words) | opens the lock panel (lock, unlock, open, the timeline); never unlocks by itself |
   | `weather` | weather: the condition, the temperature, the humidity | opens the forecast panel |
+  | `type: clock` (no entity) | clock: the time, digital or analog, in the device's zone or its own `zone` ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 3) | nothing |
   | `sensor`, `binary_sensor`, every other domain | sensor (read only) | opens the panel with the history |
 
   Every tile is 1x1 unless its `landscape:` / `portrait:` size says otherwise (version 2,
   2026-10-14; before, dimmer and climate were 1x2 and a camera 2x2 by default, and the sizes
   were restricted per kind). Any kind takes any size up to the grid; the look of a tile follows
   its shape ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 3).
-* `type:` exists only for `area` and `spacer`; on any other tile it is an error.
+* `type:` exists only for `area`, `spacer` and `clock`; on any other tile it is an error. The
+  clock's keys (`zone`, `hours`, `seconds`, `date`, `style`, `border`, `ticks`) are only for
+  clocks, `border` and `ticks` only for analog ones; `zone` is an IANA name the firmware knows
+  (`core::time_zone_rule`), anything else is refused at import.
 * Icon order, the same as in the Home Assistant frontend or as close as the glyph subset
   allows: the `icon` of the tile; the entity's `icon`
   attribute (set by the user in HA, or by older integrations) when the glyph is in the firmware;
@@ -796,7 +800,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 
 | Component | First version | Responsibility |
 | --- | --- | --- |
-| `platform` | yes | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP and the time zone (`time_sync.cpp`; the zone's name from Home Assistant, its POSIX rule from `timezones.inc`, built by `tools/build_timezones.py`) |
+| `platform` | yes | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP and the time zone (`time_sync.cpp`; the zone's name from Home Assistant, its POSIX rule from the zone table of `core`) |
 | `network` | yes | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
 | `webserver` | yes | captive portal DNS and redirect (running), the status API and the built-in page (running), the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component (running) |
 | `ui` | yes | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, system; running), the pull-down zone and the alert strip on `lv_layer_top` (running), the dashboard with its tiles, panels and edit mode (running). Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |

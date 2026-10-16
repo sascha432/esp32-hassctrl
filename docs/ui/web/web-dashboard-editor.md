@@ -24,8 +24,11 @@ dashboard as one file is on the System page (web-app.md section 1), not here (de
   meant the new area, not the page it is on), rename, delete (with its tiles, after a confirm that names the count), move a tile to another
   page by dragging it onto the tree.
 * **Grid.** `defaults.grid`, and per area page its own grid or the default. 1x1 to 32x32 (2026-10-14, your request; was 8x8); a tile is 1x1 to 8x8.
-* **Tiles.** Add from a Home Assistant entity, add an area or a spacer, remove, duplicate, move to
-  another page, reorder. Every key of the tile format; the keys a kind does not have are hidden.
+* **Tiles.** Add from a Home Assistant entity, add an area, a spacer or a clock, remove, duplicate, move to
+  another page, reorder. A clock (2026-10-16) has no entity: style (digital, analog), 24 or 12 h,
+  seconds, date, rim and ticks of an analog face, and the time zone (a text field with the
+  device's list of IANA names as suggestions; an unknown name is refused by the device's check).
+  The preview shows a fixed time or the clock glyph. Every key of the tile format; the keys a kind does not have are hidden.
   A new tile is 1x1. The size is set per orientation, in the orientation the preview shows
   (1x1 up to the grid of the page; portrait offers "landscape turned" as the default), and a
   tile can be hidden per orientation (two checkboxes). A weather entity (`weather.*`) is a
@@ -169,7 +172,7 @@ Below 800 px the columns stack: the page as a dropdown, the preview, the tile fo
 | `ui` | edit mode ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 7, built) |
 | `api_dashboard.cpp` | `POST /api/dashboard?check=1`; answers `{"checked", "revision", "dashboard"}` with the cells per tile (null where a tile is not drawn), on 400 `{"error", "path"}` (built) |
 | `api_hass.cpp` | `GET /api/hass/entities?domain=&q=`, `GET /api/hass/entity?id=` (built) |
-| `api_dashboard.cpp` | `GET /api/dashboard/editor`: the screen of the device and `core::icon_names()` (built) |
+| `api_dashboard.cpp` | `GET /api/dashboard/editor`: the screen of the device, `core::icon_names()` and the time zone names for the clock tile (built) |
 | `tools/build_icons.py` | also writes `web/icons.svg`, one `<symbol>` per icon name (about 6 KB gzipped) |
 | `web/` | `dashboard.js`, loaded only by the Dashboard page, so the setup on a phone stays small |
 | tests | host tests for the placement and `apply()`; `tools/test_dashboard.py` for check=1, cells, the problem's tile id |

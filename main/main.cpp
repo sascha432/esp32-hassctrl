@@ -25,6 +25,7 @@
 #endif
 #include "hc/config/dashboard.hpp"
 #include "hc/core/icons.hpp"
+#include "hc/core/timezone.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/devconsole/devconsole.hpp"
 #include "hc/frame_display/frame_display.hpp"
@@ -397,6 +398,7 @@ const hc::webserver::DashboardAccess kDashboardAccess{
         const auto names = hc::core::icon_names();
         return index < names.size() ? names[index].data() : nullptr; // literals, terminated
     },
+    .zone_name = hc::core::time_zone_name,
     .screen =
         [](const char *&name, uint16_t &width, uint16_t &height, uint8_t &tile_gap) {
             const auto &board = hc::board::info();

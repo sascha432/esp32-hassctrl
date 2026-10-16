@@ -224,6 +224,10 @@ TEST(layout_checks_the_keys_per_kind)
     CHECK_STR(problem([](Layout &, Tile &t) { t.dimmer = true; }), "dimmer is only for lights");
     CHECK_STR(problem([](Layout &, Tile &t) { t.step = 5; }), "step is only for lights and climate tiles");
     CHECK_STR(problem([](Layout &, Tile &t) { t.refresh_s = 5; }), "refresh is only for picture tiles");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.seconds = true; }),
+              "hours, seconds, date, style, border, ticks and zone are only for clock tiles");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.zone = "Europe/Berlin"; }),
+              "hours, seconds, date, style, border, ticks and zone are only for clock tiles");
     CHECK_STR(problem([](Layout &, Tile &t) { t.decimals = 7; }), "decimals is 0 to 6");
     CHECK_STR(problem([](Layout &, Tile &t) { t.unit = "a very long unit"; }), "the unit is longer than 12 bytes");
     CHECK_STR(problem([](Layout &, Tile &t) { t.icon = "nope"; }), "unknown icon 'nope'");
@@ -251,6 +255,52 @@ TEST(layout_checks_lights_climate_and_pictures)
     CHECK_STR(problem("camera.a", [](Tile &t) { t.refresh_s = 4000; }), "refresh is 1 to 3600 seconds");
     CHECK_STR(problem("light.a", [](Tile &t) { t.dimmer = true; }), "ok");
     CHECK_STR(problem("weather.a", [](Tile &t) { t.unit = "C"; }), "unit is only for sensors");
+}
+
+TEST(layout_checks_clocks)
+{
+    const auto problem = [](auto change) {
+        Layout layout;
+        Tile tile;
+        tile.kind = TileKind::Clock;
+        change(layout, tile);
+        layout.add_tile(0, tile);
+        return problem_of(layout);
+    };
+    CHECK_STR(kind_name(TileKind::Clock), "clock");
+    CHECK(!has_entity(TileKind::Clock) && !has_entity(TileKind::Spacer) && has_entity(TileKind::Weather));
+    CHECK_STR(problem([](Layout &, Tile &) {}), "ok");
+    CHECK_STR(problem([](Layout &l, Tile &t) { t.entity = l.intern("sensor.a"); }), "a clock has no entity");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.border = true; }), "border and ticks are only for analog clocks");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.ticks = ClockTicks::Minute; }), "border and ticks are only for analog clocks");
+    CHECK_STR(problem([](Layout &, Tile &t) {
+                  t.style = ClockStyle::Analog;
+                  t.border = true;
+                  t.ticks = ClockTicks::None;
+                  t.seconds = true;
+              }),
+              "ok");
+    CHECK_STR(problem([](Layout &, Tile &t) {
+                  t.zone = "Europe/London";
+                  t.hours12 = true;
+                  t.date = true;
+                  t.icon = "clock-outline";
+                  t.name = "London";
+              }),
+              "ok");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.zone = "Nowhere/Town"; }),
+              "unknown time zone 'Nowhere/Town' (an IANA name like Europe/Berlin)");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.zone = "europe/london"; }),
+              "unknown time zone 'europe/london' (an IANA name like Europe/Berlin)");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.unit = "x"; }), "unit is only for sensors");
+    // the clock keys read back as they are written
+    ClockStyle style = ClockStyle::Digital;
+    ClockTicks ticks = ClockTicks::Hour;
+    CHECK(clock_style_of("analog", style) && style == ClockStyle::Analog);
+    CHECK(!clock_style_of("round", style) && style == ClockStyle::Analog);
+    CHECK(clock_ticks_of("quarter", ticks) && ticks == ClockTicks::Quarter);
+    CHECK(!clock_ticks_of("all", ticks) && ticks == ClockTicks::Quarter);
+    CHECK_STR(clock_ticks_name(ClockTicks::Minute), "minute");
 }
 
 TEST(layout_checks_pages)

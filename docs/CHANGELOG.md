@@ -2,6 +2,10 @@
 
 ## 2026-10-16
 
+- Clock tile (`type: clock`, your request): digital or analog, 24 or 12 h, seconds, date, the device's time
+  zone or `zone: Europe/London` (evaluated by core, not the C library); web editor, sample, 110 host tests.
+  Confirmed by you on the JC3248W535.
+- Light tiles without `dimmer` show the level ("44 %") under the icon while the light is on (your request). An off or unavailable dimmer looks like an off plain light (icon over the name).
 - Motion hold (your request): Home Assistant's motion helper stays Detected until the sensor saw nothing for
   the hold time (Settings, Display, "Motion hold", 1 to 60 min, default 5 min, backup `motion_hold_s`).
   Confirmed by you on the kitchen P4.

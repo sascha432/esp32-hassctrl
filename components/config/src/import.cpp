@@ -264,24 +264,24 @@ private:
         return true;
     }
 
-    // `type:` is only for areas and spacers; every other tile is made by its entity
+    // `type:` is only for the kinds without an entity; every other tile is made by its entity
     bool kind_of(const yaml::Node &item, std::string_view type, std::string_view entity, int frame, Tile &tile)
     {
-        if (type == "area" || type == "spacer") {
+        if (type == "area" || type == "spacer" || type == "clock") {
             if (!entity.empty()) {
                 return fail(frame, item.line, format("a%s %.*s has no entity", type == "area" ? "n" : "",
                                                      static_cast<int>(type.size()), type.data())
                                                   .c_str());
             }
-            tile.kind = type == "area" ? TileKind::Area : TileKind::Spacer;
+            tile.kind = type == "area" ? TileKind::Area : type == "spacer" ? TileKind::Spacer : TileKind::Clock;
             return true;
         }
         if (!type.empty()) {
             return fail(frame, item.line,
-                        "type: is only for area and spacer, the entity decides what the tile is");
+                        "type: is only for area, spacer and clock, the entity decides what the tile is");
         }
         if (entity.empty()) {
-            return fail(frame, item.line, "a tile needs an entity, or type: area or spacer");
+            return fail(frame, item.line, "a tile needs an entity, or type: area, spacer or clock");
         }
         tile.kind = core::kind_of_entity(entity);
         return true;
@@ -410,6 +410,27 @@ private:
                     return fail(frame, entry.line, "refresh is a number of seconds, 1 to 3600");
                 }
                 tile.refresh_s = static_cast<uint16_t>(refresh);
+            } else if (key == "hours") {
+                long hours = 0;
+                if (!detail::parse_whole(text, 99, hours) || (hours != 12 && hours != 24)) {
+                    return fail(frame, entry.line, "hours is 12 or 24");
+                }
+                tile.hours12 = hours == 12;
+            } else if (key == "seconds" || key == "date" || key == "border") {
+                if (text != "true" && text != "false") {
+                    return fail(frame, entry.line, format("%.*s is true or false", static_cast<int>(key.size()), key.data()).c_str());
+                }
+                (key == "seconds" ? tile.seconds : key == "date" ? tile.date : tile.border) = text == "true";
+            } else if (key == "style") {
+                if (!core::clock_style_of(text, tile.style)) {
+                    return fail(frame, entry.line, "style is digital or analog");
+                }
+            } else if (key == "ticks") {
+                if (!core::clock_ticks_of(text, tile.ticks)) {
+                    return fail(frame, entry.line, "ticks is none, quarter, hour or minute");
+                }
+            } else if (key == "zone") {
+                tile.zone.assign(text.data(), text.size());
             } else {
                 return fail(frame, entry.line, format("unknown tile key '%.*s'", static_cast<int>(key.size()), key.data()).c_str());
             }

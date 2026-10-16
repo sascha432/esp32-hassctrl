@@ -139,11 +139,11 @@ did. Any other page change (a new layout, turning the display) has no slide.
 
 | Tile | Content, top to bottom | Tap |
 | --- | --- | --- |
-| switch, light without `dimmer` | icon (48 px), name | toggles once the double-tap window (300 ms) has passed; a double tap opens the sensor panel with the on/off timeline ([lvgl-panels.md](lvgl-panels.md) section 4) |
+| switch, light without `dimmer` | icon (48 px), name; a light that is on and reports a level shows it under the icon ("44 %", the icon then 24 px) | toggles once the double-tap window (300 ms) has passed; a double tap opens the sensor panel with the on/off timeline ([lvgl-panels.md](lvgl-panels.md) section 4) |
 | button, scene, script | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
 | lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | opens the lock panel; a tap on the tile never locks or unlocks |
-| dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom; the same in every shape | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
+| dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom; off or unavailable the icon over the name, as a light without `dimmer`; the same in every shape | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
 | climate, tall | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
 | climate, wide | the `-` bar down the left, the `+` bar down the right; between them the stack of the tall look when the card is at least 110 px high inside the padding, else the one-cell line | as the tall one |
 | climate, one cell | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
@@ -154,6 +154,14 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives; any shape | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
+| clock, digital | the icon when the tile has one (24 px), the time in the largest digit font that fits the width and leaves the lines below their room (72 or 48 px digits, `theme::font_digits_*`, then the text fonts; chosen once, so the digits stay put), with `hours: 12` AM/PM beside it, with `seconds` the seconds; the date under it (`date: true`, "Fri 16 Oct"); the name when the tile has one | nothing |
+| clock, analog | the face (an `lv_meter`: hour and minute hand with round ends, with `seconds` a second hand in the active color, `ticks` none / quarter / hour (default) / minute as its scales, `border: true` a rim), the date and the name below it; wide: the face as tall as the card at the left, name and date right of it. A face that would be under 40 px drops the date, then the name; under 30 px of radius the minute ticks become hour ticks | nothing |
+
+A clock has no entity (`type: clock`, [architecture.md](../../architecture.md) section 5). It ticks
+by a timer of its own, once a second (every 250 ms with seconds), and redraws only when the shown
+minute or second changed. `zone` (an IANA name, checked at import) is evaluated by
+`core::local_time`; without it the clock shows the device's zone through the backend, the same
+time as the status bar. While the clock is not set: `--:--`, the hands at twelve with a muted hub.
 
 Sizes and shapes (decided 2026-10-14, built the same day, `tiles::create` takes the span):
 every tile is 1x1 unless its size says otherwise, any kind takes any size up to the grid, per
@@ -178,7 +186,7 @@ P4 looks empty around its 48 px glyph (no larger glyph size).
 | pending (an action on its way) | a cyan (`0x00ffff`) dot with a glow and a short fading tail runs clockwise round the border, 220 px a second on every card size (`runner.cpp`; each frame redraws only the dot's stretch of the border); the expected value shown at once |
 | unavailable (`unavailable`, `unknown`) | card `0x161d25`, value `--` |
 | no value yet | value `...` |
-| dimmer | the fill is the indicator, the card stays dark |
+| dimmer | the fill is the indicator, the card stays dark; the name is white on the fill |
 | climate | the bars are orange while the mode is not `off`, the action is orange |
 | lock | filled in the color of its state (your choice, 2026-10-11): unlocked, unlocking, open, opening green (`0x4caf50`), locked and locking orange (`0xff8000`), jammed red (`0xff0000`); `theme::kLock*` |
 
@@ -200,7 +208,7 @@ The tile's `icon`; else the entity's `icon` attribute when the glyph is in the f
 default of the domain and device class (light `lightbulb`/`lightbulb-off`, outlet `power-plug`,
 motion `motion-sensor`, temperature `thermometer`, lock `lock`/`lock-open`/`lock-alert` (jammed),
 ...; `icons.cpp`; a weather entity: the glyph of its condition, as the Home Assistant app has
-them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The glyphs are the 59 names of `core` plus the ones the screens draw themselves
+them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The glyphs are the 60 names of `core` plus the ones the screens draw themselves
 (`UI_GLYPHS`: `arrow-left`, `plus`, `minus`, `chart-timeline-variant`, ...), in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
 web editor from the same names).
 

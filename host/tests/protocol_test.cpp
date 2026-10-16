@@ -63,7 +63,7 @@ TEST(protocol_fields_follow_the_tile)
 {
     Layout layout;
     Tile plain = entity_tile(layout, "light.lamp");
-    CHECK(fields_of(plain, false) == bit(Field::State));
+    CHECK(fields_of(plain, false) == (bit(Field::State) | bit(Field::Brightness)));
     plain.dimmer = true;
     CHECK(fields_of(plain, false) == (bit(Field::State) | bit(Field::Brightness) | bit(Field::ColorModes)));
     CHECK((fields_of(plain, true) & bit(Field::EffectList)) != 0);
@@ -91,6 +91,11 @@ TEST(protocol_fields_follow_the_tile)
           (bit(Field::WindBearing) | bit(Field::Features) | bit(Field::UvIndex)));
     // the last field of the table is above bit 31
     CHECK(bit(Field::UvIndex) > 0xffffffffull);
+
+    // a clock has no entity and asks Home Assistant for nothing
+    Tile clock;
+    clock.kind = TileKind::Clock;
+    CHECK(fields_of(clock, false) == 0 && fields_of(clock, true) == 0);
 
     Tile climate = entity_tile(layout, "climate.hall");
     CHECK((fields_of(climate, false) & bit(Field::Target)) != 0);

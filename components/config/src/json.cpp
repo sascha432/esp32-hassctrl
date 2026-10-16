@@ -221,6 +221,8 @@ private:
             tile.kind = TileKind::Area;
         } else if (cJSON_IsString(type) && std::strcmp(type->valuestring, "spacer") == 0) {
             tile.kind = TileKind::Spacer;
+        } else if (cJSON_IsString(type) && std::strcmp(type->valuestring, "clock") == 0) {
+            tile.kind = TileKind::Clock;
         } else if (type != nullptr) {
             return fail(tile.id, "type");
         } else if (cJSON_IsString(entity)) {
@@ -271,6 +273,21 @@ private:
                 if (ok) {
                     tile.stream = item->valuestring;
                 }
+            } else if (key == "hours") {
+                ok = cJSON_IsNumber(item) && (item->valueint == 12 || item->valueint == 24);
+                tile.hours12 = item->valueint == 12;
+            } else if (key == "seconds" || key == "date" || key == "border") {
+                ok = cJSON_IsBool(item);
+                (key == "seconds" ? tile.seconds : key == "date" ? tile.date : tile.border) = cJSON_IsTrue(item);
+            } else if (key == "style") {
+                ok = cJSON_IsString(item) && core::clock_style_of(item->valuestring, tile.style);
+            } else if (key == "ticks") {
+                ok = cJSON_IsString(item) && core::clock_ticks_of(item->valuestring, tile.ticks);
+            } else if (key == "zone") {
+                ok = cJSON_IsString(item);
+                if (ok) {
+                    tile.zone = item->valuestring;
+                }
             } else if (key == "grid" && tile.kind == TileKind::Area) {
                 ok = span(item, grid);
                 has_grid = true;
@@ -307,7 +324,7 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
 {
     json.begin_object();
     json.number("id", tile.id);
-    if (tile.kind == TileKind::Area || tile.kind == TileKind::Spacer) {
+    if (!core::has_entity(tile.kind)) {
         json.string("type", core::kind_name(tile.kind));
     } else {
         const std::string_view entity = layout.entity_id(tile);
@@ -356,6 +373,27 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
     }
     if (!tile.stream.empty()) {
         json.string("stream", tile.stream.c_str());
+    }
+    if (tile.hours12) {
+        json.number("hours", 12);
+    }
+    if (tile.seconds) {
+        json.boolean("seconds", true);
+    }
+    if (tile.date) {
+        json.boolean("date", true);
+    }
+    if (tile.style != core::ClockStyle::Digital) {
+        json.string("style", core::clock_style_name(tile.style));
+    }
+    if (tile.border) {
+        json.boolean("border", true);
+    }
+    if (tile.ticks != core::ClockTicks::Hour) {
+        json.string("ticks", core::clock_ticks_name(tile.ticks));
+    }
+    if (!tile.zone.empty()) {
+        json.string("zone", tile.zone.c_str());
     }
     if (with_cells) {
         // where the device draws the tile; null: not drawn in that orientation

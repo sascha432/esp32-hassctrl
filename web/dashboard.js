@@ -80,6 +80,7 @@ window.hcEditor = (() => {
   .tile.drop-after::before { right: 0; }
   .tile.pinned::after { content: ""; position: absolute; right: 5px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: #00ffff; }
   .tile .kind { font-size: 11px; color: #4d6274; }
+  .tile .clock { font-weight: 500; color: #fff; line-height: 1.1; }
   .cell-empty { position: absolute; border: 1px dashed #2b3844; border-radius: 8px; display: flex; align-items: center; justify-content: center;
                 color: #4d6274; font-size: 22px; cursor: pointer; }
   .cell-empty:hover { color: #00ffff; border-color: #00ffff; }
@@ -109,6 +110,7 @@ window.hcEditor = (() => {
   let doc = null, saved = null, undoStack = [], dirty = false;
   let pageKey = 0, sel = null, orient = "l";
   let icons = [];    // the device sends the names (/api/dashboard/editor)
+  let zones = [];    // the time zone names of a clock tile, from the device too
   let check = { state: "ok", text: "", k: null }, checkTimer = null, checkSeq = 0;
   let addCell = null, drag = null;
   // the entity picker: the tile whose entity it replaces (null: a new tile), the newest search,
@@ -209,6 +211,7 @@ window.hcEditor = (() => {
   function displayName(t) {
     if (t.name) return t.name;
     if (t.type === "spacer") return "Spacer";
+    if (t.type === "clock") return "Clock";
     if (t.type === "area") return "(no name)";
     return haNames.get(t.entity) || (t.entity || "?").split(".")[1] || t.entity;
   }
@@ -303,6 +306,8 @@ window.hcEditor = (() => {
     if (k !== "light" && k !== "climate") delete t.step;
     if (k !== "sensor") { delete t.unit; delete t.decimals; }
     if (k !== "picture") { delete t.refresh; delete t.stream; }
+    if (k !== "clock") for (const key of ["zone", "hours", "seconds", "date", "style", "border", "ticks"]) delete t[key];
+    if (k === "clock" && t.style !== "analog") { delete t.border; delete t.ticks; }
   }
   function insertTile(p, t, cell) {
     if (cell) {
@@ -405,6 +410,7 @@ window.hcEditor = (() => {
   function autoIcon(t) {
     const k = kindOf(t), e = t.entity || "";
     if (k === "area") return "folder";
+    if (k === "clock") return "none"; // the time is the picture
     if (k === "light") return "lightbulb";
     if (k === "climate") return "thermostat";
     if (k === "picture") return "camera";
@@ -447,6 +453,14 @@ window.hcEditor = (() => {
     const name = `<div class="nm" style="font-size:${large ? 16 : 12}px">${nm}</div>`;
     if (k === "spacer") return `<div class="tile spacer ${flags}" ${attrs}><div class="nm" style="font-size:12px">spacer</div></div>`;
     if (k === "picture") return `<div class="tile pic ${flags}" ${attrs}>${name}</div>`;
+    if (k === "clock") {
+      // the preview shows no live values (decided): a fixed time, or the clock glyph for a face
+      const icon = t.icon && t.icon !== "none" ? svg(t.icon, 24) : "";
+      const face = t.style === "analog" ? svg("clock-outline", large ? 44 : 24)
+        : `<div class="clock" style="font-size:${large ? 28 : 20}px">${t.hours === 12 ? "9:41" : "09:41"}${t.seconds ? ":00" : ""}${t.hours === 12 ? ' <span style="font-size:60%;color:#7fa8c9">AM</span>' : ""}</div>`;
+      const date = t.date ? `<div class="kind">Tue 13 Oct</div>` : "";
+      return `<div class="tile ${flags}" ${attrs}>${icon}${face}${date}${t.name ? name : ""}<div class="kind">${t.zone ? esc(t.zone) : "clock"}</div></div>`;
+    }
     const icon = iconOf(t) === "none" ? "" : svg(iconOf(t), large ? 44 : 24);
     const hint = k === "light" && t.dimmer ? "dimmer" : k === "area" ? "area" : "";
     return `<div class="tile ${flags}" ${attrs}>${icon}${name}${hint ? `<div class="kind">${hint}</div>` : ""}</div>`;
@@ -579,6 +593,7 @@ window.hcEditor = (() => {
             <button class="btn btn-sm btn-outline-primary" data-act="add">+ Tile</button>
             <button class="btn btn-sm btn-outline-secondary" data-act="add-area" ${p.depth >= 5 ? "disabled" : ""}>+ Area</button>
             <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button>
+            <button class="btn btn-sm btn-outline-secondary" data-act="add-clock">+ Clock</button>
           </div>
         </div>
         <div class="ed-insp"><div class="card mb-0"><div class="card-body insp" id="ed-insp"></div></div></div>
@@ -644,14 +659,14 @@ window.hcEditor = (() => {
     const movable = pages().filter((x) => x.key !== p.key && !(t.type === "area" && isInside(x.key, t._k)));
     const known = [...entitiesInUse()].sort();
     let body = "";
-    if (k !== "area" && k !== "spacer") {
+    if (k !== "area" && k !== "spacer" && k !== "clock") {
       body += field("Entity", `<div class="input-group input-group-sm">
           <input class="form-control" list="ed-ents" data-field="entity" value="${esc(t.entity)}" spellcheck="false">
           <button class="btn btn-outline-secondary" data-act="pick-entity">Pick</button></div>
         <datalist id="ed-ents">${known.map((x) => `<option value="${x}">`).join("")}</datalist>`, `${k} tile`);
     }
     if (k !== "spacer") {
-      body += field("Name", `<input class="form-control form-control-sm" data-field="name" maxlength="32" value="${esc(t.name || "")}" placeholder="${k === "area" ? "required" : esc(haNames.get(t.entity) || "the friendly name of Home Assistant")}">`);
+      body += field("Name", `<input class="form-control form-control-sm" data-field="name" maxlength="32" value="${esc(t.name || "")}" placeholder="${k === "area" ? "required" : k === "clock" ? "none (a title under the time)" : esc(haNames.get(t.entity) || "the friendly name of Home Assistant")}">`);
       body += field("Icon", `<button class="btn btn-sm btn-outline-secondary icon-chip" data-act="icon">
         ${t.icon === "none" ? "none" : svg(iconOf(t), 20) + " " + esc(t.icon || "automatic")}</button>`);
     }
@@ -663,6 +678,22 @@ window.hcEditor = (() => {
     if (k === "light") {
       body += `<div class="row-field form-check"><input class="form-check-input" type="checkbox" id="ed-dim" data-field="dimmer" ${t.dimmer ? "checked" : ""}>
         <label class="form-check-label small" for="ed-dim">Dimmer (level fill, drag sets the level)</label></div>`;
+    }
+    if (k === "clock") {
+      const check = (id, label, on) => `<div class="form-check"><input class="form-check-input" type="checkbox" id="${id}" data-field="${id.slice(3)}" ${on ? "checked" : ""}>
+        <label class="form-check-label small" for="${id}">${label}</label></div>`;
+      body += `<div class="d-flex gap-2">${field("Style", `<select class="form-select form-select-sm" data-field="style">
+          <option value="" ${t.style !== "analog" ? "selected" : ""}>digital</option><option value="analog" ${t.style === "analog" ? "selected" : ""}>analog</option></select>`)}
+        ${field("Hours", `<select class="form-select form-select-sm" data-field="hours">
+          <option value="" ${t.hours !== 12 ? "selected" : ""}>24 h</option><option value="12" ${t.hours === 12 ? "selected" : ""}>12 h, AM/PM</option></select>`)}</div>`;
+      body += `<div class="row-field d-flex flex-wrap gap-3">${check("ed-seconds", t.style === "analog" ? "Second hand" : "Seconds", t.seconds)}${check("ed-date", "Date under the time", t.date)}
+        ${t.style === "analog" ? check("ed-border", "Rim", t.border) : ""}</div>`;
+      if (t.style === "analog") {
+        body += field("Ticks", `<select class="form-select form-select-sm" data-field="ticks">
+          ${["none", "quarter", "hour", "minute"].map((x) => `<option value="${x === "hour" ? "" : x}" ${(t.ticks || "hour") === x ? "selected" : ""}>${x}</option>`).join("")}</select>`);
+      }
+      body += field("Time zone", `<input class="form-control form-control-sm" list="ed-zones" data-field="zone" value="${esc(t.zone || "")}" placeholder="the device's (from Home Assistant)" spellcheck="false">
+        <datalist id="ed-zones">${zones.map((x) => `<option value="${x}">`).join("")}</datalist>`, "an IANA name, Europe/London");
     }
     body += field(`Size in ${oname(orient)}`, sizeSelect(p, t, orient),
       orient === "p" ? "columns x rows of the turned screen; without one the landscape size turned" : "columns x rows; portrait turns it unless set there");
@@ -831,7 +862,8 @@ window.hcEditor = (() => {
       <div class="small text-body-secondary mb-2" id="ed-ent-note">Searching Home Assistant ...</div>
       <div class="list-group ent-list mb-3" id="ed-ent-list"></div>
       ${replaceK ? "" : `<div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" data-act="add-area">+ Area</button>
-        <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button></div>`}`, "modal-lg");
+        <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="add-clock">+ Clock</button></div>`}`, "modal-lg");
     const input = root.querySelector("#ed-ent");
     input.addEventListener("input", () => { clearTimeout(pickTimer); pickTimer = setTimeout(search, 300); });
     input.addEventListener("keydown", (e) => {
@@ -969,6 +1001,7 @@ window.hcEditor = (() => {
       ctx.toast("The new area's page is open: add its tiles here (an area needs at least one before it can be saved).", "info");
     },
     "add-spacer": () => { if (!root.querySelector("#ed-modal")) addCell = null; addTile({ _k: K++, type: "spacer" }); },
+    "add-clock": () => { if (!root.querySelector("#ed-modal")) addCell = null; addTile({ _k: K++, type: "clock" }); },
     "reset-arr": () => change(() => resetArrangement(pageByKey(pageKey), orient)),
     icon: () => openIcons(),
     "set-icon": (el) => { const v = el.dataset.icon; closeModal(); change(() => { const t = locate(sel).tile; if (v) t.icon = v; else delete t.icon; }); },
@@ -1032,6 +1065,9 @@ window.hcEditor = (() => {
       if (f === "entity") { t.entity = v; stripForKind(t); return; }
       if (f === "dimmer") { if (v) t.dimmer = true; else delete t.dimmer; stripForKind(t); return; }
       if (f === "swipe") { if (v) t.swipe = true; else delete t.swipe; return; }
+      if (["seconds", "date", "border"].includes(f)) { if (v) t[f] = true; else delete t[f]; return; }
+      if (f === "hours") { if (v) t.hours = 12; else delete t.hours; return; }
+      if (f === "style" || f === "ticks") { if (v) t[f] = v; else delete t[f]; stripForKind(t); return; }
       if (f === "size-l" || f === "size-p") {
         const o = f.slice(-1);
         if (v) sideW(t, o).size = v.split("x").map(Number); else delete side(t, o).size;
@@ -1093,6 +1129,7 @@ window.hcEditor = (() => {
       const s = info.answer.screen || {};
       if (s.width > 0 && s.height > 0) screen = { name: s.name || "", w: s.width, h: s.height, gap: s.gap ?? 4 };
       if (Array.isArray(info.answer.icons)) icons = info.answer.icons;
+      if (Array.isArray(info.answer.zones)) zones = info.answer.zones;
     }
     draw();
   }

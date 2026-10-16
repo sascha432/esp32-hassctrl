@@ -618,8 +618,10 @@ bool time_text(char *out, size_t size)
     if (!g.clock_set) {
         return false;
     }
-    std::snprintf(out, size, "21:47");
-    return true;
+    const std::time_t now = std::time(nullptr);
+    std::tm local{};
+    localtime_s(&local, &now);
+    return std::strftime(out, size, "%H:%M", &local) != 0;
 }
 
 int64_t clock_now()

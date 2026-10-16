@@ -12,6 +12,7 @@
 #include "hc/core/layout.hpp"
 #include "hc/core/pending.hpp"
 #include "hc/core/image.hpp"
+#include "hc/core/timezone.hpp"
 #include "hc/memory/large.hpp"
 #include "lvgl.h"
 #include "lvgl_compat.hpp"
@@ -36,6 +37,7 @@ struct View {
     lv_obj_t *name = nullptr;
     lv_obj_t *fill = nullptr;    // dimmer: the level
     lv_coord_t inner_height = 0; // dimmer: the height of a full fill
+    lv_obj_t *off = nullptr;     // dimmer: the column of icon and name while off, as a plain light
     lv_obj_t *plus = nullptr;    // climate: the step bars
     lv_obj_t *minus = nullptr;
     lv_obj_t *action = nullptr;  // climate: "Heating"
@@ -55,6 +57,21 @@ struct View {
     uint32_t image_generation = 0;
     uint32_t image_asked = 0; // the tick of the request on its way, 0: none
     lv_timer_t *image_timer = nullptr;
+
+    // clock (docs/ui/lvgl/lvgl-dashboard.md section 3): the time in `value`, ticked by its own timer
+    bool hours12 = false;
+    bool seconds = false;
+    lv_obj_t *suffix = nullptr;     // "AM"/"PM"
+    lv_obj_t *date = nullptr;       // "Tue 13 Oct"
+    lv_obj_t *face = nullptr;       // analog: the lv_meter
+    lv_obj_t *hub = nullptr;        // analog: the dot over the hands
+    lv_meter_indicator_t *hour_hand = nullptr;
+    lv_meter_indicator_t *minute_hand = nullptr;
+    lv_meter_indicator_t *second_hand = nullptr;
+    bool has_zone = false;          // `zone_rule` is the tile's zone; else the device's
+    core::TzRule zone_rule;
+    int64_t clock_shown = -1;       // the minute (or second) drawn, -1: nothing yet
+    lv_timer_t *clock_timer = nullptr;
 
     // gestures
     lv_coord_t press_x = 0;

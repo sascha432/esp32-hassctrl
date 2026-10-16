@@ -6,6 +6,7 @@
 {"camera", "\xF3\xB0\x84\x80"},
 {"chart-timeline-variant", "\xF3\xB0\xBA\x93"},
 {"checkbox-marked-circle", "\xF3\xB0\x84\xB3"},
+{"clock-outline", "\xF3\xB0\x85\x90"},
 {"creation", "\xF3\xB0\x99\xB4"},
 {"current-ac", "\xF3\xB1\x92\x80"},
 {"door-closed", "\xF3\xB0\xA0\x9B"},

@@ -34,8 +34,8 @@ constexpr float kMaxLightStep = 50;
 constexpr float kMinClimateStep = 0.1f;  // degrees
 constexpr float kMaxClimateStep = 5;
 
-// What a tile shows and does. Every kind but Area and Spacer has an entity, and the entity's
-// domain decides the kind (kind_of_entity).
+// What a tile shows and does. Every kind but Area, Spacer and Clock has an entity (has_entity),
+// and the entity's domain decides the kind (kind_of_entity).
 enum class TileKind : uint8_t {
     Area,    // opens a page of its own
     Spacer,  // keeps a cell free
@@ -47,9 +47,25 @@ enum class TileKind : uint8_t {
     Sensor,  // every other domain: shows the state, a tap opens the history
     Lock,    // lock: shows the state, a tap opens the lock panel (never locks or unlocks by itself)
     Weather, // weather: the condition, the temperature, a tap opens the forecast
+    Clock,   // the time, digital or analog, in the device's zone or one of its own; no entity
 };
 
 const char *kind_name(TileKind kind);
+
+inline bool has_entity(TileKind kind)
+{
+    return kind != TileKind::Area && kind != TileKind::Spacer && kind != TileKind::Clock;
+}
+
+// the clock tile (docs/ui/lvgl/lvgl-dashboard.md section 3): `style` and `ticks` as the file has them
+enum class ClockStyle : uint8_t { Digital, Analog };
+enum class ClockTicks : uint8_t { None, Quarter, Hour, Minute };
+
+const char *clock_style_name(ClockStyle style);
+const char *clock_ticks_name(ClockTicks ticks);
+// "digital"/"analog" and "none"/"quarter"/"hour"/"minute"; false (out unchanged) for anything else
+bool clock_style_of(std::string_view text, ClockStyle &out);
+bool clock_ticks_of(std::string_view text, ClockTicks &out);
 
 // "light.kitchen" -> Light. The entity id is not checked here.
 TileKind kind_of_entity(std::string_view entity_id);
@@ -108,6 +124,14 @@ struct Tile {
     memory::String icon;         // empty: automatic; "none": no icon
     memory::String unit;         // Sensor; empty: the unit Home Assistant reports
     memory::String stream;       // Picture: an MJPEG stream (http://... or kHassStream); empty: none
+    // Clock
+    bool hours12 = false;        // `hours: 12`: AM/PM; default 24
+    bool seconds = false;        // the seconds, or the second hand
+    bool date = false;           // the date under the time
+    bool border = false;         // analog: the rim
+    ClockStyle style = ClockStyle::Digital;
+    ClockTicks ticks = ClockTicks::Hour; // analog
+    memory::String zone;         // an IANA time zone name; empty: the device's
     Placement sides[2];          // by Orientation
 
     Placement &in(Orientation o)

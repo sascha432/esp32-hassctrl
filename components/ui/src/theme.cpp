@@ -5,6 +5,12 @@
 
 #include "sound.hpp"
 
+// the digit fonts of the clock tile (tools/build_icons.py), C files like the icon fonts
+extern "C" {
+LV_FONT_DECLARE(hc_digits_48)
+LV_FONT_DECLARE(hc_digits_72)
+}
+
 namespace hc::ui::theme {
 
 namespace {
@@ -189,6 +195,16 @@ const lv_font_t &font_huge()
 const lv_font_t &font_item()
 {
     return *g_fonts->item;
+}
+
+const lv_font_t &font_digits_48()
+{
+    return hc_digits_48;
+}
+
+const lv_font_t &font_digits_72()
+{
+    return hc_digits_72;
 }
 
 lv_coord_t scaled(lv_coord_t px)

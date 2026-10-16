@@ -157,7 +157,8 @@ defaults:
 #                     portrait size is the landscape size turned (1x2 becomes 2x1) unless set.
 #
 # What a tile is, is decided by its entity (the domain before the dot):
-#   light.*                                         switch, or a dimmer with `dimmer: true`
+#   light.*                                         switch (with its level while on), or a dimmer
+#                                                   with `dimmer: true`
 #   switch.* input_boolean.* fan.* automation.*     switch: a tap toggles
 #   button.* input_button.* scene.* script.*        button: a tap presses
 #   climate.*                                       thermostat; two rows tall it has +/- bars
@@ -169,7 +170,8 @@ defaults:
 #                                                   and the daily and hourly forecast
 #   everything else (sensor.*, binary_sensor.*, ...)
 #                                                   shows the state, a tap opens the history
-# Only `area` and `spacer` have a `type`. Every key except `entity` is optional.
+# Only `area`, `spacer` and `clock` have a `type` (they have no entity; the clock is in rooms.yaml
+# and rooms/workshop.yaml). Every key except `entity` is optional.
 tiles:
   # A light as a dimmer: level fill from the bottom, drag to set the level, double tap to switch,
   # tap for the light panel (colors, effects). Two rows tall, so the fill has room.

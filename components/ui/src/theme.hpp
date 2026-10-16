@@ -46,6 +46,10 @@ const lv_font_t &font_medium();
 const lv_font_t &font_large();
 const lv_font_t &font_huge();
 const lv_font_t &font_item();
+// The digits of the clock tile, 48 and 72 px (tools/build_icons.py): only " -0123456789:APM", so
+// they are small; the same in both font sets.
+const lv_font_t &font_digits_48();
+const lv_font_t &font_digits_72();
 // a size that holds text (a column of labels, a chip): `px` at the normal fonts, about 30 % more
 // with the large ones
 lv_coord_t scaled(lv_coord_t px);

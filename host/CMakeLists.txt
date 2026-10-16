@@ -37,6 +37,7 @@ add_executable(hc_tests
     tests/multipart_test.cpp
     tests/network_test.cpp
     tests/protocol_test.cpp
+    tests/timezone_test.cpp
     tests/url_test.cpp
     tests/weather_test.cpp
     tests/yaml_test.cpp
@@ -50,6 +51,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/core/src/image.cpp
     ${HC_ROOT}/components/core/src/layout.cpp
     ${HC_ROOT}/components/core/src/pending.cpp
+    ${HC_ROOT}/components/core/src/timezone.cpp
     ${HC_ROOT}/components/core/src/weather.cpp
     ${HC_ROOT}/components/formats/src/json_writer.cpp
     ${HC_ROOT}/components/formats/src/multipart.cpp

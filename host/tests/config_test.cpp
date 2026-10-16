@@ -150,7 +150,7 @@ TEST(config_imports_the_documented_sample)
     CHECK(imported->other_keys.empty()); // the settings sections are commented out
     CHECK(layout.grid == (Span{4, 3}));
     CHECK(layout.pages.size() == 3);
-    CHECK(layout.tiles.size() == 19);
+    CHECK(layout.tiles.size() == 21);
 
     const Tile *ceiling = named(layout, "Ceiling");
     REQUIRE(ceiling != nullptr);
@@ -189,6 +189,15 @@ TEST(config_imports_the_documented_sample)
     // the Workshop area has swipe navigation: no back tile on its page
     CHECK(named(layout, "Workshop")->swipe && !has_back_tile(layout, anvil->page));
     CHECK(has_back_tile(layout, rooms->opens));
+    // the two clocks: a London clock on the Rooms page, an analog one on the Workshop page
+    const Tile *london = named(layout, "London");
+    REQUIRE(london != nullptr);
+    CHECK(london->kind == TileKind::Clock && london->zone == "Europe/London" && london->hours12 && london->date &&
+          london->style == ClockStyle::Digital && london->in(L).cell == (Cell{1, 2}));
+    const Tile *shop = named(layout, "Shop Clock");
+    REQUIRE(shop != nullptr);
+    CHECK(shop->style == ClockStyle::Analog && shop->ticks == ClockTicks::Minute && shop->border && shop->seconds &&
+          shop->in(L).size == (Span{2, 1}) && shop->in(L).cell == (Cell{2, 1}) && shop->in(P).size == (Span{1, 2}));
     CHECK(layout.entities.size() == 15);
     for (size_t i = 0; i < layout.tiles.size(); i++) {
         CHECK(layout.tiles[i].id == i + 1);
@@ -224,7 +233,7 @@ TEST(config_rejects_the_format_of_the_old_firmware)
         return import_error(files);
     };
     CHECK_STR(error("tiles:\n  - type: dimmer\n    entity: light.a\n"),
-              "hass.yaml:2: type: is only for area and spacer, the entity decides what the tile is");
+              "hass.yaml:2: type: is only for area, spacer and clock, the entity decides what the tile is");
     CHECK_STR(error("tiles:\n  - entity: camera.a\n    icon: bulb\n"), "hass.yaml:2: unknown icon 'bulb'");
     CHECK_STR(error("tiles:\n  - entity: switch.a\n    icon: auto\n"), "hass.yaml:2: unknown icon 'auto'");
     CHECK_STR(error("defaults:\n  grid:\n    cols: 4\ntiles:\n  - entity: switch.a\n"),
@@ -329,8 +338,18 @@ TEST(config_checks_tile_keys)
               "hass.yaml:4: unknown key 'at' (landscape: and portrait: take size, cell and hidden)");
     CHECK_STR(error("entity: switch.a\n    landscape:\n      cell: 4,0\n"), "ok"); // outside the grid: left out
     CHECK_STR(error("type: sensor\n    entity: switch.a\n"),
-              "hass.yaml:2: type: is only for area and spacer, the entity decides what the tile is");
-    CHECK_STR(error("name: X\n"), "hass.yaml:2: a tile needs an entity, or type: area or spacer");
+              "hass.yaml:2: type: is only for area, spacer and clock, the entity decides what the tile is");
+    CHECK_STR(error("name: X\n"), "hass.yaml:2: a tile needs an entity, or type: area, spacer or clock");
+    CHECK_STR(error("type: clock\n    entity: sensor.a\n"), "hass.yaml:2: a clock has no entity");
+    CHECK_STR(error("type: clock\n    hours: 13\n"), "hass.yaml:3: hours is 12 or 24");
+    CHECK_STR(error("type: clock\n    seconds: yes\n"), "hass.yaml:3: seconds is true or false");
+    CHECK_STR(error("type: clock\n    style: round\n"), "hass.yaml:3: style is digital or analog");
+    CHECK_STR(error("type: clock\n    ticks: all\n"), "hass.yaml:3: ticks is none, quarter, hour or minute");
+    CHECK_STR(error("type: clock\n    border: true\n"), "hass.yaml:2: border and ticks are only for analog clocks");
+    CHECK_STR(error("type: clock\n    zone: Nowhere/Town\n"),
+              "hass.yaml:2: unknown time zone 'Nowhere/Town' (an IANA name like Europe/Berlin)");
+    CHECK_STR(error("entity: sensor.a\n    date: true\n"),
+              "hass.yaml:2: hours, seconds, date, style, border, ticks and zone are only for clock tiles");
     CHECK_STR(error("entity: Sensor.a\n"),
               "hass.yaml:2: 'Sensor.a' is not an entity id (domain.name: lowercase letters, digits and _)");
     CHECK_STR(error("entity: light.a\n    dimmer: yes\n"), "hass.yaml:3: dimmer is true or false");
@@ -379,6 +398,52 @@ TEST(config_checks_the_main_file)
     CHECK_STR(import_error(missing), "hass.yaml is not in the uploaded files");
 }
 
+TEST(config_keeps_a_clock)
+{
+    FileSet files;
+    files.add("hass.yaml", "tiles:\n"
+                           "  - type: clock\n"
+                           "  - type: clock\n"
+                           "    name: London\n"
+                           "    zone: Europe/London\n"
+                           "    hours: 12\n"
+                           "    seconds: true\n"
+                           "    date: true\n"
+                           "    style: analog\n"
+                           "    border: true\n"
+                           "    ticks: minute\n"
+                           "    icon: clock-outline\n"
+                           "    landscape:\n"
+                           "      size: 2x2\n"
+                           "  - type: clock\n"
+                           "    hours: 24\n"
+                           "    ticks: hour\n"
+                           "    style: digital\n");
+    const auto imported = hc::config::import_yaml(files.view(), "hass.yaml");
+    if (!imported) {
+        hc::test::fail(__FILE__, __LINE__, std::string(imported.error()));
+        return;
+    }
+    const Layout &layout = imported->layout;
+    REQUIRE(layout.tiles.size() == 3);
+    const Tile &plain = layout.tiles[0];
+    CHECK(plain.kind == TileKind::Clock && plain.entity == hc::core::kNone && !plain.hours12 && !plain.seconds &&
+          !plain.date && plain.style == ClockStyle::Digital && !plain.border && plain.ticks == ClockTicks::Hour &&
+          plain.zone.empty());
+    const Tile &london = layout.tiles[1];
+    CHECK(london.zone == "Europe/London" && london.hours12 && london.seconds && london.date &&
+          london.style == ClockStyle::Analog && london.border && london.ticks == ClockTicks::Minute &&
+          london.icon == "clock-outline" && london.in(L).size == (Span{2, 2}));
+    // the defaults written out are not written back
+    const auto json = hc::config::write_json(layout);
+    CHECK(json.find("\"hours\":12") != std::string::npos && json.find("\"hours\":24") == std::string::npos);
+    CHECK(json.find("\"style\":\"digital\"") == std::string::npos && json.find("\"ticks\":\"hour\"") == std::string::npos);
+    CHECK(json.find("\"type\":\"clock\",\"name\":\"London\"") != std::string::npos);
+    const auto yaml = hc::config::write_yaml(layout);
+    CHECK(yaml.find("- type: clock\n") != std::string::npos && yaml.find("zone: Europe/London") != std::string::npos);
+    check_round_trips(layout);
+}
+
 TEST(config_json_is_strict)
 {
     CHECK_STR(std::string(hc::config::read_json("{").error()), "the stored dashboard is not valid JSON");
@@ -396,6 +461,14 @@ TEST(config_json_is_strict)
                                                 "\"tiles\":[{\"id\":4,\"entity\":\"sensor.a\",\"dimmer\":true}]}")
                               .error()),
               "tile 4: dimmer is only for lights");
+    CHECK_STR(std::string(hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":2,"
+                                                "\"tiles\":[{\"id\":6,\"type\":\"clock\",\"hours\":13}]}")
+                              .error()),
+              "tile 6: bad key or value 'hours'");
+    CHECK_STR(std::string(hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":2,"
+                                                "\"tiles\":[{\"id\":6,\"type\":\"clock\",\"ticks\":\"all\"}]}")
+                              .error()),
+              "tile 6: bad key or value 'ticks'");
 
     const auto read = hc::config::read_json("{\"format\":\"hassctrl-dashboard\",\"version\":2,\"revision\":7,"
                                             "\"next_id\":20,\"tiles\":[{\"id\":5,\"entity\":\"switch.a\"},"

@@ -1,6 +1,7 @@
 #include "dashboard.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -535,6 +536,12 @@ memory::String tile_name(core::TileIndex tile)
     const core::Tile &t = g.layout->tiles[tile];
     if (!t.name.empty()) {
         return t.name;
+    }
+    if (t.entity == core::kNone) {
+        // a clock without a name: "Remove Clock?"
+        memory::String kind(core::kind_name(t.kind));
+        kind[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(kind[0])));
+        return kind;
     }
     const core::EntityState &entity = state(t.entity);
     if (!entity.name.empty()) {

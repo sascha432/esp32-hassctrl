@@ -13,8 +13,10 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 
 **Dashboard**
 
-- Tiles for lights (switch, or a dimmer with a level drag), switches, buttons, scenes and scripts,
+- Tiles for lights (switch with its level while on, or a dimmer with a level drag), switches, buttons, scenes and scripts,
   thermostats, locks, sensors and binary sensors, cameras and weather, with Material Design icons.
+- Clock tiles, digital or analog (hands, ticks, rim), 24 or 12 h, seconds, date, in the device's
+  time zone or any IANA zone.
 - Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.
 - A grid per page up to 32x32, tiles up to 8x8; size, place and visibility per orientation.
 - Panels a tile opens: light (level, color, color temperature, effects, on/off timeline), climate

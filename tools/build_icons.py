@@ -12,6 +12,10 @@ needs neither Node.js nor the network; run this after the list changed:
     components/ui/src/fonts/hc_mdi_<size>.c   one font per size of SIZES
     components/ui/src/icon_glyphs.inc         {"name", "<UTF-8 of the glyph>"}, sorted by name
     web/icons.svg                             one <symbol id="mdi-<name>"> per icon for the web editor
+    components/ui/src/fonts/hc_digits_<size>.c
+                                              the digits of the clock tile (DIGIT_SIZES, DIGIT_RANGE):
+                                              Montserrat Medium, the face of LVGL's built-in fonts,
+                                              from the LVGL component (the firmware was built once)
 
 Needs Node.js (npx runs lv_font_conv). The MDI font and the icon paths (@mdi/svg, one small file per
 icon) are downloaded into build/mdi/.
@@ -39,6 +43,11 @@ SIZES = ((24, 4), (48, 2))
 # drawn by the screens, not named by tiles
 UI_GLYPHS = ("arrow-left", "plus", "minus", "creation", "fire", "snowflake", "sun-snowflake-variant",
              "thermostat-auto", "record", "chart-timeline-variant", "thermometer-water")
+
+# the clock tile's digits (theme::font_digits_48/72): space - 0..9 : A M P (lv_font_conv ranges)
+DIGITS_TTF = ROOT / "managed_components" / "lvgl__lvgl" / "scripts" / "built_in_font" / "Montserrat-Medium.ttf"
+DIGIT_SIZES = (48, 72)
+DIGIT_RANGE = "0x20,0x2D,0x30-0x3A,0x41,0x4D,0x50"
 
 ICON_LIST = ROOT / "components" / "core" / "src" / "icons.cpp"
 OUT_FONTS = ROOT / "components" / "ui" / "src" / "fonts"
@@ -125,6 +134,17 @@ def main() -> None:
         subprocess.run([npx, *FONT_CONV[1:], "--no-compress", "--format", "lvgl", "--lv-include", "lvgl.h",
                         "--size", str(size), "--bpp", str(bpp), "--font", ttf.relative_to(ROOT).as_posix(),
                         "--range", symbols, "--lv-font-name", out.stem, "-o", out.relative_to(ROOT).as_posix()],
+                       cwd=ROOT, check=True)
+        out.write_text(out.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+        print(f"{out.relative_to(ROOT)}: {out.stat().st_size // 1024} KB of source")
+
+    if not DIGITS_TTF.exists():
+        sys.exit(f"{DIGITS_TTF.relative_to(ROOT)} is missing: build the firmware once (python tools/build.py ttgo_t4)")
+    for size in DIGIT_SIZES:
+        out = OUT_FONTS / f"hc_digits_{size}.c"
+        subprocess.run([npx, *FONT_CONV[1:], "--no-compress", "--format", "lvgl", "--lv-include", "lvgl.h",
+                        "--size", str(size), "--bpp", "4", "--font", DIGITS_TTF.relative_to(ROOT).as_posix(),
+                        "--range", DIGIT_RANGE, "--lv-font-name", out.stem, "-o", out.relative_to(ROOT).as_posix()],
                        cwd=ROOT, check=True)
         out.write_text(out.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
         print(f"{out.relative_to(ROOT)}: {out.stat().st_size // 1024} KB of source")

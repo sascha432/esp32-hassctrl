@@ -9,7 +9,7 @@ namespace {
 // tools/build_icons.py reads this list for the icon fonts of ui and web/icons.svg; run it after a change.
 constexpr std::string_view kIcons[] = {
     "alert-circle-outline",    "brightness-6",            "camera",                  "checkbox-marked-circle",
-    "current-ac",              "door-closed",             "door-open",               "eye",
+    "clock-outline",           "current-ac",              "door-closed",             "door-open",               "eye",
     "fan",                     "fan-off",                 "flash",                   "flash-off",
     "folder",                  "gauge",                   "gesture-tap-button",      "home",
     "home-assistant",          "lightbulb",               "lightbulb-off",           "lightbulb-on",

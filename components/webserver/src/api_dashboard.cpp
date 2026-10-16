@@ -10,7 +10,8 @@
 //                                       preview); 400: {"error", "path"}, the tile's index in each
 //                                       level of tile lists
 //   GET  /api/dashboard/editor          what the web editor needs of the device: {"screen": {"name",
-//                                       "width", "height", "gap"} in landscape, "icons": [...] the
+//                                       "width", "height", "gap"} in landscape, "zones": [...] the
+//                                       time zone names a clock tile takes, "icons": [...] the
 //                                       names a tile may use besides none}
 //   GET  /api/dashboard.yaml            the dashboard as one YAML file, for the backup
 //   POST /api/dashboard/import[?check=1]  multipart/form-data with the files of a dashboard
@@ -194,6 +195,11 @@ esp_err_t get_editor(httpd_req_t *req)
             .begin_array("icons");
         for (size_t i = 0; const char *name = g_dashboard->icon_name(i); i++) {
             json.string(nullptr, name);
+        }
+        json.end_array().begin_array("zones");
+        for (size_t i = 0; !g_dashboard->zone_name(i).empty(); i++) {
+            const std::string_view zone = g_dashboard->zone_name(i);
+            json.string(nullptr, zone.data(), zone.size());
         }
         json.end_array().end_object();
     };

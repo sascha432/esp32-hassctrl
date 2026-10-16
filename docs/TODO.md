@@ -741,7 +741,7 @@ Home Assistant values (2026-10-07, running on the T4 against your Home Assistant
   the unit, the name).
 - `hass_protocol` (new, pure, host tested): one field table (code, attribute, kind) drives the
   template and the decoder. The fields come from the tiles of the page: a tile with its own name
-  does not fetch the `friendly_name`, a light without `dimmer` only its state, a sensor with
+  does not fetch the `friendly_name`, a light without `dimmer` only its state and brightness, a sensor with
   `decimals` no rounded state; the open panel adds its fields. Result as an object or as text.
   `call_service` messages for all intents (toggle, press, `turn_on` for scene and script, level,
   temperature, modes, effect, color, color temperature), checked against the domain.
@@ -1642,6 +1642,35 @@ In order:
 2. [x] Test the panels on the WT32 against your Home Assistant (Step 6, done 2026-10-14).
 3. [x] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (done 2026-10-14).
 4. [x] `web/icons.svg` (2026-10-10, confirmed by you).
+
+Clock tile (2026-10-16, your request: like Home Assistant's clock card):
+
+- [x] `type: clock` with `zone`, `hours`, `seconds`, `date`, `style`, `border`, `ticks`
+      ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 3, architecture.md section
+      5, the sample's Rooms and Workshop pages). The time zones moved from platform to core
+      (`core::time_zone_rule`, `local_time`: a POSIX rule evaluated in C++, tested against
+      Python's zoneinfo; the C library keeps the device's zone). Digit fonts 48 and 72 px
+      (`build_icons.py`), the analog face is an `lv_meter`. Faces approved by you in the Windows
+      version at 320x480 and rotated (2026-10-16). Web editor: "+ Clock", its fields, the zone
+      list from the device.
+- [x] Flashed on the JC3248W535 (COM10) only, firmware and web image (2026-10-16). Checked by
+      me over its API and serial console: an unknown zone and `ticks` on a digital clock refused
+      by the device's check, the sample checks with 21 tiles, the editor answer carries 598 zones
+      and `clock-outline`; two scratch dashboards (digital, analog) imported and screenshotted
+      (`build/screens/device-*.png`), the second hand and the minute change seen a minute apart.
+      The board's own dashboard (24 pages, 160 tiles) was backed up first and restored after.
+- [x] Confirmed by you on the JC3248W535 (2026-10-16): clocks added in the web editor, analog
+      and digital, with seconds (they update), date, time zone and the name.
+- [ ] The clock timer keeps ticking while the screen is off (a `clock()` call and a comparison
+      per tick; the redraw does nothing on a dark screen).
+- [ ] `core::local_time` takes the year from standard time: a transition within hours of New
+      Year would be looked up in the wrong year (no zone has one). A zone a future tzdata drops
+      fails `finish()` like an unknown icon. The table is tzdata 2026e; a new release means
+      `python tools/build_timezones.py` and a firmware update, nothing updates it on the device.
+      Morocco (`Africa/Casablanca`) differs between 2026e (`<+00>0`) and the 2024a of an old
+      Python: not a bug of the evaluator.
+- [ ] Open: a 1x1 analog clock with name and date leaves a small face (approved as is; the date
+      could go first).
 
 Weather tile and panel (2026-10-13, your request: a tile and its details, no history):
 

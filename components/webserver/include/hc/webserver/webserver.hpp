@@ -120,6 +120,8 @@ struct DashboardAccess {
                                    char *error, size_t error_size);
     // the icon names a tile may use (besides "none"), nullptr after the last
     const char *(*icon_name)(size_t index);
+    // the time zone names a clock tile may use (core::time_zone_name), empty after the last
+    std::string_view (*zone_name)(size_t index);
     // the screen the dashboard is drawn on, in landscape, and the gap between its tiles (the
     // editor's preview is this screen)
     void (*screen)(const char *&name, uint16_t &width, uint16_t &height, uint8_t &tile_gap);

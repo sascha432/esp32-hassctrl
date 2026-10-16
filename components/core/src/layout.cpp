@@ -1,4 +1,5 @@
 #include "hc/core/layout.hpp"
+#include "hc/core/timezone.hpp"
 
 #include <cstdarg>
 #include <cstdio>
@@ -43,9 +44,7 @@ std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
 {
     const Tile &tile = layout.tiles[index];
     const TileKind kind = tile.kind;
-    const bool has_entity = kind != TileKind::Area && kind != TileKind::Spacer;
-
-    if (has_entity) {
+    if (has_entity(kind)) {
         const std::string_view entity = layout.entity_id(tile);
         if (entity.empty()) {
             return tile_problem(index, format("a %s tile needs an entity", kind_name(kind)));
@@ -137,6 +136,19 @@ std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
         // https needs a certificate the bundle may not have; a camera stream on the network is http
         if (tile.stream != kHassStream && (tile.stream.rfind("http://", 0) != 0 || tile.stream.size() > 255)) {
             return tile_problem(index, "stream is hass or an http:// address of an MJPEG stream");
+        }
+    }
+    const bool clock_keys = tile.hours12 || tile.seconds || tile.date || tile.border || tile.style != ClockStyle::Digital ||
+                            tile.ticks != ClockTicks::Hour || !tile.zone.empty();
+    if (clock_keys && kind != TileKind::Clock) {
+        return tile_problem(index, "hours, seconds, date, style, border, ticks and zone are only for clock tiles");
+    }
+    if (kind == TileKind::Clock) {
+        if (tile.style == ClockStyle::Digital && (tile.border || tile.ticks != ClockTicks::Hour)) {
+            return tile_problem(index, "border and ticks are only for analog clocks");
+        }
+        if (!tile.zone.empty() && (tile.zone.size() > kMaxZoneLength || time_zone_rule(tile.zone) == nullptr)) {
+            return tile_problem(index, format("unknown time zone '%.48s' (an IANA name like Europe/Berlin)", tile.zone.c_str()));
         }
     }
     return {};
@@ -291,8 +303,52 @@ const char *kind_name(TileKind kind)
         return "lock";
     case TileKind::Weather:
         return "weather";
+    case TileKind::Clock:
+        return "clock";
     }
     return "?";
+}
+
+const char *clock_style_name(ClockStyle style)
+{
+    return style == ClockStyle::Analog ? "analog" : "digital";
+}
+
+const char *clock_ticks_name(ClockTicks ticks)
+{
+    switch (ticks) {
+    case ClockTicks::None:
+        return "none";
+    case ClockTicks::Quarter:
+        return "quarter";
+    case ClockTicks::Minute:
+        return "minute";
+    case ClockTicks::Hour:
+        break;
+    }
+    return "hour";
+}
+
+bool clock_style_of(std::string_view text, ClockStyle &out)
+{
+    for (const ClockStyle style : {ClockStyle::Digital, ClockStyle::Analog}) {
+        if (text == clock_style_name(style)) {
+            out = style;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool clock_ticks_of(std::string_view text, ClockTicks &out)
+{
+    for (const ClockTicks ticks : {ClockTicks::None, ClockTicks::Quarter, ClockTicks::Hour, ClockTicks::Minute}) {
+        if (text == clock_ticks_name(ticks)) {
+            out = ticks;
+            return true;
+        }
+    }
+    return false;
 }
 
 TileKind kind_of_entity(std::string_view entity_id)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds the time zone table of the firmware: IANA names ("Europe/Berlin", what Home Assistant
-reports) to POSIX TZ rules ("CET-1CEST,M3.5.0,M10.5.0/3", what the C library understands).
+reports) to POSIX TZ rules ("CET-1CEST,M3.5.0,M10.5.0/3", what the C library and core::local_time understand).
 
     python tools/build_timezones.py
 
@@ -9,7 +9,7 @@ the data public domain), the wheel downloaded: the rule of a zone is the POSIX T
 TZif file, what the zone does after its last listed transition. The output is committed, so the
 build needs no network; run this again when the rules of a country change (a new tzdata release):
 
-    components/platform/src/timezones.inc
+    components/core/src/timezones.inc
 """
 
 import io
@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PYPI = "https://pypi.org/pypi/tzdata/json"
-OUT = ROOT / "components" / "platform" / "src" / "timezones.inc"
+OUT = ROOT / "components" / "core" / "src" / "timezones.inc"
 
 
 def download(url: str) -> bytes:

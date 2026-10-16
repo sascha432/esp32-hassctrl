@@ -64,7 +64,7 @@ private:
             line(indent, first, key, value);
             first = false;
         };
-        if (tile.kind == TileKind::Area || tile.kind == TileKind::Spacer) {
+        if (!core::has_entity(tile.kind)) {
             put("type", core::kind_name(tile.kind));
         } else {
             put("entity", _layout.entity_id(tile));
@@ -118,6 +118,27 @@ private:
         }
         if (!tile.stream.empty()) {
             put("stream", formats::yaml::quote(tile.stream));
+        }
+        if (tile.hours12) {
+            put("hours", "12");
+        }
+        if (tile.seconds) {
+            put("seconds", "true");
+        }
+        if (tile.date) {
+            put("date", "true");
+        }
+        if (tile.style != core::ClockStyle::Digital) {
+            put("style", core::clock_style_name(tile.style));
+        }
+        if (tile.border) {
+            put("border", "true");
+        }
+        if (tile.ticks != core::ClockTicks::Hour) {
+            put("ticks", core::clock_ticks_name(tile.ticks));
+        }
+        if (!tile.zone.empty()) {
+            put("zone", formats::yaml::quote(tile.zone));
         }
         if (tile.kind == TileKind::Area) {
             const core::Page &page = _layout.pages[tile.opens];
