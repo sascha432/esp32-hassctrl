@@ -4,7 +4,7 @@
 // the level its output has while it sees motion (hc::board::Info::motion_gpio, motion_active_high).
 // The pin is sampled every 100 ms; a level that holds for two samples is the state. main hands
 // every change to hc::hass::publish_motion, which sets input_text.<device>_motion in Home
-// Assistant to "Occupied" or "Clear".
+// Assistant to "Detected" or "Clear".
 
 #include "esp_err.h"
 

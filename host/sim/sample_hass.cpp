@@ -394,7 +394,9 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
                    uint32_t generation)
 {
     std::printf("[sim] history of %.*s, %u hours, %s\n", static_cast<int>(entity_id.size()), entity_id.data(), hours,
-                kind == hc::core::HistoryKind::Statistics ? "statistics" : "states");
+                kind == hc::core::HistoryKind::Statistics   ? "statistics"
+                : kind == hc::core::HistoryKind::Temperature ? "temperature"
+                                                             : "states");
     hc::core::History history;
     history.generation = generation;
     history.entity = entity;
@@ -409,12 +411,15 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
         const double phase = static_cast<double>(entity % 7);
         // an hour without data 30 hours ago (the recorder was down)
         const uint32_t gap = history.end - 30 * 3600;
-        if (kind == hc::core::HistoryKind::Statistics) {
+        if (kind != hc::core::HistoryKind::States) {
+            // a temperature: the climate's room temperature, a change every 10 minutes
+            const bool temperature = kind == hc::core::HistoryKind::Temperature;
             char *end = nullptr;
-            const double base = std::strtod(s.state.c_str(), &end);
-            const bool numeric = !s.state.empty() && end != nullptr && *end == 0;
+            const double base = temperature ? s.current : std::strtod(s.state.c_str(), &end);
+            const bool numeric = temperature ? !std::isnan(s.current) : !s.state.empty() && end != nullptr && *end == 0;
             const double amplitude = std::max(1.0, std::fabs(base) * 0.1);
-            for (uint32_t t = history.start / 300 * 300; numeric && t < history.end; t += 300) {
+            const uint32_t step = temperature ? 600 : 300;
+            for (uint32_t t = history.start / step * step; numeric && t < history.end; t += step) {
                 const double day = 2 * 3.14159265 * (t % 86400) / 86400.0;
                 const double wobble = 0.15 * amplitude * std::sin(t / 1700.0 + phase);
                 hc::core::HistoryPoint point;

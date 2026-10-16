@@ -55,7 +55,7 @@ void on_timer(void *)
     }
     g.occupied = now;
     g.started = true;
-    ESP_LOGI(kTag, "%s", now ? "occupied" : "clear");
+    ESP_LOGI(kTag, "%s", now ? "detected" : "clear");
     if (g.on_change != nullptr) {
         g.on_change(now);
     }

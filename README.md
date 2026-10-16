@@ -17,9 +17,11 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
   thermostats, locks, sensors and binary sensors, cameras and weather, with Material Design icons.
 - Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.
 - A grid per page up to 32x32, tiles up to 8x8; size, place and visibility per orientation.
-- Panels a tile opens: light (level, color, color temperature, effects), climate (target, modes,
-  presets, fan), sensor (history graph of 12 to 48 h, on/off timeline), lock (lock, unlock, open,
-  timeline), weather (current values, daily and hourly forecast).
+- Panels a tile opens: light (level, color, color temperature, effects, on/off timeline), climate
+  (target, modes, presets, fan, room temperature graph), sensor (history graph of 12 to 48 h; a
+  timeline for on/off and other two-word states such as Detected/Clear), lock (lock, unlock, open,
+  timeline), weather (current values, daily and hourly forecast). A double tap on a switch opens
+  its timeline.
 - Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant), a full
   screen live view that comes back by itself after a dropped stream.
 - Edit mode on the screen: long press, drag tiles around, remove them, per orientation.
@@ -36,12 +38,10 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - Touch feedback (click, slider ticks, vibration) and an alarm clock with beeps or MP3 files, on
   boards with a speaker or a motor. Home Assistant makes the device speak a text (tts) or play an
   MP3 with the event `hassctrl_say`.
-- Local GPIO pins switched from Home Assistant: an `input_boolean` or `switch` named after the device
-  (`input_boolean.<device>_relay_1`) drives a pin of the board, found by name, no setup.
-- A motion sensor on a GPIO of the board sets the text helper `input_text.<device>_motion` in Home
-  Assistant to Occupied or Clear, again after every reconnect.
-- The JC4880P443C's camera: preview and picture settings on the screen, an MJPEG stream and JPEG
-  snapshots on the web, behind a login.
+- The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
+  and JPEG snapshots on the web, behind a login.
+- Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
+  reported to Home Assistant. Both found by the device's name, no setup (see "Supported hardware").
 
 **Setup and network**
 
@@ -72,9 +72,23 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - A Windows version of the UI with sample states and scripted screenshots, host tests on MSVC for
   the pure components, a serial console with screenshots and virtual taps, one build script for
   every board and app.
-- Board variants: a private folder per unit, outside git, changes the add-ons of a board (pins of
-  the LDR, motor and relays, sensor calibration) and its config; the board in the repository is
-  the example.
+- Board variants: a private folder per unit, outside git, changes the options a board has (pins,
+  sensor calibration, config); the board in the repository is the example.
+
+## Supported hardware
+
+<!-- Keep this list current too: a chip, bus or option that is new, changed or gone changes it in the same commit. -->
+
+- Chips: ESP32, ESP32-S3, ESP32-P4 (+ ESP32-C6 Wi-Fi)
+- Panels: SPI (ST7796S, ILI9341), QSPI (AXS15231B), MIPI-DSI (ST7701S)
+- Touch: FT6336U, GT911, AXS15231B
+- Local GPIO switch: up to 4 relays, from `input_boolean.<device>_relay_<n>` / `switch.`
+- Local GPIO sensor: motion sensor (PIR, active high or low), to `input_text.<device>_motion`
+- Orientation sensor: MPU6050
+- Light sensor: BH1750 or LDR
+- Vibration motor
+- Speaker: I2S amplifier (NS4168) or codec (ES8311)
+- Camera: MIPI-CSI (OV02C10, ESP32-P4)
 
 ## Build
 
@@ -100,6 +114,9 @@ python tools/build.py wt32_sc01.kitchen              # the variant "kitchen" of 
 | Guition JC3248W535 | `jc3248w535` | ESP32-S3, 320x480 QSPI panel (whole frames only) |
 | Guition JC4880P443C-I-W | `jc4880p443c` | ESP32-P4, 480x800 MIPI-DSI, Wi-Fi through an ESP32-C6 |
 | LilyGO TTGO T4 | `ttgo_t4` | test device only, no touch |
+
+Which of the options of "Supported hardware" a board or a unit has is set in its board file
+or its variant (below).
 
 **Variants.** One unit of a board with other add-ons than the board file in the repository
 (the pins of its LDR, vibration motor or relays, the calibration of its MPU6050, a config option)

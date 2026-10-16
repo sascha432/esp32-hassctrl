@@ -207,9 +207,22 @@ void on_root_delete(lv_event_t *)
 
 bool has_panel(const core::Tile &tile)
 {
-    return (tile.kind == core::TileKind::Light && tile.dimmer) || tile.kind == core::TileKind::Climate ||
+    // a switch and a light without dimmer: the sensor panel with their timeline (a double tap)
+    return tile.kind == core::TileKind::Light || tile.kind == core::TileKind::Switch || tile.kind == core::TileKind::Climate ||
            tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Lock || tile.kind == core::TileKind::Picture ||
            tile.kind == core::TileKind::Weather;
+}
+
+lv_area_t left_of_action(const Frame &frame)
+{
+    const lv_coord_t size = lv_area_get_height(&frame.action);
+    return {static_cast<lv_coord_t>(frame.action.x1 - kGap - size), frame.action.y1,
+            static_cast<lv_coord_t>(frame.action.x1 - kGap - 1), frame.action.y2};
+}
+
+void name_before(const Frame &frame, const lv_area_t &square)
+{
+    lv_obj_set_width(frame.name, static_cast<lv_coord_t>(square.x1 - kGap - frame.header.x1));
 }
 
 lv_obj_t *card(lv_obj_t *parent, const lv_area_t &a)
@@ -508,8 +521,9 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         // opened by a tap: from above the screen; built again after a turn: in place
         place(appear ? 0 : kShown);
     }
-    const bool light = kind == core::TileKind::Light;
-    const bool compact = kind == core::TileKind::Sensor || kind == core::TileKind::Weather;
+    const bool light = kind == core::TileKind::Light && layout.tiles[tile].dimmer;
+    // the sensor panel's frame: no options, the control takes the whole width
+    const bool compact = !light && kind != core::TileKind::Climate && kind != core::TileKind::Lock;
     Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, compact, dialog);
 
     lv_obj_t *back = card(body, frame.back);
@@ -572,7 +586,8 @@ void update(core::EntityIndex entity)
         g.shown_name = name;
         t::line_text(g.name, name.c_str());
     }
-    if (tile.kind == core::TileKind::Light) {
+    // the same choice as build(): a light without dimmer has the sensor panel
+    if (tile.kind == core::TileKind::Light && tile.dimmer) {
         light_panel::update();
     } else if (tile.kind == core::TileKind::Climate) {
         climate_panel::update();

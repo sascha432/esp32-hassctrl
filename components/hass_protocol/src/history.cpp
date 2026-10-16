@@ -49,14 +49,19 @@ bool epoch_of(const cJSON *item, double divisor, uint32_t &out)
     return true;
 }
 
-// the value of a state in the timeline; a lock that is not locked counts as on (HA's lock
-// binary sensor), the words are the lock's own so no domain is needed
+// the value of a state in the timeline: one of two words (core::on_off_words: on/off,
+// Detected/Clear, ...); a lock that is not locked counts as on (HA's lock binary sensor), the
+// words are the lock's own so no domain is needed
 float state_value(std::string_view s)
 {
-    if (s == "on" || s == "unlocked" || s == "unlocking" || s == "open" || s == "opening") {
+    bool on = false;
+    if (core::on_off_words(s, &on) != nullptr) {
+        return on ? 1.0f : 0.0f;
+    }
+    if (s == "unlocked" || s == "unlocking" || s == "opening") {
         return 1.0f;
     }
-    if (s == "off" || s == "locked" || s == "locking") {
+    if (s == "locked" || s == "locking") {
         return 0.0f;
     }
     return s == "jammed" ? core::kProblem : core::kUnknown;
@@ -91,12 +96,15 @@ memory::String history_message(uint32_t id, core::HistoryKind kind, std::string_
                       "\"end_time\":\"%s\",\"statistic_ids\":[\"%.*s\"],\"period\":\"5minute\",\"types\":[\"mean\"]}",
                       static_cast<unsigned long>(id), from, to, entity, entity_id.data());
     } else {
-        // the first state is the one at the start of the window
+        // the first state is the one at the start of the window; the attributes only for a
+        // temperature (minimal_response drops them from every state but the first and the last)
+        const bool attributes = kind == core::HistoryKind::Temperature;
         std::snprintf(text, sizeof(text),
                       "{\"id\":%lu,\"type\":\"history/history_during_period\",\"start_time\":\"%s\","
-                      "\"end_time\":\"%s\",\"entity_ids\":[\"%.*s\"],\"minimal_response\":true,"
-                      "\"no_attributes\":true,\"significant_changes_only\":true}",
-                      static_cast<unsigned long>(id), from, to, entity, entity_id.data());
+                      "\"end_time\":\"%s\",\"entity_ids\":[\"%.*s\"],\"minimal_response\":%s,"
+                      "\"no_attributes\":%s,\"significant_changes_only\":true}",
+                      static_cast<unsigned long>(id), from, to, entity, entity_id.data(), attributes ? "false" : "true",
+                      attributes ? "false" : "true");
     }
     return text;
 }
@@ -127,8 +135,15 @@ bool decode_history(const cJSON *result, core::HistoryKind kind, std::string_vie
                 error = "a state change without its time";
                 return false;
             }
-            const char *state = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(item, "s"));
-            point.value = state_value(state != nullptr ? state : "");
+            if (kind == core::HistoryKind::Temperature) {
+                // {"s":"heat","a":{"current_temperature":21.5,...},"lu":...}
+                const cJSON *attributes = cJSON_GetObjectItemCaseSensitive(item, "a");
+                const cJSON *current = cJSON_GetObjectItemCaseSensitive(attributes, "current_temperature");
+                point.value = cJSON_IsNumber(current) ? static_cast<float>(current->valuedouble) : core::kUnknown;
+            } else {
+                const char *state = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(item, "s"));
+                point.value = state_value(state != nullptr ? state : "");
+            }
         }
         out.push_back(point);
     }

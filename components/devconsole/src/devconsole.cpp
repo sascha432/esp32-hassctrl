@@ -950,13 +950,13 @@ int cmd_motion(int argc, char **argv)
     }
     if (argc == 1 || std::strcmp(argv[1], "status") == 0) {
         std::printf("sensor on GPIO %d, active %s: %s\n", hc::motion::gpio(), hc::motion::active_high() ? "high" : "low",
-                    hc::motion::occupied() ? "occupied" : "clear");
+                    hc::motion::occupied() ? "detected" : "clear");
         return 0;
     }
-    if (argc != 2 || (std::strcmp(argv[1], "occupied") != 0 && std::strcmp(argv[1], "clear") != 0)) {
-        return usage("motion [status|occupied|clear]");
+    if (argc != 2 || (std::strcmp(argv[1], "detected") != 0 && std::strcmp(argv[1], "clear") != 0)) {
+        return usage("motion [status|detected|clear]");
     }
-    hc::hass::publish_motion(std::strcmp(argv[1], "occupied") == 0);
+    hc::hass::publish_motion(std::strcmp(argv[1], "detected") == 0);
     return 0;
 }
 
@@ -1168,7 +1168,7 @@ void register_commands()
     add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
 #endif
     add("relay", "GPIO relays: the state, or one switched", "[status|<n> on|off]", cmd_relay);
-    add("motion", "motion sensor: the state, or one sent to Home Assistant", "[status|occupied|clear]", cmd_motion);
+    add("motion", "motion sensor: the state, or one sent to Home Assistant", "[status|detected|clear]", cmd_motion);
 #if CONFIG_HC_VIBRATION
     add("vibrate", "vibration motor: the click, a pulse, the alarm pattern", "[click|<ms>|alarm|stop|status]", cmd_vibrate);
 #endif

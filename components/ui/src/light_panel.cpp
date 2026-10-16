@@ -6,6 +6,7 @@
 #include <string>
 
 #include "dashboard.hpp"
+#include "history_view.hpp"
 #include "icons.hpp"
 #include "lvgl_compat.hpp"
 #include "sound.hpp"
@@ -69,6 +70,9 @@ struct State {
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
     lv_obj_t *power = nullptr;
+    // the history button left of the power button: the timeline in the place of the control
+    lv_obj_t *history = nullptr;
+    bool show_history = false;
     lv_obj_t *buttons[kModes] = {};
     uint8_t offered = 0; // the modes the buttons are laid out for
     Mode mode = Mode::Level;
@@ -641,6 +645,7 @@ void update_effects(const core::EntityState &s, const core::Expectation *pending
 void clear_control()
 {
     send_steps();
+    history_view::forget();
     if (g.control != nullptr) {
         lv_obj_del(g.control);
     }
@@ -668,6 +673,12 @@ void show_mode(Mode mode)
     lv_obj_set_size(g.control, w, h);
     lv_obj_clear_flag(g.control, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(g.control, LV_OBJ_FLAG_CLICKABLE);
+    if (g.show_history) {
+        // the on/off timeline in the place of the mode's control; the mode is kept for the way back
+        history_view::build(g.control, {0, 0, static_cast<lv_coord_t>(w - 1), static_cast<lv_coord_t>(h - 1)}, g.tile,
+                            core::HistoryKind::States, {});
+        return;
+    }
     switch (mode) {
     case Mode::Level:
         build_level(w, h);
@@ -689,10 +700,18 @@ void show_mode(Mode mode)
 void on_mode(lv_event_t *event)
 {
     const auto mode = static_cast<Mode>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(event)));
-    if (mode != g.mode) {
+    if (mode != g.mode || g.show_history) {
+        g.show_history = false;
         show_mode(mode);
         update();
     }
+}
+
+void on_history_button(lv_event_t *)
+{
+    g.show_history = !g.show_history;
+    show_mode(g.mode);
+    update();
 }
 
 // The buttons of the offered modes: a column in landscape, a row in portrait. With only the level
@@ -731,8 +750,9 @@ void update_power(const core::EntityState &s, const core::Expectation *pending, 
 void update_buttons()
 {
     for (int i = 0; i < kModes; i++) {
-        panel::mark_option(g.buttons[i], static_cast<int>(g.mode) == i);
+        panel::mark_option(g.buttons[i], !g.show_history && static_cast<int>(g.mode) == i);
     }
+    panel::mark_option(g.history, g.show_history);
 }
 
 } // namespace
@@ -747,6 +767,11 @@ void build(const panel::Frame &frame, core::TileIndex tile)
     g.power = panel::card(frame.root, frame.action);
     lv_obj_center(t::label(g.power, icons::glyph("power"), icons::small(), t::kTextLabel));
     lv_obj_add_event_cb(g.power, on_power, LV_EVENT_CLICKED, nullptr);
+    const lv_area_t history = panel::left_of_action(frame);
+    g.history = panel::card(frame.root, history);
+    lv_obj_center(t::label(g.history, icons::glyph("chart-timeline-variant"), icons::small(), t::kTextLabel));
+    lv_obj_add_event_cb(g.history, on_history_button, LV_EVENT_CLICKED, nullptr);
+    panel::name_before(frame, history);
 
     for (int i = 0; i < kModes; i++) {
         g.buttons[i] = panel::card(frame.root, frame.options);
@@ -773,11 +798,15 @@ void update()
     // the level control differs for a light without a level, which is only known once the color
     // modes arrived
     const bool level_kind_changed = g.mode == Mode::Level && (g.note != nullptr) == has_level(s);
-    if ((g.mode != Mode::Level && (offered & bit(g.mode)) == 0) || level_kind_changed) {
+    if (!g.show_history && ((g.mode != Mode::Level && (offered & bit(g.mode)) == 0) || level_kind_changed)) {
         show_mode(Mode::Level);
     }
     update_power(s, pending, avail);
     update_buttons();
+    if (g.show_history) {
+        history_view::update();
+        return;
+    }
     switch (g.mode) {
     case Mode::Level:
         update_level(s, pending, avail);
@@ -801,6 +830,7 @@ void forget()
     if (g.send_timer != nullptr) {
         lv_timer_del(g.send_timer);
     }
+    history_view::forget();
     const int level = g.step_level;
     const core::EntityIndex entity = g.entity;
     // the objects go with the panel's root; the pixels may go now, nothing draws them any more

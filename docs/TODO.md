@@ -1301,16 +1301,42 @@ A permanent feature of the JC4880P443C (relay 1 on GPIO 32), no longer a test.
 - [x] Test with Home Assistant (you, 2026-10-15): the pin follows the entity at once. A template over
       `states.<domain>` was delayed up to a second by Home Assistant's rate limit; it names the entities now.
 
+## History buttons (2026-10-15)
+
+Your requests: a switch's history on a double tap, a history button in the light and the climate
+panel left of the power button.
+
+- [x] Switch and plain light tiles: the toggle waits for the double-tap window (300 ms, as the dimmer's
+      tap waits), a second tap opens the sensor panel with the timeline (`panel::has_panel` includes them,
+      the compact frame).
+- [x] Light panel: `chart-timeline-variant` left of the power button (`panel::left_of_action`), the
+      on/off timeline in the place of the control; a mode button leaves it.
+- [x] Climate panel: the same button (it takes the power button's place while that is hidden); the graph
+      is `HistoryKind::Temperature`: `history_during_period` with the attributes, `current_temperature`
+      of every state, one hour per request (the attributes make a state about 300 bytes), each value
+      holding until the next change. A climate has no long term statistics.
+- [x] Your report: the panel of a double-tapped light had no icon and no state. `panel::update` sent
+      every light tile to the light panel's update, which has nothing for a plain light; it now picks
+      the panel as `build` does (dimmer or not).
+- [x] Climate graph on the P4 with the Lyric thermostat: 70 points over 24 h, checked over the console.
+- [x] Confirmed by you on the P4 (2026-10-15): the timeline of a switch after a double tap, the light
+      panel's button, the climate graph (the console's virtual taps are too slow for the 300 ms
+      window, also on the dimmer's double tap, so the double tap is a finger test).
+
 ## Motion sensor (2026-10-15)
 
 Component `motion` (architecture.md section 9.7b): a PIR on `Info::motion_gpio` sets the text helper
-`input_text.<device>_motion` to Occupied / Clear. The JC4880P443C and its kitchen variant: GPIO 34, active low.
+`input_text.<device>_motion` to Detected / Clear (Occupied until your change of 2026-10-15, to match Home
+Assistant's motion sensors). The JC4880P443C and its kitchen variant: GPIO 34, active low.
 
 - [x] Component (100 ms sampling, two samples), `motion_message` (host test `protocol_motion`), the hass
       command with the resend after `auth_ok`, console `motion`; built and flashed on the P4.
 - [x] Test with Home Assistant (confirmed by you, 2026-10-15): `input_text.hassctrl_7e7d_motion` follows
-      the sensor; `motion occupied` from the console sets it by hand. Without the helper the log
+      the sensor; `motion detected` from the console sets it by hand. Without the helper the log
       warns once per connection.
+- [x] A tile on the helper showed no history (your report, 2026-10-15): the sensor panel asked for
+      statistics, which a text entity has none of, and the timeline knew `on`/`off` only. Now a state
+      of two words (`core::on_off_words`) gets the timeline with its own words as the legend.
 
 ## Known issues
 

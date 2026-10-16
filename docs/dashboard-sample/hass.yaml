@@ -108,9 +108,10 @@
 # name of the device with "_" (hassctrl-7e7d: input_boolean.hassctrl_7e7d_relay_1). On = GPIO high.
 #
 # Motion sensor: a board with a motion GPIO (the JC4880P443C) sets a text helper of Home Assistant
-# to "Occupied" or "Clear", no setting here. Create it in Home Assistant (Settings, Devices,
+# to "Detected" or "Clear", no setting here. Create it in Home Assistant (Settings, Devices,
 # Helpers, Text) with the entity id `input_text.<device>_motion` (hassctrl-7e7d:
-# input_text.hassctrl_7e7d_motion); without it the log says so once per connection.
+# input_text.hassctrl_7e7d_motion); without it the log says so once per connection. A sensor
+# tile on the helper shows Detected / Clear and a timeline in its panel.
 #
 # It plays at the volume below; an alarm that rings comes first.
 #sound:

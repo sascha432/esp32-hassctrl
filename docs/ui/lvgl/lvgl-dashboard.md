@@ -139,7 +139,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 
 | Tile | Content, top to bottom | Tap |
 | --- | --- | --- |
-| switch, light without `dimmer` | icon (48 px), name | toggles |
+| switch, light without `dimmer` | icon (48 px), name | toggles once the double-tap window (300 ms) has passed; a double tap opens the sensor panel with the on/off timeline ([lvgl-panels.md](lvgl-panels.md) section 4) |
 | button, scene, script | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
 | lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | opens the lock panel; a tap on the tile never locks or unlocks |
@@ -366,7 +366,8 @@ copy. Same behavior, one data path fewer.
   `toggle_on_tap: true` makes a tap toggle at once, details then open on a hold of about 500 ms
   (which cancels the edit watch, so the 1000 ms edit long press never fires on such a dimmer);
   the double tap goes for that dimmer, it would either toggle first and then open, or delay every
-  toggle by the double-tap window.
+  toggle by the double-tap window (which is what a switch tile does since 2026-10-15: its double
+  tap opens the timeline, your request).
 
 ## 9. Swipe navigation and the dots
 

@@ -428,7 +428,7 @@ TEST(protocol_motion)
     CHECK_STR(motion_entity_id("hassctrl-7e7d").c_str(), "input_text.hassctrl_7e7d_motion");
     CHECK_STR(motion_message(12, "hassctrl-7e7d", true).c_str(),
               R"({"id":12,"type":"call_service","domain":"input_text","service":"set_value",)"
-              R"("service_data":{"value":"Occupied"},"target":{"entity_id":"input_text.hassctrl_7e7d_motion"}})");
+              R"("service_data":{"value":"Detected"},"target":{"entity_id":"input_text.hassctrl_7e7d_motion"}})");
     Json clear(cJSON_Parse(motion_message(13, "hassctrl-7e7d", false).c_str()));
     REQUIRE(clear);
     CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(cJSON_GetObjectItem(clear.get(), "service_data"), "value")), "Clear");
@@ -666,6 +666,12 @@ TEST(protocol_history_messages)
     const std::string states(history_message(8, HistoryKind::States, "binary_sensor.m", 0, 60));
     CHECK(states.find(R"("type":"history/history_during_period")") != std::string::npos);
     CHECK(states.find(R"("entity_ids":["binary_sensor.m"],"minimal_response":true)") != std::string::npos);
+    CHECK(states.find(R"("no_attributes":true)") != std::string::npos);
+    // a climate's temperature needs the attributes of every state
+    const std::string temperature(history_message(9, HistoryKind::Temperature, "climate.t", 0, 60));
+    CHECK(temperature.find(R"("type":"history/history_during_period")") != std::string::npos);
+    CHECK(temperature.find(R"("minimal_response":false,"no_attributes":false)") != std::string::npos);
+    CHECK(history_chunk_seconds(HistoryKind::Temperature) == 3600 && history_chunk_seconds(HistoryKind::States) == 6 * 3600);
 }
 
 TEST(protocol_history_decode)
@@ -694,6 +700,36 @@ TEST(protocol_history_decode)
     CHECK(points[1].value == 1.0f);
     CHECK(points[2].time == 1791374500 && std::isnan(points[2].value));
     cJSON_Delete(states);
+
+    // a climate: the current temperature of every state, unknown without one
+    points.clear();
+    cJSON *climate = cJSON_Parse(R"({"climate.t":[{"s":"heat","a":{"current_temperature":21.5,"temperature":22},"lu":1.0},)"
+                                 R"({"s":"off","a":{"temperature":22},"lu":2.0},{"s":"heat","a":{"current_temperature":20},"lc":3.0,"lu":4.0}]})");
+    REQUIRE(decode_history(climate, HistoryKind::Temperature, "climate.t", points, error));
+    REQUIRE(points.size() == 3);
+    CHECK(points[0].time == 1 && points[0].value == 21.5f);
+    CHECK(std::isnan(points[1].value));
+    CHECK(points[2].time == 3 && points[2].value == 20.0f);
+    cJSON_Delete(climate);
+
+    // the motion helper (input_text): Occupied / Clear in any case, like on / off
+    points.clear();
+    cJSON *text = cJSON_Parse(R"({"input_text.m":[{"s":"Clear","lu":1.0},{"s":"Occupied","lu":2.0},{"s":"clear","lu":3.0},{"s":"Busy","lu":4.0}]})");
+    REQUIRE(decode_history(text, HistoryKind::States, "input_text.m", points, error));
+    REQUIRE(points.size() == 4);
+    CHECK(points[0].value == 0.0f && points[1].value == 1.0f && points[2].value == 0.0f && std::isnan(points[3].value));
+    cJSON_Delete(text);
+    bool on = false;
+    const OnOffWords *pair = on_off_words("occupied", &on);
+    REQUIRE(pair != nullptr);
+    CHECK(on && std::string(pair->on) == "Occupied" && std::string(pair->off) == "Clear");
+    CHECK(on_off_words("OFF", &on) != nullptr && !on);
+    CHECK(on_off_words("21.5") == nullptr && on_off_words("") == nullptr && on_off_words("o") == nullptr);
+    EntityState state;
+    state.state = "Occupied";
+    CHECK(state.is_on());
+    state.state = "Clear";
+    CHECK(!state.is_on());
 
     // a lock: not locked counts as on, jammed is a problem
     points.clear();

@@ -242,6 +242,18 @@ void toggle(const View &view)
     send(view, core::IntentKind::Toggle, 0, std::move(expected));
 }
 
+// the single tap of a switch, once no second one came: the toggle
+void on_single_tap_toggle(lv_timer_t *timer)
+{
+    auto &view = *static_cast<View *>(timer->user_data);
+    view.tap_timer = nullptr;
+    lv_timer_del(timer);
+    if (dashboard::state(view.entity).unavailable() && dashboard::pending(view.entity) == nullptr) {
+        return;
+    }
+    toggle(view);
+}
+
 void on_click(lv_event_t *event)
 {
     auto &view = *static_cast<View *>(lv_event_get_user_data(event));
@@ -256,12 +268,22 @@ void on_click(lv_event_t *event)
         dashboard::open_page(tile.opens);
         break;
     case TileKind::Switch:
-    case TileKind::Light:
-        if (dashboard::state(view.entity).unavailable() && dashboard::pending(view.entity) == nullptr) {
-            break;
+    case TileKind::Light: {
+        // a second tap within the window opens the panel with the timeline, a single one toggles
+        // once the window has passed (docs/ui/lvgl/lvgl-dashboard.md section 3)
+        const uint32_t now = lv_tick_get();
+        if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
+            lv_timer_del(view.tap_timer);
+            view.tap_timer = nullptr;
+            dashboard::open_panel(view.tile);
+        } else {
+            view.last_tap = now;
+            if (view.tap_timer == nullptr) {
+                view.tap_timer = lv_timer_create(on_single_tap_toggle, kDoubleTapMs, &view);
+            }
         }
-        toggle(view);
         break;
+    }
     case TileKind::Button: {
         core::Intent intent;
         intent.kind = core::IntentKind::Press;

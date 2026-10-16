@@ -95,7 +95,7 @@ struct Info {
     // names all four ({32, -1, -1, -1}): the entries left out of an initializer are 0, a pin.
     std::array<int8_t, 4> relay_gpios = {-1, -1, -1, -1};
     // A motion sensor (PIR) on this GPIO, -1: none. Its state goes to Home Assistant as
-    // input_text.<device>_motion, "Occupied" or "Clear" (hc::motion, docs/architecture.md 9.7b).
+    // input_text.<device>_motion, "Detected" or "Clear" (hc::motion, docs/architecture.md 9.7b).
     int8_t motion_gpio = -1;
     // the level of the sensor's output while it sees motion
     bool motion_active_high = true;

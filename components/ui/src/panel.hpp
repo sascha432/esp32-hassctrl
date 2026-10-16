@@ -51,8 +51,14 @@ struct Frame {
 };
 
 // true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a lock, a weather, a
-// picture: its image full screen)
+// picture: its image full screen; a switch and a plain light: the sensor panel with the timeline)
 bool has_panel(const core::Tile &tile);
+
+// A second square of the header, left of `Frame::action` with the grid's gap between them (the
+// history button of the light and the climate panel).
+lv_area_t left_of_action(const Frame &frame);
+// gives the name the header up to the gap before `square`
+void name_before(const Frame &frame, const lv_area_t &square);
 
 // Builds the panel of `tile` over the page in `parent` (the dashboard's root); a panel that is open
 // goes first. Called again after the display turned. `appear`: a dialog slides in (opened by a tap).

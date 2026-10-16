@@ -26,10 +26,11 @@ struct State {
 
 State g;
 
-// on/off history for a binary sensor and anything that reports on or off, statistics else
+// a timeline for a binary sensor and anything whose state is one of two words (on/off,
+// Detected/Clear: the motion helper), statistics else
 core::HistoryKind kind_of(const core::EntityState &state, std::string_view entity_id)
 {
-    if (entity_id.substr(0, entity_id.find('.')) == "binary_sensor" || state.state == "on" || state.state == "off") {
+    if (entity_id.substr(0, entity_id.find('.')) == "binary_sensor" || core::on_off_words(state.state) != nullptr) {
         return core::HistoryKind::States;
     }
     return core::HistoryKind::Statistics;
@@ -67,13 +68,16 @@ void build(const panel::Frame &frame, core::TileIndex tile)
     const core::Layout &layout = dashboard::layout();
     g.entity = layout.tiles[tile].entity;
     const core::EntityState &s = dashboard::state(g.entity);
-    g.kind = kind_of(s, layout.entity_id(layout.tiles[tile]));
+    const std::string_view entity_id = layout.entity_id(layout.tiles[tile]);
+    g.kind = kind_of(s, entity_id);
 
     build_header();
-    // the words of the device class ("Detected" / "Clear")
+    // the words of the device class ("Detected" / "Clear"); a text entity's own two words
     history_view::Legend legend;
-    legend.on = tiles::binary_words(s.device_class, true);
-    legend.off = tiles::binary_words(s.device_class, false);
+    const core::OnOffWords *pair = core::on_off_words(s.state);
+    const bool binary = entity_id.substr(0, entity_id.find('.')) == "binary_sensor";
+    legend.on = !binary && pair != nullptr ? pair->on : tiles::binary_words(s.device_class, true);
+    legend.off = !binary && pair != nullptr ? pair->off : tiles::binary_words(s.device_class, false);
     history_view::build(frame.root, frame.control, tile, g.kind, legend);
 }
 

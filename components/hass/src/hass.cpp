@@ -573,7 +573,7 @@ void send_history_chunk()
         history_done();
         return;
     }
-    const uint32_t end = std::min(h.result.end, h.next_start + hass_protocol::kHistoryChunkSeconds);
+    const uint32_t end = std::min(h.result.end, h.next_start + hass_protocol::history_chunk_seconds(h.wanted.kind));
     h.id = s.next_id++;
     h.deadline = now_ms() + kHistoryChunkTimeoutMs;
     const memory::String message =
@@ -815,7 +815,7 @@ void send_motion()
     }
     s.motion_id = s.next_id++;
     const bool occupied = s.motion != 0;
-    ESP_LOGI(kTag, "motion -> %s", occupied ? hass_protocol::kMotionOccupied : hass_protocol::kMotionClear);
+    ESP_LOGI(kTag, "motion -> %s", occupied ? hass_protocol::kMotionDetected : hass_protocol::kMotionClear);
     if (!send_text(hass_protocol::motion_message(s.motion_id, platform::device_name(), occupied))) {
         retry_later("the motion state could not be sent");
     }

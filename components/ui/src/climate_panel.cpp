@@ -5,6 +5,7 @@
 #include <string>
 
 #include "dashboard.hpp"
+#include "history_view.hpp"
 #include "icons.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
@@ -46,6 +47,10 @@ struct State {
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
     lv_obj_t *power = nullptr; // turns the climate off; shown only while it is on
+    // the history button left of the power button (in its place while that is hidden): the
+    // graph of the room temperature in the place of the arc or the list
+    lv_obj_t *history = nullptr;
+    bool show_history = false;
     lv_obj_t *pills[kOptions] = {};
     lv_obj_t *pill_glyphs[kOptions] = {};
     lv_obj_t *pill_values[kOptions] = {};
@@ -486,8 +491,9 @@ void update_power(const core::EntityState &s, const core::Expectation *pending, 
         return;
     }
     set_hidden(g.power, !shown);
-    const lv_coord_t end = shown ? g.frame.header.x2 : g.frame.action.x2;
-    lv_obj_set_width(g.frame.name, static_cast<lv_coord_t>(end - g.frame.header.x1 + 1));
+    const lv_area_t square = shown ? panel::left_of_action(g.frame) : g.frame.action;
+    lv_obj_set_pos(g.history, square.x1, square.y1);
+    panel::name_before(g.frame, square);
 }
 
 // ------------------------------------------------------------------------------- pills
@@ -495,6 +501,7 @@ void update_power(const core::EntityState &s, const core::Expectation *pending, 
 void clear_control()
 {
     send_steps();
+    history_view::forget();
     if (g.control != nullptr) {
         lv_obj_del(g.control);
     }
@@ -518,6 +525,12 @@ void show_control(int option)
     lv_obj_set_size(g.control, w, h);
     lv_obj_clear_flag(g.control, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(g.control, LV_OBJ_FLAG_CLICKABLE);
+    if (g.show_history) {
+        // the room temperature over time in the place of the arc; the option is kept for the way back
+        history_view::build(g.control, {0, 0, static_cast<lv_coord_t>(w - 1), static_cast<lv_coord_t>(h - 1)}, g.tile,
+                            core::HistoryKind::Temperature, {});
+        return;
+    }
     if (option < 0) {
         build_arc(w, h);
     } else {
@@ -528,8 +541,17 @@ void show_control(int option)
 void on_pill(lv_event_t *event)
 {
     const auto option = static_cast<int>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(event)));
-    // a second tap on the pill of the list goes back to the arc
-    show_control(option == g.list_option ? -1 : option);
+    // a second tap on the pill of the list goes back to the arc; from the history the pill's list opens
+    const bool from_history = g.show_history;
+    g.show_history = false;
+    show_control(option == g.list_option && !from_history ? -1 : option);
+    update();
+}
+
+void on_history_button(lv_event_t *)
+{
+    g.show_history = !g.show_history;
+    show_control(g.list_option);
     update();
 }
 
@@ -603,6 +625,11 @@ void build(const panel::Frame &frame, core::TileIndex tile)
     lv_obj_set_style_border_color(g.power, t::color(t::kActive), 0);
     lv_obj_center(t::label(g.power, icons::glyph("power"), icons::small(), t::kText));
     lv_obj_add_event_cb(g.power, on_power, LV_EVENT_CLICKED, nullptr);
+    const lv_area_t history = panel::left_of_action(frame);
+    g.history = panel::card(frame.root, history);
+    lv_obj_center(t::label(g.history, icons::glyph("chart-timeline-variant"), icons::small(), t::kTextLabel));
+    lv_obj_add_event_cb(g.history, on_history_button, LV_EVENT_CLICKED, nullptr);
+    panel::name_before(frame, history);
 
     for (int i = 0; i < kOptions; i++) {
         lv_obj_t *pill = panel::card(frame.root, frame.options);
@@ -641,11 +668,14 @@ void update()
     if (offered != g.offered) {
         layout_pills(offered);
         if (g.list_option >= 0 && (offered & (1u << g.list_option)) == 0) {
-            show_control(-1);
+            g.list_option = -1;
+            if (!g.show_history) {
+                show_control(-1);
+            }
         }
     }
     // the range of the arc arrives with the panel's fields, after the panel was built
-    if (g.list_option < 0 && !g.dragging && std::isnan(g.step_target) &&
+    if (!g.show_history && g.list_option < 0 && !g.dragging && std::isnan(g.step_target) &&
         ((!std::isnan(s.min_temp) && s.min_temp != g.min) || (!std::isnan(s.max_temp) && s.max_temp != g.max) ||
          tiles::climate_step(dashboard::layout().tiles[g.tile], s) != g.step)) {
         show_control(-1);
@@ -654,13 +684,16 @@ void update()
     const std::string_view mode = shown_value(s, pending, Option::Mode);
     if (g.modes_first && avail && !mode.empty() && (offered & (1u << static_cast<int>(Option::Mode))) != 0) {
         g.modes_first = false;
-        if (mode == "off" && g.list_option < 0 && !g.dragging && std::isnan(g.step_target)) {
+        if (mode == "off" && g.list_option < 0 && !g.dragging && std::isnan(g.step_target) && !g.show_history) {
             show_control(static_cast<int>(Option::Mode));
         }
     }
     update_power(s, pending, avail);
     update_pills(s, pending, avail);
-    if (g.list_option < 0) {
+    panel::mark_option(g.history, g.show_history);
+    if (g.show_history) {
+        history_view::update();
+    } else if (g.list_option < 0) {
         update_arc(s, pending, avail);
     } else {
         update_list(s, pending);
@@ -672,6 +705,7 @@ void forget()
     if (g.send_timer != nullptr) {
         lv_timer_del(g.send_timer);
     }
+    history_view::forget();
     const float target = g.step_target;
     const core::EntityIndex entity = g.entity;
     // the objects go with the panel's root

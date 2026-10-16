@@ -2,9 +2,16 @@
 
 ## 2026-10-15
 
+- History in more places (your request): a double tap on a switch or plain light tile opens the sensor
+  panel with its on/off timeline (a single tap toggles once the 300 ms window has passed); the light
+  panel has a history button left of the power button (the timeline in the place of the control), the
+  climate panel too (the room temperature over time, read from the state history with its attributes,
+  an hour per request). Confirmed by you on the P4.
 - Motion sensor: a PIR on `Info::motion_gpio` (active high or low) sets `input_text.<device>_motion` in
-  Home Assistant to Occupied or Clear, again after a reconnect. P4: GPIO 34, active low. Console `motion`.
-  Confirmed by you with the helper in Home Assistant.
+  Home Assistant to Detected or Clear, again after a reconnect. P4: GPIO 34, active low. Console `motion`.
+  Confirmed by you with the helper in Home Assistant. A tile on the helper opens the sensor panel with
+  a timeline: a state that is one of two words (Detected/Clear, Occupied/Clear, Open/Closed, on/off)
+  counts as on or off there, with the words as the legend; before, a text state had no history.
 - Board variants: `boards/<board>/variants/<name>/` (not in git) with `hc_board_variant.hpp` changes a
   unit's add-ons and config; built as `<board>.<name>`. Console `orient capture` prints both forms.
 - Relays: an entity `input_boolean.<device>_relay_<n>` (or `switch.`) switches GPIO `Info::relay_gpios[n-1]`;

@@ -378,7 +378,7 @@ Tile format, details (decided 2026-10-07):
 
   | Domain | Tile | Tap |
   | --- | --- | --- |
-  | `light` | without `dimmer`: switch; with `dimmer: true`: level fill | toggle; with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel |
+  | `light` | without `dimmer`: switch; with `dimmer: true`: level fill | toggle after the double-tap window, double tap opens the timeline; with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel (with a history button) |
   | `switch`, `input_boolean`, `fan`, `automation` | switch | toggle |
   | `button`, `input_button`, `scene`, `script` | button | press, `turn_on` for scene and script |
   | `climate` | climate; two rows tall it has the `+`/`-` bars | as before |
@@ -1057,7 +1057,8 @@ Component `motion` (2026-10-15): a PIR on a GPIO of the board (`Info::motion_gpi
 `Info::motion_active_high`: the level of its output while it sees motion). The other way round
 from the relays: the device tells Home Assistant. It sets the text helper
 `input_text.<device>_motion` (`input_text.hassctrl_7e7d_motion`, the host name with `_`) to
-`Occupied` or `Clear`; the user creates the helper (Settings, Devices, Helpers, Text), nothing is
+`Detected` or `Clear` (the words of Home Assistant's motion sensors); the user creates the helper
+(Settings, Devices, Helpers, Text), nothing is
 configured on the device. The JC4880P443C: GPIO 34 of the expansion header, active low.
 
 * **Pin**: an input with the internal pull toward the level that means clear (pull-down for an
@@ -1070,8 +1071,11 @@ configured on the device. The JC4880P443C: GPIO 34 of the expansion header, acti
   connected and the state changed, and sends the last state again after every `auth_ok`, so the
   helper follows the sensor across reconnects. A failed call (no such helper) is logged once per
   connection with the entity id to create; the next change tries again. A normal token is enough.
-* Console `motion [status|occupied|clear]`: the state, or a state sent by hand to try the helper
+* Console `motion [status|detected|clear]`: the state, or a state sent by hand to try the helper
   without the sensor; the sensor's next change overrides it.
+* On the dashboard the helper is a sensor tile; its panel shows the timeline, because a state of
+  two words (`core::on_off_words`) counts as on or off like a binary sensor, with the words as the
+  legend.
 
 ### 9.8 Camera
 

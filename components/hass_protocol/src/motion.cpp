@@ -14,7 +14,7 @@ memory::String motion_entity_id(std::string_view device_name)
     return id;
 }
 
-memory::String motion_message(uint32_t id, std::string_view device_name, bool occupied)
+memory::String motion_message(uint32_t id, std::string_view device_name, bool detected)
 {
     const memory::String entity_id = motion_entity_id(device_name);
     const auto body = [&](formats::JsonWriter &w) {
@@ -24,7 +24,7 @@ memory::String motion_message(uint32_t id, std::string_view device_name, bool oc
             .string("domain", "input_text")
             .string("service", "set_value")
             .begin_object("service_data")
-            .string("value", occupied ? kMotionOccupied : kMotionClear)
+            .string("value", detected ? kMotionDetected : kMotionClear)
             .end_object()
             .begin_object("target")
             .string("entity_id", entity_id.c_str())

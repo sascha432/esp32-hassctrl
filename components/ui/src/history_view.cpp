@@ -121,6 +121,12 @@ State g;
 int g_range = 1;
 uint32_t g_next_generation = 1;
 
+// a curve (the statistics, a temperature) rather than the timeline of states
+bool curve()
+{
+    return g.kind != core::HistoryKind::States;
+}
+
 uint32_t hours()
 {
     return kRanges[g_range];
@@ -258,10 +264,12 @@ void draw_ticks(uint32_t start, uint32_t end, lv_coord_t top, lv_coord_t height)
 
 void draw_statistics(const core::History &history)
 {
+    // a temperature holds from its change to the next one: the value before the window counts too
+    const bool holds = history.kind == core::HistoryKind::Temperature;
     float lo = INFINITY;
     float hi = -INFINITY;
     for (const auto &point : history.points) {
-        if (!std::isnan(point.value) && point.time + kBucketSeconds > history.start) {
+        if (!std::isnan(point.value) && (holds || point.time + kBucketSeconds > history.start)) {
             lo = std::min(lo, point.value);
             hi = std::max(hi, point.value);
         }
@@ -269,7 +277,8 @@ void draw_statistics(const core::History &history)
     if (lo > hi) {
         // a sensor without a state_class has no statistics
         clear_graph();
-        show_message(history.points.empty() ? "No statistics for this sensor" : "No values in this time");
+        show_message(holds ? "No temperatures in this time"
+                     : history.points.empty() ? "No statistics for this sensor" : "No values in this time");
         return;
     }
     // three round values: the bottom, the middle and the top line
@@ -295,16 +304,43 @@ void draw_statistics(const core::History &history)
         lv_chart_set_point_count(g.chart, count);
     }
     lv_chart_set_all_value(g.chart, g.series, LV_CHART_POINT_NONE);
-    for (const auto &point : history.points) {
-        if (std::isnan(point.value) || point.time + kBucketSeconds <= history.start) {
-            continue;
+    const auto set = [&](uint32_t index, float value) {
+        if (!std::isnan(value)) {
+            const auto scaled = static_cast<lv_coord_t>(std::lround((value - bottom) / (top - bottom) * kChartScale));
+            lv_chart_set_value_by_id(g.chart, g.series, static_cast<uint16_t>(index), scaled);
         }
-        const uint32_t index = point.time > history.start ? (point.time - history.start) / kBucketSeconds : 0;
-        if (index >= count) {
-            continue;
+    };
+    if (holds) {
+        // every bucket from a change to the next one has the value of the change (the points come
+        // in time order); the last change before the window seeds the first buckets
+        float last = core::kUnknown;
+        uint32_t next = 0;
+        for (const auto &point : history.points) {
+            const uint32_t index = point.time > history.start ? (point.time - history.start) / kBucketSeconds : 0;
+            if (index >= count) {
+                break;
+            }
+            for (uint32_t i = next; i < index; i++) {
+                set(i, last);
+            }
+            last = point.value;
+            set(index, last);
+            next = index + 1;
         }
-        const auto scaled = static_cast<lv_coord_t>(std::lround((point.value - bottom) / (top - bottom) * kChartScale));
-        lv_chart_set_value_by_id(g.chart, g.series, static_cast<uint16_t>(index), scaled);
+        for (uint32_t i = next; i < count; i++) {
+            set(i, last);
+        }
+    } else {
+        // the bucket of each mean; a bucket without one is a gap in the curve
+        for (const auto &point : history.points) {
+            if (point.time + kBucketSeconds <= history.start) {
+                continue;
+            }
+            const uint32_t index = point.time > history.start ? (point.time - history.start) / kBucketSeconds : 0;
+            if (index < count) {
+                set(index, point.value);
+            }
+        }
     }
     lv_chart_refresh(g.chart);
     set_hidden(g.chart, false);
@@ -469,7 +505,7 @@ void build_card(lv_obj_t *parent, const lv_area_t &area)
         set_hidden(label, true);
     }
 
-    if (g.kind == core::HistoryKind::Statistics) {
+    if (curve()) {
         g.unit = t::label(g.card, "", t::font_small(), t::kTextMuted);
         lv_obj_set_pos(g.unit, 4, 2);
         // the three value lines are the chart's dividers, the labels sit on them
@@ -575,7 +611,10 @@ void update()
     }
     if (g.unit != nullptr) {
         const core::Layout &layout = dashboard::layout();
-        set_text(g.unit, std::string(core::display_unit(dashboard::state(g.entity), layout.tiles[g.tile])));
+        // a climate has no unit attribute: degrees, as its panel writes the room temperature
+        set_text(g.unit, g.kind == core::HistoryKind::Temperature
+                             ? std::string("\xc2\xb0")
+                             : std::string(core::display_unit(dashboard::state(g.entity), layout.tiles[g.tile])));
     }
     for (int i = 0; i < kRangeCount; i++) {
         const bool selected = i == g_range;
@@ -602,7 +641,7 @@ void on_history(core::History history)
         }
         return;
     }
-    if (g.kind == core::HistoryKind::Statistics) {
+    if (curve()) {
         draw_statistics(history);
     } else {
         draw_states(history);

@@ -1,11 +1,24 @@
 #include "hc/core/entity.hpp"
 
+#include <cctype>
 #include <charconv>
 #include <cstdio>
 
 namespace hc::core {
 
 namespace {
+
+constexpr OnOffWords kOnOffWords[] = {{"On", "Off"}, {"Detected", "Clear"}, {"Occupied", "Clear"}, {"Open", "Closed"}};
+
+bool same_word(std::string_view a, const char *b)
+{
+    for (const char c : a) {
+        if (*b == 0 || std::tolower(static_cast<unsigned char>(c)) != std::tolower(static_cast<unsigned char>(*b++))) {
+            return false;
+        }
+    }
+    return *b == 0;
+}
 
 template <class T>
 bool assign(T &to, const T &from)
@@ -146,6 +159,26 @@ bool EntityStore::apply(const EntityUpdate &update)
     changed |= (update.fields & ~state.known) != 0;
     state.known |= update.fields;
     return changed;
+}
+
+const OnOffWords *on_off_words(std::string_view state, bool *on)
+{
+    for (const OnOffWords &pair : kOnOffWords) {
+        const bool is_on = same_word(state, pair.on);
+        if (is_on || same_word(state, pair.off)) {
+            if (on != nullptr) {
+                *on = is_on;
+            }
+            return &pair;
+        }
+    }
+    return nullptr;
+}
+
+bool EntityState::is_on() const
+{
+    bool on = false;
+    return on_off_words(state, &on) != nullptr && on;
 }
 
 memory::String display_value(const EntityState &state, const Tile &tile)

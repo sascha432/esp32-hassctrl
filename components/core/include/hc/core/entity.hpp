@@ -139,11 +139,18 @@ struct EntityState {
     {
         return state == "unavailable" || state == "unknown";
     }
-    bool is_on() const
-    {
-        return state == "on";
-    }
+    // the state is the "on" word of a pair (on_off_words): on, Detected, Occupied, Open
+    bool is_on() const;
 };
+
+// A state that is one of two words, in any case: on/off, Detected/Clear (the motion helper
+// input_text.<device>_motion), Occupied/Clear, Open/Closed. The pair's words as shown in a
+// legend, nullptr for any other state; `on` is set to which of the two it is.
+struct OnOffWords {
+    const char *on;
+    const char *off;
+};
+const OnOffWords *on_off_words(std::string_view state, bool *on = nullptr);
 
 // supported_features of a lock: it can open (unlatch) the door (LockEntityFeature.OPEN)
 constexpr int32_t kLockOpen = 1;
@@ -174,13 +181,15 @@ struct ServiceFailed {
 
 // What the history graph of a sensor panel shows (docs/ui/lvgl/lvgl-panels.md).
 enum class HistoryKind : uint8_t {
-    Statistics, // the 5 minute means of the long term statistics (a sensor with a state_class)
-    States,     // the state changes of an on/off entity (a binary sensor has no statistics)
+    Statistics,  // the 5 minute means of the long term statistics (a sensor with a state_class)
+    States,      // the state changes of an on/off entity (a binary sensor has no statistics)
+    Temperature, // the current temperature of a climate from its state history (no statistics either)
 };
 
 // Statistics: the start of a 5 minute bucket and its mean. States: the time of a change and the
 // state from then on: 1 on (a lock: unlocked or open), 0 off (locked), kProblem (a jammed lock),
-// NaN unknown or unavailable.
+// NaN unknown or unavailable. Temperature: the time of a change and the current temperature from
+// then on (NaN while the climate had none).
 constexpr float kProblem = 2;
 
 struct HistoryPoint {

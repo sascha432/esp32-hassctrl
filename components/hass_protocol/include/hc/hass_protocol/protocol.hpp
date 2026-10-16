@@ -97,14 +97,21 @@ bool template_result_json(const cJSON *result, memory::String &out);
 
 // The history of a sensor panel is read in windows this long, one after the other: a 5 minute
 // bucket of the statistics is about 60 bytes, so 6 hours stay far below the 16 KB a message may
-// have, and a busy motion sensor's state changes too.
+// have, and a busy motion sensor's state changes too. A climate's states come with their
+// attributes (about 300 bytes each, a thermostat reports every few minutes): one hour at a time.
 constexpr uint32_t kHistoryChunkSeconds = 6 * 3600;
+constexpr uint32_t kTemperatureChunkSeconds = 3600;
+inline uint32_t history_chunk_seconds(core::HistoryKind kind)
+{
+    return kind == core::HistoryKind::Temperature ? kTemperatureChunkSeconds : kHistoryChunkSeconds;
+}
 
 // "2026-10-07T12:00:00+00:00"
 void iso_time(uint32_t epoch, char *out, size_t size);
 
 // The request of [start, end) of one entity: `recorder/statistics_during_period` with the 5 minute
-// means, or `history/history_during_period` with the state changes (minimal, no attributes).
+// means, or `history/history_during_period` with the state changes (minimal, no attributes; with
+// the attributes for Temperature, which reads `current_temperature`).
 memory::String history_message(uint32_t id, core::HistoryKind kind, std::string_view entity_id, uint32_t start,
                                uint32_t end);
 
@@ -179,15 +186,16 @@ bool decode_relays(const cJSON *result, RelayStates &out);
 // ----------------------------------------------------------------------------- motion sensor
 
 // The motion sensor of a board (docs/architecture.md section 9.7b) sets the text helper
-// input_text.<device>_motion, which the user creates in Home Assistant, to one of these.
-constexpr const char *kMotionOccupied = "Occupied";
+// input_text.<device>_motion, which the user creates in Home Assistant, to one of these (the
+// words of Home Assistant's own motion sensors).
+constexpr const char *kMotionDetected = "Detected";
 constexpr const char *kMotionClear = "Clear";
 
 // "input_text.hassctrl_7e7d_motion" for "hassctrl-7e7d"
 memory::String motion_entity_id(std::string_view device_name);
 
-// The call_service message that sets the helper: input_text.set_value with the value for `occupied`.
-memory::String motion_message(uint32_t id, std::string_view device_name, bool occupied);
+// The call_service message that sets the helper: input_text.set_value with the value for `detected`.
+memory::String motion_message(uint32_t id, std::string_view device_name, bool detected);
 
 // The path of the answer to it ({"url": "http://.../api/tts_proxy/x.mp3", "path": "/api/..."});
 // the device fetches it from its own address of Home Assistant, not from the one HA thinks it has.
