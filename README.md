@@ -5,7 +5,7 @@ LVGL. Design: [docs/architecture.md](docs/architecture.md), UI: [docs/ui/](docs/
 new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 [docs/TODO.md](docs/TODO.md), what changed: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
-![docs/ui/images/jc4880p443c_dashboard1.jpg](docs/ui/images/jc4880p443c_dashboard1.jpg)
+![JC4880P443C dashboard](docs/ui/images/jc4880p443c_dashboard.jpg)
 
 ## Features
 
