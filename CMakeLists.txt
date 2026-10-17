@@ -31,3 +31,21 @@ set(PROJECT_VER "0.1.0")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${HC_PROJECT_NAME})
+
+# The FPUs of the ESP32, S3 and P4 are single precision; double math runs in software. A float that
+# becomes a double without a cast is an error in our own components (printf arguments take the
+# cast). esp_driver_ppa is a copy of the IDF's driver and stays as it is.
+idf_build_get_property(hc_components BUILD_COMPONENTS)
+string(TOLOWER "${CMAKE_CURRENT_LIST_DIR}" hc_root)
+foreach(name IN LISTS hc_components)
+    idf_component_get_property(dir ${name} COMPONENT_DIR)
+    idf_component_get_property(lib ${name} COMPONENT_LIB)
+    string(TOLOWER "${dir}" dir)
+    get_target_property(type ${lib} TYPE)
+    if(type STREQUAL "INTERFACE_LIBRARY" OR name STREQUAL "esp_driver_ppa")
+        continue()
+    endif()
+    if(dir MATCHES "^${hc_root}/(components|main|recovery)(/|$)")
+        target_compile_options(${lib} PRIVATE -Werror=double-promotion)
+    endif()
+endforeach()

@@ -2,6 +2,8 @@
 
 ## 2026-10-17
 
+- No double math where float or int is enough (the FPUs are single precision): compass, kelvin color,
+  decimals in the config, brightness percent; `-Werror=double-promotion` for our own components.
 - Automations and scripts (your report: the automation tile toggled on a tap, as a switch): their own tile with the
   time of the last run; a double tap runs it (stops a running script), a tap opens the automation panel: Enabled
   switch, last run, Run actions / Run script / Stop, the timeline. `automation.trigger` skips the conditions as HA's

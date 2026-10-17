@@ -88,8 +88,8 @@ inline bool parse_decimal(std::string_view text, float &out)
     if (text.empty() || text.size() > 12) {
         return false;
     }
-    double value = 0;
-    double scale = 0;
+    float value = 0;
+    float scale = 0;
     for (const char c : text) {
         if (c == '.' && scale == 0) {
             scale = 1;
@@ -104,7 +104,7 @@ inline bool parse_decimal(std::string_view text, float &out)
             return false;
         }
     }
-    out = static_cast<float>(value);
+    out = value;
     return true;
 }
 

@@ -75,8 +75,11 @@ const char *compass(float degrees)
     if (std::isnan(degrees)) {
         return "";
     }
-    const double turned = std::fmod(std::fmod(static_cast<double>(degrees), 360.0) + 360.0, 360.0);
-    const auto index = static_cast<size_t>(std::lround(turned / 22.5)) % std::size(kPoints);
+    float turned = std::fmod(degrees, 360.0f);
+    if (turned < 0.0f) {
+        turned += 360.0f;
+    }
+    const auto index = static_cast<size_t>(std::lround(turned / 22.5f)) % std::size(kPoints);
     return kPoints[index];
 }
 

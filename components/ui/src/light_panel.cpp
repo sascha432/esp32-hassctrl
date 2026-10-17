@@ -168,7 +168,7 @@ core::Expectation level_expectation(int level)
     core::Expectation expected;
     expected.state = level > 0 ? "on" : "off";
     if (level > 0) {
-        expected.brightness = static_cast<int16_t>(std::lround(level * 255 / 100.0));
+        expected.brightness = static_cast<int16_t>((level * 255 + 50) / 100);
     }
     return expected;
 }
@@ -176,18 +176,18 @@ core::Expectation level_expectation(int level)
 // the color of a color temperature (Tanner Helland's approximation of the black body)
 lv_color_t kelvin_color(float kelvin)
 {
-    const double k = kelvin / 100.0;
-    double r = 255;
-    double gr = 0;
-    double b = 255;
+    const float k = kelvin / 100.0f;
+    float r = 255;
+    float gr = 0;
+    float b = 255;
     if (k > 66) {
-        r = 329.698727446 * std::pow(k - 60, -0.1332047592);
-        gr = 288.1221695283 * std::pow(k - 60, -0.0755148492);
+        r = 329.698727446f * std::pow(k - 60, -0.1332047592f);
+        gr = 288.1221695283f * std::pow(k - 60, -0.0755148492f);
     } else {
-        gr = 99.4708025861 * std::log(k) - 161.1195681661;
-        b = k <= 19 ? 0 : 138.5177312231 * std::log(k - 10) - 305.0447927307;
+        gr = 99.4708025861f * std::log(k) - 161.1195681661f;
+        b = k <= 19 ? 0 : 138.5177312231f * std::log(k - 10) - 305.0447927307f;
     }
-    const auto clamp = [](double v) { return static_cast<uint8_t>(std::clamp(v, 0.0, 255.0)); };
+    const auto clamp = [](float v) { return static_cast<uint8_t>(std::clamp(v, 0.0f, 255.0f)); };
     return lv_color_make(clamp(r), clamp(gr), clamp(b));
 }
 
@@ -318,7 +318,7 @@ void on_step(lv_event_t *event)
         bool on = false;
         base = tiles::shown_level(state(), dashboard::pending(g.entity), on);
         if (base < 0) {
-            base = std::max(0, static_cast<int>(std::lround(state().last_brightness * 100 / 255.0)));
+            base = std::max(0, (state().last_brightness * 100 + 127) / 255);
         }
     }
     const bool up = lv_event_get_target(event) == g.plus;

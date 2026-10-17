@@ -432,7 +432,7 @@ void on_dimmer(lv_event_t *event)
             core::Expectation expected;
             expected.state = view.drag_level > 0 ? "on" : "off";
             if (view.drag_level > 0) {
-                expected.brightness = static_cast<int16_t>(std::lround(view.drag_level * 255 / 100.0));
+                expected.brightness = static_cast<int16_t>((view.drag_level * 255 + 50) / 100);
             }
             send(view, core::IntentKind::SetLevel, static_cast<float>(view.drag_level), std::move(expected));
             break;
@@ -1107,7 +1107,7 @@ int shown_level(const core::EntityState &state, const core::Expectation *pending
     if (brightness < 0) {
         return 100; // a light without a level
     }
-    return std::max(1, static_cast<int>(std::lround(brightness * 100 / 255.0)));
+    return std::max(1, (brightness * 100 + 127) / 255);
 }
 
 void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t area, core::Span span)
