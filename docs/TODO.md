@@ -1445,8 +1445,10 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
 - [x] A tap beside a sliding-in panel opened the tile under it: a clear cover until the slide ends.
 - [x] The light panel's history button took no taps at 320 px: the Settings pull-down zone lay
       over it; in a full-screen panel it now keeps between the header buttons.
-- [ ] Optional: read the AXS15231B on its INT line (GPIO 3) instead of polling (no misread rule,
-      no merged fast taps). Measure INT while touching first.
+- [x] AXS15231B on its INT line (GPIO 3) instead of polling: measured 2026-10-17, not pursued (you:
+      polling works). INT pulses once per report but not on a lift, so a lift still needs a timeout
+      over the longest gap (49 ms), longer than polling's 20-40 ms. Numbers in
+      devices/JC3248W535/JC3248W535.md.
 - [x] `post_command` waits up to 100 ms when the hass queue (16 events) is full, a stall of the
       LVGL task. Accepted (you, 2026-10-17): only during a burst (reconnect, mass toggle in HA),
       rare, at most 100 ms, nothing lost; no "queue is full" in your test logs.

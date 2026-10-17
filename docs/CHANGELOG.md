@@ -2,6 +2,8 @@
 
 ## 2026-10-17
 
+- Docs: JC3248W535 touch INT (GPIO 3) measured, not used (no pulse on a lift); the 100 ms `post_command`
+  wait on a full hass queue accepted.
 - Docs: the dashboard's open points are decided (no fill for numeric sensors, push aside, no move between
   pages on the screen, a failed call only reverts the tile); no WAV, no `media_player`; the say.md talk helper removed (did not work).
 - JC3248W535 touch (your reports: lag, taps lost or doubled): the AXS15231B reports every 17-22 ms and
