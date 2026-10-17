@@ -3,7 +3,8 @@
 A Home Assistant touch panel for ESP32, ESP32-S3 and ESP32-P4 boards, built on ESP-IDF 6.1 with
 LVGL. Design: [docs/architecture.md](docs/architecture.md), UI: [docs/ui/](docs/ui/README.md),
 new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant setup:
-[docs/home-assistant/](docs/home-assistant/timer-helper.md), open items:
+[timer](docs/home-assistant/timer-helper.md), [motion sensor](docs/home-assistant/motion-sensor.md),
+[sounds](docs/home-assistant/say.md), open items:
 [docs/TODO.md](docs/TODO.md), what changed: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ![JC4880P443C dashboard](docs/ui/images/jc4880p443c_dashboard.jpg)
@@ -46,11 +47,11 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   rotation from an orientation sensor or by hand, wake on motion with a motion sensor.
 - Touch feedback (click, slider ticks, vibration) and an alarm clock with beeps or MP3 files, on
   boards with a speaker or a motor. Home Assistant makes the device speak a text (tts) or play an
-  MP3 with the event `hassctrl_say`.
+  MP3 with the event `hassctrl_say` ([guide](docs/home-assistant/say.md)).
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
-  reported to Home Assistant, held Detected for 1 to 60 min after the last motion. Both found by the device's name, no setup (see "Supported hardware").
+  reported to Home Assistant, held on for 1 to 60 min after the last motion. Both found by the device's name, no setup (see "Supported hardware").
 
 **Setup and network**
 
@@ -92,7 +93,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - Panels: SPI (ST7796S, ILI9341), QSPI (AXS15231B), MIPI-DSI (ST7701S)
 - Touch: FT6336U, GT911, AXS15231B
 - Local GPIO switch: up to 4 relays, from `input_boolean.<device>_relay_<n>` / `switch.`; optional internal pullup (open drain, closed at boot)
-- Local GPIO sensor: motion sensor (PIR or radar, active high or low), to `input_text.<device>_motion`, wakes the screen
+- Local GPIO sensor: motion sensor (PIR or radar, active high or low), to `input_boolean.<device>_motion`, wakes the screen
 - Orientation sensor: MPU6050
 - Light sensor: BH1750 or LDR
 - Vibration motor

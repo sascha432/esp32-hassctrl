@@ -1023,7 +1023,8 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
   the devices, without it every one plays (`hass_protocol::decode_say`, host tested). Chosen over
   a `media_player` entity (it would need a DLNA renderer or an integration of its own) and over
   a web API on the device (Home Assistant would need its login); the event reuses the
-  connection and the token. `docs/dashboard-sample/hass.yaml` shows the Home Assistant side.
+  connection and the token. `docs/dashboard-sample/hass.yaml` shows the Home Assistant side,
+  `docs/home-assistant/say.md` is the guide (with an optional talk helper).
   * `hass/src/say.cpp`, a task that exists only while a sound is on its way (6 KB of stack, 8 KB
     with https or another server's address): a message goes to `POST /api/tts_get_url` with
     the event's options and `preferred_format: mp3` and one channel over them (Home Assistant
@@ -1109,11 +1110,13 @@ the host name with `_` (`hassctrl-7e7d` is `input_boolean.hassctrl_7e7d_relay_1`
 
 Component `motion` (2026-10-15): a PIR on a GPIO of the board (`Info::motion_gpio`, -1: none;
 `Info::motion_active_high`: the level of its output while it sees motion). The other way round
-from the relays: the device tells Home Assistant. It sets the text helper
-`input_text.<device>_motion` (`input_text.hassctrl_7e7d_motion`, the host name with `_`) to
-`Detected` or `Clear` (the words of Home Assistant's motion sensors); the user creates the helper
-(Settings, Devices, Helpers, Text), nothing is
-configured on the device. The JC4880P443C: GPIO 34 of the expansion header, active low.
+from the relays: the device tells Home Assistant. It turns the toggle helper
+`input_boolean.<device>_motion` (`input_boolean.hassctrl_7e7d_motion`, the host name with `_`) on or
+off; the user creates the helper (Settings, Devices, Helpers, Toggle), nothing is configured on the
+device. No words of a language: a template binary sensor of device class motion on the helper (a UI
+helper of Home Assistant) shows Detected / Clear in HA's language (2026-10-17, was an input_text with
+`Detected` / `Clear`). The JC4880P443C: GPIO 34 of the expansion header, active low. Setup in Home
+Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
 
 * **Pin**: an input with the internal pull toward the level that means clear (pull-down for an
   active high sensor, pull-up for active low), so an unplugged sensor reads clear. An esp_timer
@@ -1128,15 +1131,14 @@ configured on the device. The JC4880P443C: GPIO 34 of the expansion header, acti
   Every change of the detected state, and the first one, goes to the handler `main` gave it:
   `hass::publish_motion`.
 * **Publishing**: a command of the hass task (`Motion`); the task remembers the last state, sends
-  `input_text.set_value` (hass_protocol `motion_message`, `target.entity_id`) when it is
+  `input_boolean.turn_on` / `turn_off` (hass_protocol `motion_message`, `target.entity_id`) when it is
   connected and the state changed, and sends the last state again after every `auth_ok`, so the
   helper follows the sensor across reconnects. A failed call (no such helper) is logged once per
   connection with the entity id to create; the next change tries again. A normal token is enough.
 * Console `motion [status|detected|clear]`: the sensor's and the held state with the hold time, or a state sent by hand to try the helper
   without the sensor; the sensor's next change overrides it.
-* On the dashboard the helper is a sensor tile; its panel shows the timeline, because a state of
-  two words (`core::on_off_words`) counts as on or off like a binary sensor, with the words as the
-  legend.
+* On the dashboard the tile goes on the template binary sensor: Detected / Clear by its device
+  class and the timeline in its panel. A tile on the helper itself would be a switch tile.
 * **Wake on motion** (2026-10-16, Settings, Display, `DisplaySettings::wake_on_motion`, on by
   default): the UI's power check (every 200 ms) asks `Backend::motion` and counts motion as a
   touch for the dim and off times: a dimmed screen brightens, a screen that is off turns on without

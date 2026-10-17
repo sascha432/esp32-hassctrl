@@ -2,6 +2,11 @@
 
 ## 2026-10-17
 
+- Motion sensor (your request: no English words in HA): the panel switches the toggle `input_boolean.<device>_motion`
+  (was `input_text` with Detected / Clear); a UI template binary sensor adds the motion class. Guide in
+  `docs/home-assistant/motion-sensor.md`. Confirmed by you on the kitchen P4.
+- Docs (your request): [home-assistant/say.md](home-assistant/say.md), the event `hassctrl_say` and an optional
+  talk helper (`input_text.<device>_talk` + automation) that the panel speaks.
 - Recovery app without WPA2/3 Enterprise and SAE-PK (unused): 5.7 KB smaller, 21 KB free; WPA3 checked on the WT32.
 - Docs (your request): [home-assistant/timer-helper.md](home-assistant/timer-helper.md), the timer helper and an
   automation that runs a fan while the timer runs and cancels it when the fan is turned off.

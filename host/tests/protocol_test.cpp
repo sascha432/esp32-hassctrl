@@ -528,13 +528,13 @@ TEST(protocol_relays)
 TEST(protocol_motion)
 {
     CHECK_STR(device_entity_name("HassCtrl-7E7D").c_str(), "hassctrl_7e7d");
-    CHECK_STR(motion_entity_id("hassctrl-7e7d").c_str(), "input_text.hassctrl_7e7d_motion");
+    CHECK_STR(motion_entity_id("hassctrl-7e7d").c_str(), "input_boolean.hassctrl_7e7d_motion");
     CHECK_STR(motion_message(12, "hassctrl-7e7d", true).c_str(),
-              R"({"id":12,"type":"call_service","domain":"input_text","service":"set_value",)"
-              R"("service_data":{"value":"Detected"},"target":{"entity_id":"input_text.hassctrl_7e7d_motion"}})");
+              R"({"id":12,"type":"call_service","domain":"input_boolean","service":"turn_on",)"
+              R"("target":{"entity_id":"input_boolean.hassctrl_7e7d_motion"}})");
     Json clear(cJSON_Parse(motion_message(13, "hassctrl-7e7d", false).c_str()));
     REQUIRE(clear);
-    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(cJSON_GetObjectItem(clear.get(), "service_data"), "value")), "Clear");
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(clear.get(), "service")), "turn_off");
 }
 
 TEST(protocol_say)
@@ -849,7 +849,7 @@ TEST(protocol_history_decode)
     CHECK(points[2].time == 3 && points[2].value == 20.0f);
     cJSON_Delete(climate);
 
-    // the motion helper (input_text): Occupied / Clear in any case, like on / off
+    // a text entity of two words: Occupied / Clear in any case, like on / off
     points.clear();
     cJSON *text = cJSON_Parse(R"({"input_text.m":[{"s":"Clear","lu":1.0},{"s":"Occupied","lu":2.0},{"s":"clear","lu":3.0},{"s":"Busy","lu":4.0}]})");
     REQUIRE(decode_history(text, HistoryKind::States, "input_text.m", points, error));

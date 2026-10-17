@@ -5,8 +5,8 @@
 // The pin is sampled every 100 ms; a level that holds for two samples is the sensor's state. The
 // detected state follows it with a hold: it turns on with the sensor and turns off only after the
 // sensor saw nothing for the hold time (a sensor that resets after 1-2 s would flicker otherwise).
-// main hands every change of the detected state to hc::hass::publish_motion, which sets
-// input_text.<device>_motion in Home Assistant to "Detected" or "Clear".
+// main hands every change of the detected state to hc::hass::publish_motion, which turns
+// input_boolean.<device>_motion in Home Assistant on or off.
 
 #include <cstdint>
 

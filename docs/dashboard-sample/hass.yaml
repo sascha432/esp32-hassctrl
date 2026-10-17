@@ -85,7 +85,7 @@
 #  light_min_lx: 0          # 0 to 100000, less than light_max_lx
 #  light_max_lx: 350        # 1 to 100000
 #  wake_on_motion: true     # a motion sensor wakes the screen and keeps it on
-#  motion_hold_s: 300       # 60 to 3600: Home Assistant sees Detected this long after the last motion
+#  motion_hold_s: 300       # 60 to 3600: Home Assistant's motion helper stays on this long after the last motion
 
 # Sounds and vibration, on boards that have them.
 #
@@ -104,16 +104,19 @@
 #       # or a whole http(s) address), an MP3 of at most 1 MB
 #
 # Developer tools, Events fires it by hand (event type hassctrl_say, the event_data as data).
+# Guide and a talk helper (type a text in HA, the panel speaks it): docs/home-assistant/say.md.
 #
 # Relays: a board with relay GPIOs (the JC4880P443C: relay 1) follows entities of Home Assistant,
 # no setting here: `input_boolean.<device>_relay_<n>` or `switch.<device>_relay_<n>`, <device> the
 # name of the device with "_" (hassctrl-7e7d: input_boolean.hassctrl_7e7d_relay_1). On = GPIO high.
 #
-# Motion sensor: a board with a motion GPIO (the JC4880P443C) sets a text helper of Home Assistant
-# to "Detected" or "Clear"; it stays Detected for `display`, `motion_hold_s` after the last motion. Create it in Home Assistant (Settings, Devices,
-# Helpers, Text) with the entity id `input_text.<device>_motion` (hassctrl-7e7d:
-# input_text.hassctrl_7e7d_motion); without it the log says so once per connection. A sensor
-# tile on the helper shows Detected / Clear and a timeline in its panel.
+# Motion sensor: a board with a motion GPIO (the JC4880P443C) turns a toggle helper of Home
+# Assistant on or off; it stays on for `display`, `motion_hold_s` after the last motion. Create it
+# in Home Assistant (Settings, Devices, Helpers, Toggle) with the entity id
+# `input_boolean.<device>_motion` (hassctrl-7e7d: input_boolean.hassctrl_7e7d_motion); without it
+# the log says so once per connection. A template binary sensor of device class motion on it shows
+# Detected / Clear; put the tile on that. Setup and an example automation:
+# docs/home-assistant/motion-sensor.md.
 #
 # It plays at the volume below; an alarm that rings comes first.
 #sound:

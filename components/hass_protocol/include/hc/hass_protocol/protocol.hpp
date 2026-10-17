@@ -194,16 +194,14 @@ bool decode_relays(const cJSON *result, RelayStates &out);
 
 // ----------------------------------------------------------------------------- motion sensor
 
-// The motion sensor of a board (docs/architecture.md section 9.7b) sets the text helper
-// input_text.<device>_motion, which the user creates in Home Assistant, to one of these (the
-// words of Home Assistant's own motion sensors).
-constexpr const char *kMotionDetected = "Detected";
-constexpr const char *kMotionClear = "Clear";
+// The motion sensor of a board (docs/architecture.md section 9.7b) switches the toggle helper
+// input_boolean.<device>_motion, which the user creates in Home Assistant: on while it detects
+// motion, off when clear (a template binary sensor of device class motion shows it as words).
 
-// "input_text.hassctrl_7e7d_motion" for "hassctrl-7e7d"
+// "input_boolean.hassctrl_7e7d_motion" for "hassctrl-7e7d"
 memory::String motion_entity_id(std::string_view device_name);
 
-// The call_service message that sets the helper: input_text.set_value with the value for `detected`.
+// The call_service message that switches the helper: input_boolean.turn_on or turn_off.
 memory::String motion_message(uint32_t id, std::string_view device_name, bool detected);
 
 // The path of the answer to it ({"url": "http://.../api/tts_proxy/x.mp3", "path": "/api/..."});

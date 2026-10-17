@@ -198,8 +198,8 @@ void say(std::string_view message, std::string_view engine, std::string_view lan
 using RelayHandler = void (*)(unsigned relay, bool on);
 void set_relay_handler(RelayHandler handler);
 
-// The motion sensor (docs/architecture.md section 9.7b): sets input_text.<device>_motion in Home
-// Assistant to "Detected" or "Clear" (hass_protocol::motion_entity_id, a helper the user creates).
+// The motion sensor (docs/architecture.md section 9.7b): turns input_boolean.<device>_motion in
+// Home Assistant on or off (hass_protocol::motion_entity_id, a helper the user creates).
 // From any task. Sent when connected, and the last state again after every (re)connect; a call
 // that fails (no such helper) is logged once per connection, the next change sends again.
 void publish_motion(bool occupied);

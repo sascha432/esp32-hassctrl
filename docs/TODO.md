@@ -1177,6 +1177,10 @@ Your report of the second version (2026-10-09):
       was tested over the console only. P4 at 100 %: no restart.
 - [x] Priority on the P4 (you, 2026-10-14): taps do not click while it speaks, the alarm takes
       over.
+- [x] Guide for Home Assistant (your request, 2026-10-17): docs/home-assistant/say.md, with a talk
+      helper `input_text.<device>_talk` and an automation that fires the event (the firmware does
+      not read the helper).
+- [ ] Check for you on the P4: the talk helper of say.md section 6 speaks and empties itself.
 - [ ] Check for you on the P4: an event with another `device` name stays silent.
 - [x] The event's `options` go to the engine (2026-10-14, your request after asking for the
       speed): Google Translate has `tld` (the accent) only, no speed. `tld` works (you,
@@ -1419,6 +1423,14 @@ Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen v
 - [x] Motion hold (2026-10-16, your request): the sensor resets after 1-2 s and flickered the helper; now it
       stays Detected until the sensor saw nothing for 1 to 60 min (Settings, Display, "Motion hold", default
       5 min). Sim checked at 480x800 and 480x320; confirmed by you on the kitchen P4.
+- [x] Toggle instead of text helper (2026-10-17, your request: no English words in HA): the panel switches
+      `input_boolean.<device>_motion` on / off; a UI template binary sensor (device class motion) shows Detected /
+      Clear in HA's language. Host tests pass. Works on the kitchen P4 (2026-10-17, read over the web API: motion
+      at 1586 s turned the toggle and the binary sensor on). Confirmed by you in HA (Detected / Clear, 2026-10-17).
+- [ ] The "motion not published" warning for a missing helper: a `turn_on` for an entity HA does not have came
+      back as success (the first "on" at 825 s went before the toggle existed, nothing was logged). Check with a
+      toggle that does not exist; if HA answers success, find another check (e.g. ask for the entity after
+      `auth_ok`) or take the promise out of motion-sensor.md section 4 and architecture 9.7b.
 
 ## Known issues
 

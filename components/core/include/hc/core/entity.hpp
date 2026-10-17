@@ -156,8 +156,8 @@ struct EntityState {
     bool is_on() const;
 };
 
-// A state that is one of two words, in any case: on/off, Detected/Clear (the motion helper
-// input_text.<device>_motion), Occupied/Clear, Open/Closed. The pair's words as shown in a
+// A state that is one of two words, in any case: on/off, Detected/Clear, Occupied/Clear,
+// Open/Closed (a text entity that reports them). The pair's words as shown in a
 // legend, nullptr for any other state; `on` is set to which of the two it is.
 struct OnOffWords {
     const char *on;

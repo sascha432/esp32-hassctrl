@@ -128,7 +128,7 @@ struct Query {
     uint32_t generation = 0;
 };
 
-// the state of the motion sensor for input_text.<device>_motion
+// the state of the motion sensor for input_boolean.<device>_motion
 struct Motion {
     bool occupied = false;
 };
@@ -854,7 +854,7 @@ void send_motion()
     }
     s.motion_id = s.next_id++;
     const bool occupied = s.motion != 0;
-    ESP_LOGI(kTag, "motion -> %s", occupied ? hass_protocol::kMotionDetected : hass_protocol::kMotionClear);
+    ESP_LOGI(kTag, "motion -> %s", occupied ? "on" : "off");
     if (!send_text(hass_protocol::motion_message(s.motion_id, platform::device_name(), occupied))) {
         retry_later("the motion state could not be sent");
     }
@@ -1117,7 +1117,7 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         if (!success && !s.motion_failed) {
             // once per connection; the next change of the sensor tries again
             s.motion_failed = true;
-            ESP_LOGW(kTag, "motion not published: %s (create the text helper %s in Home Assistant)",
+            ESP_LOGW(kTag, "motion not published: %s (create the toggle helper %s in Home Assistant)",
                      message != nullptr ? message : "refused", hass_protocol::motion_entity_id(platform::device_name()).c_str());
         }
         return;

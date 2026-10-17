@@ -98,7 +98,7 @@ struct Info {
     // the internal pullup, closed (on) while the board starts instead of off.
     std::array<bool, 4> relay_pullup = {};
     // A motion sensor (PIR) on this GPIO, -1: none. Its state goes to Home Assistant as
-    // input_text.<device>_motion, "Detected" or "Clear" (hc::motion, docs/architecture.md 9.7b).
+    // input_boolean.<device>_motion, on or off (hc::motion, docs/architecture.md 9.7b).
     int8_t motion_gpio = -1;
     // the level of the sensor's output while it sees motion
     bool motion_active_high = true;
