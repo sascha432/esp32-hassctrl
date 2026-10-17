@@ -9,7 +9,7 @@ Two user interfaces, each in its own folder; the file names say which one they b
 | [lvgl-design.md](lvgl/lvgl-design.md) | the design guide: principles, colors, fonts, sizes, icons, resolutions and board options, the building blocks of a page, texts, checklist |
 | [lvgl-touch.md](lvgl/lvgl-touch.md) | touch targets, the gestures of every screen, click, ticks and vibration, waking the screen |
 | [lvgl-dashboard.md](lvgl/lvgl-dashboard.md) | the dashboard: pull-down, alert strip, start screen, grid, tiles, states, icons, arrangement per orientation, edit mode |
-| [lvgl-panels.md](lvgl/lvgl-panels.md) | the panels a tile opens: frame, light (dimmer), climate, sensor, lock |
+| [lvgl-panels.md](lvgl/lvgl-panels.md) | the panels a tile opens: frame, light (dimmer), climate, sensor, lock, automation |
 | [lvgl-camera.md](lvgl/lvgl-camera.md) | the camera image, its full screen view and MJPEG streams, with measurements |
 | [lvgl-settings.md](lvgl/lvgl-settings.md) | Settings: status bar, navigation, every page, the alarm screen, dialogs; the first setup |
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-17
+
+- Automations and scripts (your report: the automation tile toggled on a tap, as a switch): their own tile with the
+  time of the last run; a double tap runs it (stops a running script), a tap opens the automation panel: Enabled
+  switch, last run, Run actions / Run script / Stop, the timeline. `automation.trigger` skips the conditions as HA's
+  "Run actions" does. Scripts are no longer button tiles. A disabled automation shows the off glyph and its name
+  struck through; an enabled one is a plain card, not an orange one (your choice). Confirmed by you on the WT32.
+
 ## 2026-10-16
 
 - Edit mode: the finger that starts it is ignored until it is lifted (no move, no remove dialog, no tap); hold and

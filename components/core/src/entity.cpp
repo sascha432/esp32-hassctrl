@@ -127,6 +127,8 @@ bool copy(EntityState &to, const EntityState &from, Field field)
         return assign(to.dew_point, from.dew_point);
     case Field::UvIndex:
         return assign(to.uv_index, from.uv_index);
+    case Field::LastTriggered:
+        return assign(to.last_triggered, from.last_triggered);
     case Field::Count:
         break;
     }

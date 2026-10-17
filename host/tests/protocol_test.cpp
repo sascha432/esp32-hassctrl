@@ -92,6 +92,12 @@ TEST(protocol_fields_follow_the_tile)
     // the last field of the table is above bit 31
     CHECK(bit(Field::UvIndex) > 0xffffffffull);
 
+    // an automation and a script: the time of the last run, on the tile as in the panel
+    Tile automation = entity_tile(layout, "automation.alarm");
+    CHECK(fields_of(automation, false) == (bit(Field::State) | bit(Field::LastTriggered)));
+    CHECK(fields_of(automation, true) == fields_of(automation, false));
+    CHECK(fields_of(entity_tile(layout, "script.shutters"), false) == (bit(Field::State) | bit(Field::LastTriggered)));
+
     // a clock has no entity and asks Home Assistant for nothing
     Tile clock;
     clock.kind = TileKind::Clock;
@@ -332,6 +338,24 @@ TEST(protocol_display_texts)
     CHECK(display_name(state, tile, "sensor.moon") == "Mine");
 }
 
+TEST(protocol_decode_automation)
+{
+    // the last run of an automation as epoch seconds, rendered by Home Assistant; null while it never ran
+    Layout layout;
+    const TileIndex index = layout.add_tile(0, entity_tile(layout, "automation.alarm"));
+    const PageSubscription sub = build_page(layout, 0, Orientation::Landscape, index);
+    CHECK(sub.template_text.find("\"lt\":{{as_timestamp(state_attr(e,'last_triggered'),none)|tojson}}") != std::string::npos);
+    Json ran(cJSON_Parse(R"({"0":{"s":"on","lt":1792191080.123}})"));
+    hc::memory::Vector<EntityUpdate> updates;
+    hc::memory::String error;
+    REQUIRE(decode_page(ran.get(), sub, updates, error));
+    REQUIRE(updates.size() == 1);
+    CHECK(updates[0].values.state == "on" && updates[0].values.last_triggered == 1792191080);
+    Json never(cJSON_Parse(R"({"0":{"s":"off","lt":null}})"));
+    REQUIRE(decode_page(never.get(), sub, updates, error));
+    CHECK(updates[0].values.last_triggered == 0);
+}
+
 TEST(protocol_messages)
 {
     CHECK_STR(render_template_message(4, "{\"0\":{{states('a.b')|tojson}}}").c_str(),
@@ -348,10 +372,26 @@ TEST(protocol_messages)
     CHECK_STR(error.c_str(), "this action does not fit sensor.power");
 
     intent.kind = IntentKind::Press;
-    REQUIRE(call_service_message(7, intent, "script.close_shutters", out, error));
-    CHECK(out.find(R"("domain":"script","service":"turn_on")") != std::string::npos);
+    REQUIRE(call_service_message(7, intent, "scene.evening", out, error));
+    CHECK(out.find(R"("domain":"scene","service":"turn_on")") != std::string::npos);
     REQUIRE(call_service_message(7, intent, "button.restart", out, error));
     CHECK(out.find(R"("domain":"button","service":"press")") != std::string::npos);
+    CHECK(!call_service_message(7, intent, "script.close_shutters", out, error));
+
+    // an automation runs its actions whatever its conditions say (as "Run actions" in HA); a
+    // script is turned on, a running one turned off; an automation is never stopped
+    intent.kind = IntentKind::Run;
+    intent.value = kRun;
+    REQUIRE(call_service_message(7, intent, "automation.alarm", out, error));
+    CHECK_STR(out.c_str(), R"({"id":7,"type":"call_service","domain":"automation","service":"trigger","service_data":{"skip_condition":true},)"
+                           R"("target":{"entity_id":"automation.alarm"}})");
+    REQUIRE(call_service_message(7, intent, "script.close_shutters", out, error));
+    CHECK(out.find(R"("domain":"script","service":"turn_on","service_data":{})") != std::string::npos);
+    intent.value = kStop;
+    REQUIRE(call_service_message(7, intent, "script.close_shutters", out, error));
+    CHECK(out.find(R"("domain":"script","service":"turn_off")") != std::string::npos);
+    CHECK(!call_service_message(7, intent, "automation.alarm", out, error));
+    intent.value = 0;
 
     intent.kind = IntentKind::SetLevel;
     intent.value = 42.4f;

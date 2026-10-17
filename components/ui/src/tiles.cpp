@@ -292,6 +292,30 @@ void toggle_lock(const View &view)
     send(view, core::IntentKind::SetLock, locked ? core::kUnlock : core::kLock, std::move(expected));
 }
 
+// A double tap on an automation tile runs its actions, on a script tile the script, or stops
+// the script while it runs (what the panel's button does). Unavailable or unknown: the panel opens.
+void run(const View &view)
+{
+    const core::EntityState &state = dashboard::state(view.entity);
+    if (!state.known || state.unavailable()) {
+        dashboard::open_panel(view.tile);
+        return;
+    }
+    const core::Layout &layout = dashboard::layout();
+    const bool script = domain_of(layout.entity_id(layout.tiles[view.tile])) == "script";
+    core::Intent intent;
+    intent.kind = core::IntentKind::Run;
+    intent.entity = view.entity;
+    intent.value = script && state.is_on() ? core::kStop : core::kRun;
+    core::Expectation expected;
+    if (script) {
+        // on while it runs; a short script is off again before the next values come, the
+        // expectation ends by its timeout then
+        expected.state = intent.value == core::kStop ? "off" : "on";
+    }
+    dashboard::act(intent, std::move(expected));
+}
+
 void on_click(lv_event_t *event)
 {
     auto &view = *static_cast<View *>(lv_event_get_user_data(event));
@@ -329,14 +353,19 @@ void on_click(lv_event_t *event)
         dashboard::act(intent, {});
         break;
     }
-    case TileKind::Lock: {
-        // a double tap locks or unlocks, a single one opens the panel once the window has passed
-        // (as a dimmer; docs/ui/lvgl/lvgl-dashboard.md section 3)
+    case TileKind::Lock:
+    case TileKind::Automation: {
+        // a double tap locks or unlocks (runs an automation or a script), a single one opens the
+        // panel once the window has passed (as a dimmer; docs/ui/lvgl/lvgl-dashboard.md section 3)
         const uint32_t now = lv_tick_get();
         if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
             lv_timer_del(view.tap_timer);
             view.tap_timer = nullptr;
-            toggle_lock(view);
+            if (view.kind == TileKind::Automation) {
+                run(view);
+            } else {
+                toggle_lock(view);
+            }
         } else {
             view.last_tap = now;
             if (view.tap_timer == nullptr) {
@@ -1014,6 +1043,44 @@ float climate_step(const core::Tile &tile, const core::EntityState &state)
     return tile.step > 0 ? tile.step : kDefaultClimateStep;
 }
 
+std::string when_text(int64_t when, bool with_time)
+{
+    if (when == 0) {
+        return "Never";
+    }
+    const Backend &backend = dashboard::backend();
+    const int64_t now = backend.clock();
+    std::tm at{};
+    backend.local_time(when, at);
+    char clock[16];
+    std::snprintf(clock, sizeof(clock), "%02d:%02d", at.tm_hour, at.tm_min);
+    // today and yesterday by the local day; while the clock is not set, every day is a date
+    const char *day = nullptr;
+    if (now != 0) {
+        std::tm today{};
+        std::tm yesterday{};
+        backend.local_time(now, today);
+        backend.local_time(now - 86400, yesterday);
+        if (at.tm_year == today.tm_year && at.tm_yday == today.tm_yday) {
+            day = "Today";
+        } else if (at.tm_year == yesterday.tm_year && at.tm_yday == yesterday.tm_yday) {
+            day = "Yesterday";
+        }
+    }
+    char date[24] = "";
+    if (day == nullptr && std::strftime(date, sizeof(date), "%d %b", &at) == 0) {
+        date[0] = 0;
+    }
+    if (!with_time) {
+        // the tile: the time today, else the day
+        if (day == nullptr) {
+            return date;
+        }
+        return std::string_view(day) == "Today" ? std::string(clock) : std::string(day);
+    }
+    return std::string(day != nullptr ? day : date) + " " + clock;
+}
+
 int shown_level(const core::EntityState &state, const core::Expectation *pending, bool &on)
 {
     on = state.is_on();
@@ -1192,7 +1259,8 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
 
     // a light without `dimmer` shows its level while it is on (update_light)
     const bool light_level = tile.kind == TileKind::Light;
-    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock;
+    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock ||
+                           tile.kind == TileKind::Automation;
     if (view.wide && tile.kind != TileKind::Picture) {
         // the icon left, the value and the name right of it
         lv_obj_t *col = wide_row(view, view.large ? icons::large() : icons::small());
@@ -1343,12 +1411,38 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
     case TileKind::Weather:
         update_weather(view, state, known, available);
         break;
+    case TileKind::Automation: {
+        // an automation: the time of its last run while it is enabled, Disabled else, with the
+        // off glyph and the name struck through (the tile's own icon has no off glyph; your
+        // choice 2026-10-17: no active fill for an enabled automation); a script: Running while
+        // it runs (filled), else its last run. The expected state at once.
+        const bool script = domain_of(layout.entity_id(tile)) == "script";
+        look.active = available && script && on;
+        const bool disabled = available && !script && !on;
+        if (view.name != nullptr) {
+            lv_obj_set_style_text_decor(view.name, disabled ? LV_TEXT_DECOR_STRIKETHROUGH : LV_TEXT_DECOR_NONE, 0);
+        }
+        std::string text;
+        if (!known) {
+            text = "...";
+        } else if (!available) {
+            text = "--";
+        } else if (script && on) {
+            text = "Running";
+        } else if (!script && !on) {
+            text = "Disabled";
+        } else {
+            text = when_text(state.last_triggered, false);
+        }
+        set_value(view, text);
+        break;
+    }
     default:
         break;
     }
     apply_look(view, look);
     // the off glyph only for what can be off
-    const bool binary = tile.kind == TileKind::Switch || tile.kind == TileKind::Light ||
+    const bool binary = tile.kind == TileKind::Switch || tile.kind == TileKind::Light || tile.kind == TileKind::Automation ||
                         domain_of(layout.entity_id(tile)) == "binary_sensor";
     update_icon(view, layout, state, binary ? on : true);
 }

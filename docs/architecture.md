@@ -237,6 +237,11 @@ struct FieldSpec {
   `dew_point`, `uv_index` and the units of four of them. The tile needs the temperature, its unit
   and the humidity, the panel the rest and `supported_features`. The condition is the state
   (`core/weather.hpp`: words, MDI names, compass).
+* An automation or a script (`TileKind::Automation`, `automation.*`, `script.*`) has one more
+  field, `last_triggered`, rendered as epoch seconds (`Kind::Timestamp`:
+  `as_timestamp(state_attr(e,'last_triggered'),none)`, null while it never ran, kept as an
+  `int64_t`, 0 then), so the device parses no ISO time; the tile and the panel show it as a time
+  of day, "Yesterday" or a date.
 
 The old code kept the template in the client and the response mapping in the dashboard, two lists
 that had to stay in sync by hand. With one table they cannot drift.
@@ -257,7 +262,8 @@ reassembly path described in section 6.
 
 The UI turns gestures into intents: `Toggle`, `Press`, `SetLevel`, `SetTemperature`,
 `SetHvacMode`, `SetPreset`, `SetFanMode`, `SetEffect`, `SetColor`, `SetColorTemp`, `SetLock`
-(lock, unlock or open). Each holds an
+(lock, unlock or open), `Run` (the
+actions of an automation with `skip_condition`, a script; `kStop` turns a running script off). Each holds an
 `EntityRef` plus its value. `PendingTracker` records the optimistic value and `hass_protocol` turns
 the intent into a `call_service` message. Gesture rules (double tap window, drag release) stay in
 `ui`. What an intent means stays in `core`.
@@ -380,8 +386,9 @@ Tile format, details (decided 2026-10-07):
   | Domain | Tile | Tap |
   | --- | --- | --- |
   | `light` | without `dimmer`: switch; with `dimmer: true`: level fill | toggle after the double-tap window, double tap opens the timeline (the light panel when the light dims); with `dimmer`: drag sets the level, double tap toggles, tap opens the light panel (with a history button) |
-  | `switch`, `input_boolean`, `fan`, `automation` | switch | toggle |
-  | `button`, `input_button`, `scene`, `script` | button | press, `turn_on` for scene and script |
+  | `switch`, `input_boolean`, `fan` | switch | toggle |
+  | `automation`, `script` | automation: the time of the last run (`Disabled`, `Running`) | double tap runs it (`automation.trigger` with the conditions skipped, `script.turn_on`; a running script is stopped), tap opens the automation panel (enabled switch, last run, run, timeline) |
+  | `button`, `input_button`, `scene` | button | press, `turn_on` for a scene |
   | `climate` | climate; two rows tall it has the `+`/`-` bars | as before |
   | `camera` | picture, the image fills the tile | as before |
   | `lock` | lock (the state in words) | opens the lock panel (lock, unlock, open, the timeline); never unlocks by itself |

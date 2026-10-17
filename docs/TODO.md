@@ -1345,6 +1345,14 @@ panel left of the power button.
 - [x] Your report: the panel of a double-tapped light had no icon and no state. `panel::update` sent
       every light tile to the light panel's update, which has nothing for a plain light; it now picks
       the panel as `build` does (dimmer or not).
+- [x] Your report (2026-10-16): an automation tile switched on a tap, as a switch. 2026-10-17: automations
+      and scripts are an `Automation` tile kind: the time of the last run on the tile (`last_triggered`,
+      `Disabled`, `Running`), a double tap runs it (`automation.trigger` with `skip_condition`, `script.turn_on`,
+      `script.turn_off` while it runs), a tap opens the automation panel (Enabled switch, last run, Run, the
+      timeline; lvgl-panels.md section 8). Checked in the simulator at every size, the double taps drive
+      `call_service` there. An enabled automation is a plain card, a disabled one has the off glyph and its name
+      struck through (your choice). Confirmed working by you on the WT32 (2026-10-17). Open: a script that runs
+      long enough to show `Running` and `Stop` on the board.
 - [x] Your report (2026-10-16): the double tap on a plain light tile of a dimmable light opened the
       sensor graph. `panel::build` now gives a light tile the light panel when it has `dimmer` or its
       light dims (a color mode other than `onoff`, or a reported level); the page subscribes the color

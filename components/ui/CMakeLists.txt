@@ -4,7 +4,7 @@
 # it (CONFIG_HC_BOARD_BRING_UP).
 idf_component_register(SRCS "src/test_screen.cpp" "src/theme.cpp" "src/settings.cpp" "src/settings_pages.cpp"
                             "src/overlay.cpp" "src/ui.cpp" "src/keyboard.cpp" "src/power.cpp" "src/rotation.cpp" "src/setup.cpp"
-                            "src/dashboard.cpp" "src/edit_mode.cpp" "src/entity_picker.cpp" "src/add_dialog.cpp" "src/swipe.cpp" "src/icons.cpp" "src/tiles.cpp" "src/panel.cpp" "src/light_panel.cpp" "src/climate_panel.cpp" "src/sensor_panel.cpp" "src/history_view.cpp" "src/lock_panel.cpp" "src/picture_panel.cpp" "src/weather_panel.cpp" "src/runner.cpp" "src/splash.cpp" "src/sound.cpp" "src/settings_sound.cpp" "src/settings_camera.cpp" "src/alarm.cpp" "src/settings_alarm.cpp"
+                            "src/dashboard.cpp" "src/edit_mode.cpp" "src/entity_picker.cpp" "src/add_dialog.cpp" "src/swipe.cpp" "src/icons.cpp" "src/tiles.cpp" "src/panel.cpp" "src/light_panel.cpp" "src/climate_panel.cpp" "src/sensor_panel.cpp" "src/history_view.cpp" "src/lock_panel.cpp" "src/picture_panel.cpp" "src/weather_panel.cpp" "src/automation_panel.cpp" "src/runner.cpp" "src/splash.cpp" "src/sound.cpp" "src/settings_sound.cpp" "src/settings_camera.cpp" "src/alarm.cpp" "src/settings_alarm.cpp"
                             "src/fonts/hc_mdi_24.c" "src/fonts/hc_mdi_48.c" "src/fonts/hc_digits_48.c" "src/fonts/hc_digits_72.c"
                        INCLUDE_DIRS "include"
                        REQUIRES core memory)

@@ -159,8 +159,8 @@ defaults:
 # What a tile is, is decided by its entity (the domain before the dot):
 #   light.*                                         switch (with its level while on), or a dimmer
 #                                                   with `dimmer: true`
-#   switch.* input_boolean.* fan.* automation.*     switch: a tap toggles
-#   button.* input_button.* scene.* script.*        button: a tap presses
+#   switch.* input_boolean.* fan.*                  switch: a tap toggles
+#   button.* input_button.* scene.*                 button: a tap presses
 #   climate.*                                       thermostat; two rows tall it has +/- bars
 #   camera.*                                        camera picture, fills the tile
 #   lock.*                                          lock: a tap opens the panel (lock, unlock,
@@ -168,6 +168,9 @@ defaults:
 #   weather.*                                       weather: the condition, the temperature and
 #                                                   the humidity; a tap opens the current values
 #                                                   and the daily and hourly forecast
+#   automation.* script.*                           automation: the time of the last run; a
+#                                                   double tap runs it, a tap opens the panel
+#                                                   (Enabled switch, last run, Run, the timeline)
 #   everything else (sensor.*, binary_sensor.*, ...)
 #                                                   shows the state, a tap opens the history
 # Only `area`, `spacer` and `clock` have a `type` (they have no entity; the clock is in rooms.yaml

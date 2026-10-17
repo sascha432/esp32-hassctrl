@@ -41,3 +41,8 @@
       zone: Europe/London
       hours: 12
       date: true
+    # An automation: the tile shows the time of its last run (Disabled while it is off). A double
+    # tap runs its actions, a tap opens the panel: the Enabled switch, the last run, Run actions
+    # and the timeline. A script (rooms/workshop.yaml) is the same tile without the switch.
+    - entity: automation.gate_alarm
+      name: Gate Alarm

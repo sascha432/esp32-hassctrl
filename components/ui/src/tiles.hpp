@@ -100,6 +100,11 @@ std::string temperature(float value);
 // the setpoint step of a climate: the entity's target_temp_step, else the tile's step, else 0.5
 float climate_step(const core::Tile &tile, const core::EntityState &state);
 
+// The moment `when` (epoch seconds) as the automation tile and panel show it: with_time
+// "Today 10:52", "Yesterday 18:12", "14 Oct 09:00"; without (the tile) "10:52" today, else the
+// day ("Yesterday", "14 Oct"). "Never" for 0. While the device's clock is not set, every day is a date.
+std::string when_text(int64_t when, bool with_time);
+
 // The level of a light in percent as the screens show it, the pending action's before the entity's;
 // `on` is set as well. 0 while off, 100 for a light without a level, -1 while it is switched on
 // and the level it comes on at is not known yet.

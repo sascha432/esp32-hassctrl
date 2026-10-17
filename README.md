@@ -14,7 +14,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 **Dashboard**
 
 - Tiles for lights (switch with its level while on, or a dimmer with a level drag), switches, buttons, scenes and scripts,
-  thermostats, locks, sensors and binary sensors, cameras and weather, with Material Design icons.
+  thermostats, locks, automations and scripts, sensors and binary sensors, cameras and weather, with
+  Material Design icons.
 - Clock tiles, digital or analog (hands, ticks, rim), 24 or 12 h, seconds, date, in the device's
   time zone or any IANA zone.
 - Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.
@@ -22,8 +23,10 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
 - Panels a tile opens: light (level, color, color temperature, effects, on/off timeline), climate
   (target, modes, presets, fan, room temperature graph), sensor (history graph of 12 to 48 h; a
   timeline for on/off and other two-word states such as Detected/Clear), lock (lock, unlock, open,
-  timeline), weather (current values, daily and hourly forecast). A double tap on a switch opens
-  its timeline, on a light that dims the light panel; a double tap on a lock locks or unlocks it.
+  timeline), automation and script (enabled switch, last run, run or stop, timeline), weather
+  (current values, daily and hourly forecast). A double tap on a switch opens its timeline, on a
+  light that dims the light panel; a double tap on a lock locks or unlocks it, on an automation or
+  a script runs it.
 - Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant), a full
   screen live view that comes back by itself after a dropped stream.
 - Edit mode on the screen: long press, drag tiles around, remove them, per orientation; a "+" on

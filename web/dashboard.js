@@ -147,8 +147,9 @@ window.hcEditor = (() => {
     if (t.type) return t.type;
     const d = (t.entity || "").split(".")[0];
     if (d === "light") return "light";
-    if (["switch", "input_boolean", "fan", "automation"].includes(d)) return "switch";
-    if (["button", "input_button", "scene", "script"].includes(d)) return "button";
+    if (["switch", "input_boolean", "fan"].includes(d)) return "switch";
+    if (["automation", "script"].includes(d)) return "automation";
+    if (["button", "input_button", "scene"].includes(d)) return "button";
     if (d === "climate") return "climate";
     if (d === "camera") return "picture";
     if (d === "lock") return "lock";

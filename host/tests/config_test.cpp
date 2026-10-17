@@ -150,7 +150,7 @@ TEST(config_imports_the_documented_sample)
     CHECK(imported->other_keys.empty()); // the settings sections are commented out
     CHECK(layout.grid == (Span{4, 3}));
     CHECK(layout.pages.size() == 3);
-    CHECK(layout.tiles.size() == 21);
+    CHECK(layout.tiles.size() == 22);
 
     const Tile *ceiling = named(layout, "Ceiling");
     REQUIRE(ceiling != nullptr);
@@ -198,7 +198,7 @@ TEST(config_imports_the_documented_sample)
     REQUIRE(shop != nullptr);
     CHECK(shop->style == ClockStyle::Analog && shop->ticks == ClockTicks::Minute && shop->border && shop->seconds &&
           shop->in(L).size == (Span{2, 1}) && shop->in(L).cell == (Cell{2, 1}) && shop->in(P).size == (Span{1, 2}));
-    CHECK(layout.entities.size() == 15);
+    CHECK(layout.entities.size() == 16);
     for (size_t i = 0; i < layout.tiles.size(); i++) {
         CHECK(layout.tiles[i].id == i + 1);
     }

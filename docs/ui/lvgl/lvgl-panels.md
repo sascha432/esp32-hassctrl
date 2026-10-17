@@ -1,7 +1,7 @@
 # Panels (LVGL)
 
 Status: **running**. The full screen views a tile opens: the light (dimmer), the climate, the
-sensor, the lock and the weather. The picture tile's full screen view is in
+sensor, the lock, the weather and the automation. The picture tile's full screen view is in
 [lvgl-camera.md](lvgl-camera.md).
 Tiles and their states: [lvgl-dashboard.md](lvgl-dashboard.md); colors, fonts and the shared
 parts: [lvgl-design.md](lvgl-design.md).
@@ -12,8 +12,8 @@ A tap opens the panel of a tile over the page; the back tile closes it, opening 
 new layout closes it, turning the display builds it again. While it is open the page's
 subscription carries the panel's fields as well (`hass_protocol::fields_of`). Code: `panel.cpp`
 (the frame), `light_panel.cpp`, `climate_panel.cpp`, `sensor_panel.cpp`, `lock_panel.cpp`,
-`picture_panel.cpp`, `weather_panel.cpp`; the history graph of the sensor and the lock panel is
-`history_view.cpp`.
+`picture_panel.cpp`, `weather_panel.cpp`, `automation_panel.cpp`; the history graph of the sensor, the
+lock and the automation panel is `history_view.cpp`.
 
 ```
 landscape (480x320, 320x240)            portrait (320x480)
@@ -223,7 +223,45 @@ set up again); what is drawn stays meanwhile.
 Checked on the WT32-SC01 (2026-10-13): the 8 days match the Home Assistant app, the hourly strip
 scrolls, closing and reopening works.
 
-## 7. Open points
+## 8. Automation panel
+
+Added 2026-10-17 (your report: the automation tile toggled on a tap, as a switch; your request: a
+double tap runs it, the details with an enable switch and a run button, scripts too). The panel of
+an `automation.*` or a `script.*` entity, as Home Assistant's dialog. Like the lock panel: two
+buttons in the options choose the control (`robot`, `script-text` for a script) or the timeline
+(`chart-timeline-variant`); the panel opens on the control. No header action. Code:
+`automation_panel.cpp`.
+
+```
++--------+------------------------------+
+|  back  | Gate Alarm                   |
++--------+------------------------------+
+| [robot]|  [ Enabled            (o ) ] |   an automation only
+| [time] |         Last triggered       |
+|        |        Yesterday 23:29       |
+|        |             (>)              |   Run actions / Run script / Stop
+|        |          Run actions         |
++--------+------------------------------+
+```
+
+| Part | Content | Touch |
+| --- | --- | --- |
+| Enabled | a card row with the theme's switch, 320 px wide at most; only for an automation (a script has no enabled state). The switch shows the expected state at once, the row's border is cyan while the action is on its way; at 40 % while the entity is unavailable | a tap anywhere on the row or on the switch: `automation.toggle` (the expected state `on`/`off`) |
+| Last triggered | the caption, and under it `last_triggered` as `Today 10:52`, `Yesterday 18:12` or `14 Oct 09:00` (`Never` while it never ran, `Unavailable`); while the device's clock is not set every day is a date | |
+| Run | a round button (64 px, 80 in the P4's dialog, down to 44 on the T4) with `play` and the word `Run actions` (an automation) or `Run script`; while a script runs, `stop` and `Stop`; at 40 % and dead while unavailable | `automation.trigger` with `skip_condition: true` (what "Run actions" in Home Assistant does: the actions run whatever the conditions say; a disabled automation runs too); `script.turn_on`, `script.turn_off` while it runs. A script expects `on` (cyan border until Home Assistant reports it, or the 5 s pass: a short script is off again before the next values come); an automation expects nothing, its tile shows the new time |
+| timeline | `history_view` with the states: an automation's is whether it is enabled (`Enabled` orange, `Disabled`), a script's whether it runs (`Running`, `Idle`); not the runs of the automation (Home Assistant records those in the logbook, not as states) | the range buttons as in the sensor panel |
+
+The rows are centered in the control; the Run button takes the room that is left between 44 px
+and the stepper size. When the rows do not fit with the smallest button (the T4's 320x240) the
+compact rows are used: a 44 px Enabled row, the medium font for the time, 6 px gaps. Checked in
+the simulator at 480x320, 320x480, 320x240 and 480x800 (the dialog); the double tap of both tiles
+drives `call_service` in the simulator. Confirmed working by you on the WT32-SC01 (2026-10-17).
+
+The tile and the panel read one attribute, `last_triggered`, rendered as epoch seconds like the
+timer's `finishes_at` (`as_timestamp(state_attr(e,'last_triggered'),none)`, null while it never
+ran; kept as an `int64_t`, 0 then).
+
+## 9. Open points
 
 * The graph of a sensor needs long term statistics (a `state_class`); a sensor without them shows
   "No statistics for this sensor". Reading its state history instead is possible, but a busy
@@ -235,3 +273,5 @@ scrolls, closing and reopening works.
   hours (`core::kMaxForecastEntries`); rows that do not fit are left out.
 * The light panel opens from a dimmer on a tap, from a light without `dimmer` that dims on a
   double tap (a light that only switches gets the sensor panel with its timeline).
+* The automation panel's timeline is the enabled state, not the runs; the runs are in Home
+  Assistant's logbook, which the device does not read. `last_triggered` is the last one.

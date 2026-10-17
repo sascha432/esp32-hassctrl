@@ -55,8 +55,16 @@ Call service_of(const core::Intent &intent, std::string_view domain)
         if (one_of(domain, {"button", "input_button"})) {
             return {nullptr, "press"};
         }
-        if (one_of(domain, {"scene", "script"})) {
+        if (domain == "scene") {
             return {nullptr, "turn_on"};
+        }
+        break;
+    case IntentKind::Run:
+        if (domain == "automation" && intent.value == core::kRun) {
+            return {"automation", "trigger"};
+        }
+        if (domain == "script") {
+            return {"script", intent.value == core::kStop ? "turn_off" : "turn_on"};
         }
         break;
     case IntentKind::SetLevel:
@@ -186,6 +194,13 @@ bool call_service_message(uint32_t id, const core::Intent &intent, std::string_v
             break;
         case IntentKind::SetColorTemp:
             w.number("color_temp_kelvin", std::lround(intent.value));
+            break;
+        case IntentKind::Run:
+            // the actions of an automation run whatever its conditions say, as "Run actions" in
+            // Home Assistant does
+            if (domain == "automation") {
+                w.boolean("skip_condition", true);
+            }
             break;
         default:
             break;

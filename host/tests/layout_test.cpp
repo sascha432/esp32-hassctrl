@@ -61,11 +61,12 @@ TEST(layout_kind_follows_the_domain)
     CHECK(kind_of_entity("switch.a") == TileKind::Switch);
     CHECK(kind_of_entity("input_boolean.a") == TileKind::Switch);
     CHECK(kind_of_entity("fan.a") == TileKind::Switch);
-    CHECK(kind_of_entity("automation.a") == TileKind::Switch);
+    CHECK(kind_of_entity("automation.a") == TileKind::Automation);
     CHECK(kind_of_entity("button.a") == TileKind::Button);
     CHECK(kind_of_entity("input_button.a") == TileKind::Button);
     CHECK(kind_of_entity("scene.a") == TileKind::Button);
-    CHECK(kind_of_entity("script.a") == TileKind::Button);
+    CHECK(kind_of_entity("script.a") == TileKind::Automation);
+    CHECK(std::string_view(kind_name(TileKind::Automation)) == "automation");
     CHECK(kind_of_entity("climate.a") == TileKind::Climate);
     CHECK(kind_of_entity("camera.a") == TileKind::Picture);
     CHECK(kind_of_entity("sensor.a") == TileKind::Sensor);

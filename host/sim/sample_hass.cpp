@@ -163,11 +163,15 @@ EntityState make_sample(std::string_view id, size_t i)
         s.effect_list = list({"Solid", "Blink", "Breathe", "Wipe", "Wipe Random", "Random Colors", "Sweep", "Dynamic",
                               "Colorloop", "Rainbow", "Scan", "Dual Scan", "Fade", "Theater", "Running", "Saw",
                               "Twinkle", "Dissolve", "Sparkle", "Strobe", "Fire 2012", "Candle", "Fireworks", "Rain"});
-    } else if (domain == "switch" || domain == "input_boolean" || domain == "fan" || domain == "automation") {
+    } else if (domain == "switch" || domain == "input_boolean" || domain == "fan") {
         s.state = i % 2 == 0 ? "on" : "off";
         if (contains(id, "plug") || contains(id, "outlet")) {
             s.device_class = "outlet";
         }
+    } else if (domain == "automation") {
+        // enabled or not, ran 37 minutes ago
+        s.state = i % 2 == 0 ? "on" : "off";
+        s.last_triggered = std::time(nullptr) - 37 * 60;
     } else if (domain == "climate") {
         s.state = "heat";
         s.target = 21.5f;
@@ -209,7 +213,9 @@ EntityState make_sample(std::string_view id, size_t i)
         s.dew_point = 8.6f;
         s.features = hc::core::kForecastDaily | hc::core::kForecastHourly;
     } else if (domain == "script") {
+        // not running, ran yesterday
         s.state = "off";
+        s.last_triggered = std::time(nullptr) - 86400;
     } else {
         // scene, button: the time of the last use
         s.state = "2026-10-07T18:12:00+00:00";
@@ -378,6 +384,24 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
     case IntentKind::SetFanMode:
         s.fan_mode = intent.text;
         break;
+    case IntentKind::Run: {
+        // an automation runs at once; a script runs for a second
+        const int64_t now = std::time(nullptr);
+        if (entity_id.starts_with("automation.")) {
+            s.last_triggered = now;
+            break;
+        }
+        if (intent.value == hc::core::kStop) {
+            s.state = "off";
+            break;
+        }
+        s.state = "on";
+        s.last_triggered = now;
+        queue_values({intent.entity}, g_action_ms);
+        s.state = "off";
+        queue_values({intent.entity}, g_action_ms + 1000);
+        return;
+    }
     case IntentKind::SetLock: {
         // like a real lock: locking or unlocking for a second, an opened door locks again
         const bool open = intent.value == hc::core::kOpen;

@@ -305,6 +305,8 @@ const char *kind_name(TileKind kind)
         return "weather";
     case TileKind::Clock:
         return "clock";
+    case TileKind::Automation:
+        return "automation";
     }
     return "?";
 }
@@ -357,10 +359,13 @@ TileKind kind_of_entity(std::string_view entity_id)
     if (domain == "light") {
         return TileKind::Light;
     }
-    if (domain == "switch" || domain == "input_boolean" || domain == "fan" || domain == "automation") {
+    if (domain == "switch" || domain == "input_boolean" || domain == "fan") {
         return TileKind::Switch;
     }
-    if (domain == "button" || domain == "input_button" || domain == "scene" || domain == "script") {
+    if (domain == "automation" || domain == "script") {
+        return TileKind::Automation;
+    }
+    if (domain == "button" || domain == "input_button" || domain == "scene") {
         return TileKind::Button;
     }
     if (domain == "climate") {

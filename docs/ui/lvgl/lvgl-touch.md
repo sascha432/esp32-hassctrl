@@ -27,6 +27,7 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
 | dashboard, top center | drag down from the pull-down zone | opens Settings | zone 160 x 40 px (`overlay::kZoneHeight`), 24 px of drag; the alert strip's area starts it too |
 | alert strip | tap | a state message opens Settings at the matching page; "⟳ Stream failed" tries again; another event message closes | |
 | switch, button, scene tile | tap | toggles, presses | |
+| automation, script tile | double tap; single tap | runs it (stops a running script); opens the automation panel (after the double tap time) | 300 ms |
 | dimmer tile | drag up or down | sets the level on release | starts after 10 px |
 | dimmer tile | double tap | toggles | 300 ms |
 | dimmer tile | single tap | opens the light panel (after the double tap time) | |

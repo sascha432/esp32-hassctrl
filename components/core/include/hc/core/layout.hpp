@@ -39,15 +39,16 @@ constexpr float kMaxClimateStep = 5;
 enum class TileKind : uint8_t {
     Area,    // opens a page of its own
     Spacer,  // keeps a cell free
-    Switch,  // switch, input_boolean, fan, automation: a tap toggles
+    Switch,  // switch, input_boolean, fan: a tap toggles
     Light,   // a tap toggles; with `dimmer` a level fill, drag and the light panel
-    Button,  // button, input_button, scene, script: a tap presses
+    Button,  // button, input_button, scene: a tap presses
     Climate,
     Picture, // camera
     Sensor,  // every other domain: shows the state, a tap opens the history
     Lock,    // lock: shows the state, a tap opens the lock panel (never locks or unlocks by itself)
     Weather, // weather: the condition, the temperature, a tap opens the forecast
     Clock,   // the time, digital or analog, in the device's zone or one of its own; no entity
+    Automation, // automation, script: the last run, a tap opens the automation panel, a double tap runs it
 };
 
 const char *kind_name(TileKind kind);

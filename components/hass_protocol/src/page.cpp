@@ -25,6 +25,7 @@ enum class Kind : uint8_t {
     Number, // a number or a string of one; null is unknown
     List,   // a list of strings
     Pair,   // hs_color: two numbers
+    Timestamp, // an ISO time, rendered as epoch seconds by the template (as_timestamp), kept as an integer
 };
 
 struct FieldSpec {
@@ -78,6 +79,7 @@ constexpr FieldSpec kFields[] = {
     {Field::CloudCoverage, "wc", "cloud_coverage", Kind::Number},
     {Field::DewPoint, "wd", "dew_point", Kind::Number},
     {Field::UvIndex, "wi", "uv_index", Kind::Number},
+    {Field::LastTriggered, "lt", "last_triggered", Kind::Timestamp},
 };
 static_assert(std::size(kFields) == static_cast<size_t>(Field::Count));
 
@@ -298,6 +300,10 @@ void decode_field(const FieldSpec &spec, const cJSON *item, core::EntityState &t
     case Field::UvIndex:
         to.uv_index = number_of(item);
         break;
+    case Field::LastTriggered:
+        // whole epoch seconds; 0 (null) while it never ran
+        to.last_triggered = cJSON_IsNumber(item) && item->valuedouble > 0 ? static_cast<int64_t>(item->valuedouble) : 0;
+        break;
     case Field::Count:
         break;
     }
@@ -361,6 +367,10 @@ FieldMask fields_of(const core::Tile &tile, bool panel)
         if (panel) {
             fields |= kWeatherPanel;
         }
+        break;
+    case TileKind::Automation:
+        // the tile shows the time of the last run
+        fields |= bit(Field::LastTriggered);
         break;
     default:
         break;
@@ -429,6 +439,11 @@ PageSubscription build_page(const core::Layout &layout, core::PageIndex page, co
                 out += "states(e)";
             } else if (spec.field == Field::Rounded) {
                 out += "states(e,rounded=True)";
+            } else if (spec.kind == Kind::Timestamp) {
+                // null while the attribute is missing (as_timestamp's default)
+                out += "as_timestamp(state_attr(e,'";
+                out += spec.attribute;
+                out += "'),none)";
             } else {
                 out += "state_attr(e,'";
                 out += spec.attribute;

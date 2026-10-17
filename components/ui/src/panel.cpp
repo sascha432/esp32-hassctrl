@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 
+#include "automation_panel.hpp"
 #include "climate_panel.hpp"
 #include "dashboard.hpp"
 #include "icons.hpp"
@@ -202,6 +203,7 @@ void on_root_delete(lv_event_t *)
     lock_panel::forget();
     picture_panel::forget();
     weather_panel::forget();
+    automation_panel::forget();
 }
 
 // A light tile gets the light panel with `dimmer`, or when its light dims: a supported color mode
@@ -226,7 +228,8 @@ bool has_panel(const core::Tile &tile)
     // a switch and a light without dimmer: the sensor panel with their timeline (a double tap)
     return tile.kind == core::TileKind::Light || tile.kind == core::TileKind::Switch || tile.kind == core::TileKind::Climate ||
            tile.kind == core::TileKind::Sensor || tile.kind == core::TileKind::Lock || tile.kind == core::TileKind::Picture ||
-           tile.kind == core::TileKind::Weather;
+           tile.kind == core::TileKind::Weather ||
+           tile.kind == core::TileKind::Automation;
 }
 
 lv_area_t left_of_action(const Frame &frame)
@@ -541,7 +544,8 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     const bool light = light_panel_for(layout.tiles[tile], dashboard::state(g.entity));
     g.light = light;
     // the sensor panel's frame: no options, the control takes the whole width
-    const bool compact = !light && kind != core::TileKind::Climate && kind != core::TileKind::Lock;
+    const bool compact = !light && kind != core::TileKind::Climate && kind != core::TileKind::Lock &&
+                         kind != core::TileKind::Automation;
     Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, compact, dialog);
 
     lv_obj_t *back = card(body, frame.back);
@@ -563,6 +567,8 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
         climate_panel::build(frame, tile);
     } else if (kind == core::TileKind::Lock) {
         lock_panel::build(frame, tile);
+    } else if (kind == core::TileKind::Automation) {
+        automation_panel::build(frame, tile);
     } else if (kind == core::TileKind::Weather) {
         weather_panel::build(frame, tile);
     } else {
@@ -611,6 +617,8 @@ void update(core::EntityIndex entity)
         climate_panel::update();
     } else if (tile.kind == core::TileKind::Lock) {
         lock_panel::update();
+    } else if (tile.kind == core::TileKind::Automation) {
+        automation_panel::update();
     } else if (tile.kind == core::TileKind::Weather) {
         weather_panel::update();
     } else {

@@ -67,6 +67,8 @@ enum class Field : uint8_t {
     CloudCoverage,
     DewPoint,
     UvIndex,
+    // an automation or a script
+    LastTriggered, // the epoch second of its last run (an integer; 0: never)
     Count,
 };
 
@@ -129,6 +131,8 @@ struct EntityState {
     float cloud_coverage = kUnknown; // percent
     float dew_point = kUnknown;
     float uv_index = kUnknown;
+    // an automation or a script: the epoch second of its last run, 0 while it never ran
+    int64_t last_triggered = 0;
 
     bool has(Field field) const
     {
@@ -306,8 +310,8 @@ private:
 // What a gesture asks for (docs/architecture.md section 5, "Intents"). The meaning of a gesture
 // is decided in ui, the service call that does it in hass_protocol.
 enum class IntentKind : uint8_t {
-    Toggle,         // switch, light, input_boolean, fan, automation
-    Press,          // button, input_button; scene and script are turned on
+    Toggle,         // switch, light, input_boolean, fan, automation (enables or disables it)
+    Press,          // button, input_button; a scene is turned on
     SetLevel,       // light, value = brightness in percent (0 turns it off)
     SetTemperature, // climate, value = degrees
     SetHvacMode,    // climate, text
@@ -317,12 +321,16 @@ enum class IntentKind : uint8_t {
     SetColor,       // light, value = hue (0 to 360), value2 = saturation (0 to 100)
     SetColorTemp,   // light, value = kelvin
     SetLock,        // lock, value = kLock, kUnlock or kOpen
+    Run,            // automation (its actions, conditions skipped), script; value = kRun or kStop (a running script)
 };
 
 // the values of IntentKind::SetLock
 constexpr float kLock = 0;
 constexpr float kUnlock = 1;
 constexpr float kOpen = 2;
+// the values of IntentKind::Run
+constexpr float kRun = 0;
+constexpr float kStop = 1;
 
 struct Intent {
     IntentKind kind = IntentKind::Toggle;

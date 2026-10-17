@@ -42,7 +42,9 @@ SIZES = ((24, 4), (48, 2))
 
 # drawn by the screens, not named by tiles
 UI_GLYPHS = ("arrow-left", "plus", "minus", "creation", "fire", "snowflake", "sun-snowflake-variant",
-             "thermostat-auto", "record", "chart-timeline-variant", "thermometer-water")
+             "thermostat-auto", "record", "chart-timeline-variant", "thermometer-water",
+             # the automation panel's Run button
+             "play", "stop")
 
 # the clock tile's digits (theme::font_digits_48/72): space - 0..9 : A M P (lv_font_conv ranges)
 DIGITS_TTF = ROOT / "managed_components" / "lvgl__lvgl" / "scripts" / "built_in_font" / "Montserrat-Medium.ttf"
