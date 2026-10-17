@@ -328,6 +328,23 @@ void update()
     on_update(nullptr);
 }
 
+void fit_zone(lv_coord_t x1, lv_coord_t x2)
+{
+    if (g.zone == nullptr) {
+        return;
+    }
+    const lv_coord_t center = lv_obj_get_width(lv_layer_top()) / 2;
+    const lv_coord_t half = LV_MAX(0, LV_MIN(center - x1, x2 - center));
+    lv_obj_set_width(g.zone, LV_MIN(kZoneWidth, static_cast<lv_coord_t>(2 * half)));
+}
+
+void full_zone()
+{
+    if (g.zone != nullptr) {
+        lv_obj_set_width(g.zone, kZoneWidth);
+    }
+}
+
 lv_coord_t strip_bottom()
 {
     if (g.strip == nullptr || lv_obj_has_flag(g.strip, LV_OBJ_FLAG_HIDDEN)) {

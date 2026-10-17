@@ -11,10 +11,10 @@
 // The coordinates are the controller's (the panel's own orientation), as with esp_lvgl_port:
 // LVGL turns them with the display's rotation.
 //
-// A touch controller inside the panel controller (hc::board::Info::touch_in_panel, the AXS15231B
-// of the JC3248W535) is read in the LVGL task instead (Config::in_lvgl_task), as esp_lvgl_port's
-// reader did: read by this task it reported points all over the screen, and with the reads kept
-// between frames none at all (2026-10-09).
+// A controller that reports less often than every 10 ms gets a longer period (Config::sample_ms):
+// the AXS15231B of the JC3248W535 makes a report at 60 Hz and answers "no finger" to a read
+// without a new one, so read every 10 ms a held finger was lifted and put down again and again
+// (2026-10-17, patterns like 11.11.1.11).
 //
 // LVGL's pointer is one finger, the one that came down first. The UI asks for both fingers of a
 // two-finger gesture with fingers() (the camera's pinch to zoom).
@@ -32,8 +32,8 @@ struct Config {
     // them is a misread and dropped
     uint16_t max_x;
     uint16_t max_y;
-    // read in LVGL's read callback instead of a task of its own (every 30 ms, none during a render)
-    bool in_lvgl_task = false;
+    // the task's sample period: at least the controller's own report period
+    uint16_t sample_ms = 10;
 };
 
 // Adds the pointer and starts the sampling task. Call with the LVGL lock held, once. nullptr when

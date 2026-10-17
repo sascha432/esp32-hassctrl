@@ -1,6 +1,6 @@
 # TODO
 
-State as of 2026-10-16: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
+State as of 2026-10-17: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
 WT32-SC01 (COM9), the JC3248W535 (COM10) and the JC4880P443C (COM11); the TTGO T4 (COM13) is a
 test device only. Step 7 (LVGL 9) has not started. What is next is in "Next steps" at the end.
 The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
@@ -1132,13 +1132,8 @@ Your report of the second version (2026-10-09):
       and a 3-minute trace (`touch log`) had about 16 000 good reads and not one point (whether you were tapping then is not known). The
       JC3248W535 is back on esp_lvgl_port's reader in the LVGL task, as it was when it worked
       (`Info::touch_in_panel`); the lock is removed again. The P4 and the WT32 keep the new reader.
-- [ ] Open: why the AXS15231B's touch does not work from a task of its own. Ideas: it may need its
-      reads paced (30 ms worked, 10 ms not), or the reads collide with the panel's QSPI traffic in
-      a way a lock around whole frames does not cover. Until then quick taps during a long render
-      can still be lost on the JC3248W535. New since 2026-10-11: the controller's answers include
-      shifted records and garbage after a lift (docs/devices/JC3248W535), which Espressif's driver
-      took for touches; the board's own read drops them now. Worth trying the task again
-      (`touch_input::Config::in_lvgl_task` false).
+- [x] Why the AXS15231B's touch did not work from a task of its own: solved 2026-10-17, see
+      "Touch (2026-10-17)".
 - [x] The JC3248W535's touch works again, all clicks play (your report).
 - [x] A click about a second after the last sound (800 to 1200 ms) was quieter: the channel
       stopped 1 s after a sound and the NS4168 was caught going to sleep or waking. The channel
@@ -1436,6 +1431,22 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       panel subscribes `{{ states('input_boolean.<device>_motion') }}`: `unknown` is missing (log once, web UI
       Home Assistant page "Motion helper"), a new helper gets the state at once. Host test `protocol_motion`;
       WT32 built and flashed, status empty without a sensor (the console's `motion` needs one).
+
+## Touch (2026-10-17)
+
+- [x] JC3248W535 lag and doubled taps: the AXS15231B reports every 17-22 ms and answers "no finger"
+      in between, so at 10 ms one tap became several (the hass queue filled, the UI stalled). Now
+      read every 20 ms (`Info::touch_sample_ms`), a single "no finger" during a touch is a misread.
+      You: as responsive as the WT32.
+- [x] `app_main` overflowed its 3.5 KB stack into the heap (restart after "hass connected"):
+      now 6 KB, freed after boot.
+- [x] A tap beside a sliding-in panel opened the tile under it: a clear cover until the slide ends.
+- [x] The light panel's history button took no taps at 320 px: the Settings pull-down zone lay
+      over it; in a full-screen panel it now keeps between the header buttons.
+- [ ] Optional: read the AXS15231B on its INT line (GPIO 3) instead of polling (no misread rule,
+      no merged fast taps). Measure INT while touching first.
+- [ ] `post_command` waits up to 100 ms when the hass queue is full, from the LVGL task a stall per
+      tap. Look at it if lag shows up again.
 
 ## Known issues
 
@@ -1792,10 +1803,10 @@ Not built yet (placeholders in the code or the documentation):
       ([ui/lvgl/lvgl-panels.md](ui/lvgl/lvgl-panels.md) section 3). Checked in the simulator
       (`climate.*heat_pump*` in heat_cool, mode changes heat <-> heat_cool) at 480x320, 320x480, 480x800;
       flashed on the WT32-SC01. Looks and the +/- logic approved by you in the simulator (2026-10-17).
-- [ ] Climate `heat_cool` on a device (WT32-SC01, your choice): no thermostat with a range here. A
-      test entity: HA's demo platform (`climate: - platform: demo` in configuration.yaml) adds
-      `climate.ecobee` in heat_cool with low/high; put it on a tile, drag both knobs, step each,
-      switch heat <-> heat_cool, then remove the demo entry again.
+- [x] Climate `heat_cool` on a device (WT32-SC01, 2026-10-17): HA's demo `climate.ecobee` on a tile;
+      both knobs dragged, each setpoint stepped, mode heat_cool <-> cool (the demo has no heat),
+      every `set_temperature` sends both setpoints; tile `18.5-25.5°`. Tried by you and by me over
+      the serial console. Remove the demo entry from configuration.yaml again.
 - [x] Home Assistant events waking the screen (`ui/src/power.hpp`): not wanted (your choice,
       2026-10-17).
 - [x] "Start the firmware" on the System page of the web UI in the recovery app (2026-10-17;

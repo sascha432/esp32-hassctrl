@@ -43,8 +43,8 @@ constexpr Info kInfo = variant::apply(Info{
     // the frame is sent in bands of this many lines, two band buffers of 20 KB in internal RAM
     .draw_buffer_lines = 32,
     .full_frames = true,
-    // read by hc::touch_input's task the touch went wrong (2026-10-09): esp_lvgl_port's reader
-    .touch_in_panel = true,
+    // the touch reports at 60 Hz, a read in between answers "no finger" (docs/devices/JC3248W535)
+    .touch_sample_ms = 20,
     .imu_address = 0,
     // the default, no difference reported
     .backlight_hz = 25000,
@@ -226,6 +226,13 @@ esp_err_t init_i2c(Handles &out)
 // record's last two bytes counted up by one and no shifted one's did, so such an answer is a
 // failed read (hc::touch_input keeps the last sample), not a lift or a touch somewhere else.
 constexpr uint8_t kTouchFingers = 2;
+// A new report comes about every 17 to 22 ms, a read without one answers "no finger" (read every
+// 10 ms a held finger went 11.11.1.11). Read every 20 ms a touch still has a single such answer
+// now and then (2026-10-17: 7 in 3 minutes of use, 13 in fast tapping), never two in a row
+// during a hold or a drag: a lift counts from the second answer without a finger, the first is a
+// misread. Tapping faster than a lift of 40 ms can merge two taps.
+bool g_touch_down = false;
+bool g_touch_gap = false;
 
 esp_err_t read_touch(esp_lcd_touch_handle_t tp)
 {
@@ -241,6 +248,12 @@ esp_err_t read_touch(esp_lcd_touch_handle_t tp)
     // no finger: the controller answers anything after a lift (0x30 throughout, ...), and the
     // driver took every answer it did not understand for none
     const uint8_t count = data[0] == 0 && data[1] <= kTouchFingers ? data[1] : 0;
+    if (count == 0 && g_touch_down && !g_touch_gap) {
+        g_touch_gap = true;
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    g_touch_gap = false;
+    g_touch_down = count != 0;
     esp_lcd_touch_point_data_t points[kTouchFingers]{};
     for (uint8_t i = 0; i < count; i++) {
         const uint8_t *record = data + 2 + i * 6;

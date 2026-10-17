@@ -608,11 +608,12 @@ const Info &info();                    // name, resolution, has_touch, psram
   10 ms (priority 5) and queues every change; LVGL's read takes them in order, all waiting ones in
   one read (`continue_reading`). esp_lvgl_port read the controller in the LVGL task every 30 ms
   and not while LVGL rendered, so quick taps during a long render were lost. Points outside the
-  panel are dropped. Not where touch and panel are one chip (`Info::touch_in_panel`, the
-  AXS15231B of the JC3248W535): read by the task the touch reported points all over the screen,
-  and with the reads kept between frames none at all; that board is read in LVGL's read callback
-  (`Config::in_lvgl_task`, every 30 ms, as esp_lvgl_port's reader did; open: why, see
-  docs/TODO.md). Console `touch log` prints the samples.
+  panel are dropped. A controller that reports less often gets a longer period
+  (`Info::touch_sample_ms`): the AXS15231B of the JC3248W535 makes a new report about every 17 to
+  22 ms and answers "no finger" to a read without one, so read every 10 ms a held finger was
+  lifted and put down again and again (one tap became several). It is read every 20 ms, and its
+  board file takes a single "no finger" during a touch for a misread (2026-10-17). Console
+  `touch log` prints the samples.
   Up to two fingers are read: LVGL's pointer follows the one that came down first (by the
   controller's track id), `touch_input::fingers()` gives both to a two-finger gesture (the camera's
   pinch to zoom). The JC3248W535's driver reads one finger only and takes misread answers as
@@ -682,7 +683,7 @@ or continues where the last one ended) and cannot rotate a frame. The board sets
 renders in direct mode into one frame in PSRAM, and after each refresh the frame is sent from the
 top down to the lowest changed row, in bands that are turned to the panel's orientation while
 they are copied into two internal DMA buffers (copying one overlaps sending the other). Rotation
-is software for this board; touch is read by `touch_input` in the LVGL task (section 8).
+is software for this board; `touch_input` reads its touch every 20 ms (section 8).
 
 The ST7701S of the JC4880P443C is a MIPI-DSI video panel: the DPI controller scans a frame buffer
 in PSRAM and nothing can rotate it. The board sets `Info::mipi_dsi`, and `main` uses

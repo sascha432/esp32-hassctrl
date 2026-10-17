@@ -24,7 +24,7 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
 
 | Where | Gesture | Effect | Values |
 | --- | --- | --- | --- |
-| dashboard, top center | drag down from the pull-down zone | opens Settings | zone 160 x 40 px (`overlay::kZoneHeight`), 24 px of drag; the alert strip's area starts it too |
+| dashboard, top center | drag down from the pull-down zone | opens Settings | zone 160 x 40 px (`overlay::kZoneHeight`; in a full-screen panel only between its header buttons), 24 px of drag; the alert strip's area starts it too |
 | alert strip | tap | a state message opens Settings at the matching page; "⟳ Stream failed" tries again; another event message closes | |
 | switch, button, scene tile | tap | toggles, presses | |
 | automation, script tile | double tap; single tap | runs it (stops a running script); opens the automation panel (after the double tap time) | 300 ms |
@@ -58,7 +58,11 @@ Rules that keep the gestures apart:
   to the dimmer under the finger or the pull-down zone. A swipe takes the rest of the press
   (`lv_indev_wait_release`), so the tile it started on is not tapped on release.
 * What lies at the top center under the pull-down zone does not get taps there: the camera view's
-  buttons sit below it (`overlay::kZoneHeight`).
+  buttons sit below it (`overlay::kZoneHeight`). While a full-screen panel is open the zone keeps
+  between the back button and the two header buttons (`overlay::fit_zone()`, 94 px wide at 320 px):
+  on the JC3248W535 it covered most of the history button and took its taps (2026-10-17).
+* While a full-screen panel slides in, the page beside it takes no taps (a clear cover under the
+  panel until the slide ends); before, a tap there opened the tile under it (2026-10-17).
 * While the dashboard is edited the pull-down is off; the alert strip shows only event messages
   and a drag on it does not open Settings.
 * The camera view's buttons move down with the alert strip (`overlay::on_strip_moved()`), so a

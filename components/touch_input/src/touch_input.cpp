@@ -13,10 +13,10 @@ namespace hc::touch_input {
 namespace {
 
 constexpr const char *kTag = "touch";
-constexpr TickType_t kSamplePeriod = pdMS_TO_TICKS(10);
 // Changes waiting for LVGL: about a second of moving finger.
 constexpr size_t kQueueSize = 96;
-constexpr uint32_t kStackSize = 3072;
+// about 1.5 KB used (JC3248W535, 2026-10-17)
+constexpr uint32_t kStackSize = 2048;
 // above the LVGL task (4): it samples while LVGL renders
 constexpr UBaseType_t kPriority = 5;
 constexpr uint8_t kFingers = 2;
@@ -135,7 +135,7 @@ void sample_task(void *)
     Sample previous{};
     TickType_t wake = xTaskGetTickCount();
     for (;;) {
-        vTaskDelayUntil(&wake, kSamplePeriod);
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(g.config.sample_ms));
         const Sample now = sample(previous);
         if (now.pressed != previous.pressed || (now.pressed && (now.x != previous.x || now.y != previous.y))) {
             push(now);
@@ -147,14 +147,7 @@ void sample_task(void *)
 void read(lv_indev_drv_t *, lv_indev_data_t *data)
 {
     Sample next{};
-    if (g.config.in_lvgl_task) {
-        next = sample(g.last);
-        if (next.pressed) {
-            g.last = next;
-        } else {
-            g.last.pressed = false;
-        }
-    } else if (pop(next)) {
+    if (pop(next)) {
         if (next.pressed) {
             g.last = next;
         } else {
@@ -220,7 +213,7 @@ lv_indev_t *add(const Config &config)
     }
     g.config = config;
     g.touch = config.touch;
-    if (!config.in_lvgl_task && xTaskCreate(sample_task, "touch", kStackSize, nullptr, kPriority, nullptr) != pdPASS) {
+    if (xTaskCreate(sample_task, "touch", kStackSize, nullptr, kPriority, nullptr) != pdPASS) {
         ESP_LOGE(kTag, "no memory for the task");
         g.touch = nullptr;
         return nullptr;

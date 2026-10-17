@@ -44,9 +44,8 @@ struct Info {
     // hc::frame_display instead of esp_lvgl_port's display: a frame in PSRAM, rotated in software.
     // swap_xy and mirror_* must be false.
     bool full_frames = false;
-    // The touch controller is part of the panel controller (the AXS15231B): hc::touch_input reads
-    // it in the LVGL task, its own task did not work with it.
-    bool touch_in_panel = false;
+    // hc::touch_input's sample period: at least the touch controller's own report period
+    uint16_t touch_sample_ms = 10;
     // A MIPI-DSI video panel (ST7701S on the ESP32-P4): the DPI controller scans a frame buffer in
     // PSRAM and the panel cannot rotate. main then uses esp_lvgl_port's DSI display, which copies
     // LVGL's bands into the frame buffer, and LVGL rotates in software. swap_xy and mirror_* must

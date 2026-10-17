@@ -4,7 +4,9 @@
 // docs/ui/lvgl/lvgl-design.md section 8):
 //
 //   * the pull-down zone, 160 x 40 px at the top center: dragging down from it opens
-//     Settings;
+//     Settings. While a full-screen panel is open it keeps between the panel's back button and
+//     its header buttons (fit_zone()): on the JC3248W535 (320 px wide) it covered most of the
+//     history button and took its taps (2026-10-17);
 //   * the alert strip, top center with rounded bottom corners, sliding down from the top when it
 //     appears and back up when it goes. It shows the state messages (Wi-Fi problems, connecting,
 //     a Home Assistant problem, the one-time hint "Swipe down for Settings"; a tap opens Settings
@@ -41,6 +43,11 @@ void update();
 // popup). The caller writes the symbol: LV_SYMBOL_WARNING "  Stream stopped, retrying".
 // `on_tap`: a tap on the message calls it (a failed stream reloads; the text then starts with
 // LV_SYMBOL_REFRESH) and the message stays; without one a tap closes the message.
+// the zone at most as wide as fits between the screen columns x1 and x2 (still centered), or its
+// whole width again
+void fit_zone(lv_coord_t x1, lv_coord_t x2);
+void full_zone();
+
 void show(const char *text, uint32_t color = theme::kAlert, uint32_t ms = kEventMs, void (*on_tap)() = nullptr);
 // removes the event message (the strip slides up unless a state message follows)
 void clear();

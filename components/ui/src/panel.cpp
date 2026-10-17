@@ -10,6 +10,7 @@
 #include "history_view.hpp"
 #include "light_panel.hpp"
 #include "lock_panel.hpp"
+#include "overlay.hpp"
 #include "picture_panel.hpp"
 #include "sensor_panel.hpp"
 #include "sound.hpp"
@@ -74,6 +75,10 @@ constexpr int32_t kShown = 1000;
 
 struct State {
     lv_obj_t *root = nullptr; // the panel, or the veil the dialog lies on
+    // While the full-screen panel slides in, the page beside it still shows: this clear cover
+    // under the panel takes the taps there (your report 2026-10-17, a room opened under the
+    // weather panel). Gone at the end of the slide.
+    lv_obj_t *guard = nullptr;
     bool dialog = false;
     lv_obj_t *body = nullptr; // the dialog
     int32_t shown = kShown;   // the slide's progress
@@ -157,6 +162,13 @@ void place(int32_t progress)
     lv_obj_set_y(g.body, static_cast<lv_coord_t>(-height + (middle + height) * progress / kShown));
 }
 
+void remove_guard()
+{
+    if (g.guard != nullptr) {
+        lv_obj_del(g.guard);
+    }
+}
+
 // The panel slides in or out, from where it is; at the end of a slide out the panel goes.
 void slide(bool in)
 {
@@ -169,6 +181,13 @@ void slide(bool in)
     const int32_t way = in ? kShown - g.shown : g.shown;
     lv_anim_set_time(&anim, static_cast<uint32_t>(kSlideMs * way / kShown));
     lv_anim_set_path_cb(&anim, in ? lv_anim_path_ease_out : lv_anim_path_ease_in);
+    if (in) {
+        lv_anim_set_ready_cb(&anim, [](lv_anim_t *a) {
+            if (a->var == g.root) {
+                remove_guard();
+            }
+        });
+    }
     lv_anim_set_exec_cb(&anim, [](void *target, int32_t progress) {
         // a panel opened meanwhile has replaced this one already
         if (target == g.root) {
@@ -198,6 +217,7 @@ void on_root_delete(lv_event_t *)
     // the page was cleared under the panel (a new layout, a turn), or the panel closed
     g.root = nullptr;
     g.name = nullptr;
+    overlay::full_zone();
     light_panel::forget();
     climate_panel::forget();
     sensor_panel::forget();
@@ -509,6 +529,15 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     if (!dialog) {
         // opened by a tap: from the right edge; built again after a turn: in place
         place(appear ? 0 : kShown);
+        if (appear) {
+            g.guard = t::plain(parent);
+            lv_obj_set_pos(g.guard, 0, 0);
+            lv_obj_set_size(g.guard, width, height);
+            lv_obj_add_flag(g.guard, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(g.guard, [](lv_event_t *) { g.guard = nullptr; }, LV_EVENT_DELETE, nullptr);
+            // under the panel
+            lv_obj_move_to_index(g.guard, lv_obj_get_index(g.root));
+        }
     }
     if (kind == core::TileKind::Picture) {
         // the image full screen, without the frame
@@ -549,6 +578,11 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     const bool compact = !light && kind != core::TileKind::Climate && kind != core::TileKind::Lock &&
                          kind != core::TileKind::Timer && kind != core::TileKind::Automation;
     Frame frame = frame_of(body, width, height, light || kind == core::TileKind::Climate, compact, dialog);
+    if (!dialog) {
+        // the pull-down zone of Settings between the back button and the header's two buttons
+        overlay::fit_zone(static_cast<lv_coord_t>(frame.back.x2 + 1 + kGap),
+                          static_cast<lv_coord_t>(left_of_action(frame).x1 - 1 - kGap));
+    }
 
     lv_obj_t *back = card(body, frame.back);
     lv_obj_t *arrow = t::label(back, icons::glyph("arrow-left"),
@@ -595,6 +629,7 @@ void close()
 
 void destroy()
 {
+    remove_guard();
     if (g.root != nullptr) {
         // the delete event clears the state
         lv_obj_del(g.root);

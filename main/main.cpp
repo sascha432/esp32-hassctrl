@@ -145,14 +145,14 @@ lv_disp_t *start_lvgl(const hc::board::Handles &handles)
         disp = lvgl_port_add_disp(&display_config);
     }
     if (disp != nullptr && handles.touch != nullptr && lvgl_port_lock(0)) {
-        // the touch is sampled by a task of its own, so quick taps survive a long render; one
-        // inside the panel controller is read in the LVGL task (hc::touch_input). The controller
-        // reports the panel's own coordinates (Info::width x height at rotation 0)
+        // the touch is sampled by a task of its own, so quick taps survive a long render
+        // (hc::touch_input). The controller reports the panel's own coordinates (Info::width x
+        // height at rotation 0)
         const hc::touch_input::Config touch_config{.disp = disp,
                                                    .touch = handles.touch,
                                                    .max_x = static_cast<uint16_t>(info.width - 1),
                                                    .max_y = static_cast<uint16_t>(info.height - 1),
-                                                   .in_lvgl_task = info.touch_in_panel};
+                                                   .sample_ms = info.touch_sample_ms};
         if (hc::touch_input::add(touch_config) == nullptr) {
             ESP_LOGW(kTag, "touch could not be added to LVGL");
         }

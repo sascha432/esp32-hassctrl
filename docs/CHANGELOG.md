@@ -2,6 +2,14 @@
 
 ## 2026-10-17
 
+- JC3248W535 touch (your reports: lag, taps lost or doubled): the AXS15231B reports every 17-22 ms and
+  answers "no finger" in between; read every 10 ms one tap became several. Now its own task reads it
+  every 20 ms (`Info::touch_sample_ms`), a single "no finger" during a touch is a misread; the LVGL-task
+  reader is gone. `app_main`'s stack 6 KB (it overflowed into the heap), touch task 2 KB, the websocket
+  client sends under its own lock. Confirmed by you ("as responsive as the WT32").
+- Panels: a tap beside a sliding-in panel no longer opens the tile under it; the Settings pull-down
+  zone keeps between a panel's header buttons (it took the history button's taps at 320 px). Confirmed by you.
+
 - Climate heat_cool: `target_temp_low`/`_high` are read; the tile shows `20-24°`, the panel two knobs on the
   arc (drag the nearer one, tap a setpoint for the steppers). Approved by you in the simulator; no device with a range yet.
 - TODO cleanup (your choices): closed as kept or not wanted (clock timer, 1x1 analog face, tzdata year, twice_daily,

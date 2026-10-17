@@ -8,6 +8,10 @@ CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # not block, as on the P4's MIPI-DSI panel
 CONFIG_FREERTOS_HZ=1000
 
+# app_main starts everything: 3584 left 204 bytes and overflowed now and then into the heap (the
+# interrupts save their frame on the task they interrupt). Freed when app_main returns.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+
 # LVGL 8.4 (docs/architecture.md section 7.1)
 CONFIG_LV_COLOR_DEPTH_16=y
 # LVGL allocates from PSRAM, internal RAM only when the PSRAM is full (main/lvgl/hc_lv_mem.h)
@@ -33,6 +37,11 @@ CONFIG_LV_USE_PERF_MONITOR=y
 # about 40 KB, more than the WT32 has free in internal RAM (docs/ui/web.md section 9)
 # CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+
+# Sending takes a lock of its own: the client's task holds its lock while it hands a message to
+# hass (which waits up to 100 ms for room in the queue), and a send then waited up to 5 s while
+# the queue filled (quick taps on the JC3248W535, "event dropped, the queue is full")
+CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK=y
 
 # a camera tile's own stream with a login in its address (http://user:password@host/): the media
 # task sets Basic auth for it (hass/src/media.cpp)

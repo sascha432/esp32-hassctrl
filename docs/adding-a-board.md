@@ -49,6 +49,7 @@ The `Info` fields:
 | `swap_bytes` | `true` for SPI panels; must match `CONFIG_LV_COLOR_16_SWAP` (checked at boot) |
 | `draw_buffer_lines` | 40 to start with; the SPI bus's largest transfer is sized from it |
 | `full_frames` | `true` for a panel that cannot take a window, only whole frames from the top (AXS15231B over QSPI); LVGL then renders full frames into PSRAM |
+| `touch_sample_ms` | 10; longer for a touch controller that reports less often and answers "no finger" in between (20 for the AXS15231B, check with `touch log`) |
 | `mipi_dsi` | `true` for a MIPI-DSI video panel (ESP32-P4): esp_lvgl_port's DSI display, LVGL rotates in software |
 | `imu_address` | 0x68 for an MPU6050 with AD0 low, 0 without a sensor |
 | `backlight_hz` | step 6, "frequency" (25000 to start with) |
