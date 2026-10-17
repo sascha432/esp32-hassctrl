@@ -1358,6 +1358,10 @@ double tap starts or stops.
 - [ ] The countdown needs the device clock and Home Assistant's clock to agree (SNTP, within a second);
       `timer.change` (add or take time while it runs) is not offered.
 - [ ] The web editor has no timer options (there are none); the preview shows the timer glyph.
+- [x] Your request (2026-10-17): a document for the Home Assistant side, the timer helper and the fan automation
+      ([home-assistant/timer-helper.md](home-assistant/timer-helper.md)).
+- [ ] A double tap starts with the helper's default; the duration last chosen on the rollers is not kept
+      (Home Assistant has no action that changes the default). Open: keep it on the device, per tile?
 
 ## History buttons (2026-10-15)
 
@@ -1418,10 +1422,11 @@ Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen v
 
 ## Known issues
 
-- [ ] **Recovery app nearly fills `factory`** on the 4 MB layout (measured 2026-10-17, WT32-SC01): recovery
-      1073 KB of 1088 KB (15 KB free), main 2155 KB of 2432 KB in ota_0, LittleFS 77 KB of 448 KB. IDF's
-      "1/2 app partitions are too small" for the main image is the factory partition and harmless. Open: move
-      64 KB from `storage` to `factory` (one full USB flash per 4 MB board), or a size margin check in `build.py`.
+- [x] **Recovery app nearly fills `factory`** on the 4 MB layout (measured 2026-10-17, WT32-SC01): recovery
+      1067 KB of 1088 KB (21 KB free since Enterprise and SAE-PK are off; it still joins WPA3-SAE), main 2155 KB of
+      2432 KB in ota_0, LittleFS 77 KB of 448 KB. IDF's "1/2 app partitions are too small" for the main image is the
+      factory partition and harmless. Your decision (2026-10-17): the layout stays (a 1216 KB factory would need a full
+      USB flash per 4 MB board), no updating the recovery app over Wi-Fi; it changes only over USB.
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the
       web server took 1 KB of request headers; your browser sends more, most likely cookies of a
       device that had this address before. Now 8 KB (`max_req_hdr_len`; the buffer grows only as

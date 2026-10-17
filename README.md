@@ -2,7 +2,8 @@
 
 A Home Assistant touch panel for ESP32, ESP32-S3 and ESP32-P4 boards, built on ESP-IDF 6.1 with
 LVGL. Design: [docs/architecture.md](docs/architecture.md), UI: [docs/ui/](docs/ui/README.md),
-new boards: [docs/adding-a-board.md](docs/adding-a-board.md), open items:
+new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant setup:
+[docs/home-assistant/](docs/home-assistant/timer-helper.md), open items:
 [docs/TODO.md](docs/TODO.md), what changed: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ![JC4880P443C dashboard](docs/ui/images/jc4880p443c_dashboard.jpg)

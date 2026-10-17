@@ -2,6 +2,9 @@
 
 ## 2026-10-17
 
+- Recovery app without WPA2/3 Enterprise and SAE-PK (unused): 5.7 KB smaller, 21 KB free; WPA3 checked on the WT32.
+- Docs (your request): [home-assistant/timer-helper.md](home-assistant/timer-helper.md), the timer helper and an
+  automation that runs a fan while the timer runs and cancels it when the fan is turned off.
 - Timer panel (your requests): the duration on three rollers (h, min, s) as the alarm's, faster on a quick
   drag or fling; Restart has the `restart` icon. Timelines: hour lines no longer cross an empty strip. Confirmed by you.
 - Architecture: notes for a later SD card (slots per board, FATFS buffers in PSRAM); the partition use measured.

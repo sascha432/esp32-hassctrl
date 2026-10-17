@@ -229,7 +229,8 @@ Added 2026-10-16 (your request: timer support with a proper UI; a tap opens the 
 tap starts or stops). The panel of a `timer.*` entity (a timer helper of Home Assistant). Like the
 lock panel: two buttons in the options choose the control (`timer-outline`) or the timeline
 (`chart-timeline-variant`); the panel opens on the control. No header action. Code:
-`timer_panel.cpp`.
+`timer_panel.cpp`. The helper and an automation that switches a fan with it:
+[timer-helper.md](../../home-assistant/timer-helper.md).
 
 ```
 +--------+------------------------------+

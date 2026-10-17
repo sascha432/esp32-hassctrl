@@ -903,8 +903,12 @@ in the main firmware.
   `http://192.168.4.1/`); with a Wi-Fi connection its IP is a line of text. An update in progress
   adds a line with its state and percent (`ota::status()`), and the reason when it failed. Redrawn
   when something changes (checked once a second). The drivers made the app 45 KB larger, so the factory partition of the 4 MB layout is
-  1.06 MB (ota_0 2.4 MB). Measured 2026-10-17 on the WT32-SC01: recovery 1073 KB (15 KB free), main 2155 KB
-  (277 KB free); IDF's build warns that the main image does not fit `factory`, which it never goes to.
+  1.06 MB (ota_0 2.4 MB). Measured 2026-10-17 on the WT32-SC01: recovery 1067 KB (21 KB free; without WPA2/3 Enterprise and SAE-PK,
+  5.7 KB less, `sdkconfig.recovery`), main 2155 KB (277 KB free); a build with debug off (log level error,
+  silent asserts, no error names) would be 96 KB smaller, not done; IDF's build warns that the main image does not fit `factory`, which it never goes to.
+* **The recovery app changes only over USB** (`tools/build.py <board> --app recovery -p COMx flash`, which also
+  writes the bootloader and the partition table): no update writes `factory`, the main firmware's update only
+  `ota_0` and `storage` (decided 2026-10-17, as is the 4 MB layout above).
 * **Web pages in the recovery app**: the built-in page (always at `/recovery`, at `/` without web
   files) with first setup, login, status, firmware and file system update by file or URL, the
   files as .zip, format, restart and "Start the firmware"; and the web UI from LittleFS when it
