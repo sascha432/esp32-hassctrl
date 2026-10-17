@@ -1,7 +1,6 @@
 #include "hc/hass/hass.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -13,7 +12,6 @@
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_heap_caps.h"
-#include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_timer.h"
@@ -25,7 +23,6 @@
 #include "freertos/task.h"
 #include "hc/hass_protocol/protocol.hpp"
 #include "hc/platform/device.hpp"
-#include "hc/platform/settings.hpp"
 #include "hc/platform/time_sync.hpp"
 
 #include "internal.hpp"
@@ -36,11 +33,6 @@ namespace hc::hass {
 namespace {
 
 constexpr const char *kTag = "hass";
-constexpr const char *kNamespace = "hass";
-constexpr const char *kKeyUrl = "url";
-constexpr const char *kKeyToken = "token";
-// the SHA-256 of the certificate trusted on first use, as hex
-constexpr const char *kKeyCertificate = "cert";
 
 // the values of the old client, which worked (docs/architecture.md section 6)
 constexpr int64_t kPingIntervalMs = 25000;
@@ -237,17 +229,6 @@ bool sta_has_address()
 constexpr time_t kClockValid = 1700000000;
 // a chunk of the history that did not arrive within this time is lost
 constexpr int64_t kHistoryChunkTimeoutMs = 15000;
-
-// a token is base64url with dots (a JWT); anything else is a mistake while pasting it
-bool token_chars_ok(const char *token)
-{
-    for (const char *p = token; *p != 0; p++) {
-        if (!std::isalnum(static_cast<unsigned char>(*p)) && *p != '-' && *p != '_' && *p != '.' && *p != '=') {
-            return false;
-        }
-    }
-    return true;
-}
 
 // What went wrong with a connection, in words for the web UI and the screen: short, no error
 // numbers (they do not fit the screen); the numbers are in the log for advanced users.
@@ -1413,28 +1394,10 @@ const char *state_name(State state)
 
 esp_err_t start()
 {
-    const cJSON_Hooks hooks{.malloc_fn = json_malloc, .free_fn = free};
-    cJSON_InitHooks(const_cast<cJSON_Hooks *>(&hooks));
-
     {
-        platform::Settings settings(kNamespace, platform::Settings::Mode::Read);
         std::lock_guard lock(g_mutex);
         g_status.state = State::NotSetUp;
-        if (settings.ok()) {
-            if (settings.get_string(kKeyUrl, g_status.url, sizeof(g_status.url)) != ESP_OK) {
-                g_status.url[0] = 0;
-            }
-            if (settings.get_string(kKeyToken, g_token, sizeof(g_token)) != ESP_OK) {
-                g_token[0] = 0;
-            }
-            uint8_t digest[kFingerprintBytes];
-            if (settings.get_string(kKeyCertificate, g_status.certificate, sizeof(g_status.certificate)) == ESP_OK &&
-                detail::parse_fingerprint(g_status.certificate, digest)) {
-                detail::set_trusted_certificate(digest);
-            } else {
-                g_status.certificate[0] = 0;
-            }
-        }
+        detail::read_stored_config(g_status.url, g_token, g_status.certificate);
         g_status.token_set = g_token[0] != 0;
     }
 
@@ -1455,224 +1418,9 @@ Status status()
     return g_status;
 }
 
-namespace {
-
-// The URL as stored and the token without the spaces around it; ESP_ERR_INVALID_ARG with `error`
-// filled when one is not usable.
-esp_err_t clean_config(const char *url, const char *token, char (&normalized)[kUrlSize],
-                       char (&clean_token)[kTokenSize], char *error, size_t error_size)
-{
-    const auto fail = [&](const char *text) {
-        std::snprintf(error, error_size, "%s", text);
-        return ESP_ERR_INVALID_ARG;
-    };
-
-    if (url != nullptr && url[0] != 0) {
-        const char *problem = nullptr;
-        if (!detail::normalize_url(url, normalized, sizeof(normalized), problem)) {
-            return fail(problem);
-        }
-    }
-    // a pasted token often comes with a space or a line break around it
-    if (token != nullptr) {
-        while (std::isspace(static_cast<unsigned char>(*token))) {
-            token++;
-        }
-        size_t length = std::strlen(token);
-        while (length > 0 && std::isspace(static_cast<unsigned char>(token[length - 1]))) {
-            length--;
-        }
-        if (length >= sizeof(clean_token)) {
-            return fail("the token is too long");
-        }
-        std::memcpy(clean_token, token, length);
-        if (!token_chars_ok(clean_token)) {
-            return fail("the token contains characters a token cannot have");
-        }
-    }
-    return ESP_OK;
-}
-
-} // namespace
-
-esp_err_t check_config(const char *url, const char *token, char *error, size_t error_size)
-{
-    char normalized[kUrlSize] = {};
-    char clean_token[kTokenSize] = {};
-    return clean_config(url, token, normalized, clean_token, error, error_size);
-}
-
-esp_err_t set_config(const char *url, const char *token, char *error, size_t error_size)
-{
-    char normalized[kUrlSize] = {};
-    char clean_token[kTokenSize] = {};
-    const bool remove = url == nullptr || url[0] == 0;
-    if (const esp_err_t err = clean_config(url, token, normalized, clean_token, error, error_size); err != ESP_OK) {
-        return err;
-    }
-
-    // the trusted certificate belongs to the address
-    bool new_address;
-    {
-        std::lock_guard lock(g_mutex);
-        new_address = std::strcmp(g_status.url, normalized) != 0;
-    }
-
-    platform::Settings settings(kNamespace, platform::Settings::Mode::ReadWrite);
-    esp_err_t err = settings.ok() ? ESP_OK : ESP_FAIL;
-    if (err == ESP_OK && new_address) {
-        settings.erase(kKeyCertificate);
-    }
-    if (err == ESP_OK && remove) {
-        settings.erase(kKeyUrl);
-        settings.erase(kKeyToken);
-    } else if (err == ESP_OK) {
-        err = settings.set_string(kKeyUrl, normalized);
-        if (err == ESP_OK && clean_token[0] != 0) {
-            err = settings.set_string(kKeyToken, clean_token);
-        }
-    }
-    if (err == ESP_OK) {
-        err = settings.commit();
-    }
-    if (err != ESP_OK) {
-        std::snprintf(error, error_size, "the settings could not be stored (%s)", esp_err_to_name(err));
-        return err;
-    }
-
-    {
-        std::lock_guard lock(g_mutex);
-        std::snprintf(g_status.url, sizeof(g_status.url), "%s", normalized);
-        if (remove) {
-            g_token[0] = 0;
-        } else if (clean_token[0] != 0) {
-            std::snprintf(g_token, sizeof(g_token), "%s", clean_token);
-        }
-        g_status.token_set = g_token[0] != 0;
-        if (new_address) {
-            g_status.certificate[0] = 0;
-            detail::set_trusted_certificate(nullptr);
-        }
-        g_status.refused_certificate[0] = 0;
-        g_status.version[0] = 0;
-        // what follows, so the answer to this change already shows it; the task takes over
-        g_status.state = g_status.url[0] != 0 && g_status.token_set ? State::Connecting : State::NotSetUp;
-        g_status.error[0] = 0;
-        g_status.retry_in_s = 0;
-        g_status.connected_s = 0;
-    }
-    ESP_LOGI(kTag, "address %s%s", remove ? "removed" : normalized,
-             clean_token[0] != 0 ? ", new token" : "");
-    post({.type = EventType::ConfigChanged}, pdMS_TO_TICKS(100));
-    return ESP_OK;
-}
-
-esp_err_t test_token(const char *url, const char *token, char *error, size_t error_size)
-{
-    // the token is 512 bytes: off the caller's stack (the web server's)
-    struct Buffers {
-        char normalized[kUrlSize];
-        char token[kTokenSize];
-        char api[kUrlSize + 8];
-        char authorization[kTokenSize + 8];
-    };
-    auto *b = static_cast<Buffers *>(heap_caps_calloc_prefer(1, sizeof(Buffers), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
-                                                             MALLOC_CAP_DEFAULT));
-    if (b == nullptr) {
-        std::snprintf(error, error_size, "no memory for the test");
-        return ESP_ERR_NO_MEM;
-    }
-    esp_err_t err = clean_config(url, token, b->normalized, b->token, error, error_size);
-    int status = 0;
-    if (err == ESP_OK && b->normalized[0] != 0 && b->token[0] != 0) {
-        std::snprintf(b->api, sizeof(b->api), "%s/api/", b->normalized);
-        std::snprintf(b->authorization, sizeof(b->authorization), "Bearer %s", b->token);
-        esp_http_client_config_t config{};
-        config.url = b->api;
-        config.timeout_ms = 10000;
-        config.crt_bundle_attach = detail::tls_attach;
-        // the token goes into a header longer than the default send buffer
-        config.buffer_size_tx = 1024;
-        config.user_agent = "hassctrl";
-        if (esp_http_client_handle_t client = esp_http_client_init(&config); client != nullptr) {
-            esp_http_client_set_header(client, "Authorization", b->authorization);
-            if (esp_http_client_open(client, 0) == ESP_OK && esp_http_client_fetch_headers(client) >= 0) {
-                status = esp_http_client_get_status_code(client);
-            }
-            esp_http_client_close(client);
-            esp_http_client_cleanup(client);
-        }
-        // a refused certificate is for the connection to report; not left behind in this task
-        uint8_t digest[kFingerprintBytes];
-        detail::refused_certificate(digest);
-        ESP_LOGI(kTag, "token test at %s: %s%d", b->normalized, status != 0 ? "HTTP " : "no answer ", status);
-        if (status == 401) {
-            std::snprintf(error, error_size, "Home Assistant rejected the token, nothing was stored");
-            err = ESP_ERR_INVALID_ARG;
-        }
-    }
-    std::memset(b, 0, sizeof(Buffers));
-    std::free(b);
-    return err;
-}
-
 void reconnect()
 {
     post({.type = EventType::Reconnect}, pdMS_TO_TICKS(100));
-}
-
-esp_err_t check_certificate(const char *fingerprint, char *error, size_t error_size)
-{
-    uint8_t digest[kFingerprintBytes];
-    if (fingerprint != nullptr && fingerprint[0] != 0 && !detail::parse_fingerprint(fingerprint, digest)) {
-        std::snprintf(error, error_size, "not a SHA-256 fingerprint (64 hex digits)");
-        return ESP_ERR_INVALID_ARG;
-    }
-    return ESP_OK;
-}
-
-esp_err_t trust_certificate(const char *fingerprint, char *error, size_t error_size)
-{
-    if (const esp_err_t err = check_certificate(fingerprint, error, error_size); err != ESP_OK) {
-        return err;
-    }
-    const bool forget = fingerprint == nullptr || fingerprint[0] == 0;
-    uint8_t digest[kFingerprintBytes] = {};
-    char text[kFingerprintSize] = {};
-    if (!forget) {
-        detail::parse_fingerprint(fingerprint, digest);
-        detail::fingerprint_text(digest, text);
-    }
-
-    platform::Settings settings(kNamespace, platform::Settings::Mode::ReadWrite);
-    esp_err_t err = settings.ok() ? ESP_OK : ESP_FAIL;
-    if (err == ESP_OK && forget) {
-        settings.erase(kKeyCertificate);
-    } else if (err == ESP_OK) {
-        err = settings.set_string(kKeyCertificate, text);
-    }
-    if (err == ESP_OK) {
-        err = settings.commit();
-    }
-    if (err != ESP_OK) {
-        std::snprintf(error, error_size, "the settings could not be stored (%s)", esp_err_to_name(err));
-        return err;
-    }
-
-    detail::set_trusted_certificate(forget ? nullptr : digest);
-    {
-        std::lock_guard lock(g_mutex);
-        std::memcpy(g_status.certificate, text, sizeof(text));
-        g_status.refused_certificate[0] = 0;
-        if (g_status.state == State::Disconnected) {
-            g_status.state = State::Connecting;
-            g_status.error[0] = 0;
-            g_status.retry_in_s = 0;
-        }
-    }
-    ESP_LOGI(kTag, "trusted certificate: %s", forget ? "none" : text);
-    post({.type = EventType::Reconnect}, pdMS_TO_TICKS(100));
-    return ESP_OK;
 }
 
 void subscribe_page(std::shared_ptr<const core::Layout> layout, core::PageIndex page, core::Orientation o,
@@ -1772,6 +1520,53 @@ void credentials(char *url, size_t url_size, char *token, size_t token_size)
     std::lock_guard lock(g_mutex);
     std::snprintf(url, url_size, "%s", g_status.url);
     std::snprintf(token, token_size, "%s", g_token);
+}
+
+bool is_current_url(const char *url)
+{
+    std::lock_guard lock(g_mutex);
+    return std::strcmp(g_status.url, url) == 0;
+}
+
+void config_stored(const char *url, const char *token, bool remove, bool new_address)
+{
+    {
+        std::lock_guard lock(g_mutex);
+        std::snprintf(g_status.url, sizeof(g_status.url), "%s", url);
+        if (remove) {
+            g_token[0] = 0;
+        } else if (token[0] != 0) {
+            std::snprintf(g_token, sizeof(g_token), "%s", token);
+        }
+        g_status.token_set = g_token[0] != 0;
+        if (new_address) {
+            g_status.certificate[0] = 0;
+            set_trusted_certificate(nullptr);
+        }
+        g_status.refused_certificate[0] = 0;
+        g_status.version[0] = 0;
+        // what follows, so the answer to this change already shows it; the task takes over
+        g_status.state = g_status.url[0] != 0 && g_status.token_set ? State::Connecting : State::NotSetUp;
+        g_status.error[0] = 0;
+        g_status.retry_in_s = 0;
+        g_status.connected_s = 0;
+    }
+    post({.type = EventType::ConfigChanged}, pdMS_TO_TICKS(100));
+}
+
+void certificate_stored(const char *text)
+{
+    {
+        std::lock_guard lock(g_mutex);
+        std::snprintf(g_status.certificate, sizeof(g_status.certificate), "%s", text);
+        g_status.refused_certificate[0] = 0;
+        if (g_status.state == State::Disconnected) {
+            g_status.state = State::Connecting;
+            g_status.error[0] = 0;
+            g_status.retry_in_s = 0;
+        }
+    }
+    post({.type = EventType::Reconnect}, pdMS_TO_TICKS(100));
 }
 
 void deliver_event(core::HassEvent event)

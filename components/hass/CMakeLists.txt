@@ -1,9 +1,12 @@
 # The Home Assistant connection (docs/architecture.md section 6).
 # esp_websocket_client and cJSON come from idf_component.yml.
-idf_component_register(SRCS "src/discover.cpp"
+idf_component_register(SRCS "src/config.cpp"
+                            "src/discover.cpp"
                             "src/hass.cpp"
                             "src/image_hw.cpp"
                             "src/media.cpp"
+                            "src/media_decode.cpp"
+                            "src/media_http.cpp"
                             "src/new_jpeg.cpp"
                             "src/say.cpp"
                             "src/tls.cpp"

@@ -44,7 +44,7 @@ to the box's aspect ratio for a tile; the full screen view asks for the whole pi
 (`whole`: the decoder's output as it is, the view scales it to cover). The frame is RGB565 in the display's byte order on the large heap,
 shared between the tile and its full screen view (480x320: 300 KB).
 
-The images are fetched by the media tasks of `hass` (`media.cpp`, ESP-IDF's `esp_http_client`
+The images are fetched by the media tasks of `hass` (`media.cpp`, `media_http.cpp`, `media_decode.cpp`; ESP-IDF's `esp_http_client`
 and `esp_jpeg`), so a slow camera never holds up the values of the page. On the P4 up to three
 tasks fetch at the same time, as the browser does (Home Assistant takes 2 to 5 s for some cameras);
 the internal RAM of the ESP32 and the S3 has room for one (on the S3 three left 19 bytes and a
@@ -88,7 +88,7 @@ strip ([lvgl-design.md](lvgl-design.md) section 8):
 A try starts every 10 s while the stream is down, so it comes back by itself within about 10 s of
 its server. A connection that is not taken within 5 s fails (a
 restarting server answered nothing, and the connect waited 18 s); the answer and the data still
-get 30 s each (`kStreamConnectMs`, `kStreamTimeoutMs` in `media.cpp`). The media task tells the
+get 30 s each (`kStreamConnectMs` in `media.cpp`, `kStreamTimeoutMs` in `media.hpp`). The media task tells the
 UI when the connection is up and the request sent (`core::Image::opened`). The
 reason is a word or two ("unreachable", "no answer", "HTTP 404", "login needed", "ended", "broke
 off", "not MJPEG", "no memory", `core::StreamProblem`), the whole text is in the log. A zoom change asks the

@@ -3,7 +3,8 @@
 Settings on the touch screen (the status bar, the page stack, every page) and
 the first setup. Reference resolution 480 x 320, landscape (WT32-SC01). Colors, fonts, sizes and
 the building blocks of a page: [lvgl-design.md](lvgl-design.md). Code: `components/ui/src/settings.cpp`
-(frame, stack, dialogs), `settings_pages.cpp`, `settings_sound.cpp`, `settings_alarm.cpp`,
+(frame, stack, dialogs), `settings_pages.cpp` (quick settings, Home Assistant, System, the shared
+parts), `settings_wifi.cpp` (Wi-Fi, Hotspot), `settings_display.cpp`, `settings_sound.cpp`, `settings_alarm.cpp`,
 `settings_camera.cpp`, `setup.cpp`, `keyboard.cpp`, `alarm.cpp`.
 
 ## 1. Frame and status bar

@@ -116,6 +116,19 @@ bool form_value(const char *body, const char *key, char *out, size_t size)
     return false;
 }
 
+bool form_has(const char *body, const char *key)
+{
+    const size_t key_length = std::strlen(key);
+    for (const char *pair = body; pair != nullptr && *pair != 0;) {
+        if (std::strncmp(pair, key, key_length) == 0 && pair[key_length] == '=') {
+            return true;
+        }
+        const char *end = std::strchr(pair, '&');
+        pair = end != nullptr ? end + 1 : nullptr;
+    }
+    return false;
+}
+
 esp_err_t send_json(httpd_req_t *req, const JsonWriter &json)
 {
     if (!json.ok()) {

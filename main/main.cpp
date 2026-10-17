@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iterator>
 
+#include "cJSON.h"
 #include "esp_event.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -491,6 +492,15 @@ extern "C" void app_main()
             return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
         },
         [](void *pointer) { heap_caps_free(pointer); });
+    // cJSON's trees too, before anything parses (the stored dashboard, Home Assistant's messages):
+    // a node is under 512 bytes and took internal RAM first, the 147 tiles of the WT32's dashboard
+    // all of it while Wi-Fi started. Unlike the large heap a full heap gives nullptr, cJSON fails.
+    const cJSON_Hooks json_hooks{
+        .malloc_fn = [](size_t size) {
+            return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+        },
+        .free_fn = heap_caps_free};
+    cJSON_InitHooks(const_cast<cJSON_Hooks *>(&json_hooks));
     hc::platform::log_system_info();
     ESP_ERROR_CHECK(hc::platform::init_storage());
     hc::logbuf::restore();

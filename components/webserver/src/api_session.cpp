@@ -26,6 +26,7 @@ struct Credentials {
     char username[auth::kUsernameSize];
     char password[auth::kMaxPassword + 1];
     bool remember;
+    bool password_too_long; // the password did not fit: more than kMaxPassword characters
 };
 
 bool read_credentials(httpd_req_t *req, Credentials &out)
@@ -33,8 +34,15 @@ bool read_credentials(httpd_req_t *req, Credentials &out)
     char body[256];
     char remember[8] = {};
     out = {};
-    if (!read_body(req, body, sizeof(body)) || !form_value(body, "username", out.username, sizeof(out.username)) ||
-        !form_value(body, "password", out.password, sizeof(out.password))) {
+    if (!read_body(req, body, sizeof(body))) {
+        return false;
+    }
+    const bool have_username = form_value(body, "username", out.username, sizeof(out.username));
+    const bool have_password = form_value(body, "password", out.password, sizeof(out.password));
+    if (!have_username || !have_password) {
+        out.password_too_long = !have_password && form_has(body, "password");
+        std::memset(out.password, 0, sizeof(out.password));
+        std::memset(body, 0, sizeof(body));
         return false;
     }
     form_value(body, "remember", remember, sizeof(remember));
@@ -67,7 +75,8 @@ esp_err_t post_setup_user(httpd_req_t *req)
     }
     Credentials credentials;
     if (!read_credentials(req, credentials)) {
-        return send_error(req, "400 Bad Request", "username and password required");
+        return send_error(req, "400 Bad Request",
+                          credentials.password_too_long ? "password: 8 to 64 characters" : "username and password required");
     }
     if (!auth::valid_username(credentials.username)) {
         return send_error(req, "400 Bad Request", "username: 1 to 32 letters, digits, '.', '_' or '-'");
@@ -148,13 +157,17 @@ esp_err_t post_password(httpd_req_t *req)
     char body[512];
     char current[auth::kMaxPassword + 1] = {};
     char password[auth::kMaxPassword + 1] = {};
-    const bool read = read_body(req, body, sizeof(body)) && form_value(body, "current", current, sizeof(current)) &&
-                      form_value(body, "password", password, sizeof(password));
+    const bool body_read = read_body(req, body, sizeof(body));
+    const bool have_current = body_read && form_value(body, "current", current, sizeof(current));
+    const bool have_password = body_read && form_value(body, "password", password, sizeof(password));
+    // a new password that does not fit its field is too long, not missing
+    const bool too_long = body_read && !have_password && form_has(body, "password");
     std::memset(body, 0, sizeof(body));
     const size_t length = std::strlen(password);
-    const char *problem = !read                                                        ? "current and new password required"
-                          : length < auth::kMinPassword || length > auth::kMaxPassword ? "password: 8 to 64 characters"
-                                                                                       : nullptr;
+    const char *problem = too_long || (have_password && (length < auth::kMinPassword || length > auth::kMaxPassword))
+                              ? "password: 8 to 64 characters"
+                          : !have_current || !have_password ? "current and new password required"
+                                                            : nullptr;
     if (problem == nullptr && !auth::check_password(user, current)) {
         vTaskDelay(pdMS_TO_TICKS(kFailedLoginDelayMs));
         problem = "the current password is wrong";

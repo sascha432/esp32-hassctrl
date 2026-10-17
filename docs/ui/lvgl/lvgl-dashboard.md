@@ -5,7 +5,8 @@ strip, the grid of tiles, their states, the arrangement per orientation and the 
 panels a tile opens are in [lvgl-panels.md](lvgl-panels.md), the camera image and streams in
 [lvgl-camera.md](lvgl-camera.md), the gestures in [lvgl-touch.md](lvgl-touch.md). Colors, fonts
 and sizes: [lvgl-design.md](lvgl-design.md). Code: `components/ui/src/dashboard.cpp` (pages,
-store, actions), `tiles.cpp` (one view per tile), `icons.cpp` (glyphs), `overlay.cpp` (pull-down
+store, actions), `tiles.cpp` (one view per tile; `tiles_gestures.cpp`, `tiles_clock.cpp`,
+`tiles_text.cpp`), `icons.cpp` (glyphs), `overlay.cpp` (pull-down
 and alert strip), `splash.cpp` (start screen), `edit_mode.cpp`.
 
 ## 1. Frame, pull-down and alert strip

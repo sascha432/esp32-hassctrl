@@ -139,7 +139,7 @@ Two actors own all state. Everything between them is a message.
 | **UI task** | `esp_lvgl_port` | LVGL, all widgets, `core::EntityStore`, `core::PendingTracker`, navigation state |
 | **hass task** | `hass` | the WebSocket client, request ids, subscriptions, reconnect and ping timers, history chunking |
 | WebSocket task | `esp_websocket_client` | socket I/O only; its event handler reassembles frames and forwards complete messages to the hass task |
-| media tasks | `hass` (`media.cpp`) | camera fetch and JPEG decode, so an image never delays a state update; created with the first request, up to three on the P4, one on the ESP32 and the S3 |
+| media tasks | `hass` (`media.cpp`; HTTP and MJPEG in `media_http.cpp`, the decoders in `media_decode.cpp`) | camera fetch and JPEG decode, so an image never delays a state update; created with the first request, up to three on the P4, one on the ESP32 and the S3 |
 
 ```
  touch -> [UI task] --intent--> PendingTracker --Backend::call_service--> queue --> [hass task] --> esp_websocket_client
@@ -460,7 +460,8 @@ Orientation:
   reassembles by `payload_offset` / `payload_len` / `fin` into a PSRAM buffer with a hard size cap,
   and forwards only complete messages.
 * JSON is parsed with cJSON from the component registry (ESP-IDF 6 no longer bundles it),
-  allocating from PSRAM through `cJSON_InitHooks`. Messages are capped at 32 KB (the hourly forecast: 48 entries of about 320 bytes);
+  allocating from PSRAM through `cJSON_InitHooks`, set first thing in `app_main` (the stored
+  dashboard is parsed before `hass` starts). Messages are capped at 32 KB (the hourly forecast: 48 entries of about 320 bytes);
   the buffer of a connection is PSRAM.
 * The forecast of a weather entity is not in its state. The weather panel subscribes it with
   `weather/subscribe_forecast` (`{"type":"weather/subscribe_forecast","entity_id":...,
@@ -495,7 +496,9 @@ the `.cpp`, no class hierarchy. Every part runs in the UI task (section 4).
   display builds the page again. Pages slide in; `swipe.cpp` adds the swipe navigation.
 * **Tile views** (`tiles.cpp`): one `tiles::View` per tile, built for its kind and shape and
   drawn by `tiles::update(view, layout, state, pending)`; the gestures of a tile become intents
-  through the dashboard. All kinds share the one file (1,579 lines, over the size of section 11).
+  through the dashboard. All kinds are built and drawn in `tiles.cpp` (824 lines); the gestures
+  are in `tiles_gestures.cpp`, the clock in `tiles_clock.cpp`, the texts that panels use too
+  (`sensor_text`, `when_text`, ...) in `tiles_text.cpp`, the shared parts in `tiles_parts.hpp`.
 * **Panels**: `panel.cpp` builds the frame (back tile, header, options, control; a dialog on the
   P4), and each kind has its own file with `build(frame, tile)`, `update()` and `forget()`:
   light, climate, sensor, lock, timer, automation, weather and the picture (full screen camera).
@@ -532,7 +535,7 @@ Rules that keep the switch cheap:
 * No widget that exists in only one version. The light panel's color wheel is a custom widget,
   because `lv_colorwheel` exists only in LVGL 8. The same applies to `lv_meter` (8 only) and
   `lv_scale` (9 only). One exception: the face of the analog clock tile is an `lv_meter`
-  (`tiles.cpp`); it has to be redrawn with `lv_scale` or by hand for LVGL 9.
+  (`tiles_clock.cpp`); it has to be redrawn with `lv_scale` or by hand for LVGL 9.
 * Byte swapping for SPI panels: with LVGL 8 it is `CONFIG_LV_COLOR_16_SWAP` in the board's
   defaults file, with LVGL 9 `esp_lvgl_port`'s `swap_bytes` flag, which esp_lvgl_port 2.9.0 only
   offers for LVGL 9. The board states the need (`Info::swap_bytes`) and `main` checks that the
@@ -820,11 +823,11 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | Component | Responsibility |
 | --- | --- |
 | `platform` | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP and the time zone (`time_sync.cpp`; the zone's name from Home Assistant, its POSIX rule from the zone table of `core`) |
-| `network` | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
+| `network` | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. Files: `network.cpp` (the state, the task, start), `station.cpp` (scan, connect, retry, roam), `commands.cpp` (the saved networks), `api.cpp` (the calls of other tasks), shared through `task.hpp`. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
 | `webserver` | captive portal DNS and redirect, the status API and the built-in page, the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component |
 | `ui` | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, sound, camera, alarm, system), the pull-down zone and the alert strip on `lv_layer_top`, the dashboard with its tiles, panels and edit mode. Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
 | `light_sensor` | ambient light for the automatic brightness of `ui`, optional per device: a BH1750 on the board's I2C bus (looked for at 0x23 and 0x5C), averaged over a second, or an LDR on an ADC pin (`ldr.hpp`, the WT32-SC01's variant) |
-| `hass` | the Home Assistant connection of section 6: URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. URL parsing (`url.cpp`) is plain C++ for host tests |
+| `hass` | the Home Assistant connection of section 6: URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. The stored URL, token and certificate, their checks and the token test are in `config.cpp` (runs in the caller's task); the session stays in one file, `hass.cpp`, because pages, history, forecast and queries share its state and task. URL parsing (`url.cpp`) is plain C++ for host tests |
 | `ota` | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web/web-app.md](ui/web/web-app.md) section 5), restart into the recovery app and back, partition layout of section 9.5 |
 | `devconsole` | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
 | `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
@@ -1227,6 +1230,11 @@ esp32-hassctrl/
 * One namespace per component (`hc::core`, `hc::hass`, ...). Public headers in
   `include/hc/<component>/`, everything else private to the component.
 * Files stay small. A file over about 600 lines is a design smell to discuss, not a target.
+  Split where code changes for another reason and needs none of the file's private state;
+  accepted: `hass.cpp` (one session on one task), `tiles.cpp` (create and update of every tile
+  kind, one switch each), `devconsole.cpp` (a development tool), and the files of one subject at
+  612 to 745 lines (`layout.cpp`, `panel.cpp`, `dashboard.cpp`, `backup.cpp`, `history_view.cpp`,
+  `picture_panel.cpp`, `orientation.cpp`, `main.cpp`, `edit_mode.cpp`).
 * Memory: large buffers (message reassembly, images, store) in PSRAM via `heap_caps_malloc`;
   LVGL draw buffers in internal DMA RAM. No allocation per frame in the render path. On the
   ESP32 a plain `malloc` up to 512 bytes goes to internal RAM first, anything larger to PSRAM
@@ -1237,7 +1245,8 @@ esp32-hassctrl/
   while 32 KB stay free (`hass::detail::hot_alloc`), else PSRAM: Wi-Fi, lwIP and TLS allocate at
   any moment and fail where nobody looks. The same goes for libraries that take internal RAM
   first on their own: `esp_new_jpeg`'s buffers (29 KB for a 176x144 image) are linked through
-  `hot_alloc` with `--wrap` (`hass/CMakeLists.txt`).
+  `hot_alloc` with `--wrap` (`hass/CMakeLists.txt`). Short peaks count too: the cJSON tree of the
+  stored dashboard (147 tiles) took all internal 8-bit RAM at boot until cJSON went to PSRAM.
 * The dashboard lives in PSRAM: layout, entity states and the LVGL objects of the dashboard.
   Small values that are read often (flags, state bits, pending marks) sit in a separate compact
   array in internal RAM, indexed like the tiles or entities.

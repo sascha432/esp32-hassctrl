@@ -303,7 +303,7 @@ Open:
       Done with "Keep the hotspot on", which works (tried by you); `Next` on the screen goes straight to the dashboard.
 - [x] Setup screen: the "failed" view seen and tested by the user on the WT32 (2026-10-10): the
       wrong password showed, but the device kept retrying with no hotspot for good. Fixed
-      (`setup_attempt_failed`, network.cpp): during the first setup, or while no saved network
+      (`setup_attempt_failed`, station.cpp): during the first setup, or while no saved network
       ever connected, a wrong password brings the hotspot back at once, other errors after 3
       failed attempts; it stays on until a connection. Wrong password, a network that is not
       found and a successful connection with its IP all show; the setup finished and the
@@ -1020,7 +1020,7 @@ Next:
       again (the first of the order). Now any failed attempt, not only a wrong password, moves on
       to the next saved network in range; when every saved network in range has failed, a new
       round starts in the configured order. A connection that was up and broke is tried first
-      again. (`network.cpp`, `on_disconnected` / `on_scan_done`.) Not reproduced on purpose:
+      again. (`station.cpp`, `on_disconnected` / `on_scan_done`.) Not reproduced on purpose:
       tested only that both boards still connect.
 - [x] Bug: the time zone was never taken from Home Assistant (it was not built yet). Now `hass`
       sends `get_config` after every authentication and hands `time_zone` ("America/Vancouver")
@@ -1705,7 +1705,7 @@ Dashboard ([architecture.md](architecture.md) section 5):
       `camera` "not on this device", a network without password (note). Confirmed working by
       you (2026-10-12).
 - [x] **Login of a tile's `stream:` URL** (2026-10-12, built 2026-10-17, your decisions): Basic auth when
-      the address has `user:password@` (`media.cpp`, `CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH`); the
+      the address has `user:password@` (`media_http.cpp`, `CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH`); the
       backup export strips the password (host test `config_exports_a_stream_without_its_password`); a 401
       says "login needed" / "password missing" / "login rejected" in the alert strip of the full screen
       view; a tile without a picture whose image failed shows `camera-off`. Sim checked at 480x320
@@ -1733,10 +1733,40 @@ JC4880P443C; what is left of the bring-up is listed in the "Step" sections above
       (`ui/lvgl_compat.hpp` goes with it). Not started.
 - [ ] The analog clock face is an `lv_meter`, which LVGL 9 does not have: redraw it with
       `lv_scale` or by hand with the LVGL 9 step (found 2026-10-17).
-- [ ] Files over the 600 lines of architecture.md section 11: `tiles.cpp` (1,579, every tile
-      kind in one file), `settings_pages.cpp` (1,074), `climate_panel.cpp` (1,027),
-      `light_panel.cpp` (848), and a few just over. Split or accept, to discuss (found
-      2026-10-17).
+- [x] Files over the 600 lines of architecture.md section 11 (found 2026-10-17). Done:
+      `hass.cpp` 1,827 -> 1,625, the stored configuration and token test moved to `config.cpp`,
+      the session accepted (2026-10-17). `tiles.cpp` 1,579 -> 824: gestures, clock and texts in
+      `tiles_gestures.cpp`, `tiles_clock.cpp`, `tiles_text.cpp`; create and update accepted
+      (2026-10-17). `devconsole.cpp` stays one file, a development tool (your call 2026-10-17).
+      `network.cpp` 1,190 -> 405: `station.cpp`, `commands.cpp`, `api.cpp`, shared state in
+      `task.hpp`. `media.cpp` 1,167 -> 585: `media_http.cpp` (HTTP, MJPEG), `media_decode.cpp`
+      (JPEG), `media.hpp` (2026-10-17). `settings_pages.cpp` 1,074 -> 445: Wi-Fi and Hotspot in
+      `settings_wifi.cpp`, Display in `settings_display.cpp`. `climate_panel.cpp` 1,027 -> 501:
+      the arc in `climate_arc.cpp`. `light_panel.cpp` 848 -> 588: color and color temperature in
+      `light_color.cpp`; the panels share their state through `climate_parts.hpp` and
+      `light_parts.hpp` (2026-10-17). Left, 612 to 745 lines: `layout.cpp`, `panel.cpp`,
+      `dashboard.cpp`, `backup.cpp`, `history_view.cpp`, `picture_panel.cpp`, `orientation.cpp`,
+      `main.cpp`, `edit_mode.cpp`: accepted, one subject each (your call 2026-10-17; listed in
+      architecture.md section 11).
+- [x] WT32 boot: `alloc failed: 176 bytes, caps 0x80c` at about 2.7 s, Wi-Fi's first scan probe
+      (`wifi:m f probe req l=0`). The cJSON tree of the stored dashboard (147 tiles) took internal
+      8-bit RAM from 41 KB to 16 bytes, because the cJSON hooks to PSRAM were set only in
+      `hass::start()`. Now set first in `app_main`: two boots without it (2026-10-17). The
+      hook's "internal free" counts IRAM, which 8-bit requests cannot use.
+- [x] `tools/test_web.py`, 50 of 53 on the WT32 (2026-10-17), the 3 failures were the script's:
+      `GET /` without `Accept-Encoding: gzip` gets the 406 of the gzip-only web image (also half
+      of the 60-request load test, so 30 ok), and "no password in the network list" matched the
+      key `password_needed`. Fixed: the script asks for gzip like a browser, checks the 406
+      without it, and looks for a `password` key. 54 of 54 on the WT32 (2026-10-17).
+- [x] Backup import: a `token:` added by hand is stored without the test that Save and connect
+      makes (`main/backup.cpp` read_hass calls `set_config` only), so a typo in the file can
+      still replace a working token (confirmed on the WT32: a revoked token from the file was
+      stored, then "token rejected"). Decided 2026-10-17 (your call): the import needs no token
+      test, it stays as it is.
+- [x] Web UI, password change: a new password over 64 characters says "current and new password
+      required" instead of "8 to 64 characters" (the form value does not fit its buffer). Found
+      2026-10-17. Fixed: a field that is there but does not fit is too long (`form_has`), also for
+      the first login of the setup. `test_web.py` checks it, 55 of 55 on the WT32 (2026-10-17).
 - [ ] **Explore: a simpler UI code by designing from DPI** (your idea 2026-10-17). Main goal:
       less code. Today the screens follow three fixed patterns, one per board: pixel thresholds
       (90 px for the large look), fixed font, glyph, gap and stepper sizes, and board options

@@ -2,6 +2,14 @@
 
 ## 2026-10-17
 
+- Code: files over 600 lines split along their seams (hass, tiles, network, media, settings, light and
+  climate panel), the rest accepted (architecture.md section 11). No change in behaviour.
+- Web UI: a new password over 64 characters (password change, first login) says "8 to 64 characters"
+  instead of "required".
+- `tools/test_web.py`: asks for gzip like a browser (the web image is gzip only), checks the 406
+  without it; the password check no longer trips over `password_needed`. 54 of 54 on the WT32.
+- Memory: cJSON allocates from PSRAM from the start (`app_main`, was `hass::start`): parsing the
+  stored dashboard took all internal RAM at boot and Wi-Fi's first scan probe failed on the WT32.
 - Web UI, Home Assistant: Save and connect tries a new token first (`GET /api/`); one that Home Assistant
   rejects is not stored, the working token stays (your report). Confirmed by you on the WT32.
 - Docs: architecture.md and docs/ui describe the firmware as built (migration sections, proposal/decided

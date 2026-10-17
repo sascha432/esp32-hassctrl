@@ -1,7 +1,7 @@
 #pragma once
 
 // What the parts of hass share: the connection's settings and the events for the UI (hass.cpp),
-// the certificate check (tls.cpp).
+// the stored configuration (config.cpp), the certificate check (tls.cpp).
 
 #include <cstddef>
 #include <cstdint>
@@ -32,6 +32,17 @@ bool parse_fingerprint(const char *text, uint8_t *digest);
 
 // the address ("http://h:8123") and the token of Home Assistant; empty while not set up
 void credentials(char *url, size_t url_size, char *token, size_t token_size);
+
+// The stored configuration (config.cpp): address, token and the trusted certificate from NVS,
+// empty when not stored; a valid certificate is trusted at once. Called by start().
+void read_stored_config(char (&url)[kUrlSize], char (&token)[kTokenSize], char (&certificate)[kFingerprintSize]);
+
+// What config.cpp stored, into the connection's status (hass.cpp), and the task is told: the
+// address (`url` normalized) and the token (empty: kept; `remove`: both gone), `new_address` drops
+// the trusted certificate. certificate_stored(): the trusted one as hex, empty: none.
+bool is_current_url(const char *url);
+void config_stored(const char *url, const char *token, bool remove, bool new_address);
+void certificate_stored(const char *text);
 
 // hands an event to the UI (take_event)
 void deliver_event(core::HassEvent event);

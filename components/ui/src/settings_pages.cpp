@@ -1,17 +1,15 @@
-// The pages of Settings (docs/ui/lvgl/lvgl-settings.md section 3). Only one page exists at a time, so each
-// page keeps the objects its refresh needs in file-local pointers, set by its builder.
+// The pages of Settings (docs/ui/lvgl/lvgl-settings.md section 3): quick settings, Home Assistant,
+// System and what the page files share. Only one page exists at a time, so each page keeps the
+// objects its refresh needs in file-local pointers, set by its builder. Wi-Fi and Hotspot are in
+// settings_wifi.cpp, Display in settings_display.cpp.
 
 #include "settings_pages.hpp"
 
-#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 
 #include "alarm.hpp"
-#include "keyboard.hpp"
-#include "power.hpp"
-#include "rotation.hpp"
 #include "sound.hpp"
 #include "theme.hpp"
 
@@ -25,6 +23,8 @@ const Backend &be()
 {
     return backend();
 }
+
+} // namespace
 
 void *as_data(int value)
 {
@@ -47,132 +47,7 @@ lv_obj_t *button_row(lv_obj_t *parent)
     return obj;
 }
 
-// ------------------------------------------------------------------- display settings
-
-DisplaySettings display_settings()
-{
-    DisplaySettings s{};
-    be().display_settings(s);
-    return s;
-}
-
-void store(const DisplaySettings &s)
-{
-    be().set_display_settings(s);
-    power::settings_changed();
-}
-
-void brightness_card(lv_obj_t *parent)
-{
-    slider_card(parent, "Brightness", 1, 100, display_settings().brightness, [](lv_event_t *event) {
-        DisplaySettings s = display_settings();
-        s.brightness = static_cast<uint8_t>(lv_slider_get_value(lv_event_get_target(event)));
-        store(s);
-    });
-}
-
-// The idle times the - and + buttons step through: the step grows with the time, like the old
-// firmware's buttons, so an hour or a day is a few taps away. 0 is "Never"; -1 ends the list.
-constexpr int32_t kDimTimes[] = {0,   10,  15,  20,   30,   45,   60,   90,   120,
-                                 180, 300, 600, 900, 1200, 1800, 2700, 3600, -1};
-constexpr int32_t kOffTimes[] = {0,    60,   120,  180,   300,   600,   900,   1200,  1800, 2700,
-                                 3600, 5400, 7200, 10800, 14400, 21600, 28800, 43200, 86400, -1};
-// the motion hold, 1 min to 1 h (hc::motion::kMinHoldS, kMaxHoldS)
-constexpr int32_t kHoldTimes[] = {60, 120, 180, 240, 300, 600, 900, 1200, 1800, 2700, 3600, -1};
-
-void idle_time_text(int32_t s, char *out, size_t size)
-{
-    if (s == 0) {
-        std::snprintf(out, size, "Never");
-    } else if (s < 60) {
-        std::snprintf(out, size, "%d s", static_cast<int>(s));
-    } else if (s < 3600 && s % 60 != 0) {
-        std::snprintf(out, size, "%d min %d s", static_cast<int>(s / 60), static_cast<int>(s % 60));
-    } else if (s < 3600) {
-        std::snprintf(out, size, "%d min", static_cast<int>(s / 60));
-    } else if (s % 3600 != 0) {
-        std::snprintf(out, size, "%d h %d min", static_cast<int>(s / 3600), static_cast<int>(s % 3600 / 60));
-    } else {
-        std::snprintf(out, size, "%d h", static_cast<int>(s / 3600));
-    }
-}
-
-// A row with "-  value  +"; holding a button repeats. Deleted with its row.
-struct Stepper {
-    const int32_t *times;
-    int index;
-    lv_obj_t *value;
-    void (*on_change)(int32_t seconds);
-    uint32_t last_step = 0; // lv_tick_get()
-};
-
-// holding a button steps this often: the indev repeats every 100 ms, too fast to stop on a value
-constexpr uint32_t kStepRepeatMs = 250;
-
-void stepper_show(const Stepper &st)
-{
-    char text[16];
-    idle_time_text(st.times[st.index], text, sizeof(text));
-    // the row's value label belongs to line_text, which sets its text again on size changes
-    t::line_text(st.value, text);
-}
-
-void stepper_step(lv_event_t *event)
-{
-    auto &st = *static_cast<Stepper *>(lv_event_get_user_data(event));
-    if (lv_event_get_code(event) == LV_EVENT_LONG_PRESSED_REPEAT && lv_tick_elaps(st.last_step) < kStepRepeatMs) {
-        return;
-    }
-    st.last_step = lv_tick_get();
-    const bool up = lv_obj_get_index(lv_event_get_target(event)) > lv_obj_get_index(st.value);
-    const int next = st.index + (up ? 1 : -1);
-    if (next < 0 || st.times[next] < 0) {
-        return;
-    }
-    st.index = next;
-    stepper_show(st);
-    st.on_change(st.times[next]);
-}
-
-lv_obj_t *stepper_button(lv_obj_t *row, const char *symbol, Stepper *st)
-{
-    lv_obj_t *button = lv_btn_create(row);
-    // more padding around the symbol: 3 px, 5 px in settings mode (the P4)
-    const lv_coord_t extra = t::dim(100) != 100 ? 5 : 3;
-    lv_obj_set_size(button, t::dim(40) + extra, t::dim(36) + extra);
-    lv_obj_set_style_radius(button, t::radius(), 0);
-    lv_obj_set_style_shadow_width(button, 0, 0);
-    lv_obj_set_style_bg_color(button, t::color(t::kBorder), 0);
-    lv_obj_set_style_bg_color(button, t::color(t::kActive), LV_STATE_PRESSED);
-    lv_obj_center(t::label(button, symbol, t::font_normal(), t::kText));
-    lv_obj_add_event_cb(button, stepper_step, LV_EVENT_SHORT_CLICKED, st);
-    lv_obj_add_event_cb(button, stepper_step, LV_EVENT_LONG_PRESSED_REPEAT, st);
-    return button;
-}
-
-void stepper_row(lv_obj_t *parent, const char *name, const int32_t *times, int32_t value,
-                 void (*on_change)(int32_t seconds))
-{
-    // a stored time between two steps shows the next longer one
-    int index = 0;
-    while (times[index + 1] >= 0 && times[index] < value) {
-        index++;
-    }
-    lv_obj_t *row = t::row(parent, name, "", false, nullptr);
-    auto *st = new Stepper{times, index, t::row_value(row), on_change, 0};
-    lv_obj_add_event_cb(
-        row, [](lv_event_t *e) { delete static_cast<Stepper *>(lv_event_get_user_data(e)); }, LV_EVENT_DELETE, st);
-    lv_obj_t *minus = stepper_button(row, LV_SYMBOL_MINUS, st);
-    lv_obj_move_to_index(minus, 1);
-    stepper_button(row, LV_SYMBOL_PLUS, st);
-    // the row grows with the buttons: at least 6 px above and below them
-    lv_obj_update_layout(minus); // the button's size is only set in the layout
-    lv_obj_set_height(row, LV_MAX(t::row_height(), lv_obj_get_height(minus) + 12));
-    // a fixed width, so the buttons stay where they are while the text changes
-    lv_obj_set_width(st->value, t::dim(84));
-    lv_obj_set_style_text_align(st->value, LV_TEXT_ALIGN_CENTER, 0);
-    stepper_show(*st);
-}
+namespace {
 
 // ------------------------------------------------------------------------------ quick page
 
@@ -220,10 +95,14 @@ void quick_refresh()
     }
 }
 
+} // namespace
+
 void on_hotspot_switch(lv_event_t *event)
 {
     be().set_hotspot(lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED));
 }
+
+namespace {
 
 Built quick(lv_obj_t *content)
 {
@@ -250,375 +129,6 @@ Built quick(lv_obj_t *content)
     t::row(col, "System", "", true, [](lv_event_t *) { push(Page::System); });
     quick_refresh();
     return {"Settings", quick_refresh};
-}
-
-// ------------------------------------------------------------------------------ Wi-Fi page
-
-lv_obj_t *g_wifi_status = nullptr;
-int g_wifi_saved_built = -1;
-uint8_t g_wifi_needed_built = 0;
-char g_wifi_connected_built[kSsidSize] = {};
-
-void wifi_status_text(const WifiInfo &w, char *out, size_t size)
-{
-    if (w.connected) {
-        std::snprintf(out, size, "Connected to %s\n%s, %d dBm", w.ssid, w.ip, w.rssi);
-    } else if (!w.has_networks) {
-        std::snprintf(out, size, "No saved network");
-    } else {
-        std::snprintf(out, size, "%s%s%s%s%s", w.state, w.ssid[0] != 0 ? " " : "", w.ssid, w.error[0] != 0 ? "\n" : "",
-                      w.error);
-    }
-}
-
-void wifi_refresh()
-{
-    WifiInfo w{};
-    be().wifi_info(w);
-    char text[128];
-    wifi_status_text(w, text, sizeof(text));
-    lv_label_set_text(g_wifi_status, text);
-    char saved[kMaxSavedNetworks][kSsidSize];
-    uint8_t needed = 0;
-    const int count = static_cast<int>(be().saved_networks(saved, kMaxSavedNetworks, &needed));
-    const char *connected = w.connected ? w.ssid : "";
-    if (count != g_wifi_saved_built || needed != g_wifi_needed_built ||
-        std::strcmp(connected, g_wifi_connected_built) != 0) {
-        reload();
-    }
-}
-
-Built wifi(lv_obj_t *content)
-{
-    lv_obj_t *col = t::column(content);
-    WifiInfo w{};
-    be().wifi_info(w);
-    char text[128];
-    wifi_status_text(w, text, sizeof(text));
-    g_wifi_status = text_block(col, text);
-
-    char saved[kMaxSavedNetworks][kSsidSize];
-    uint8_t needed = 0;
-    const size_t count = be().saved_networks(saved, kMaxSavedNetworks, &needed);
-    g_wifi_saved_built = static_cast<int>(count);
-    g_wifi_needed_built = needed;
-    std::snprintf(g_wifi_connected_built, sizeof(g_wifi_connected_built), "%s", w.connected ? w.ssid : "");
-
-    char heading[48];
-    std::snprintf(heading, sizeof(heading), "Saved networks (%u of %u)", static_cast<unsigned>(count),
-                  static_cast<unsigned>(kMaxSavedNetworks));
-    section(col, heading);
-    for (size_t i = 0; i < count; i++) {
-        char name[kSsidSize + 16];
-        std::snprintf(name, sizeof(name), "%u  %.32s", static_cast<unsigned>(i + 1), saved[i]);
-        const bool in_use = w.connected && std::strcmp(saved[i], w.ssid) == 0;
-        const char *value = in_use ? "connected" : (needed & (1u << i)) ? "password needed" : "";
-        t::row(col, name, value, true,
-               [](lv_event_t *event) {
-                   const int index = from_data(event);
-                   char ssids[kMaxSavedNetworks][kSsidSize];
-                   const size_t n = be().saved_networks(ssids, kMaxSavedNetworks, nullptr);
-                   if (index < static_cast<int>(n)) {
-                       push(Page::NetworkDetail, ssids[index], index);
-                   }
-               },
-               as_data(static_cast<int>(i)));
-    }
-
-    lv_obj_t *buttons = button_row(col);
-    if (count < kMaxSavedNetworks) {
-        t::button(buttons, "Add network", [](lv_event_t *) { push(Page::AddNetwork); });
-    }
-    if (count > 0) {
-        t::button(buttons, "Reconnect", [](lv_event_t *) { be().reconnect(); });
-    }
-    return {"Wi-Fi", wifi_refresh};
-}
-
-// --------------------------------------------------------------------- saved network page
-
-int g_detail_index = -1;
-
-Built network_detail(lv_obj_t *content, const char *ssid, int index)
-{
-    g_detail_index = index;
-    char ssids[kMaxSavedNetworks][kSsidSize];
-    uint8_t needed = 0;
-    const size_t count = be().saved_networks(ssids, kMaxSavedNetworks, &needed);
-    const bool password_needed = index >= 0 && static_cast<size_t>(index) < count && (needed & (1u << index));
-
-    lv_obj_t *col = t::column(content);
-    char text[160];
-    std::snprintf(text, sizeof(text), "%.32s\nposition %d in the list%s", ssid, index + 1,
-                  password_needed ? "\nPassword needed: it came from a backup without its password and is not "
-                                    "tried until it has one."
-                                  : "");
-    text_block(col, text, t::kText);
-    if (password_needed) {
-        static char ssid_copy[kSsidSize];
-        std::snprintf(ssid_copy, sizeof(ssid_copy), "%s", ssid);
-        t::button(button_row(col), "Enter password", [](lv_event_t *) { push(Page::Password, ssid_copy); });
-    }
-    lv_obj_t *buttons = button_row(col);
-    t::button(buttons, "Move up", [](lv_event_t *) {
-        be().move_network(static_cast<uint8_t>(g_detail_index), -1);
-        pop();
-    });
-    t::button(buttons, "Move down", [](lv_event_t *) {
-        be().move_network(static_cast<uint8_t>(g_detail_index), 1);
-        pop();
-    });
-    t::button(
-        buttons, "Forget",
-        [](lv_event_t *) {
-            confirm("Forget network?", "The device no longer connects to this network.", "Forget", true,
-                    [](void *) {
-                        be().remove_network(static_cast<uint8_t>(g_detail_index));
-                        pop();
-                    },
-                    nullptr);
-        },
-        nullptr, true);
-    return {"Saved network", nullptr};
-}
-
-// ----------------------------------------------------------------------- add network page
-
-constexpr size_t kMaxScanItems = 20;
-int g_scan_built = -1;
-// the rows of the page point into g_scan_items; the refresh compares into its own buffer
-ScanItem g_scan_items[kMaxScanItems];
-ScanItem g_scan_check[kMaxScanItems];
-
-void scan_refresh()
-{
-    const size_t count = be().scan_results(g_scan_check, kMaxScanItems);
-    if (static_cast<int>(count) != g_scan_built ||
-        std::memcmp(g_scan_check, g_scan_items, count * sizeof(ScanItem)) != 0) {
-        reload();
-    }
-}
-
-Built add_network(lv_obj_t *content)
-{
-    lv_obj_t *col = t::column(content);
-    lv_obj_t *buttons = button_row(col);
-    t::button(buttons, LV_SYMBOL_REFRESH " Rescan", [](lv_event_t *) { be().scan(); });
-
-    ScanItem *items = g_scan_items;
-    std::memset(g_scan_items, 0, sizeof(g_scan_items));
-    const size_t count = be().scan_results(items, kMaxScanItems);
-    if (g_scan_built < 0) {
-        be().scan(); // first visit: fresh results
-    }
-    g_scan_built = static_cast<int>(count);
-    for (size_t i = 0; i < count; i++) {
-        char value[32];
-        std::snprintf(value, sizeof(value), "%s%d dBm%s", items[i].saved ? "saved, " : "", items[i].rssi,
-                      items[i].secure ? "" : ", open");
-        t::row(col, items[i].ssid, value, true,
-               [](lv_event_t *event) { push(Page::Password, g_scan_items[from_data(event)].ssid); },
-               as_data(static_cast<int>(i)));
-    }
-    t::row(col, "Other network ...", "", true, [](lv_event_t *) { push(Page::Password, ""); });
-    return {"Add network", scan_refresh};
-}
-
-// --------------------------------------------------------------------------- password page
-
-lv_obj_t *g_name_area = nullptr;
-lv_obj_t *g_password_area = nullptr;
-lv_obj_t *g_keyboard = nullptr;
-char g_password_ssid[kSsidSize] = {};
-
-// the keyboard and the fields of the form shown (set_form)
-lv_obj_t *g_form_keyboard = nullptr;
-lv_obj_t *g_form_areas[2] = {};
-lv_event_cb_t g_form_ready = nullptr;
-
-} // namespace
-
-void set_form(lv_obj_t *keyboard, lv_obj_t *first, lv_obj_t *second, lv_event_cb_t on_ready)
-{
-    g_form_ready = on_ready;
-    g_form_keyboard = keyboard;
-    g_form_areas[0] = first;
-    g_form_areas[1] = second;
-}
-
-void focus_area(lv_obj_t *area)
-{
-    for (lv_obj_t *other : g_form_areas) {
-        if (other != nullptr && other != area) {
-            lv_obj_clear_state(other, LV_STATE_FOCUSED);
-        }
-    }
-    lv_obj_add_state(area, LV_STATE_FOCUSED);
-    lv_event_send(area, LV_EVENT_FOCUSED, nullptr); // starts the cursor blinking
-    lv_keyboard_set_textarea(g_form_keyboard, area);
-}
-
-lv_obj_t *text_area(lv_obj_t *parent, const char *placeholder, bool password)
-{
-    lv_obj_t *area = lv_textarea_create(parent);
-    lv_textarea_set_one_line(area, true);
-    lv_textarea_set_password_mode(area, password);
-    lv_textarea_set_placeholder_text(area, placeholder);
-    lv_obj_set_flex_grow(area, 1);
-    lv_obj_set_style_text_font(area, &t::font_medium(), 0);
-    lv_obj_set_style_bg_color(area, t::color(t::kCard), 0);
-    lv_obj_set_style_text_color(area, t::color(t::kText), 0);
-    lv_obj_set_style_border_color(area, t::color(t::kBorder), 0);
-    lv_obj_set_style_border_color(area, t::color(t::kActive), LV_STATE_FOCUSED);
-    // the default theme draws the cursor in its dark text color, invisible on the dark field
-    constexpr lv_style_selector_t kCursor = static_cast<lv_style_selector_t>(LV_PART_CURSOR) | LV_STATE_FOCUSED;
-    lv_obj_set_style_border_color(area, t::color(t::kActive), kCursor);
-    lv_obj_set_style_border_width(area, 2, kCursor);
-    lv_obj_set_style_border_side(area, LV_BORDER_SIDE_LEFT, kCursor);
-    lv_obj_add_event_cb(area, [](lv_event_t *event) { focus_area(lv_event_get_target(event)); }, LV_EVENT_CLICKED,
-                        nullptr);
-    lv_obj_add_event_cb(area, [](lv_event_t *) { set_form_dirty(true); }, LV_EVENT_VALUE_CHANGED, nullptr);
-    lv_obj_add_event_cb(
-        area,
-        [](lv_event_t *event) {
-            if (g_form_ready != nullptr) {
-                g_form_ready(event);
-            }
-        },
-        LV_EVENT_READY, nullptr);
-    return area;
-}
-
-namespace {
-
-void on_connect(lv_event_t *)
-{
-    // OK or Enter in the name field goes on to the password
-    if (g_name_area != nullptr && lv_keyboard_get_textarea(g_keyboard) == g_name_area) {
-        focus_area(g_password_area);
-        return;
-    }
-    const char *ssid = g_name_area != nullptr ? lv_textarea_get_text(g_name_area) : g_password_ssid;
-    if (ssid[0] == 0) {
-        return;
-    }
-    const char *password = lv_textarea_get_text(g_password_area);
-    const size_t length = std::strlen(password);
-    if (length > 0 && length < kMinPassword) {
-        // too short for WPA: the network would never connect
-        focus_area(g_password_area);
-        return;
-    }
-    be().add_network(ssid, password);
-    set_form_dirty(false);
-    pop(2); // back to the Wi-Fi page
-}
-
-Built password(lv_obj_t *content, const char *ssid)
-{
-    std::snprintf(g_password_ssid, sizeof(g_password_ssid), "%s", ssid);
-    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
-
-    lv_obj_t *form = t::plain(content);
-    lv_obj_set_width(form, lv_pct(100));
-    lv_obj_set_flex_grow(form, 1);
-    lv_obj_set_flex_flow(form, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(form, t::pad(), 0);
-    lv_obj_set_style_pad_row(form, t::dim(6), 0);
-    lv_obj_add_flag(form, LV_OBJ_FLAG_SCROLLABLE);
-
-    g_name_area = nullptr;
-    if (ssid[0] == 0) {
-        lv_obj_t *name_row = button_row(form);
-        lv_obj_set_flex_flow(name_row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_pad_top(name_row, 0, 0);
-        g_name_area = text_area(name_row, "network name", false);
-    }
-    lv_obj_t *line = button_row(form);
-    lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_top(line, 0, 0);
-    g_password_area = text_area(line, "password", true);
-    lv_obj_t *eye = t::button(line, LV_SYMBOL_EYE_OPEN, [](lv_event_t *) {
-        lv_textarea_set_password_mode(g_password_area, !lv_textarea_get_password_mode(g_password_area));
-    });
-    lv_obj_set_style_min_width(eye, t::row_height(), 0);
-    t::button(line, "Connect", on_connect);
-
-    g_keyboard = keyboard::create(content);
-    lv_obj_set_size(g_keyboard, lv_pct(100), lv_pct(55));
-    set_form(g_keyboard, g_name_area, g_password_area, on_connect);
-    focus_area(g_name_area != nullptr ? g_name_area : g_password_area);
-    // OK and Enter connect (or go from the name to the password, set_form); leaving the page is
-    // `<`, which asks before it drops the input
-    return {ssid[0] != 0 ? ssid : "Other network", nullptr};
-}
-
-// ---------------------------------------------------------------------------- hotspot page
-
-lv_obj_t *g_hotspot_switch = nullptr;
-lv_obj_t *g_hotspot_state = nullptr;
-char g_hotspot_password_built[12] = {};
-
-void hotspot_state_text(const WifiInfo &w, char *out, size_t size)
-{
-    if (!w.hotspot_on) {
-        std::snprintf(out, size, "Off");
-    } else if (w.hotspot_off_in_s != 0) {
-        std::snprintf(out, size, "%u connected, turns off in %lu min", w.hotspot_clients,
-                      static_cast<unsigned long>((w.hotspot_off_in_s + 59) / 60));
-    } else {
-        std::snprintf(out, size, "%u connected", w.hotspot_clients);
-    }
-}
-
-void hotspot_refresh()
-{
-    WifiInfo w{};
-    be().wifi_info(w);
-    if (std::strcmp(w.hotspot_password, g_hotspot_password_built) != 0) {
-        reload();
-        return;
-    }
-    char text[64];
-    hotspot_state_text(w, text, sizeof(text));
-    lv_label_set_text(g_hotspot_state, text);
-    if (w.hotspot_on != lv_obj_has_state(g_hotspot_switch, LV_STATE_CHECKED)) {
-        if (w.hotspot_on) {
-            lv_obj_add_state(g_hotspot_switch, LV_STATE_CHECKED);
-        } else {
-            lv_obj_clear_state(g_hotspot_switch, LV_STATE_CHECKED);
-        }
-    }
-}
-
-Built hotspot(lv_obj_t *content)
-{
-    WifiInfo w{};
-    be().wifi_info(w);
-    std::snprintf(g_hotspot_password_built, sizeof(g_hotspot_password_built), "%s", w.hotspot_password);
-
-    lv_obj_t *wrap = t::split(content);
-    lv_obj_t *info = lv_obj_get_child(wrap, 0);
-
-    lv_obj_t *row = t::row(info, "Hotspot", "", false, nullptr);
-    g_hotspot_switch = t::toggle(row, w.hotspot_on, on_hotspot_switch);
-    // the name and the password are typed on a phone: never cut, also in a narrow column
-    t::caption_value(info, "Name", w.hotspot_ssid);
-    t::caption_value(info, "Password", w.hotspot_password);
-    char text[64];
-    hotspot_state_text(w, text, sizeof(text));
-    g_hotspot_state = text_block(info, text);
-    lv_obj_t *buttons = button_row(info);
-    t::button(buttons, "New password", [](lv_event_t *) {
-        confirm("New hotspot password?", "Devices connected to the hotspot have to join again with the new password.",
-                "New password", false, [](void *) { be().new_hotspot_password(); }, nullptr);
-    });
-
-    char qr[128];
-    t::wifi_qr_text(qr, sizeof(qr), w.hotspot_ssid, w.hotspot_password);
-    t::qr_card(wrap, qr, t::dim(140));
-    return {"Hotspot", hotspot_refresh};
 }
 
 // ------------------------------------------------------------------- Home Assistant page
@@ -707,201 +217,6 @@ Built home_assistant(lv_obj_t *content)
     return {"Home Assistant", ha_refresh};
 }
 
-// ---------------------------------------------------------------------------- display page
-
-lv_obj_t *g_auto_row = nullptr;
-lv_obj_t *g_rotation_row = nullptr;
-// the two rows that set the lights of the automatic brightness (with a light sensor)
-lv_obj_t *g_light_min_row = nullptr;
-lv_obj_t *g_light_max_row = nullptr;
-// the row whose last tap was refused (the light was not on the right side of the other point), and when
-lv_obj_t *g_light_refused = nullptr;
-uint32_t g_light_refused_at = 0;
-constexpr uint32_t kRefusedShownMs = 2000;
-
-void light_row_text(lv_obj_t *row, float lux, const char *refused)
-{
-    char text[24];
-    if (row == g_light_refused && lv_tick_elaps(g_light_refused_at) < kRefusedShownMs) {
-        std::snprintf(text, sizeof(text), "%s", refused);
-    } else {
-        std::snprintf(text, sizeof(text), "%ld lx", std::lround(lux));
-    }
-    t::line_text(t::row_value(row), text);
-}
-
-void display_refresh()
-{
-    if (g_light_min_row != nullptr && g_light_max_row != nullptr) {
-        const DisplaySettings s = display_settings();
-        light_row_text(g_light_min_row, s.light_min_lux, "not darker");
-        light_row_text(g_light_max_row, s.light_max_lux, "not brighter");
-    }
-    float lux = 0.0f;
-    if (g_auto_row != nullptr && be().ambient_lux(lux)) {
-        char text[24];
-        std::snprintf(text, sizeof(text), "%ld lx, %u %%", std::lround(lux), power::backlight());
-        t::line_text(t::row_value(g_auto_row), text);
-    }
-    if (g_rotation_row != nullptr) {
-        // the name says the rotation, the value what a tap does
-        char text[32];
-        std::snprintf(text, sizeof(text), "Rotation %u\xc2\xb0", rotation::degrees());
-        t::line_text(lv_obj_get_child(g_rotation_row, 0), text);
-        t::line_text(t::row_value(g_rotation_row),
-                     rotation::has_sensor() && !rotation::locked() ? "Lock" : "Rotate");
-    }
-}
-
-// the rotation popup: Rotate turns the screen clockwise; with a sensor, "Use the sensor" hands
-// the rotation back to it. It closes 5 s after the last tap, or with a tap outside.
-lv_obj_t *g_popup_degrees = nullptr;
-
-void popup_degrees_text()
-{
-    if (g_popup_degrees != nullptr) {
-        lv_label_set_text_fmt(g_popup_degrees, "%u\xc2\xb0", rotation::degrees());
-    }
-}
-
-void open_rotation_popup()
-{
-    lv_obj_t *card = settings::popup("Rotation", 5000, [] {
-        g_popup_degrees = nullptr;
-        reload();
-    });
-    // the degrees under the title, the square Rotate button at the exact center of the card, the
-    // sensor button at the bottom
-    g_popup_degrees = t::label(card, "", t::font_normal(), t::kTextValue);
-    lv_obj_align(g_popup_degrees, LV_ALIGN_TOP_MID, 0, t::dim(26));
-    popup_degrees_text();
-    lv_obj_t *rotate = t::button(card, "", [](lv_event_t *) {
-        rotation::rotate_clockwise();
-        settings::popup_touch();
-        popup_degrees_text();
-    });
-    lv_obj_set_size(rotate, t::dim(72), t::dim(72));
-    lv_obj_set_style_min_width(rotate, 0, 0);
-    lv_obj_set_style_text_align(lv_obj_get_child(rotate, 0), LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(lv_obj_get_child(rotate, 0), LV_SYMBOL_REFRESH "\nRotate");
-    lv_obj_align(rotate, LV_ALIGN_CENTER, 0, 0);
-    if (rotation::has_sensor()) {
-        lv_obj_t *sensor = t::button(card, "Use the sensor", [](lv_event_t *) {
-            rotation::set_locked(false);
-            settings::close_popup();
-        });
-        lv_obj_set_height(sensor, t::dim(32));
-        lv_obj_align(sensor, LV_ALIGN_BOTTOM_MID, 0, 0);
-    }
-}
-
-Built display(lv_obj_t *content)
-{
-    lv_obj_t *col = t::column(content);
-    const DisplaySettings s = display_settings();
-    brightness_card(col);
-    // only with a light sensor
-    float lux = 0.0f;
-    g_auto_row = nullptr;
-    g_rotation_row = nullptr;
-    g_light_min_row = nullptr;
-    g_light_max_row = nullptr;
-    g_light_refused = nullptr;
-    if (be().ambient_lux(lux)) {
-        g_auto_row = t::row(col, "Automatic", "", false, nullptr);
-        t::toggle(g_auto_row, s.auto_brightness, [](lv_event_t *event) {
-            DisplaySettings changed = display_settings();
-            changed.auto_brightness = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
-            store(changed);
-        });
-        // Each row takes the light in the room now. The screen is at its lowest at the first light and
-        // at the slider's brightness at the second and above; between them it follows the light.
-        g_light_min_row = t::row(col, "Lowest brightness at", "", false, [](lv_event_t *) {
-            float now = 0.0f;
-            DisplaySettings changed = display_settings();
-            if (!be().ambient_lux(now)) {
-                return;
-            }
-            if (now >= changed.light_max_lux) {
-                g_light_refused = g_light_min_row;
-                g_light_refused_at = lv_tick_get();
-            } else {
-                changed.light_min_lux = now;
-                store(changed);
-            }
-            display_refresh();
-        });
-        g_light_max_row = t::row(col, "Full brightness at", "", false, [](lv_event_t *) {
-            float now = 0.0f;
-            DisplaySettings changed = display_settings();
-            if (!be().ambient_lux(now)) {
-                return;
-            }
-            if (now <= changed.light_min_lux) {
-                g_light_refused = g_light_max_row;
-                g_light_refused_at = lv_tick_get();
-            } else {
-                changed.light_max_lux = now;
-                store(changed);
-            }
-            display_refresh();
-        });
-        text_block(col, "Automatic: the brightness follows the room light. Tap a row while the room is as dark, "
-                        "or as bright, as you want that setting: the screen is at its lowest at the first light, "
-                        "and at the brightness of the slider at the second.");
-    }
-    stepper_row(col, "Dim after", kDimTimes, s.dim_after_s, [](int32_t seconds) {
-        DisplaySettings changed = display_settings();
-        changed.dim_after_s = static_cast<uint16_t>(seconds);
-        store(changed);
-    });
-    lv_obj_t *dim = slider_card(col, "Dimmed brightness", 1, 100, s.dim_brightness, [](lv_event_t *event) {
-        DisplaySettings changed = display_settings();
-        changed.dim_brightness = static_cast<uint8_t>(lv_slider_get_value(lv_event_get_target(event)));
-        be().set_display_settings(changed);
-        power::preview(changed.dim_brightness); // shows the dimmed level while it is dragged
-    });
-    lv_obj_add_event_cb(dim, [](lv_event_t *) { power::settings_changed(); }, LV_EVENT_RELEASED, nullptr);
-    stepper_row(col, "Screen off", kOffTimes, static_cast<int32_t>(s.off_after_s), [](int32_t seconds) {
-        DisplaySettings changed = display_settings();
-        changed.off_after_s = static_cast<uint32_t>(seconds);
-        store(changed);
-    });
-    // only with a motion sensor
-    bool occupied = false;
-    if (be().motion(occupied)) {
-        lv_obj_t *motion = t::row(col, "Wake on motion", "", false, nullptr);
-        t::toggle(motion, s.wake_on_motion, [](lv_event_t *event) {
-            DisplaySettings changed = display_settings();
-            changed.wake_on_motion = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
-            store(changed);
-        });
-        stepper_row(col, "Motion hold", kHoldTimes, static_cast<int32_t>(s.motion_hold_s), [](int32_t seconds) {
-            DisplaySettings changed = display_settings();
-            changed.motion_hold_s = static_cast<uint32_t>(seconds);
-            store(changed);
-        });
-        text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it. Wake on motion: "
-                        "motion wakes it too and keeps it on while the sensor sees someone. Motion hold: Home "
-                        "Assistant sees \"Detected\" until the sensor saw nobody for this long.");
-    } else {
-        text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it.");
-    }
-
-    // Rotation: one row. With the sensor in charge it locks the rotation; locked or without a
-    // sensor it opens the popup that turns the screen.
-    g_rotation_row = t::row(col, "Rotation", "", true, [](lv_event_t *) {
-        if (rotation::has_sensor() && !rotation::locked()) {
-            rotation::set_locked(true);
-            reload();
-        } else {
-            open_rotation_popup();
-        }
-    });
-    display_refresh();
-    return {"Display", display_refresh};
-}
-
 // ----------------------------------------------------------------------------- system page
 
 lv_obj_t *g_system_uptime = nullptr;
@@ -949,7 +264,63 @@ Built system(lv_obj_t *content)
     return {"System", system_refresh};
 }
 
+// the keyboard and the fields of the form shown (set_form)
+lv_obj_t *g_form_keyboard = nullptr;
+lv_obj_t *g_form_areas[2] = {};
+lv_event_cb_t g_form_ready = nullptr;
+
 } // namespace
+
+void set_form(lv_obj_t *keyboard, lv_obj_t *first, lv_obj_t *second, lv_event_cb_t on_ready)
+{
+    g_form_ready = on_ready;
+    g_form_keyboard = keyboard;
+    g_form_areas[0] = first;
+    g_form_areas[1] = second;
+}
+
+void focus_area(lv_obj_t *area)
+{
+    for (lv_obj_t *other : g_form_areas) {
+        if (other != nullptr && other != area) {
+            lv_obj_clear_state(other, LV_STATE_FOCUSED);
+        }
+    }
+    lv_obj_add_state(area, LV_STATE_FOCUSED);
+    lv_event_send(area, LV_EVENT_FOCUSED, nullptr); // starts the cursor blinking
+    lv_keyboard_set_textarea(g_form_keyboard, area);
+}
+
+lv_obj_t *text_area(lv_obj_t *parent, const char *placeholder, bool password)
+{
+    lv_obj_t *area = lv_textarea_create(parent);
+    lv_textarea_set_one_line(area, true);
+    lv_textarea_set_password_mode(area, password);
+    lv_textarea_set_placeholder_text(area, placeholder);
+    lv_obj_set_flex_grow(area, 1);
+    lv_obj_set_style_text_font(area, &t::font_medium(), 0);
+    lv_obj_set_style_bg_color(area, t::color(t::kCard), 0);
+    lv_obj_set_style_text_color(area, t::color(t::kText), 0);
+    lv_obj_set_style_border_color(area, t::color(t::kBorder), 0);
+    lv_obj_set_style_border_color(area, t::color(t::kActive), LV_STATE_FOCUSED);
+    // the default theme draws the cursor in its dark text color, invisible on the dark field
+    constexpr lv_style_selector_t kCursor = static_cast<lv_style_selector_t>(LV_PART_CURSOR) | LV_STATE_FOCUSED;
+    lv_obj_set_style_border_color(area, t::color(t::kActive), kCursor);
+    lv_obj_set_style_border_width(area, 2, kCursor);
+    lv_obj_set_style_border_side(area, LV_BORDER_SIDE_LEFT, kCursor);
+    lv_obj_add_event_cb(area, [](lv_event_t *event) { focus_area(lv_event_get_target(event)); }, LV_EVENT_CLICKED,
+                        nullptr);
+    lv_obj_add_event_cb(area, [](lv_event_t *) { set_form_dirty(true); }, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_event_cb(
+        area,
+        [](lv_event_t *event) {
+            if (g_form_ready != nullptr) {
+                g_form_ready(event);
+            }
+        },
+        LV_EVENT_READY, nullptr);
+    return area;
+}
 
 lv_obj_t *text_block(lv_obj_t *parent, const char *text, uint32_t color)
 {
@@ -1035,26 +406,26 @@ Built build(Page page, lv_obj_t *content, const char *text, int index)
 {
     // a page that is left forgets its list state
     if (page != Page::AddNetwork) {
-        g_scan_built = -1;
+        forget_scan();
     }
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_ROW);
     switch (page) {
     case Page::Quick:
         return quick(content);
     case Page::Wifi:
-        return wifi(content);
+        return wifi_page(content);
     case Page::NetworkDetail:
-        return network_detail(content, text, index);
+        return network_detail_page(content, text, index);
     case Page::AddNetwork:
-        return add_network(content);
+        return add_network_page(content);
     case Page::Password:
-        return password(content, text);
+        return password_page(content, text);
     case Page::Hotspot:
-        return hotspot(content);
+        return hotspot_page(content);
     case Page::HomeAssistant:
         return home_assistant(content);
     case Page::Display:
-        return display(content);
+        return display_page(content);
     case Page::Sound:
         return sound_page(content);
     case Page::Camera:

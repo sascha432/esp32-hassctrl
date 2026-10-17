@@ -38,7 +38,8 @@ class Client:
     def request(self, method: str, path: str, body: bytes | None = None, form: dict | None = None,
                 headers: dict | None = None, timeout: float = 10) -> tuple[int, dict | str, dict]:
         conn = http.client.HTTPConnection(self.host, timeout=timeout)
-        headers = dict(headers or {})
+        # as a browser does: the web image has gzip copies only (406 without)
+        headers = {"Accept-Encoding": "gzip", **(headers or {})}
         if form is not None:
             body = urllib.parse.urlencode(form).encode()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
@@ -72,6 +73,8 @@ def main() -> None:
     # ------------------------------------------------------------------------ without a login
     status, page, _ = c.request("GET", "/")
     check(status == 200 and "<html" in str(page), "GET / answers a page")
+    status, _, _ = c.request("GET", "/", headers={"Accept-Encoding": "identity"})
+    check(status == 406, "GET / without gzip is 406 (the web image is gzip only)", str(status))
     status, page, _ = c.request("GET", "/recovery")
     check(status == 200 and "<html" in str(page), "GET /recovery answers the built-in page")
     status, session, _ = c.request("GET", "/api/session")
@@ -115,7 +118,9 @@ def main() -> None:
     heap_before = s["device"]["heap_internal_kb"] if status == 200 else 0
     status, w, _ = c.request("GET", "/api/wifi")
     check(status == 200 and "saved" in w, "GET /api/wifi", f"{len(w.get('saved', []))} saved")
-    check(all("password" not in json.dumps(n) for n in w.get("saved", [])), "no password in the network list")
+    # `password_needed` is a flag, not a password
+    check(all("password" not in n for n in w.get("saved", [])), "no password in the network list",
+          str([sorted(n) for n in w.get("saved", [])]))
     status, u, _ = c.request("GET", "/api/update")
     check(status == 200 and u.get("app") in ("main", "recovery"), "GET /api/update", str(u.get("app")))
     status, answer, _ = c.request("POST", "/api/wifi/add", form={"password": "12345678"})
@@ -133,6 +138,10 @@ def main() -> None:
         check(status == 400, f"POST {path} {form} is refused", str(status))
     status, answer, _ = c.request("POST", "/api/update/url", form={"target": "firmware", "url": "ftp://x"})
     check(status in (400, 409), "a URL that is not http(s) is refused", f"{status} {answer}")
+
+    # a new password over 64 characters is named as too long (the current one is wrong: nothing changes)
+    status, answer, _ = c.request("POST", "/api/password", form={"current": "wrong-password", "password": "x" * 65})
+    check(status == 400 and "8 to 64" in str(answer), "a new password of 65 characters is too long", f"{status} {answer}")
 
     # Home Assistant: only what is refused before anything is stored, the connection stays as it is
     status, ha, _ = c.request("GET", "/api/hass")

@@ -11,7 +11,8 @@ parts: [lvgl-design.md](lvgl-design.md).
 A tap opens the panel of a tile over the page; the back tile closes it, opening another page or a
 new layout closes it, turning the display builds it again. While it is open the page's
 subscription carries the panel's fields as well (`hass_protocol::fields_of`). Code: `panel.cpp`
-(the frame), `light_panel.cpp`, `climate_panel.cpp`, `sensor_panel.cpp`, `lock_panel.cpp`,
+(the frame), `light_panel.cpp` (color wheel and color temperature in `light_color.cpp`),
+`climate_panel.cpp` (the arc in `climate_arc.cpp`), `sensor_panel.cpp`, `lock_panel.cpp`,
 `picture_panel.cpp`, `weather_panel.cpp`, `timer_panel.cpp`, `automation_panel.cpp`; the history graph of
 the sensor, the lock, the timer and the automation panel is `history_view.cpp`.
 

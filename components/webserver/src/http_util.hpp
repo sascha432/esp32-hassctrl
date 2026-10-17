@@ -36,6 +36,10 @@ bool query_value(httpd_req_t *req, const char *key, char *out, size_t size);
 // does not fit.
 bool form_value(const char *body, const char *key, char *out, size_t size);
 
+// true when the form has `key`, also when its value would not fit (form_value fails then): a value
+// that is too long is not a missing one
+bool form_has(const char *body, const char *key);
+
 esp_err_t send_json(httpd_req_t *req, const JsonWriter &json);
 // {"error": message} with an HTTP status such as "401 Unauthorized"
 esp_err_t send_error(httpd_req_t *req, const char *status, const char *message);
