@@ -6,9 +6,6 @@ and the panel, which listens on its connection to Home Assistant, plays it (docs
 section 9.6). Nothing is configured on the panel, and no helper or entity is needed: the event
 uses the connection and the token the panel already has.
 
-Section 6 adds a text helper that you type a sentence into, so the panel speaks it. That is
-optional: an automation does the work, the panel does not read the helper.
-
 ## 1. The device name
 
 `device` in the event is the panel's name as it is: `hassctrl-7e7d` (with `-`, upper or lower
@@ -82,46 +79,3 @@ outside"`.
 The panel logs every event it plays (`hass: hassctrl_say: Hello`) and what went wrong:
 `hassctrl_say: a message needs its engine (a tts entity)`, `say: "Hello": speech: HTTP 500: ...`
 (an unknown engine), `the token was rejected`, `too large`, `a WAV file, only MP3 plays`.
-
-## 6. A talk helper (optional)
-
-A text helper that you type a sentence into, from a dashboard or the entity dialog, and the panel
-speaks it.
-
-Settings → Devices & services → Helpers → Create helper → Text:
-
-| Field | Value |
-| --- | --- |
-| Name | `hassctrl_7e7d_talk` (the entity becomes `input_text.hassctrl_7e7d_talk`); rename it afterwards if you like, the entity ID stays |
-| Maximum length | `255` (the most Home Assistant allows) |
-| Icon | optional, e.g. `mdi:account-voice` |
-
-Then the automation (Settings → Automations & scenes → Create automation → ⋮ → Edit in YAML,
-paste, change the entities, save):
-
-```yaml
-alias: Kitchen panel talks
-description: Speaks what is typed into input_text.hassctrl_7e7d_talk, then empties it
-triggers:
-  - trigger: state
-    entity_id: input_text.hassctrl_7e7d_talk
-conditions:
-  - condition: template
-    value_template: "{{ trigger.to_state.state not in ['', 'unknown', 'unavailable'] }}"
-actions:
-  - event: hassctrl_say
-    event_data:
-      device: hassctrl-7e7d
-      message: "{{ trigger.to_state.state }}"
-      engine: tts.google_en_com
-  - action: input_text.set_value
-    target:
-      entity_id: input_text.hassctrl_7e7d_talk
-    data:
-      value: ""
-mode: queued
-```
-
-The helper is emptied after each sentence: a state trigger fires only on a change, so the same
-sentence twice would speak once. The condition keeps the empty text (and a restart of Home
-Assistant) from speaking. One helper for several panels: put a list in `device`, or leave it out.

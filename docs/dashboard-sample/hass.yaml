@@ -104,7 +104,7 @@
 #       # or a whole http(s) address), an MP3 of at most 1 MB
 #
 # Developer tools, Events fires it by hand (event type hassctrl_say, the event_data as data).
-# Guide and a talk helper (type a text in HA, the panel speaks it): docs/home-assistant/say.md.
+# Guide: docs/home-assistant/say.md.
 #
 # Relays: a board with relay GPIOs (the JC4880P443C: relay 1) follows entities of Home Assistant,
 # no setting here: `input_boolean.<device>_relay_<n>` or `switch.<device>_relay_<n>`, <device> the

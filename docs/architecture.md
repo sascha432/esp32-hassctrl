@@ -1023,10 +1023,10 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
   `language` and the engine's `options` map optional, e.g. Google Translate's `tld`; none of
   Google's sets the speed), or a `url` of an MP3; `device` (the host name, or a list of them) picks
   the devices, without it every one plays (`hass_protocol::decode_say`, host tested). Chosen over
-  a `media_player` entity (it would need a DLNA renderer or an integration of its own) and over
+  a `media_player` entity (it would need a DLNA renderer or an integration of its own; not planned, 2026-10-17) and over
   a web API on the device (Home Assistant would need its login); the event reuses the
   connection and the token. `docs/dashboard-sample/hass.yaml` shows the Home Assistant side,
-  `docs/home-assistant/say.md` is the guide (with an optional talk helper).
+  `docs/home-assistant/say.md` is the guide.
   * `hass/src/say.cpp`, a task that exists only while a sound is on its way (6 KB of stack, 8 KB
     with https or another server's address): a message goes to `POST /api/tts_get_url` with
     the event's options and `preferred_format: mp3` and one channel over them (Home Assistant
@@ -1037,7 +1037,7 @@ Running since 2026-10-09: the output, the volume, the touch sounds, MP3 files an
     a new client each: `esp_http_client` kept its transport and sent plain HTTP to the https of
     a redirect). The whole MP3 goes into PSRAM, at most 1 MB (a sentence of Google's TTS is
     20 to 30 KB, under a second on the JC3248W535), so the audio task never waits on the network.
-    A newer sound stops a download between two reads. A WAV is refused with a log line.
+    A newer sound stops a download between two reads. A WAV is refused with a log line (no WAV support, decided 2026-10-17).
   * `audio::play_mp3` takes the buffer; the MP3 source decodes it in place and frees it at the
     end. It is an announcement: only an alarm or another announcement replaces it, the touch
     sounds are dropped while it plays; it plays at the volume (0: silent).

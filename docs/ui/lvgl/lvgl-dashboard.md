@@ -29,7 +29,8 @@ vertical drag that starts on a tile, such as the level drag of a dimmer, stays a
 +------------------------------------------------------------+
 ```
 
-The start zone is 160 px wide at the top center and 40 px high (80 x 24 was hard to hit, 2026-10-07). While
+The start zone is 160 px wide at the top center and 40 px high, a drag of 24 px opens Settings
+(80 x 24 and 30 px were hard to hit, 2026-10-07; confirmed by you 2026-10-10). While
 the alert strip is shown, its whole area also starts the pull-down (built).
 
 ### 1.1 Alert strip
@@ -201,7 +202,11 @@ shows `On` until HA reports the level.
 
 A pending action ends when the entity reports the expected state (a level within 3 of 255, a
 setpoint within 0.05), when the call fails, or after 5 s; then the tile shows the entity's state
-again.
+again. A failed call is only logged, the alert strip says nothing (decided 2026-10-17: the tile
+going back is enough).
+
+A sensor with a number is never filled, only a binary sensor that is `on` (decided: the old
+rule "on while a number is reported" made every sensor orange).
 
 Texts: binary sensors in the words of their device class (`Open`/`Closed`, `Detected`/`Clear`,
 `Wet`/`Dry`, `Unlocked`/`Locked`), other states with a capital and spaces (`heat_cool` is `Heat cool`), numbers with
@@ -246,8 +251,8 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   that page gets its current cell in that orientation, not only the moved one. The page then
   stays as it was arranged, also when a tile is added later (it takes the first free block). The
   other orientation is not touched. Hidden tiles and tiles without room keep no cell.
-* **A drop onto other tiles pushes them aside** (decided 2026-10-08 for a first try, judged on
-  the device; the alternative is a swap of two tiles of the same span). The moved tile takes its
+* **A drop onto other tiles pushes them aside** (decided 2026-10-08, kept after trying it on the
+  device; a swap of two tiles of the same span is not built). The moved tile takes its
   block; every tile it covers takes the first free block in reading order from the drop cell on,
   wrapping to the start of the page, in their old order. When one of them finds no block, the drop
   is refused (red outline): nothing vanishes into the overflow by a move. The same rule
@@ -336,6 +341,8 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   session lives in RAM until Done: a reset or a power loss drops it. A new layout from the web UI
   or an import while editing drops the session too (it would conflict) and says so in the alert
   strip.
+* No move to another page on the screen (decided 2026-10-17): remove the tile and add it on
+  the other page, or move it in the web editor.
 * No change of sizes on the screen yet. Tiles hidden or without room in
   the shown orientation are not part of the edit: a tile cannot be moved into or out of the
   overflow on the screen (web editor only). A sideways drag on an empty cell goes back from a
@@ -444,22 +451,7 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
 
 ## 8. Open points
 
-* Numeric sensors are never highlighted; the old rule ("on while a number is reported") would
-  make every sensor orange. Proposal: keep it so.
-* The climate default step is 0.5 for both units until the unit of the HA configuration is read.
-* A failed service call ends the pending look; it is not shown in the alert strip yet.
-* The height of the pull-down start zone (section 1).
-* **Push aside or swap**: push aside is built first; decided after trying it on the device. On
-  a small page (4x2) it moves tiles the user did not touch.
-* **Moving between pages on the screen**: not proposed (drag onto the back tile could move a tile
-  to the parent page later).
-* **Dimmer options** (your request 2026-10-14, later): `+`/`-` bars on a dimmer card large
-  enough (like the climate bars), stepping by the tile's `step`, with a key to turn them off;
-  `toggle_on_tap: true` makes a tap toggle at once, details then open on a hold of about 500 ms
-  (which cancels the edit watch, so the 1000 ms edit long press never fires on such a dimmer);
-  the double tap goes for that dimmer, it would either toggle first and then open, or delay every
-  toggle by the double-tap window (which is what a switch tile does since 2026-10-15: its double
-  tap opens the timeline, your request).
+None (2026-10-17).
 
 ## 9. Swipe navigation and the dots
 

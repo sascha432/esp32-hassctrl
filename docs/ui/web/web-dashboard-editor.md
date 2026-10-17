@@ -196,10 +196,10 @@ Below 800 px the columns stack: the page as a dropdown, the preview, the tile fo
    7.2, with the picker's template). Later: sizes on the screen. Not planned: live values in the web preview
    (decided 2026-10-09).
 
-## 7. Open points
+## 7. Decided
 
-* **Save model of the web editor**: explicit Save (proposed, one flash write per session) or save
-  2 s after each change.
+* **Save model of the web editor**: an explicit Save (built), one flash write per session; no
+  save after each change.
 * **Validation in the browser**: only what the forms enforce (ranges, entity id characters, name
   length); every other rule only on the device through `check=1`, so the rules are not written
   twice.

@@ -225,8 +225,8 @@ Step 4 is done in increments. Running on the T4 since 2026-10-06:
 **Screen** (docs/ui/lvgl/lvgl-settings.md), running on both boards since 2026-10-06, tested through the
 console (`swipe`, `tap`, `screenshot`) in every rotation:
 
-- **Pull-down zone** (80 x 24 px, top center, `components/ui/src/overlay.cpp`): dragging down
-  30 px opens Settings.
+- **Pull-down zone** (160 x 40 px, top center, `components/ui/src/overlay.cpp`): dragging down
+  24 px opens Settings.
 - **Alert strip** (top center, rounded bottom corners, 60 % black): Wi-Fi error, "Wi-Fi is not
   set up", connecting, then the one-time hint "Swipe down for Settings". A tap opens the
   matching page; the hint stays until Settings was opened by the swipe (stored in NVS `ui`).
@@ -674,11 +674,11 @@ On the device (2026-10-07, running on the T4 at 192.168.0.201):
   backup file with the settings sections, and `hass:` of an import is only reported as ignored
   (2026-10-12: the settings sections of an import are applied, see "Settings sections in a
   dashboard import").
-- [ ] **Dashboard editing** (planned 2026-10-08, [ui/web/web-dashboard-editor.md](ui/web/web-dashboard-editor.md), demo
+- [x] **Dashboard editing** (planned 2026-10-08, [ui/web/web-dashboard-editor.md](ui/web/web-dashboard-editor.md), demo
       `docs/ui/web/web-dashboard-editor-demo.html` reviewed by you): tile positions per orientation in the
       format, edit mode on the screen (1000 ms long press, drag with push aside, long press on a
       tile removes it, Done/Cancel), web UI editor with an Import & export tab; the backup goes
-      to the System page. Steps in section 5 of the plan.
+      to the System page. Steps in section 6 of the plan, all built (2026-10-17).
   - [x] Format (2026-10-08): `landscape`/`portrait` cells in `core` and `config`, `move_tile`
         (push aside), `reset_arrangement`, `remove_tile`; 68 host tests; the sample's Workshop page
         is arranged.
@@ -829,9 +829,11 @@ Next:
       below.
   - [x] Confirmed by you on the P4 (2026-10-10).
   - [x] Why the PPA hangs: silicon bug DIG-734 (2026-10-13, below).
-- [ ] Review the dashboard in the Windows version (`python tools/sim.py`, your dashboard with
+- [x] Review the dashboard in the Windows version (`python tools/sim.py`, your dashboard with
       `--dashboard docs/.retracted/dashboard/hass.yaml`); the open points are in
-      `docs/ui/lvgl/lvgl-dashboard.md` section 8.
+      `docs/ui/lvgl/lvgl-dashboard.md` section 8. Done (2026-10-17): numeric sensors stay unfilled,
+      the pull-down zone stays 160 x 40, push aside stays; a failed call only reverts the tile;
+      the climate step and the dimmer were done before. Section 8 is empty.
 - [x] Camera full screen zoom and move (2026-10-11): "+", "-", "X", swiping, kept zoom and
       position, the preview in the stream's place and the 30 s wait for a stream; confirmed by you.
       Flashed on all three boards.
@@ -1174,17 +1176,17 @@ Your report of the second version (2026-10-09):
       was tested over the console only. P4 at 100 %: no restart.
 - [x] Priority on the P4 (you, 2026-10-14): taps do not click while it speaks, the alarm takes
       over.
-- [x] Guide for Home Assistant (your request, 2026-10-17): docs/home-assistant/say.md, with a talk
-      helper `input_text.<device>_talk` and an automation that fires the event (the firmware does
-      not read the helper).
-- [ ] Check for you on the P4: the talk helper of say.md section 6 speaks and empties itself.
-- [ ] Check for you on the P4: an event with another `device` name stays silent.
+- [x] Guide for Home Assistant (your request, 2026-10-17): docs/home-assistant/say.md. The talk
+      helper (`input_text` + automation) is gone from it: it did not work on the P4 (you,
+      2026-10-17).
+- [x] Checked by you on the P4: an event with another `device` name stays silent (2026-10-17).
 - [x] The event's `options` go to the engine (2026-10-14, your request after asking for the
       speed): Google Translate has `tld` (the accent) only, no speed. `tld` works (you,
       2026-10-14).
-- [ ] Open: a WAV from an engine that cannot give MP3 is refused (HA converts with
-      `preferred_format`, so it should not come); a `media_player` entity (DLNA renderer) only
-      if `tts.speak` or Music Assistant are wanted.
+- [x] No WAV support (decided 2026-10-17): a WAV is refused with a log line (HA converts with
+      `preferred_format`, so it should not come).
+- [x] No `media_player` entity (DLNA renderer, `tts.speak`, Music Assistant): not planned
+      (decided 2026-10-17); `hassctrl_say` stays the way to play sounds.
 
 ## Vibration (2026-10-09)
 
@@ -1435,7 +1437,7 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
 ## Touch (2026-10-17)
 
 - [x] JC3248W535 lag and doubled taps: the AXS15231B reports every 17-22 ms and answers "no finger"
-      in between, so at 10 ms one tap became several (the hass queue filled, the UI stalled). Now
+      in between, so at 10 ms one tap became several. Now
       read every 20 ms (`Info::touch_sample_ms`), a single "no finger" during a touch is a misread.
       You: as responsive as the WT32.
 - [x] `app_main` overflowed its 3.5 KB stack into the heap (restart after "hass connected"):
@@ -1445,8 +1447,9 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       over it; in a full-screen panel it now keeps between the header buttons.
 - [ ] Optional: read the AXS15231B on its INT line (GPIO 3) instead of polling (no misread rule,
       no merged fast taps). Measure INT while touching first.
-- [ ] `post_command` waits up to 100 ms when the hass queue is full, from the LVGL task a stall per
-      tap. Look at it if lag shows up again.
+- [x] `post_command` waits up to 100 ms when the hass queue (16 events) is full, a stall of the
+      LVGL task. Accepted (you, 2026-10-17): only during a burst (reconnect, mass toggle in HA),
+      rare, at most 100 ms, nothing lost; no "queue is full" in your test logs.
 
 ## Known issues
 
@@ -1490,8 +1493,8 @@ Screen ([ui/lvgl/lvgl-touch.md](ui/lvgl/lvgl-touch.md) section 6, [ui/lvgl/lvgl-
 
 - [ ] Does a swipe from the left edge also go back on a page with a back tile? (On a swipe
       page a swipe right goes back from anywhere, 2026-10-14.)
-- [x] Pull-down start zone 80 x 24 px; message order errors, connecting, hint (implemented,
-      to confirm by hand).
+- [x] Pull-down start zone 160 x 40 px (was 80 x 24, confirmed by you 2026-10-10); message
+      order errors, connecting, hint.
 - [x] Line limit of the alert strip: 3 lines, then "..." (approved by you 2026-10-14; it wraps at
       90 % of the width).
 
@@ -1601,10 +1604,9 @@ Dashboard ([architecture.md](architecture.md) section 14):
 - [x] ~~**Landscape strict, portrait falls back**~~ (2026-10-13): gone with format version 2
       (2026-10-14): both orientations leave a tile without room out of the screen, the web
       editor's tray shows it.
-- [ ] **Dimmer options** (your request 2026-10-14, later): `+`/`-` bars on a large dimmer card
-      with a key to turn them off; `toggle_on_tap` with details on a hold of about 500 ms (the
-      hold cancels the edit watch; my recommendation: no double tap on such a dimmer, see
-      lvgl-dashboard.md section 8).
+- [x] ~~**Dimmer options**~~ (your request 2026-10-14): `+`/`-` bars on a large dimmer card,
+      `toggle_on_tap` with details on a hold. Dropped 2026-10-17: a double tap toggles the
+      dimmer, a tap opens the light panel (lvgl-dashboard.md section 3).
 - [x] Your requests of 2026-10-14 (afternoon): grid up to 32x32, dots 50 % / 100 % larger,
       full-screen panels slide in from the right, the card decides the font size. Built,
       host tests 98, sim; flashed on all three boards. Confirmed working by you (2026-10-14).

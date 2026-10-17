@@ -2,6 +2,8 @@
 
 ## 2026-10-17
 
+- Docs: the dashboard's open points are decided (no fill for numeric sensors, push aside, no move between
+  pages on the screen, a failed call only reverts the tile); no WAV, no `media_player`; the say.md talk helper removed (did not work).
 - JC3248W535 touch (your reports: lag, taps lost or doubled): the AXS15231B reports every 17-22 ms and
   answers "no finger" in between; read every 10 ms one tap became several. Now its own task reads it
   every 20 ms (`Info::touch_sample_ms`), a single "no finger" during a touch is a misread; the LVGL-task
@@ -29,8 +31,7 @@
 - Motion sensor (your request: no English words in HA): the panel switches the toggle `input_boolean.<device>_motion`
   (was `input_text` with Detected / Clear); a UI template binary sensor adds the motion class. Guide in
   `docs/home-assistant/motion-sensor.md`. Confirmed by you on the kitchen P4.
-- Docs (your request): [home-assistant/say.md](home-assistant/say.md), the event `hassctrl_say` and an optional
-  talk helper (`input_text.<device>_talk` + automation) that the panel speaks.
+- Docs (your request): [home-assistant/say.md](home-assistant/say.md), the event `hassctrl_say`.
 - Recovery app without WPA2/3 Enterprise and SAE-PK (unused): 5.7 KB smaller, 21 KB free; WPA3 checked on the WT32.
 - Docs (your request): [home-assistant/timer-helper.md](home-assistant/timer-helper.md), the timer helper and an
   automation that runs a fan while the timer runs and cancels it when the fan is turned off.
