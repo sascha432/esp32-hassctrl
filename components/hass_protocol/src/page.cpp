@@ -59,6 +59,8 @@ constexpr FieldSpec kFields[] = {
     {Field::MinTemp, "tl", "min_temp", Kind::Number},
     {Field::MaxTemp, "th", "max_temp", Kind::Number},
     {Field::TempStep, "ts", "target_temp_step", Kind::Number},
+    {Field::TargetLow, "lo", "target_temp_low", Kind::Number},
+    {Field::TargetHigh, "hi", "target_temp_high", Kind::Number},
     {Field::HvacModes, "hm", "hvac_modes", Kind::List},
     {Field::PresetMode, "p", "preset_mode", Kind::Text},
     {Field::PresetModes, "pl", "preset_modes", Kind::List},
@@ -103,7 +105,8 @@ constexpr FieldMask kLightPanel = bit(Field::Brightness) | bit(Field::ColorModes
                                   bit(Field::Effect) | bit(Field::EffectList) | bit(Field::ColorTemp) |
                                   bit(Field::MinColorTemp) | bit(Field::MaxColorTemp) | bit(Field::HsColor);
 constexpr FieldMask kClimate = bit(Field::Target) | bit(Field::Current) | bit(Field::HvacAction) |
-                               bit(Field::MinTemp) | bit(Field::MaxTemp) | bit(Field::TempStep);
+                               bit(Field::MinTemp) | bit(Field::MaxTemp) | bit(Field::TempStep) |
+                               bit(Field::TargetLow) | bit(Field::TargetHigh);
 constexpr FieldMask kClimatePanel = bit(Field::HvacModes) | bit(Field::PresetMode) | bit(Field::PresetModes) |
                                     bit(Field::FanMode) | bit(Field::FanModes);
 constexpr FieldMask kTimer = bit(Field::Duration) | bit(Field::Remaining) | bit(Field::FinishesAt);
@@ -239,6 +242,12 @@ void decode_field(const FieldSpec &spec, const cJSON *item, core::EntityState &t
         break;
     case Field::TempStep:
         to.temp_step = number_of(item);
+        break;
+    case Field::TargetLow:
+        to.target_low = number_of(item);
+        break;
+    case Field::TargetHigh:
+        to.target_high = number_of(item);
         break;
     case Field::HvacModes:
         to.hvac_modes = list_of(item);

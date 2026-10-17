@@ -133,7 +133,8 @@ TEST(protocol_page_template)
               "\"1\":{%set e='climate.hearth'%}{\"s\":{{states(e)|tojson}},\"t\":{{state_attr(e,'temperature')|tojson}},"
               "\"c\":{{state_attr(e,'current_temperature')|tojson}},\"a\":{{state_attr(e,'hvac_action')|tojson}},"
               "\"tl\":{{state_attr(e,'min_temp')|tojson}},\"th\":{{state_attr(e,'max_temp')|tojson}},"
-              "\"ts\":{{state_attr(e,'target_temp_step')|tojson}}},"
+              "\"ts\":{{state_attr(e,'target_temp_step')|tojson}},\"lo\":{{state_attr(e,'target_temp_low')|tojson}},"
+              "\"hi\":{{state_attr(e,'target_temp_high')|tojson}}},"
               "\"2\":{%set e='sensor.moon_temperature'%}{\"s\":{{states(e)|tojson}},\"r\":{{states(e,rounded=True)|tojson}},"
               "\"n\":{{state_attr(e,'friendly_name')|tojson}},\"i\":{{state_attr(e,'icon')|tojson}},"
               "\"d\":{{state_attr(e,'device_class')|tojson}},\"u\":{{state_attr(e,'unit_of_measurement')|tojson}}}}");
@@ -156,7 +157,7 @@ TEST(protocol_decode_object_and_text)
     const PageSubscription sub = build_page(page.layout, 0, Orientation::Landscape, page.dimmer);
     const char *text = R"({"0":{"s":"on","b":180,"cs":["hs","color_temp"],"cm":"hs","e":null,"el":["Rainbow","Fire, warm"],)"
                        R"("k":null,"kl":2000,"kh":6535,"h":[30.5,80]},)"
-                       R"("1":{"s":"heat","t":21.5,"c":"20.8","a":"heating","tl":7,"th":35,"ts":null},)"
+                       R"("1":{"s":"heat","t":21.5,"c":"20.8","a":"heating","tl":7,"th":35,"ts":null,"lo":null,"hi":null},)"
                        R"("2":{"s":"12.345","r":"12.3","n":"Moon","i":null,"d":"temperature","u":"°C"},"9":{"s":"x"}})";
     Json object(cJSON_Parse(text));
     Json as_text(cJSON_CreateString(text));
@@ -177,6 +178,8 @@ TEST(protocol_decode_object_and_text)
         CHECK(climate.target == 21.5f && climate.current == 20.8f && climate.hvac_action == "heating");
         CHECK(std::isnan(climate.temp_step) && climate.min_temp == 7);
         CHECK((updates[1].fields & bit(Field::TempStep)) != 0);
+        CHECK(std::isnan(climate.target_low) && std::isnan(climate.target_high));
+        CHECK((updates[1].fields & bit(Field::TargetHigh)) != 0);
         const EntityState &sensor = updates[2].values;
         CHECK(sensor.rounded == "12.3" && sensor.unit == "°C" && sensor.name == "Moon" && sensor.icon.empty());
     }
@@ -478,6 +481,13 @@ TEST(protocol_messages)
     REQUIRE(call_service_message(9, intent, "climate.hearth", out, error));
     CHECK(out.find(R"("service":"set_temperature","service_data":{"temperature":21.5})") != std::string::npos);
 
+    intent.kind = IntentKind::SetTemperatureRange;
+    intent.value = 19.96f;
+    intent.value2 = 24.5f;
+    REQUIRE(call_service_message(9, intent, "climate.hearth", out, error));
+    CHECK(out.find(R"("service":"set_temperature","service_data":{"target_temp_low":20,"target_temp_high":24.5})") !=
+          std::string::npos);
+
     intent.kind = IntentKind::SetPreset;
     intent.text = "eco \"night\"";
     REQUIRE(call_service_message(10, intent, "climate.hearth", out, error));
@@ -714,6 +724,15 @@ TEST(protocol_pending_actions)
     pending.start(2, target, 0);
     CHECK(!pending.resolve(2, state)); // the target is unknown
     state.target = 21.5f;
+    CHECK(pending.resolve(2, state));
+    // a range: both setpoints have to arrive
+    Expectation range;
+    range.target_low = 20;
+    range.target_high = 24;
+    pending.start(2, range, 0);
+    state.target_low = 20;
+    CHECK(!pending.resolve(2, state));
+    state.target_high = 24;
     CHECK(pending.resolve(2, state));
 
     // the time runs out; a new action replaces the old one of its entity

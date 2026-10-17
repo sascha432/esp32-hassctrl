@@ -642,7 +642,12 @@ void update_climate(View &view, const core::EntityState &state, const core::Expe
 {
     const bool on = available && state.state != "off";
     const float target = pending != nullptr && !std::isnan(pending->target) ? pending->target : state.target;
-    set_value(view, available ? temperature(target) + "°" : std::string("--"));
+    float low = 0;
+    float high = 0;
+    // heat_cool: both setpoints (the fonts have no en dash)
+    set_value(view, !available                              ? std::string("--")
+                    : climate_range(state, pending, low, high) ? temperature(low) + "-" + temperature(high) + "°"
+                                                               : temperature(target) + "°");
     std::string action;
     if (available) {
         action = !state.hvac_action.empty() ? words(state.hvac_action) : words(state.state);
@@ -1077,6 +1082,14 @@ float climate_step(const core::Tile &tile, const core::EntityState &state)
         return state.temp_step;
     }
     return tile.step > 0 ? tile.step : kDefaultClimateStep;
+}
+
+bool climate_range(const core::EntityState &state, const core::Expectation *pending, float &low, float &high)
+{
+    const bool waiting = pending != nullptr && !std::isnan(pending->target_low) && !std::isnan(pending->target_high);
+    low = waiting ? pending->target_low : state.target_low;
+    high = waiting ? pending->target_high : state.target_high;
+    return !std::isnan(low) && !std::isnan(high);
 }
 
 TimerState timer_shown(const core::EntityState &state, const core::Expectation *pending)

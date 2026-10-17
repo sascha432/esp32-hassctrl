@@ -43,7 +43,9 @@ bool met(const Expectation &expected, const EntityState &state)
     if (expected.brightness >= 0 && std::abs(state.brightness - expected.brightness) > kBrightnessTolerance) {
         return false;
     }
-    if (!near(expected.target, state.target, kTargetTolerance)) {
+    if (!near(expected.target, state.target, kTargetTolerance) ||
+        !near(expected.target_low, state.target_low, kTargetTolerance) ||
+        !near(expected.target_high, state.target_high, kTargetTolerance)) {
         return false;
     }
     if (!near_hue(expected.hue, state.hue) || !near(expected.saturation, state.saturation, kSaturationTolerance)) {

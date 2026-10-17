@@ -186,6 +186,16 @@ EntityState make_sample(std::string_view id, size_t i)
         s.preset_modes = list({"none", "eco", "comfort", "away"});
         s.fan_mode = "auto";
         s.fan_modes = list({"auto", "on", "circulate"});
+        if (contains(id, "heat_pump")) {
+            // heat_cool with two setpoints, like HA's demo climate.ecobee: `temperature` is null
+            s.state = "heat_cool";
+            s.target = hc::core::kUnknown;
+            s.target_low = 20;
+            s.target_high = 24;
+            s.current = 22.3f;
+            s.hvac_action = "idle";
+            s.hvac_modes = list({"off", "heat", "cool", "heat_cool"});
+        }
     } else if (domain == "sensor") {
         sensor(s, id, i);
     } else if (domain == "binary_sensor") {
@@ -261,6 +271,38 @@ void queue_page()
         }
     }
     queue_values(entities, kValuesMs);
+}
+
+// what a thermostat does at its setpoints and the room temperature
+const char *hvac_action(const EntityState &s)
+{
+    if (s.state == "off") {
+        return "off";
+    }
+    if (!std::isnan(s.target_low) && !std::isnan(s.target_high)) {
+        return s.current < s.target_low ? "heating" : s.current > s.target_high ? "cooling" : "idle";
+    }
+    if (s.state == "cool") {
+        return s.target < s.current ? "cooling" : "idle";
+    }
+    return s.target > s.current ? "heating" : "idle";
+}
+
+// as the integrations with a range do (ecobee, HA's demo): heat_cool has the two setpoints and
+// no `temperature`, heat and cool the one of their side
+void set_hvac_mode(EntityState &s, std::string_view mode)
+{
+    const bool range = !std::isnan(s.target_low) && !std::isnan(s.target_high);
+    if (mode == "heat_cool" && !range) {
+        s.target_low = std::isnan(s.target) ? 20 : s.target;
+        s.target_high = s.target_low + 4;
+        s.target = hc::core::kUnknown;
+    } else if ((mode == "heat" || mode == "cool") && range) {
+        s.target = mode == "heat" ? s.target_low : s.target_high;
+        s.target_low = s.target_high = hc::core::kUnknown;
+    }
+    s.state.assign(mode.data(), mode.size());
+    s.hvac_action = hvac_action(s);
 }
 
 } // namespace
@@ -380,11 +422,15 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
         break;
     case IntentKind::SetTemperature:
         s.target = intent.value;
-        s.hvac_action = s.state == "off" ? "off" : s.target > s.current ? "heating" : "idle";
+        s.hvac_action = hvac_action(s);
+        break;
+    case IntentKind::SetTemperatureRange:
+        s.target_low = std::round(intent.value * 10) / 10;
+        s.target_high = std::round(intent.value2 * 10) / 10;
+        s.hvac_action = hvac_action(s);
         break;
     case IntentKind::SetHvacMode:
-        s.state = intent.text;
-        s.hvac_action = s.state == "off" ? "off" : s.target > s.current ? "heating" : "idle";
+        set_hvac_mode(s, intent.text);
         break;
     case IntentKind::SetPreset:
         s.preset_mode = intent.text;

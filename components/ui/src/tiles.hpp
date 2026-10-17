@@ -101,6 +101,10 @@ std::string temperature(float value);
 // the setpoint step of a climate: the entity's target_temp_step, else the tile's step, else 0.5
 float climate_step(const core::Tile &tile, const core::EntityState &state);
 
+// The two setpoints of a climate in heat_cool (target_temp_low/_high), the pending action's
+// first: true while both are known, then the screens show them instead of the one setpoint.
+bool climate_range(const core::EntityState &state, const core::Expectation *pending, float &low, float &high);
+
 // a timer entity (docs/ui/lvgl/lvgl-dashboard.md section 3): the state the screens show
 enum class TimerState : uint8_t { Active, Paused, Idle, Unknown };
 // the pending action's state, else the entity's

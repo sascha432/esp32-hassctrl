@@ -23,7 +23,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.
 - A grid per page up to 32x32, tiles up to 8x8; size, place and visibility per orientation.
 - Panels a tile opens: light (level, color, color temperature, effects, on/off timeline), climate
-  (target, modes, presets, fan, room temperature graph), sensor (history graph of 12 to 48 h; a
+  (target or heat_cool range, modes, presets, fan, room temperature graph), sensor (history graph of 12 to 48 h; a
   timeline for on/off and other two-word states such as Detected/Clear), lock (lock, unlock, open,
   timeline), timer (countdown, duration on rollers, start, pause, cancel, finish, timeline), automation and
   script (enabled switch, last run, run or stop, timeline), weather (current values, daily and

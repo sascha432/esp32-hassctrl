@@ -95,13 +95,18 @@ Carried over from `behavior.md` section 6 of the old firmware (the Lyric thermos
 | inside the arc | the action (`Heating`, else the mode; orange while not off), the setpoint (28 px, cyan while pending), `Current temperature` (`Current` in an arc under 180 px) and the room temperature | |
 | steppers | `+` above `-` right of the arc in landscape, `-` left of `+` under it in portrait | step the setpoint by `target_temp_step`, the tile's `step` or 0.5; sent 0.7 s after the last step |
 | option list | the values in two columns, scrolling; the mode with its glyph; the value that is set orange | sets it and goes back to the arc |
+| range (heat_cool) | while the entity reports `target_temp_low` and `target_temp_high` (the pending ones first): two knobs on the ring, the indicator orange between them; inside the arc the two setpoints side by side (28 px, 20 px in an arc under 170 px inside), the selected one white (cyan while pending), the other and its knob `0x7fa8c9` | a drag on the ring moves the nearer knob, not past the other one; on release `set_temperature` with `target_temp_low` and `target_temp_high`. A tap on a setpoint selects it for the steppers; the steps go out together, 0.7 s after the last |
 
 While the mode is `off` the panel opens on the mode list instead of the arc (the arc does nothing
 then), and the power button leads to it as well; once per opening, a tap on the mode pill goes to
 the arc (2026-10-08, your request).
 
 The range is `min_temp`..`max_temp` of the entity (7..35 until they arrived); the arc is built
-again when the range or the step arrives with the panel's fields.
+again when the range or the step arrives with the panel's fields, and when a mode change brings or
+takes the two setpoints (most integrations report `temperature` in heat and cool and the range,
+`temperature` null, in heat_cool). Added 2026-10-17 without a device that has a range: checked in the
+simulator (`climate.*heat_pump*` is a sample in heat_cool) at 480x320, 320x480 and 480x800;
+the look and the steppers' logic approved by you there (2026-10-17).
 
 ## 4. Sensor panel
 
@@ -311,8 +316,8 @@ ran; kept as an `int64_t`, 0 then).
 * The graph of a sensor needs long term statistics (a `state_class`); a sensor without them shows
   "No statistics for this sensor". Reading its state history instead is possible, but a busy
   sensor's changes may not fit a message (16 KB per 6 hours).
-* The climate panel has one setpoint; `heat_cool` with a low and a high setpoint
-  (`target_temp_low`/`_high`) is not read yet and shows `--`.
+* The range of a climate (`heat_cool`) keeps the low setpoint at or below the high one; a
+  minimum gap (`target_temp_low` + deadband) is left to the integration, which may refuse the call.
 * The weather panel: `twice_daily` forecasts are not read; the icon of `partlycloudy` is the day
   one at night too (the entity's state has no sun position); a forecast has at most 8 days or 24
   hours (`core::kMaxForecastEntries`); rows that do not fit are left out.

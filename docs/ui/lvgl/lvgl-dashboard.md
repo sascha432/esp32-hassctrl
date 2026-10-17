@@ -149,6 +149,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | climate, tall | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
 | climate, wide | the `-` bar down the left, the `+` bar down the right; between them the stack of the tall look when the card is at least 110 px high inside the padding, else the one-cell line | as the tall one |
 | climate, one cell | one line in the small font: the action and the room temperature (`Heating • 21.5°`); setpoint, name | opens the climate panel |
+| climate in heat_cool | every look shows both setpoints as `20-24°` (the fonts have no en dash) while the entity reports `target_temp_low` and `target_temp_high`; the bars are hidden (`temperature` is null), the panel sets the range | as the look |
 | weather, one cell | icon (24 px) beside the temperature, the condition and the humidity in one line (`Cloudy • 81%`), name | opens the weather panel ([lvgl-panels.md](lvgl-panels.md) section 6) |
 | weather, tall | icon (48 px), the temperature, the condition, the humidity with its drop glyph, name | opens the weather panel |
 | weather, wide | the large icon left; right of it the temperature (28 px), the condition and the humidity in one line, the name | opens the weather panel |

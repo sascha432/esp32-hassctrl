@@ -87,6 +87,10 @@ bool copy(EntityState &to, const EntityState &from, Field field)
         return assign(to.max_temp, from.max_temp);
     case Field::TempStep:
         return assign(to.temp_step, from.temp_step);
+    case Field::TargetLow:
+        return assign(to.target_low, from.target_low);
+    case Field::TargetHigh:
+        return assign(to.target_high, from.target_high);
     case Field::HvacModes:
         return assign(to.hvac_modes, from.hvac_modes);
     case Field::PresetMode:

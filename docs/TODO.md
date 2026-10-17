@@ -888,7 +888,7 @@ Next:
         mode/preset/fan pills with their lists, the arc (drag), the steppers. A tap on a climate
         1x1 tile, or beside the bars of a 1x2 tile, opens it. Checked by me in the Windows version
         at 480x320, 320x240 and 320x480; firmware builds for the WT32 (1.80 MB; 5 new glyphs).
-        Approved by you (2026-10-07). Not done: `heat_cool` with two setpoints.
+        Approved by you (2026-10-07). `heat_cool` with two setpoints added 2026-10-17 (below).
   - [x] Your review (2026-10-07): landscape gap between the left column and the control doubled
         to 8 px (both panels); a list that fits is centered; the selected item of a list that
         opens out of view is scrolled into the middle (effects, climate options). Checked in the
@@ -1786,7 +1786,16 @@ Weather tile and panel (2026-10-13, your request: a tile and its details, no his
 
 Not built yet (placeholders in the code or the documentation):
 
-- [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
+- [x] Climate `heat_cool` with two setpoints (climate panel, Step 6; 2026-10-17): `target_temp_low`/`_high`
+      read with the climate fields, `set_temperature` with both (`IntentKind::SetTemperatureRange`);
+      tile `20-24°`, panel two knobs on the arc, a tap on a setpoint selects it for the steppers
+      ([ui/lvgl/lvgl-panels.md](ui/lvgl/lvgl-panels.md) section 3). Checked in the simulator
+      (`climate.*heat_pump*` in heat_cool, mode changes heat <-> heat_cool) at 480x320, 320x480, 480x800;
+      flashed on the WT32-SC01. Looks and the +/- logic approved by you in the simulator (2026-10-17).
+- [ ] Climate `heat_cool` on a device (WT32-SC01, your choice): no thermostat with a range here. A
+      test entity: HA's demo platform (`climate: - platform: demo` in configuration.yaml) adds
+      `climate.ecobee` in heat_cool with low/high; put it on a tile, drag both knobs, step each,
+      switch heat <-> heat_cool, then remove the demo entry again.
 - [x] Home Assistant events waking the screen (`ui/src/power.hpp`): not wanted (your choice,
       2026-10-17).
 - [x] "Start the firmware" on the System page of the web UI in the recovery app (2026-10-17;

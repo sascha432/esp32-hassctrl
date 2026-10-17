@@ -45,6 +45,8 @@ enum class Field : uint8_t {
     MinTemp,
     MaxTemp,
     TempStep,     // target_temp_step, only there when the integration sets it
+    TargetLow,    // target_temp_low: the lower setpoint of a range (heat_cool), else unknown
+    TargetHigh,   // target_temp_high
     HvacModes,
     PresetMode,
     PresetModes,
@@ -113,6 +115,9 @@ struct EntityState {
     float min_temp = kUnknown;
     float max_temp = kUnknown;
     float temp_step = kUnknown;
+    // the setpoints of a range (heat_cool); while both are known the climate shows them instead of `target`
+    float target_low = kUnknown;
+    float target_high = kUnknown;
     memory::Vector<memory::String> hvac_modes;
     memory::String preset_mode;
     memory::Vector<memory::String> preset_modes;
@@ -323,6 +328,7 @@ enum class IntentKind : uint8_t {
     Press,          // button, input_button; a scene is turned on
     SetLevel,       // light, value = brightness in percent (0 turns it off)
     SetTemperature, // climate, value = degrees
+    SetTemperatureRange, // climate, value = the low setpoint, value2 = the high one (heat_cool)
     SetHvacMode,    // climate, text
     SetPreset,      // climate, text
     SetFanMode,     // climate, text

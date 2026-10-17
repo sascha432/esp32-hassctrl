@@ -17,6 +17,8 @@ struct Expectation {
     memory::String state;   // "on", "off"; empty: not compared
     int16_t brightness = -1; // 0 to 255; -1: not compared
     float target = kUnknown; // climate setpoint
+    float target_low = kUnknown; // climate range, with `target_high`
+    float target_high = kUnknown;
     float hue = kUnknown;        // light color, with `saturation`
     float saturation = kUnknown;
     float color_temp = kUnknown; // kelvin
@@ -30,7 +32,8 @@ struct Expectation {
     // false when nothing is compared, so there is nothing to wait for
     bool says_something() const
     {
-        return !state.empty() || brightness >= 0 || !std::isnan(target) || !std::isnan(hue) ||
+        return !state.empty() || brightness >= 0 || !std::isnan(target) || !std::isnan(target_low) ||
+               !std::isnan(target_high) || !std::isnan(hue) ||
                !std::isnan(color_temp) || !effect.empty() || !preset.empty() || !fan_mode.empty() ||
                !std::isnan(duration);
     }

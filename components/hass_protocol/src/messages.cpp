@@ -73,6 +73,7 @@ Call service_of(const core::Intent &intent, std::string_view domain)
         }
         break;
     case IntentKind::SetTemperature:
+    case IntentKind::SetTemperatureRange:
         if (climate) {
             return {"climate", "set_temperature"};
         }
@@ -181,6 +182,10 @@ bool call_service_message(uint32_t id, const core::Intent &intent, std::string_v
             break;
         case IntentKind::SetTemperature:
             w.decimal("temperature", std::round(intent.value * 10) / 10);
+            break;
+        case IntentKind::SetTemperatureRange:
+            w.decimal("target_temp_low", std::round(intent.value * 10) / 10);
+            w.decimal("target_temp_high", std::round(intent.value2 * 10) / 10);
             break;
         case IntentKind::SetHvacMode:
             w.string("hvac_mode", intent.text.c_str());

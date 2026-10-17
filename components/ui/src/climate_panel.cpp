@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <string>
 
 #include "dashboard.hpp"
@@ -41,6 +42,14 @@ constexpr uint32_t kStepSendMs = 700;
 // the arc's range when the entity reports none
 constexpr float kDefaultMin = 7;
 constexpr float kDefaultMax = 35;
+// the arc's 270 degrees start at the bottom left (LVGL's angles: 0 at the right, clockwise)
+constexpr float kArcRotation = 135;
+constexpr float kArcSweep = 270;
+constexpr float kRadiansPerDegree = std::numbers::pi_v<float> / 180;
+// a touch this far outside the ring still takes a knob of the range
+constexpr lv_coord_t kRingSlop = 10;
+// the two setpoints of a range
+enum : uint8_t { kLow, kHigh, kEnds };
 
 struct State {
     panel::Frame frame;
@@ -76,6 +85,21 @@ struct State {
     float step_target = core::kUnknown; // the setpoint the steps have collected
     lv_timer_t *send_timer = nullptr;
     uint32_t last_step = 0;
+
+    // heat_cool: two setpoints on one ring. The arc only draws it (the indicator between them),
+    // `ring` takes the touches, the knobs are objects of their own.
+    bool range = false;     // the arc was built for a range
+    lv_obj_t *ring = nullptr;
+    lv_obj_t *knobs[kEnds] = {};
+    lv_obj_t *ends[kEnds] = {}; // the setpoints in the middle; a tap selects one for the steppers
+    int selected = kLow;        // the setpoint the steppers change; a drag selects the nearer knob
+    lv_coord_t arc_x = 0;
+    lv_coord_t arc_y = 0;
+    lv_coord_t arc_size = 0;
+    lv_coord_t ring_width = 0;
+    float drag_range[kEnds] = {};
+    float drag_from[kEnds] = {}; // the range when the drag began: a tap that changes nothing sends nothing
+    float step_range[kEnds] = {core::kUnknown, core::kUnknown};
 
     // list
     lv_obj_t *list = nullptr;
@@ -178,6 +202,24 @@ void send_target(float target)
     send(core::IntentKind::SetTemperature, target, {}, std::move(expected));
 }
 
+core::Expectation range_expectation(float low, float high)
+{
+    core::Expectation expected;
+    expected.target_low = low;
+    expected.target_high = high;
+    return expected;
+}
+
+void send_range(core::EntityIndex entity, float low, float high)
+{
+    core::Intent intent;
+    intent.kind = core::IntentKind::SetTemperatureRange;
+    intent.entity = entity;
+    intent.value = low;
+    intent.value2 = high;
+    dashboard::act(intent, range_expectation(low, high));
+}
+
 // ------------------------------------------------------------------------------- arc
 
 float clamp_target(float target)
@@ -197,6 +239,45 @@ void send_steps()
         g.step_target = core::kUnknown;
         send_target(target);
     }
+    if (!std::isnan(g.step_range[kLow])) {
+        const float low = g.step_range[kLow];
+        const float high = g.step_range[kHigh];
+        g.step_range[kLow] = g.step_range[kHigh] = core::kUnknown;
+        send_range(g.entity, low, high);
+    }
+}
+
+bool collecting_steps()
+{
+    return !std::isnan(g.step_target) || !std::isnan(g.step_range[kLow]);
+}
+
+// steps that are collected give way to a drag
+void drop_steps()
+{
+    if (g.send_timer != nullptr) {
+        lv_timer_del(g.send_timer);
+        g.send_timer = nullptr;
+    }
+    g.step_target = core::kUnknown;
+    g.step_range[kLow] = g.step_range[kHigh] = core::kUnknown;
+}
+
+// the range the panel shows: a drag, then the pending action, then the entity's
+bool shown_range(const core::EntityState &s, const core::Expectation *pending, float &low, float &high)
+{
+    if (g.dragging && g.range) {
+        low = g.drag_range[kLow];
+        high = g.drag_range[kHigh];
+        return true;
+    }
+    return tiles::climate_range(s, pending, low, high);
+}
+
+// a setpoint of the range moved to `value`, not past the other one
+void set_end(float (&range)[kEnds], int end, float value)
+{
+    range[end] = end == kLow ? std::min(value, range[kHigh]) : std::max(value, range[kLow]);
 }
 
 // the setpoint the panel shows: a drag, then the pending action, then the entity's
@@ -216,21 +297,42 @@ void on_step(lv_event_t *event)
     if (lv_event_get_code(event) == LV_EVENT_LONG_PRESSED_REPEAT && lv_tick_elaps(g.last_step) < panel::kStepRepeatMs) {
         return;
     }
+    if (!available()) {
+        return;
+    }
     const core::EntityState &s = state();
-    float base = !std::isnan(g.step_target) ? g.step_target : shown_target(s, dashboard::pending(g.entity));
-    if (!available() || std::isnan(base)) {
-        return;
+    const float delta = lv_event_get_target(event) == g.plus ? g.step : -g.step;
+    if (g.range) {
+        // the selected setpoint of the range
+        float range[kEnds] = {g.step_range[kLow], g.step_range[kHigh]};
+        if (std::isnan(range[kLow]) && !shown_range(s, dashboard::pending(g.entity), range[kLow], range[kHigh])) {
+            return;
+        }
+        g.last_step = lv_tick_get();
+        const float before = range[g.selected];
+        set_end(range, g.selected, clamp_target(before + delta));
+        if (range[g.selected] == before) {
+            return;
+        }
+        g.step_range[kLow] = range[kLow];
+        g.step_range[kHigh] = range[kHigh];
+        // shown at once as pending, sent when the taps pause
+        dashboard::expect(g.entity, range_expectation(range[kLow], range[kHigh]));
+    } else {
+        const float base = !std::isnan(g.step_target) ? g.step_target : shown_target(s, dashboard::pending(g.entity));
+        if (std::isnan(base)) {
+            return;
+        }
+        g.last_step = lv_tick_get();
+        const float target = clamp_target(base + delta);
+        if (target == base) {
+            return;
+        }
+        g.step_target = target;
+        core::Expectation expected;
+        expected.target = target;
+        dashboard::expect(g.entity, std::move(expected));
     }
-    g.last_step = lv_tick_get();
-    const float target = clamp_target(base + (lv_event_get_target(event) == g.plus ? g.step : -g.step));
-    if (target == base) {
-        return;
-    }
-    g.step_target = target;
-    // shown at once as pending, sent when the taps pause
-    core::Expectation expected;
-    expected.target = target;
-    dashboard::expect(g.entity, std::move(expected));
     if (g.send_timer != nullptr) {
         lv_timer_reset(g.send_timer);
     } else {
@@ -245,12 +347,7 @@ void on_arc(lv_event_t *event)
         if (!available()) {
             return;
         }
-        // steps that are collected give way to the drag
-        if (g.send_timer != nullptr) {
-            lv_timer_del(g.send_timer);
-            g.send_timer = nullptr;
-            g.step_target = core::kUnknown;
-        }
+        drop_steps();
         g.dragging = true;
         g.drag_target = clamp_target(g.min + static_cast<float>(lv_arc_get_value(g.arc)) * g.step);
         update();
@@ -264,6 +361,133 @@ void on_arc(lv_event_t *event)
         break;
     default:
         break;
+    }
+}
+
+// ------------------------------------------------------------------------------- range
+
+// the angle on the arc (0 at its start, kArcSweep at its end) of a setpoint
+float angle_of(float value)
+{
+    return (std::clamp(value, g.min, g.max) - g.min) / (g.max - g.min) * kArcSweep;
+}
+
+// a point of the screen from the ring's center: its distance and its angle on the arc (0 at the
+// start; above kArcSweep in the gap at the bottom)
+void polar(const lv_point_t &point, float &distance, float &angle)
+{
+    lv_area_t box;
+    lv_obj_get_coords(g.ring, &box);
+    const float dx = static_cast<float>(point.x) - static_cast<float>(box.x1 + box.x2) / 2;
+    const float dy = static_cast<float>(point.y) - static_cast<float>(box.y1 + box.y2) / 2;
+    distance = std::sqrt(dx * dx + dy * dy);
+    angle = std::fmod(std::atan2(dy, dx) / kRadiansPerDegree - kArcRotation + 720.0f, 360.0f);
+}
+
+// The setpoint at a point of the screen; a point in the gap at the bottom is the nearer end.
+float value_at(const lv_point_t &point)
+{
+    float distance = 0;
+    float angle = 0;
+    polar(point, distance, angle);
+    if (angle > kArcSweep) {
+        angle = angle > (360.0f + kArcSweep) / 2 ? 0 : kArcSweep;
+    }
+    return clamp_target(g.min + angle / kArcSweep * (g.max - g.min));
+}
+
+// only the band of the ring takes touches: not the middle, the corners or the gap at the bottom
+// (where the portrait steppers are)
+void on_ring_hit(lv_event_t *event)
+{
+    auto *info = static_cast<lv_hit_test_info_t *>(lv_event_get_param(event));
+    float distance = 0;
+    float angle = 0;
+    polar(*info->point, distance, angle);
+    const float outer = static_cast<float>(g.arc_size) / 2;
+    const bool band = distance >= outer - static_cast<float>(g.ring_width + kRingSlop) && distance <= outer + kRingSlop;
+    // the rounded ends reach a little into the gap
+    info->res = band && (angle <= kArcSweep + 10 || angle >= 350);
+}
+
+void on_ring(lv_event_t *event)
+{
+    const lv_event_code_t code = lv_event_get_code(event);
+    if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        if (g.dragging) {
+            g.dragging = false;
+            if (g.drag_range[kLow] != g.drag_from[kLow] || g.drag_range[kHigh] != g.drag_from[kHigh]) {
+                send_range(g.entity, g.drag_range[kLow], g.drag_range[kHigh]);
+            }
+            update();
+        }
+        return;
+    }
+    if (!available()) {
+        return;
+    }
+    lv_point_t point;
+    lv_indev_get_point(lv_indev_get_act(), &point);
+    const float value = value_at(point);
+    if (code == LV_EVENT_PRESSED) {
+        float low = 0;
+        float high = 0;
+        if (!shown_range(state(), dashboard::pending(g.entity), low, high)) {
+            return;
+        }
+        drop_steps();
+        // the nearer knob; of two that touch, the one on the finger's side
+        g.selected = value < low ? kLow : value > high ? kHigh : value - low < high - value ? kLow : kHigh;
+        g.drag_range[kLow] = g.drag_from[kLow] = low;
+        g.drag_range[kHigh] = g.drag_from[kHigh] = high;
+        g.dragging = true;
+    }
+    if (g.dragging) {
+        set_end(g.drag_range, g.selected, value);
+        update();
+    }
+}
+
+void on_end(lv_event_t *event)
+{
+    g.selected = lv_event_get_current_target(event) == g.ends[kHigh] ? kHigh : kLow;
+    update();
+}
+
+void place_knob(lv_obj_t *knob, float value)
+{
+    const float radians = (kArcRotation + angle_of(value)) * kRadiansPerDegree;
+    const float radius = static_cast<float>(g.arc_size - g.ring_width) / 2;
+    const float center = static_cast<float>(g.arc_size - g.ring_width) / 2;
+    lv_obj_set_pos(knob, static_cast<lv_coord_t>(g.arc_x + std::lround(center + radius * std::cos(radians))),
+                   static_cast<lv_coord_t>(g.arc_y + std::lround(center + radius * std::sin(radians))));
+}
+
+// the ring's touch area and the two knobs, over the arc that only draws
+void build_range()
+{
+    lv_obj_clear_flag(g.arc, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_opa(g.arc, LV_OPA_TRANSP, LV_PART_KNOB);
+    g.ring = t::plain(g.control);
+    lv_obj_set_pos(g.ring, g.arc_x, g.arc_y);
+    lv_obj_set_size(g.ring, g.arc_size, g.arc_size);
+    lv_obj_add_flag(g.ring, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(g.ring, LV_OBJ_FLAG_ADV_HITTEST);
+    lv_obj_clear_flag(g.ring, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(g.ring, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_clear_flag(g.ring, LV_OBJ_FLAG_SCROLL_CHAIN);
+    lv_obj_add_event_cb(g.ring, on_ring_hit, LV_EVENT_HIT_TEST, nullptr);
+    for (const lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST}) {
+        lv_obj_add_event_cb(g.ring, on_ring, code, nullptr);
+    }
+    for (lv_obj_t *&knob : g.knobs) {
+        // as thick as the ring, like the knob of the arc; the touches go through to the ring
+        knob = t::plain(g.control);
+        lv_obj_set_size(knob, g.ring_width, g.ring_width);
+        lv_obj_set_style_radius(knob, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_opa(knob, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(knob, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_clear_flag(knob, LV_OBJ_FLAG_SCROLLABLE);
     }
 }
 
@@ -338,6 +562,16 @@ void build_arc(lv_coord_t w, lv_coord_t h)
     for (const lv_event_code_t code : {LV_EVENT_VALUE_CHANGED, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST}) {
         lv_obj_add_event_cb(g.arc, on_arc, code, nullptr);
     }
+    g.arc_x = arc_x;
+    g.arc_y = arc_y;
+    g.arc_size = size;
+    g.ring_width = ring;
+    float low = 0;
+    float high = 0;
+    g.range = tiles::climate_range(s, dashboard::pending(g.entity), low, high);
+    if (g.range) {
+        build_range();
+    }
     // The arc's hit test takes the whole ring, its gap at the bottom too: the portrait steppers lie
     // in it and the arc, made after them, took their taps. They go in front of it.
     lv_obj_move_foreground(g.minus);
@@ -355,18 +589,35 @@ void build_arc(lv_coord_t w, lv_coord_t h)
     lv_obj_clear_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     const bool large = size >= 180;
     g.action = column_label(col, large ? t::font_medium() : t::font_normal(), t::kActive);
-    g.setpoint = column_label(col, t::font_huge(), t::kText);
-    column_label(col, t::font_small(), t::kTextLabel);
-    lv_label_set_text(lv_obj_get_child(col, 2), large ? "Current temperature" : "Current");
+    if (g.range) {
+        // the two setpoints side by side, low left of high
+        lv_obj_t *row = t::plain(col);
+        lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        for (lv_obj_t *&end : g.ends) {
+            end = t::label(row, "", inner >= 170 ? t::font_huge() : t::font_large(), t::kText);
+            // a finger's room around the digits
+            lv_obj_set_style_pad_hor(end, 6, 0);
+            lv_obj_set_style_pad_ver(end, 8, 0);
+            lv_obj_add_flag(end, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(end, on_end, LV_EVENT_CLICKED, nullptr);
+        }
+    } else {
+        g.setpoint = column_label(col, t::font_huge(), t::kText);
+    }
+    lv_obj_t *caption = column_label(col, t::font_small(), t::kTextLabel);
+    lv_label_set_text(caption, large ? "Current temperature" : "Current");
     g.current = column_label(col, large ? t::font_medium() : t::font_normal(), t::kTextValue);
 }
 
-void update_arc(const core::EntityState &s, const core::Expectation *pending, bool avail)
+// the arc of one setpoint
+void update_target(const core::EntityState &s, const core::Expectation *pending, bool avail)
 {
     const float target = shown_target(s, pending);
     const bool known = avail && !std::isnan(target);
-    const bool on = avail && s.state != "off";
-    lv_obj_set_style_arc_color(g.arc, t::color(on ? t::kActive : t::kTextMuted), LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(g.arc, static_cast<lv_opa_t>(known ? LV_OPA_COVER : LV_OPA_TRANSP), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(g.arc, static_cast<lv_opa_t>(known ? LV_OPA_COVER : LV_OPA_TRANSP), LV_PART_KNOB);
     if (known && !g.dragging) {
@@ -377,19 +628,58 @@ void update_arc(const core::EntityState &s, const core::Expectation *pending, bo
     } else {
         lv_obj_add_state(g.arc, LV_STATE_DISABLED);
     }
+    set_text(g.setpoint, known ? tiles::temperature(target) + "\xc2\xb0" : std::string("--"));
+    // a setpoint on its way is drawn in the pending color
+    const bool waiting = !g.dragging && pending != nullptr && !std::isnan(pending->target);
+    lv_obj_set_style_text_color(g.setpoint, t::color(waiting ? t::kAccent : t::kText), 0);
+    set_hidden(g.plus, !known);
+    set_hidden(g.minus, !known);
+}
+
+// the arc of a range: the indicator between the knobs, the selected setpoint white
+void update_range(const core::EntityState &s, const core::Expectation *pending, bool avail)
+{
+    float range[kEnds] = {};
+    const bool known = avail && shown_range(s, pending, range[kLow], range[kHigh]);
+    lv_obj_set_style_arc_opa(g.arc, static_cast<lv_opa_t>(known ? LV_OPA_COVER : LV_OPA_TRANSP), LV_PART_INDICATOR);
+    if (known) {
+        lv_arc_set_angles(g.arc, static_cast<uint16_t>(std::lround(angle_of(range[kLow]))),
+                          static_cast<uint16_t>(std::lround(angle_of(range[kHigh]))));
+    }
+    // the range on its way is drawn in the pending color
+    const bool waiting = !g.dragging && pending != nullptr && !std::isnan(pending->target_low);
+    for (int end = kLow; end < kEnds; end++) {
+        const bool selected = end == g.selected;
+        set_hidden(g.knobs[end], !known);
+        if (known) {
+            place_knob(g.knobs[end], range[end]);
+        }
+        lv_obj_set_style_bg_color(g.knobs[end], t::color(selected ? t::kText : t::kTextLabel), 0);
+        set_text(g.ends[end], known ? tiles::temperature(range[end]) + "\xc2\xb0" : std::string("--"));
+        lv_obj_set_style_text_color(g.ends[end], t::color(!selected ? t::kTextLabel : waiting ? t::kAccent : t::kText), 0);
+    }
+    // the selected knob in front where the two touch
+    lv_obj_move_foreground(g.knobs[g.selected]);
+    set_hidden(g.plus, !known);
+    set_hidden(g.minus, !known);
+}
+
+void update_arc(const core::EntityState &s, const core::Expectation *pending, bool avail)
+{
+    const bool on = avail && s.state != "off";
+    lv_obj_set_style_arc_color(g.arc, t::color(on ? t::kActive : t::kTextMuted), LV_PART_INDICATOR);
+    if (g.range) {
+        update_range(s, pending, avail);
+    } else {
+        update_target(s, pending, avail);
+    }
     std::string action;
     if (avail) {
         action = !s.hvac_action.empty() ? tiles::words(s.hvac_action) : tiles::words(s.state);
     }
     set_text(g.action, action);
     lv_obj_set_style_text_color(g.action, t::color(on ? t::kActive : t::kTextLabel), 0);
-    set_text(g.setpoint, known ? tiles::temperature(target) + "\xc2\xb0" : std::string("--"));
-    // a setpoint on its way is drawn in the pending color
-    const bool waiting = !g.dragging && pending != nullptr && !std::isnan(pending->target);
-    lv_obj_set_style_text_color(g.setpoint, t::color(waiting ? t::kAccent : t::kText), 0);
     set_text(g.current, avail && !std::isnan(s.current) ? tiles::temperature(s.current) + "\xc2\xb0" : std::string("--"));
-    set_hidden(g.plus, !known);
-    set_hidden(g.minus, !known);
 }
 
 // ------------------------------------------------------------------------------- lists
@@ -507,6 +797,8 @@ void clear_control()
     }
     g.control = nullptr;
     g.arc = g.action = g.setpoint = g.current = g.plus = g.minus = nullptr;
+    g.ring = g.knobs[kLow] = g.knobs[kHigh] = g.ends[kLow] = g.ends[kHigh] = nullptr;
+    g.range = false;
     g.dragging = false;
     g.list = nullptr;
     g.items.clear();
@@ -674,17 +966,21 @@ void update()
             }
         }
     }
-    // the range of the arc arrives with the panel's fields, after the panel was built
-    if (!g.show_history && g.list_option < 0 && !g.dragging && std::isnan(g.step_target) &&
+    // the range of the arc arrives with the panel's fields, after the panel was built; a mode
+    // change brings or takes the two setpoints of heat_cool
+    float low = 0;
+    float high = 0;
+    if (!g.show_history && g.list_option < 0 && !g.dragging && !collecting_steps() &&
         ((!std::isnan(s.min_temp) && s.min_temp != g.min) || (!std::isnan(s.max_temp) && s.max_temp != g.max) ||
-         tiles::climate_step(dashboard::layout().tiles[g.tile], s) != g.step)) {
+         tiles::climate_step(dashboard::layout().tiles[g.tile], s) != g.step ||
+         tiles::climate_range(s, pending, low, high) != g.range)) {
         show_control(-1);
     }
     // decided as soon as the mode and the modes are known (the panel's fields come after it opens)
     const std::string_view mode = shown_value(s, pending, Option::Mode);
     if (g.modes_first && avail && !mode.empty() && (offered & (1u << static_cast<int>(Option::Mode))) != 0) {
         g.modes_first = false;
-        if (mode == "off" && g.list_option < 0 && !g.dragging && std::isnan(g.step_target) && !g.show_history) {
+        if (mode == "off" && g.list_option < 0 && !g.dragging && !collecting_steps() && !g.show_history) {
             show_control(static_cast<int>(Option::Mode));
         }
     }
@@ -707,9 +1003,14 @@ void forget()
     }
     history_view::forget();
     const float target = g.step_target;
+    const float low = g.step_range[kLow];
+    const float high = g.step_range[kHigh];
     const core::EntityIndex entity = g.entity;
     // the objects go with the panel's root
     g = {};
+    if (!std::isnan(low)) {
+        send_range(entity, low, high);
+    }
     if (!std::isnan(target)) {
         // the steps are not lost when the panel closes
         core::Intent intent;

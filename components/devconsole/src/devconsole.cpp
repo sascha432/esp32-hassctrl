@@ -798,6 +798,8 @@ void print_update(const hc::core::EntityUpdate &update)
     print_number("min", v.min_temp);
     print_number("max", v.max_temp);
     print_number("step", v.temp_step);
+    print_number("low", v.target_low);
+    print_number("high", v.target_high);
     print_list("hvac", v.hvac_modes);
     text(Field::PresetMode, "preset", v.preset_mode);
     print_list("presets", v.preset_modes);
