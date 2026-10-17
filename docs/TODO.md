@@ -188,9 +188,13 @@ Open:
       empty password keeps its password (all paths: web, screen, console); the web UI says
       "empty keeps the saved password" for saved networks (2026-10-07, built, not yet flashed:
       COM9 was in use).
-- [ ] Faster than 680 ms, if a remote needs it: staying associated in light sleep (no reconnect
-      at all), a static address (no DHCP), or WPA2 for a network that offers both (saves the
-      WPA3 handshake). To decide with the remote use case.
+- [x] ~~Faster than 680 ms, if a remote needs it~~: dropped 2026-10-17. The remote was cancelled
+      (2026-10-11) and nothing sleeps. The panels run on mains for months without a restart, so
+      the boot scan (3.4 to 4.1 s) doesn't need speeding up either.
+- [ ] Long-run check (the firmware is two weeks old, no uptime record yet): run one panel for
+      a few weeks and log free heap and largest free block (`mem` on the console) at intervals,
+      restart the router and Home Assistant once in between, and check that both reconnect.
+      Past 49.7 days the 32-bit millisecond counters wrap; check the code for them before then.
 
 ## Step 4: first setup, Settings and web server
 
