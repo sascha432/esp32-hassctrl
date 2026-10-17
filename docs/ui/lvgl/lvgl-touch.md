@@ -1,12 +1,11 @@
 # Touch (LVGL)
 
-Status: **running**. Everything a finger does on the screen: touch targets, the gestures of each
+Everything a finger does on the screen: touch targets, the gestures of each
 screen and how they keep out of each other's way, the click and the vibration, and the touch that
 wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboard.md),
 [lvgl-panels.md](lvgl-panels.md), [lvgl-camera.md](lvgl-camera.md) and
 [lvgl-settings.md](lvgl-settings.md). The touch controllers per board:
-[adding-a-board.md](../../adding-a-board.md). Touch is a requirement for a supported board
-(decided).
+[adding-a-board.md](../../adding-a-board.md). Touch is a requirement for a supported board.
 
 ## 1. Touch targets
 
@@ -15,7 +14,7 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
   quarter larger ([lvgl-panels.md](lvgl-panels.md) section 1).
 * **A row is the target, not its widget.** A row with a switch and no page of its own flips the
   switch with a tap anywhere on it (`theme::toggle()`); a row without any action takes no touches,
-  so they scroll the page (2026-10-09: the switch alone was hard to hit).
+  so they scroll the page (the switch alone was hard to hit).
 * A slider takes touches 16 px past its ends (`theme::slider()`): at 0 and 100 % half of the knob
   lies outside the slider, where a drag did nothing.
 * Taps beside a target do nothing and make no sound.
@@ -50,19 +49,20 @@ Rules that keep the gestures apart:
 * **A drag that starts on a control stays with that control.** The level drag of a dimmer stays a
   tile gesture, a panel slider (`panel::slider_track()`) is dragged without starting a gesture of
   the screen. A new drag control does the same.
-* **No swipe to close** (decided): a swipe up to close Settings fired while scrolling. Back is `<`.
+* **No swipe to close**: a swipe up to close Settings fired while scrolling. Back is `<`.
 * **No long press on a tile** except to start the edit mode; a dimmer's drag starts with movement,
   so the two do not collide.
-* **The first 10 px decide between sideways and up or down** (2026-10-14): a sideways drag is a
+* **The first 10 px decide between sideways and up or down**: a sideways drag is a
   swipe of the page wherever it starts (it acts only on a swipe page), an up or down drag belongs
   to the dimmer under the finger or the pull-down zone. A swipe takes the rest of the press
-  (`lv_indev_wait_release`), so the tile it started on is not tapped on release.
+  (`lv_indev_wait_release`), so the tile it started on is not tapped on release. A page with a
+  back tile takes no swipe, also not from the left edge.
 * What lies at the top center under the pull-down zone does not get taps there: the camera view's
   buttons sit below it (`overlay::kZoneHeight`). While a full-screen panel is open the zone keeps
   between the back button and the two header buttons (`overlay::fit_zone()`, 94 px wide at 320 px):
-  on the JC3248W535 it covered most of the history button and took its taps (2026-10-17).
+  on the JC3248W535 it would cover most of the history button.
 * While a full-screen panel slides in, the page beside it takes no taps (a clear cover under the
-  panel until the slide ends); before, a tap there opened the tile under it (2026-10-17).
+  panel until the slide ends).
 * While the dashboard is edited the pull-down is off; the alert strip shows only event messages
   and a drag on it does not open Settings.
 * The camera view's buttons move down with the alert strip (`overlay::on_strip_moved()`), so a
@@ -98,7 +98,6 @@ The board reads its touch controller and hands LVGL the points; `ui` sees only L
 device. Two points (pinch) where the controller has them; the WT32-SC01's FT6336U makes one point
 of two fingers closer than about 3 cm. The Windows version has one pointer (the mouse): no pinch.
 
-## 6. Decided
+## 6. Open points
 
-* A page with a back tile takes no swipe, also not from the left edge (decided 2026-10-17). Only a
-  swipe page (an area with `swipe`) goes back with a swipe right, from anywhere.
+* None.

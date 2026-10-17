@@ -1,6 +1,6 @@
 # Camera image and streams (LVGL)
 
-Status: **running**. The picture tile, its full screen view (`picture_panel.cpp`) and MJPEG
+The picture tile, its full screen view (`picture_panel.cpp`) and MJPEG
 streams, with the measurements per board. The tile itself is in
 [lvgl-dashboard.md](lvgl-dashboard.md) section 3. The device's own camera (Settings, Camera) is in
 [lvgl-settings.md](lvgl-settings.md) section 3, its web stream in
@@ -53,18 +53,19 @@ stack, 8 KB with https); the images are decoded one at a time. One request per c
 size waits, the newest; one that falls out of the full queue (8) is answered with an error. A JPEG
 of more than 512 KB is refused.
 
-On the P4 the hardware decoder's frame is scaled to the box by the PPA. Its blocking call did not
-come back now and then (2026-10-10, cause in the 2D-DMA not found) and the media task waited for
-good: the scale now has 500 ms, after that the decoder and the PPA stay off until the restart and
-the images are decoded in software (25 to 30 ms for a tile). The buffers of that scale are never
+On the P4 the hardware decoder's frame is scaled to the box by the PPA. Its first scale after
+most boots never finished: the ESP32-P4's silicon bug DIG-734, worked around by
+`components/esp_driver_ppa` (its README). The scale keeps a 500 ms timeout as a guard: after that
+the decoder and the PPA stay off until the restart and the images are decoded in software (25 to
+30 ms for a tile). The buffers of that scale are never
 freed, the DMA may still use them.
 
-## 2. MJPEG stream (since 2026-10-08)
+## 2. MJPEG stream
 
 A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
 from the first frame of the stream instead of Home Assistant; full screen plays the stream.
 
-A stream with a login has it in its address, `http://user:password@host/...` (2026-10-17): the
+A stream with a login has it in its address, `http://user:password@host/...`: the
 media task sends it as Basic auth (`CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH` in `sdkconfig.main`).
 The device keeps the whole address; the backup export leaves the password out (`http://user@host/`),
 so after an import the stream asks for it. A 401 is `core::StreamProblem::Login`, its reason
@@ -72,8 +73,8 @@ so after an import the stream asks for it. A 401 is `core::StreamProblem::Login`
 rejected". A tile without a picture whose image failed (a login, a camera not reached) shows the
 camera struck through (`camera-off`) until an image comes.
 
-What the full screen view shows when the stream stops (decided by you 2026-10-12; the frame rate
-in the corner is gone, the media log has it every 5 s). The last picture stays under the alert
+What the full screen view shows when the stream stops (no frame rate in the corner; the media log
+has it every 5 s). The last picture stays under the alert
 strip ([lvgl-design.md](lvgl-design.md) section 8):
 
 | State | Alert strip | Ends when |
@@ -85,7 +86,7 @@ strip ([lvgl-design.md](lvgl-design.md) section 8):
 | the try failed | "⟳ Stream failed: <reason>" (red, the reload icon) | the next try, 10 s after the start of the last one (retrying), a tap: a try at once, or the view is closed |
 
 A try starts every 10 s while the stream is down, so it comes back by itself within about 10 s of
-its server (your requirement, 2026-10-12). A connection that is not taken within 5 s fails (a
+its server. A connection that is not taken within 5 s fails (a
 restarting server answered nothing, and the connect waited 18 s); the answer and the data still
 get 30 s each (`kStreamConnectMs`, `kStreamTimeoutMs` in `media.cpp`). The media task tells the
 UI when the connection is up and the request sent (`core::Image::opened`). The
@@ -204,5 +205,5 @@ internal RAM 32 KB free as before (2026-10-08).
 
 ## 3. Open points
 
-* Camera images are decoded by the TJpgDec of the ESP32's ROM, which does not read progressive
-  JPEGs; such a camera keeps showing its icon (the log says why). A failed image keeps the last one.
+* On the ESP32 (WT32-SC01, T4) camera images are decoded by the TJpgDec of the ROM, which does not
+  read progressive JPEGs; such a camera keeps showing its icon (the log says why). A failed image keeps the last one.

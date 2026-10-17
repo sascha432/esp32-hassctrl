@@ -1,18 +1,17 @@
 # Dashboard (LVGL)
 
-Status: **running** on every board. The main screen: the frame with the pull-down and the alert
+The main screen: the frame with the pull-down and the alert
 strip, the grid of tiles, their states, the arrangement per orientation and the edit mode. The
 panels a tile opens are in [lvgl-panels.md](lvgl-panels.md), the camera image and streams in
 [lvgl-camera.md](lvgl-camera.md), the gestures in [lvgl-touch.md](lvgl-touch.md). Colors, fonts
-and sizes: [lvgl-design.md](lvgl-design.md). Carried over from `behavior.md` of the old firmware
-(`kfc_fw/.../docs/hass_layout/behavior.md`). Code: `components/ui/src/dashboard.cpp` (pages,
+and sizes: [lvgl-design.md](lvgl-design.md). Code: `components/ui/src/dashboard.cpp` (pages,
 store, actions), `tiles.cpp` (one view per tile), `icons.cpp` (glyphs), `overlay.cpp` (pull-down
 and alert strip), `splash.cpp` (start screen), `edit_mode.cpp`.
 
 ## 1. Frame, pull-down and alert strip
 
-The dashboard has no status bar and uses the whole screen (decided). Settings opens with a swipe
-down that starts at the top center of the screen, like the Home Assistant app (decided). A
+The dashboard has no status bar and uses the whole screen. Settings opens with a swipe
+down that starts at the top center of the screen, like the Home Assistant app. A
 vertical drag that starts on a tile, such as the level drag of a dimmer, stays a tile gesture.
 
 ```
@@ -30,17 +29,17 @@ vertical drag that starts on a tile, such as the level drag of a dimmer, stays a
 ```
 
 The start zone is 160 px wide at the top center and 40 px high, a drag of 24 px opens Settings
-(80 x 24 and 30 px were hard to hit, 2026-10-07; confirmed by you 2026-10-10). While
-the alert strip is shown, its whole area also starts the pull-down (built).
+(80 x 24 and 30 px were hard to hit). While the alert strip is shown, its whole area also
+starts the pull-down.
 
 ### 1.1 Alert strip
 
-Messages on the dashboard appear in the **alert strip** (decided): a panel at the top center,
-touching the top edge, with rounded bottom corners and a background at 90 % opacity (60 % until 2026-10-13) over the
+Messages on the dashboard appear in the **alert strip**: a panel at the top center,
+touching the top edge, with rounded bottom corners and a background at 90 % opacity over the
 dashboard. The same style is used for every error, warning and hint on the screen, also over the
-panels and the camera view (decided 2026-10-12: no popups for messages; the rules are in
+panels and the camera view (no popups for messages; the rules are in
 [lvgl-design.md](lvgl-design.md) section 8). It **slides down from the top** when it appears
-(250 ms, easing out) and back up when it goes (2026-10-12). The pull-down gesture works through
+(250 ms, easing out) and back up when it goes. The pull-down gesture works through
 it. A tap on a state message opens Settings at the matching page; a tap on an event message
 closes it.
 
@@ -60,27 +59,26 @@ closes it.
 | Message | Shown while | Removed when |
 | --- | --- | --- |
 | Wi-Fi error, such as "Wi-Fi: wrong password" | the error exists | the error is gone |
-| "Scanning for Wi-Fi ..." / "Connecting to Home-Net ..." | the device scans or connects (decided: shown on the display) | connected, or replaced by an error |
-| Home Assistant error, such as "Home Assistant: the host does not answer" (running: after Wi-Fi problems, once it lasts 10 s, so a reconnect or a restart of Home Assistant does not flash it; a tap opens its Settings page) | the error exists | connected again |
-| "Swipe down from the top for Settings" | after the first setup | the first pull-down once the onboarding is complete: Wi-Fi up and Home Assistant connected (decided 2026-10-10: while the start screen offers "Set up Home Assistant" the hint stays). Stored, so it does not come back after a restart. A tap leaves it in place |
+| "Scanning for Wi-Fi ..." / "Connecting to Home-Net ..." | the device scans or connects | connected, or replaced by an error |
+| Home Assistant error, such as "Home Assistant: the host does not answer" (after Wi-Fi problems, once it lasts 10 s, so a reconnect or a restart of Home Assistant does not flash it; a tap opens its Settings page) | the error exists | connected again |
+| "Swipe down from the top for Settings" | after the first setup | the first pull-down once the onboarding is complete: Wi-Fi up and Home Assistant connected (while the start screen offers "Set up Home Assistant" the hint stays). Stored, so it does not come back after a restart. A tap leaves it in place |
 | Event messages of `overlay::show()`, one short line, the reason in the log: "Stream stopped, retrying", "Stream loading ..." and "⟳ Stream failed: <reason>" (the camera view, [lvgl-camera.md](lvgl-camera.md) section 2), "Changes not saved", "Tile not removed", "Edit dropped" (the edit mode, section 7) | 5 s; the stream's until its state changes, "Stream failed" until a try (every 10 s, or a tap) reaches the server; before the state messages, a newer one replaces it | the time is over, or a tap (on "Stream failed": one more try) |
 
 The strip is as wide as its message needs, so it can get large. It keeps a small gap to the
-left and right screen edges, so the rounded corners and the transparency stay visible (decided).
-A long message wraps (two lines in portrait are common), at most 3 lines, then it ends in "..."
-(decided 2026-10-14). One message at a time: an event message,
-then a Wi-Fi problem, connecting, a Home Assistant problem, the hint (built). While the dashboard
+left and right screen edges, so the rounded corners and the transparency stay visible.
+A long message wraps (two lines in portrait are common), at most 3 lines, then it ends in "...". One message at a time: an event message,
+then a Wi-Fi problem, connecting, a Home Assistant problem, the hint. While the dashboard
 is edited the strip shows only event messages, over the edit bar; a drag on it does not open
 Settings then.
 
 ### 1.2 Start screen
 
-Running on the JC4880P443C (user, 2026-10-09). From the start until Home Assistant has sent the values of the dashboard's first page, the
+From the start until Home Assistant has sent the values of the dashboard's first page, the
 dashboard is covered by the Home Assistant logo (160 x 160, at the center, on the dashboard
-background). The runner of an action on its way (docs/ui/lvgl/lvgl-dashboard.md section 4) goes round the
+background). The runner of an action on its way (section 4) goes round the
 house, 5 px outside its edge, clockwise from the top. The dashboard is built under the logo, so it
 is complete when the logo goes. The alert strip and the pull-down work as usual (both lie above
-it); the first setup opens over it as before. A touch on the logo does nothing.
+it); the first setup opens over it. A touch on the logo does nothing.
 
 * The logo goes when Home Assistant is connected and the values of the page came, or 10 s after
   the connection when they do not come (a page without entities).
@@ -106,8 +104,8 @@ The logo comes from the icon of dashboardicons.com, rendered by `tools/build_log
 ## 2. Grid
 
 The dashboard uses the whole screen; the pull-down at the top center opens Settings
-(section 1). A page is its grid of tiles (1x1 to 32x32, `core::kMaxGrid`; 2026-10-14, your request, was 8x8), 8 px from the screen edges, 4 px
-between tiles (7 px on the JC4880P443C's 800x480, `Options::tile_gap`, 2026-10-09), radius 8. Portrait uses the transposed grid and the tile spans turned with it
+(section 1). A page is its grid of tiles (1x1 to 32x32, `core::kMaxGrid`), 8 px from the screen edges, 4 px
+between tiles (7 px on the JC4880P443C's 800x480, `Options::tile_gap`), radius 8. Portrait uses the transposed grid and the tile spans turned with it
 (docs/architecture.md section 5, "Orientation"). Turning the display builds the page again.
 
 ```
@@ -132,9 +130,8 @@ area with `swipe` has none: a swipe to the right goes back (section 9).
 An area page slides in from the right over 250 ms (ease out) and pushes the page that was shown
 out to the left; the back tile and the swipe to the right slide the parent in from the left
 (section 9). The leaving page
-takes no taps while it moves. Every board slides since 2026-10-14 (the swipe fires the slide;
-`Info::ui_slide_pages = false` switches without the animation); before, only the JC4880P443C
-did. Any other page change (a new layout, turning the display) has no slide.
+takes no taps while it moves. Every board slides (the swipe fires the slide;
+`Info::ui_slide_pages = false` switches without the animation). Any other page change (a new layout, turning the display) has no slide.
 
 ## 3. Tiles
 
@@ -143,9 +140,9 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | switch, light without `dimmer` | icon (48 px), name; a light that is on and reports a level shows it under the icon ("44 %", the icon then 24 px) | toggles once the double-tap window (300 ms) has passed; a double tap opens the light panel when the light dims (a color mode other than `onoff`, or a reported level; [lvgl-panels.md](lvgl-panels.md) section 2), else the sensor panel with the on/off timeline (section 4) |
 | button, scene | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
-| lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | a double tap locks an unlocked or open lock and unlocks a locked one (2026-10-16, your request; was: never from the tile); jammed or unavailable it opens the panel instead; a single tap opens the lock panel once the double-tap window (300 ms) has passed |
+| lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | a double tap locks an unlocked or open lock and unlocks a locked one; jammed or unavailable it opens the panel instead; a single tap opens the lock panel once the double-tap window (300 ms) has passed |
 | timer | icon (24 px: `timer-outline` running, `timer-pause-outline` paused, `timer-off-outline` idle), the time left (`29:07`, `1:02:15`; counting down once a second from `finishes_at` by the device's clock while it runs, the remaining time while paused, `Idle`), name | a double tap cancels a running timer and starts an idle or a paused one (resumed with its rest); unavailable or unknown it opens the panel instead; a single tap opens the timer panel ([lvgl-panels.md](lvgl-panels.md) section 7) once the double-tap window has passed |
-| automation, script | icon (24 px: `robot`/`robot-off` by the enabled state, `script-text`), the time of the last run (`10:52` today, else `Yesterday` or `14 Oct`; `Never`), name; an automation that is off shows `Disabled` with the name struck through, a script that runs `Running` | a double tap runs the actions of the automation (whatever its conditions say, as "Run actions" in Home Assistant) or the script, and stops a script that runs; unavailable or unknown it opens the panel instead; a single tap opens the automation panel ([lvgl-panels.md](lvgl-panels.md) section 8) once the double-tap window (300 ms) has passed (2026-10-17, your report: the automation tile toggled on a tap, as a switch) |
+| automation, script | icon (24 px: `robot`/`robot-off` by the enabled state, `script-text`), the time of the last run (`10:52` today, else `Yesterday` or `14 Oct`; `Never`), name; an automation that is off shows `Disabled` with the name struck through, a script that runs `Running` | a double tap runs the actions of the automation (whatever its conditions say, as "Run actions" in Home Assistant) or the script, and stops a script that runs; unavailable or unknown it opens the panel instead; a single tap opens the automation panel ([lvgl-panels.md](lvgl-panels.md) section 8) once the double-tap window (300 ms) has passed |
 | dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom; off or unavailable the icon over the name, as a light without `dimmer`; the same in every shape | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
 | climate, tall | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
 | climate, wide | the `-` bar down the left, the `+` bar down the right; between them the stack of the tall look when the card is at least 110 px high inside the padding, else the one-cell line | as the tall one |
@@ -167,19 +164,16 @@ minute or second changed. `zone` (an IANA name, checked at import) is evaluated 
 `core::local_time`; without it the clock shows the device's zone through the backend, the same
 time as the status bar. While the clock is not set: `--:--`, the hands at twelve with a muted hub.
 
-Sizes and shapes (decided 2026-10-14, built the same day, `tiles::create` takes the span):
+Sizes and shapes (`tiles::create` takes the span):
 every tile is 1x1 unless its size says otherwise, any kind takes any size up to the grid, per
 orientation (section 6). The look follows the shape in the shown orientation: more rows than
 columns and at least 180 px high is **tall**, more columns than rows and at least 180 px wide
 is **wide**, everything else (one cell, 2x2, a 1x2 too small for the tall look) is the one-cell
 look in the card. A portrait screen turns a 1x2 climate into a wide 2x1 with the bars left and
-right by itself. The fonts follow the size of the card (your report 2026-10-14: a 2x2 area on an
-8x7 grid of the P4 had the small glyph): a card at least 90 px wide and tall (a tall one twice
+right by itself. The fonts follow the size of the card: a card at least 90 px wide and tall (a tall one twice
 as tall) gets the large fonts (value 28 px, name 16 px, icon 48 px), smaller cells the small ones (value
 20 px, name 12 px, icon 24 px). A value that is too wide steps down through the font sizes
-(`612 ppm`, `Detected` in a 74 px cell). A name that is too long ends in `...`. Reviewed in the
-sim at 480x320, 320x480 and 800x480 (every kind in the three shapes). Open: a 2x2 switch on the
-P4 looks empty around its 48 px glyph (no larger glyph size).
+(`612 ppm`, `Detected` in a 74 px cell). A name that is too long ends in `...`.
 
 ## 4. States and colors
 
@@ -192,9 +186,9 @@ P4 looks empty around its 48 px glyph (no larger glyph size).
 | no value yet | value `...` |
 | dimmer | the fill is the indicator, the card stays dark; the name is white on the fill |
 | climate | the bars are orange while the mode is not `off`, the action is orange |
-| lock | filled in the color of its state (your choice, 2026-10-11): unlocked, unlocking, open, opening green (`0x4caf50`), locked and locking orange (`0xff8000`), jammed red (`0xff0000`); `theme::kLock*` |
+| lock | filled in the color of its state: unlocked, unlocking, open, opening green (`0x4caf50`), locked and locking orange (`0xff8000`), jammed red (`0xff0000`); `theme::kLock*` |
 | timer | filled with the active color while it runs (the expected state at once: a double tap shows the start or the end before Home Assistant reports it); paused and idle as a card |
-| automation, script | a running script is filled with the active color (the expected state at once); an automation is always a card: disabled it has the off glyph and its name struck through (your choice 2026-10-17: a page of enabled automations is no page of orange tiles; the strike covers a tile with its own icon, which has no off glyph) |
+| automation, script | a running script is filled with the active color (the expected state at once); an automation is always a card: disabled it has the off glyph and its name struck through (a page of enabled automations is no page of orange tiles; the strike covers a tile with its own icon, which has no off glyph) |
 
 A light that is switched on shows the level it had before (HA turns it on at that level), not
 100 %; the store keeps the last level while the light is off. A light not seen on since the start
@@ -202,11 +196,10 @@ shows `On` until HA reports the level.
 
 A pending action ends when the entity reports the expected state (a level within 3 of 255, a
 setpoint within 0.05), when the call fails, or after 5 s; then the tile shows the entity's state
-again. A failed call is only logged, the alert strip says nothing (decided 2026-10-17: the tile
-going back is enough).
+again. A failed call is only logged, the alert strip says nothing (the tile going back is enough).
 
-A sensor with a number is never filled, only a binary sensor that is `on` (decided: the old
-rule "on while a number is reported" made every sensor orange).
+A sensor with a number is never filled, only a binary sensor that is `on` ("on while a number
+is reported" would make every sensor orange).
 
 Texts: binary sensors in the words of their device class (`Open`/`Closed`, `Detected`/`Clear`,
 `Wet`/`Dry`, `Unlocked`/`Locked`), other states with a capital and spaces (`heat_cool` is `Heat cool`), numbers with
@@ -219,14 +212,13 @@ default of the domain and device class (light `lightbulb`/`lightbulb-off`, outle
 motion `motion-sensor`, temperature `thermometer`, lock `lock`/`lock-open`/`lock-alert` (jammed),
 timer `timer-outline`/`timer-pause-outline`/`timer-off-outline` by its state, automation `robot`/`robot-off`, script `script-text`,
 ...; `icons.cpp`; a weather entity: the glyph of its condition, as the Home Assistant app has
-them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The glyphs are the 60 names of `core` plus the ones the screens draw themselves
+them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The glyphs are the names of `core` (`icons.cpp`) plus the ones the screens draw themselves
 (`UI_GLYPHS`: `arrow-left`, `plus`, `minus`, `chart-timeline-variant`, ...), in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the
 web editor from the same names).
 
 ## 6. Placement per orientation
 
-Decided 2026-10-08 (cells per orientation) and 2026-10-14 (sizes and hiding per orientation,
-overflow instead of errors; your request), built in `core` and `config`: everything about where
+Built in `core` and `config`: everything about where
 and how large a tile is lives per orientation. Tiles are moved in the edit mode (section 7) and
 in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
 
@@ -245,14 +237,13 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   (`Placement::shown == false`): the device draws nothing for it, the page's subscription
   leaves it out, the web editor lists it under the preview ("no room") and a drag onto a cell
   brings it back. Room made later (a tile removed, hidden or moved) brings an automatic tile back
-  by itself. Before 2026-10-14 every one of these refused the whole file, and a portrait tile
-  without room was drawn over the first cell; both are gone.
+  by itself.
 * **Moving writes the whole page.** When a tile is moved (screen or web), every shown tile of
   that page gets its current cell in that orientation, not only the moved one. The page then
   stays as it was arranged, also when a tile is added later (it takes the first free block). The
   other orientation is not touched. Hidden tiles and tiles without room keep no cell.
-* **A drop onto other tiles pushes them aside** (decided 2026-10-08, kept after trying it on the
-  device; a swap of two tiles of the same span is not built). The moved tile takes its
+* **A drop onto other tiles pushes them aside** (a swap of two tiles of the same span is not
+  built). The moved tile takes its
   block; every tile it covers takes the first free block in reading order from the drop cell on,
   wrapping to the start of the page, in their old order. When one of them finds no block, the drop
   is refused (red outline): nothing vanishes into the overflow by a move. The same rule
@@ -306,20 +297,19 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
 +------------------------------------------------------------+
 ```
 
-* **Start**: a long press (1000 ms, decided 2026-10-08, without moving more than 10 px) anywhere on a dashboard page,
+* **Start**: a long press (1000 ms, without moving more than 10 px) anywhere on a dashboard page,
   on a tile or on an empty cell. No tile uses a long press today (only the steppers of the panels
   repeat on hold), and a dimmer's drag starts with movement, so they do not collide. The tile under
   the finger does not act (no toggle, no panel). The bar and the outlines of the tiles show the
   start, and a click and a pulse (`sound::confirm()`) confirm it. The finger that started it does
   nothing more until it is lifted: no remove dialog (asking to remove the tile under the hold was
-  the bug), no move, its release is no tap. A move starts with the next touch (confirmed by you,
-  2026-10-16).
+  the bug), no move, its release is no tap. A move starts with the next touch.
 * **While editing**: the tiles keep their look with an outline; a tap on the back tile goes back,
   on a tile opens its title and options (an area too: it does not open), on a "+" cell adds a tile
-  (section 7.2). Areas do not open, there is no swipe and the dots are hidden (2026-10-14). The
+  (section 7.2). Areas do not open, there is no swipe and the dots are hidden. The
   pull-down for Settings is off; the edit bar (44 px) takes the top and the grid shrinks by its
   height while editing, so no tile is covered. Pages slide as usual.
-* **Press**: the tile under the finger is outlined orange until the finger lifts (confirmed by you on the P4, 2026-10-14).
+* **Press**: the tile under the finger is outlined orange until the finger lifts.
 * **Move**: drag a tile; it follows the finger, the block under it is outlined, green when the
   tile can go there (the tiles in the way are pushed aside, section 6), red when not. Release on
   green moves it, on red it snaps back. Every cell the tile snaps to ticks like a slider
@@ -331,28 +321,27 @@ in the web editor ([web-dashboard-editor.md](../web/web-dashboard-editor.md)).
   spacer's cell or the back tile); a tap on one adds a tile, an area or a clock there in three
   steps (section 7.2).
 * **Reset** sets the page back to automatic order in this orientation (after a confirm); a tile
-  without room in list order is left out of the screen, not refused (2026-10-14).
+  without room in list order is left out of the screen, not refused.
 * **Done** saves; **Cancel** drops all changes of this edit session. A save or a remove that
   fails says so in the alert strip ("Changes not saved"), over the edit bar; the reason is in
   the log. The changes of every page
   visited are saved together, one write.
-* **Leaving** (decided 2026-10-08): only a tap on Done or Cancel ends edit mode. There is no
+* **Leaving**: only a tap on Done or Cancel ends edit mode. There is no
   timeout, and turning the display keeps it open (the edit goes on in the new orientation). The
   session lives in RAM until Done: a reset or a power loss drops it. A new layout from the web UI
   or an import while editing drops the session too (it would conflict) and says so in the alert
   strip.
-* No move to another page on the screen (decided 2026-10-17): remove the tile and add it on
+* No move to another page on the screen: remove the tile and add it on
   the other page, or move it in the web editor.
-* No change of sizes on the screen yet. Tiles hidden or without room in
+* Sizes are changed in the add and change steps (section 7.2), not by dragging. Tiles hidden or without room in
   the shown orientation are not part of the edit: a tile cannot be moved into or out of the
   overflow on the screen (web editor only). A sideways drag on an empty cell goes back from a
   swipe page (section 9).
 
 ### 7.1 Where the code goes
 
-Built differently from the first proposal (a list of operations replayed by `dashboard`): the
-session is a **copy of the layout**, edited by the pure functions of `core`, and Done stores the
-copy. Same behavior, one data path fewer.
+The session is a **copy of the layout**, edited by the pure functions of `core`, and Done stores
+the copy.
 
 * `ui/edit_mode.cpp`: the long press that starts it (`edit::watch` on every card, its step bars and
   the page), the edit layer over the page (a transparent object on the screen that takes every
@@ -365,8 +354,7 @@ copy. Same behavior, one data path fewer.
   says so ("Edit dropped"). Done reopens the stored dashboard on the same page.
 * When edit mode starts, LVGL ignores the finger that started it until it is lifted
   (`lv_indev_wait_release`): no move, no remove dialog, no tap on its release. Hold and drag in
-  one move is not offered (removed 2026-10-16, your decision: it no longer worked, and the hold
-  that went on had asked to remove the tile; confirmed by you).
+  one move is not offered (the hold that went on asked to remove the tile).
 * `ui/add_dialog.cpp`: the steps of adding (section 7.2); `ui/entity_picker.cpp`: the entity search
   and the page frame of the steps, children of the edit layer. The "+"
   cells are one object of the edit layer under the bar that draws every free cell itself
@@ -376,20 +364,16 @@ copy. Same behavior, one data path fewer.
   entity's tile, a clock, or an area with its first tile), `change_tile`.
 * `dashboard::save_layout` writes the copy through `save_json` (JSON out and in again, so the
   stored dashboard is what the file holds); `Backend::save_dashboard` calls it.
-* **The write runs in the LVGL task** (changed from the proposal "off the UI task"): a worker task
-  needs a stack in internal RAM (a LittleFS write cannot run from a PSRAM stack), which is the
-  scarce memory. It is one write of the JSON (about 10 KB for a large house) per edit session;
-  to be measured on the boards.
+* **The write runs in the LVGL task**: a worker task would need a stack in internal RAM (a
+  LittleFS write cannot run from a PSRAM stack), which is the scarce memory. It is one write of
+  the JSON (about 10 KB for a large house) per edit session.
 * Spacers are not drawn on the screen, also not while editing: they are pushed aside like any tile
   but cannot be picked up or removed there (web editor only).
 * The tiles keep their look while editing (values included), with an outline; the bar is 44 px.
 
 ### 7.2 Adding a tile
 
-Built 2026-10-16 and confirmed by you in landscape and portrait on every board (your requests: a
-search field to find an entity; the "+" cells of the web editor;
-"ask first for the title and type, if a tile is added a second dialog comes up for the entity,
-after selection a third dialog for options"). Every free cell of the page shows a dashed border
+Every free cell of the page shows a dashed border
 with a "+"; a tap on one opens the steps, each a page over the edit layer with the edit bar's look:
 
 ```
@@ -416,11 +400,11 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
 * **2. Entity** (a tile): the search. Home Assistant filters with the template of the web
   editor's picker (`hass_protocol/picker.cpp`, [web-dashboard-editor.md](../web/web-dashboard-editor.md)
   section 3), at most 30 rows (about 60 LVGL objects); every word in the id or the friendly name,
-  so "light kitchen" filters by domain (no domain filter, decided with you). The field starts
+  so "light kitchen" filters by domain (no domain filter). The field starts
   empty: the first entities by id. A search goes out 400 ms after the last key, or at once on OK.
   A ✓ marks an entity a tile shows already. A tap on a row asks for its details (a light's color
   modes) and goes on.
-* **3. Options** (decided with you, the rest stays in the web editor: icon, unit, step, stream,
+* **3. Options** (the rest stays in the web editor: icon, unit, step, stream,
   time zone, the clock's border and ticks): the size in the shown orientation (the sizes the grid
   has room for), a light's `dimmer` (preset from Home Assistant: more color modes than `onoff`),
   a sensor's decimals, the clock's style, 12 hours, seconds and date, an area's swipe navigation.
@@ -431,8 +415,7 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
   like a drag (`move_tile`): the other tiles keep their cells, the page becomes arranged in this
   orientation. The new tile shows its values at once: the screen's entity store grows with the
   edited copy's entity table.
-* **Changing a tile** (2026-10-16, your request: "when I tap a tile I need to adjust title and
-  options and entity"): a tap on a tile in edit mode opens the same steps with its values. Step 1
+* **Changing a tile**: a tap on a tile in edit mode opens the same steps with its values. Step 1
   is the title (the placeholder is the name it shows now; the type stays, an entity's domain
   decides it), then the options with Save, and for an entity's tile an **Entity** row on top that
   opens the search; the entity picked comes back to the options. Another domain changes the kind
@@ -441,23 +424,22 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
   screen does not offer stay as they are. A larger size keeps the cell and pushes the tiles in the
   way aside; "no room for 2x2 there" stays on the step.
 * **Back** goes one step back with what was chosen; **Cancel** (step 1) drops it all. The keyboard
-  button beside a field hides the keyboard (your request: landscape has little room), the field or
+  button beside a field hides the keyboard (landscape has little room), the field or
   the button brings it back.
 * **Answers** come back through `take_event` as `core::EntityList` and `core::EntityDetails`,
   stamped with a generation; the screen drops older ones. The search shares the one query slot of
   the hass task with the web editor's picker: a newer request of either replaces the one on its way.
 * **Memory**: the answer is parsed in the hass task into PSRAM; on the WT32 the internal heap was
-  the same with the steps open (38 KB free, 2026-10-16).
+  the same with the steps open (38 KB free, measured 2026-10-16).
 
 ## 8. Open points
 
-None (2026-10-17).
+* How long the edit mode's write blocks the LVGL task (section 7.1) is not measured on the
+  boards.
 
 ## 9. Swipe navigation and the dots
 
-Decided and built 2026-10-14 (your request: enabled per area, "disable the back button and use
-swipe navigation", dots at the bottom; the first build as a strip of the main page was wrong and
-is gone). An area tile with `swipe: true` (YAML and JSON; the checkbox of the area in the web
+An area tile with `swipe: true` (YAML and JSON; the checkbox of the area in the web
 editor's inspector):
 
 * **Its page has no back tile.** Its first cell is a cell like any other. The area tile itself
@@ -466,8 +448,7 @@ editor's inspector):
   tile). A swipe to the left does nothing. Pages without `swipe` keep the back tile and take no
   swipe.
 * **The dots** show how deep the page is: a band of 24 px at the bottom of a swipe page (32 px
-  on the JC4880P443C with its large fonts; your request 2026-10-14: 50 % and 100 % larger than
-  the first 16 px), the grid shrinks by it (like it shrinks below the edit bar). One 9 px dot
+  on the JC4880P443C with its large fonts), the grid shrinks by it (like it shrinks below the edit bar). One 9 px dot
   (12 px on the P4, the gap two thirds of a dot) per page
   of the chain: the page the swipe areas were entered from, then every swipe area down to the
   shown one, which is lit (`kText`; the others `kTextLabel` at 50 %). Rooms (back tile) > Workshop
@@ -481,15 +462,12 @@ editor's inspector):
   starts its drag only then (`View::press_x`). In edit mode a sideways drag that starts on an
   empty cell or the band goes back as well (the layer's own detector); a drag on a tile stays a
   move, and the band takes no taps there.
-* The slide of a page runs on every board now (`Info::ui_slide_pages` defaults to true; before,
-  the JC4880P443C only); a swipe fires it, the page does not follow the finger (two pages exist
-  only during the 250 ms slide, decided for the WT32's RAM).
+* The slide of a page runs on every board (`Info::ui_slide_pages` defaults to true); a swipe
+  fires it, the page does not follow the finger (two pages exist only during the 250 ms slide,
+  for the WT32's RAM).
 * Code: `swipe.cpp` (the detector, the band), `dashboard::swiped()`, `core::swipe_page`,
   `has_back_tile`, `swipe_chain`; the web editor mirrors them (the preview draws the back tile
   and the dots by the same rules).
-* Tried in the sim with the sample (Workshop has `swipe`): Workshop without a back tile and with
-  two dots, a swipe right back to Rooms, a tap on the band's left half back to Rooms, and with
-  Rooms set to `swipe` too three dots on Workshop and two on Rooms.
 
 ```
 +------------------------------------------------------------+

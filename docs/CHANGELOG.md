@@ -2,6 +2,8 @@
 
 ## 2026-10-17
 
+- Docs: architecture.md and docs/ui describe the firmware as built (migration sections, proposal/decided
+  marks and test logs gone; UI, network choice, rotation, components, PPA and JPEG notes corrected against the code).
 - Docs: no swipe back on a page with a back tile, also not from the left edge (decided); camera live view
   closed as done (MJPEG streams), H.264 not planned.
 - Docs: serial and flash glitches of 2026-10-09 to 10-14 removed (COM10 drop-out, panics after esptool resets):

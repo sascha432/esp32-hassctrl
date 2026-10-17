@@ -1,6 +1,6 @@
 # Screen design (LVGL)
 
-Status: **running**; the values below are the ones in the code (2026-10-12). The design guide of
+The values below are the ones in the code. The design guide of
 every LVGL screen: the dashboard, the panels, Settings, the first setup and the alarm. Read it
 before adding or changing a screen. The screens themselves are described in
 [lvgl-dashboard.md](lvgl-dashboard.md), [lvgl-panels.md](lvgl-panels.md),
@@ -9,7 +9,7 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 
 ## 1. Principles
 
-* **The look of the old firmware** (decided): the theme of `lvgl_ui.h` of `kfc_fw`, dark only.
+* **Dark only**, the look of the firmware this one was ported from.
   Flat cards on a near-black background, orange for "on", cyan for "on its way", red for errors.
 * **One theme in code.** Colors, fonts, sizes and the common widgets come from
   `components/ui/src/theme.hpp` (`hc::ui::theme`, `namespace t = theme;` in the page files). A
@@ -23,11 +23,12 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 * **Plain LVGL.** `ui` has no ESP-IDF calls; everything else comes through `hc::ui::Backend`
   (`hc/ui/backend.hpp`, filled in `main/ui_backend.cpp`). The same sources run in the Windows
   version (`python tools/sim.py`), where screens are reviewed first.
-* **LVGL 8.4 now, 9 later**: only widgets both versions have; the calls that differ go through
+* **LVGL 8.4, LVGL 9 planned**: only widgets both versions have (the analog clock's `lv_meter`
+  is the one exception); the calls that differ go through
   `lvgl_compat.hpp` ([architecture.md](../../architecture.md) section 7.1).
 * **Large buffers on the large heap** (`hc::memory`, PSRAM where the board has it): images, the
   color wheel, histories. They are freed when their control goes. LVGL's own heap holds widgets.
-* **English only** (decided), texts as in section 9.
+* **English only**, texts as in section 9.
 
 ## 2. Colors
 
@@ -45,13 +46,13 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 | active | `kActive` | `#ff8000` | on state, pressed buttons, slider fill, switch on |
 | alert | `kAlert` | `#ff8000` | notes and status lines |
 | error | `kError` | `#ff0000` | errors, destructive buttons |
-| lock unlocked / locked / jammed | `kLockUnlocked`, `kLockLocked`, `kLockJammed` | `#4caf50`, `#ff8000`, `#ff0000` | the lock's tile, panel and timeline (2026-10-11) |
+| lock unlocked / locked / jammed | `kLockUnlocked`, `kLockLocked`, `kLockJammed` | `#4caf50`, `#ff8000`, `#ff0000` | the lock's tile, panel and timeline |
 | accent | `kAccent` | `#00ffff` | an action on its way (the runner, a pending setpoint), the sensor graph |
 
 Colors with one owner, kept next to their code: the edit mode's "fits" outline `0x2ecc71`
 (`edit_mode.cpp`), the splash's logo colors (`splash.cpp`), the dialog veil black at 80 %
 (`panel.cpp`), the alert strip at 90 % (`overlay.cpp`). The body of a panel dialog is `kDialog`
-(0x161d25, 2026-10-13): lighter than the page it lies on, darker than its cards.
+(0x161d25): lighter than the page it lies on, darker than its cards.
 
 QR codes are always drawn black on a white card with a quiet zone (`theme::qr_card`), also in the
 dark theme: phone cameras do not read light-on-dark codes reliably.
@@ -123,7 +124,7 @@ LVGL's `LV_SYMBOL_*` are used only for the plain arrows of rows and the keyboard
 ## 6. Resolutions, orientation and boards
 
 The layout adapts to the display and is not drawn per board. Every board runs in landscape and in
-portrait (decided); with an orientation sensor the screen turns with the device, otherwise the
+portrait; with an orientation sensor the screen turns with the device, otherwise the
 rotation is set in Settings, Display ([architecture.md](../../architecture.md) section 8.1).
 Turning the display builds the shown screen again in the new size.
 
@@ -133,14 +134,14 @@ Turning the display builds the shown screen again in the new size.
 | JC3248W535 | 320 x 480 | 3.5" | 165 | none |
 | JC4880P443C | 480 x 800 | 4.3" | 217 | `slide_pages`, `panel_dialogs`, `large_fonts`, `tile_gap` 7 |
 
-TTGO T4 (240 x 320, no touch) is retired (2026-10-10) and no longer a layout target.
+The TTGO T4 (240 x 320, no touch) is a test device, not a layout target.
 
 `hc::ui::Options` (`hc/ui/ui.hpp`, from `board::Info::ui_*` in `main.cpp`, from the `--size`
 preset in the Windows version):
 
 | Option | Effect |
 | --- | --- |
-| `slide_pages` | an area page slides in and out (250 ms); on every board since 2026-10-14 (a swipe fires the slide), `false` switches without the animation |
+| `slide_pages` | an area page slides in and out (250 ms); on every board (a swipe fires the slide), `false` switches without the animation |
 | `panel_dialogs` | the panels are a dialog of 620 x 420 (440 x 600 in portrait) over the dimmed page, with a quarter larger buttons |
 | `large_fonts` | the large font set (section 3) |
 | `tile_gap` | the gap between tiles |
@@ -196,7 +197,7 @@ Every tap target is either an LVGL input widget or a plain object marked with
 
 ## 8. Messages
 
-Every message on the screen has one place (decided 2026-10-12):
+Every message on the screen has one place:
 
 | What | Where | How |
 | --- | --- | --- |
@@ -207,7 +208,7 @@ Every message on the screen has one place (decided 2026-10-12):
 
 The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
 
-* Black at 90 % (60 % until 2026-10-13: the tiles showed through) with rounded bottom corners, as wide as its text up to 90 % of the display, the
+* Black at 90 % (at 60 % the tiles showed through) with rounded bottom corners, as wide as its text up to 90 % of the display, the
   text in `font_normal()`, wrapped and centered, at most 3 lines (a longer one ends in "...",
   `kStripLines`). It starts with a symbol: `LV_SYMBOL_WARNING`
   for an error, `LV_SYMBOL_WIFI` while connecting, `LV_SYMBOL_DOWN` for the hint. The text color
@@ -231,7 +232,7 @@ The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
   `overlay::on_strip_moved()` (the camera view's buttons): a message of two lines must not cover
   them. While the dashboard is edited it shows event messages only, over the edit bar; with
   Settings or the first setup open it is gone.
-* **An event message is one short line** (decided 2026-10-12): what happened, at most 28
+* **An event message is one short line**: what happened, at most 28
   characters after the symbol, so it fits on one line at 320 px ("Stream stopped, retrying",
   "Changes not saved"). Never the technical reason: that goes into the log (`LV_LOG_WARN`, on
   the web UI's Logs page). No period, sentence case (section 9).
@@ -242,7 +243,7 @@ The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
 * The terms of [README](../README.md): Wi-Fi, Hotspot, Settings, Home Assistant. Never AP or STA
   on a screen.
 * A running action ends in `...` with a space: "Connecting to Home-Net ...", "Scanning for
-  Wi-Fi ...". "Loading..." in the panels is the old firmware's spelling.
+  Wi-Fi ...". "Loading..." in the panels is the one exception.
 * Errors say what is wrong in words, from the driver's reason: "The password is wrong.", not an
   error code. A tap on an error leads to the page that fixes it.
 * Buttons name the action: "Connect", "New password", "Reset"; a confirmation repeats it on its
@@ -273,3 +274,6 @@ The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
 
 * Montserrat 28 costs 37 KB of flash for the values; a subset (digits, units, the state words) is
   possible if flash gets tight.
+* To explore: replace the fixed sizes, the pixel thresholds and the board options of section 6
+  with one rule set from the board's DPI and how the unit is used (hand held or mounted), to
+  make the code simpler ([TODO.md](../../TODO.md), "Next steps").

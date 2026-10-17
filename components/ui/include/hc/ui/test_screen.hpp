@@ -1,6 +1,6 @@
 #pragma once
 
-// Display bring-up test (step 2 of docs/architecture.md section 13). Plain LVGL. Only a board in
+// Display bring-up test (docs/adding-a-board.md). Plain LVGL. Only a board in
 // bring-up shows it (CONFIG_HC_BOARD_BRING_UP, docs/adding-a-board.md); main shows it after
 // hc::ui::start() and hands hide_test_screen() to the dashboard, so it lies over the start screen
 // until a dashboard is drawn. Without the option nothing calls it and it is not linked.

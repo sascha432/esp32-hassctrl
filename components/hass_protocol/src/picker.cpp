@@ -18,8 +18,8 @@ namespace {
 using formats::JsonWriter;
 
 // The rows in order of the entity id (Home Assistant iterates in the order the entities were
-// added), at most `n`, and no more than about `b` characters, so the answer stays below the 16 KB
-// a message may have; a name counts twice (a non-ASCII letter becomes a 6 character escape).
+// added), at most `n`, and no more than about `b` characters, so the answer stays well below the
+// 32 KB a message may have (hass.cpp, kMaxMessage); a name counts twice (a non-ASCII letter becomes a 6 character escape).
 // Every word of the search has to be in the id or the name. `more`: rows were left out.
 constexpr const char *kListTemplate =
     "{%set ns=namespace(r=[],more=false,len=0)%}{%set w=(q|string|lower).split()%}"

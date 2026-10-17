@@ -28,23 +28,23 @@ Two user interfaces, each in its own folder; the file names say which one they b
 
 Shared by the touch screen and the web UI. New terms go here first.
 
-| Term | Meaning | Status |
-| --- | --- | --- |
-| **Wi-Fi** | the connection of the device to the home network (ESP-IDF: station, STA) | decided |
-| **Hotspot** | the network the device opens itself, for setup and recovery (ESP-IDF: access point, AP) | decided |
-| **Settings** | the settings on the screen | decided |
-| **Quick settings** | the first page of Settings | decided |
-| **Web UI** | the web site of the device | decided |
-| **Dashboard** | the Home Assistant tiles, the main screen of the device | decided |
-| **Page**, **tile**, **panel** | a page of the dashboard, one cell of it, the view a tile opens | from the old firmware |
-| **Status bar** | the bar at the top of Settings and the setup screens. The dashboard has none | decided |
-| **Pull-down** | the swipe down from the top center that opens Settings | decided |
-| **Alert strip** | the message panel at the top center of the dashboard, for errors, warnings and hints | decided |
-| **Edit mode** | moving, removing, adding and changing tiles (areas, clocks) on the screen | decided |
-| **Recovery page**, **recovery app** | the web page built into the firmware; the small firmware in its own partition | decided |
+| Term | Meaning |
+| --- | --- |
+| **Wi-Fi** | the connection of the device to the home network (ESP-IDF: station, STA) |
+| **Hotspot** | the network the device opens itself, for setup and recovery (ESP-IDF: access point, AP) |
+| **Settings** | the settings on the screen |
+| **Quick settings** | the first page of Settings |
+| **Web UI** | the web site of the device |
+| **Dashboard** | the Home Assistant tiles, the main screen of the device |
+| **Page**, **tile**, **panel** | a page of the dashboard, one cell of it, the view a tile opens |
+| **Status bar** | the bar at the top of Settings and the setup screens. The dashboard has none |
+| **Pull-down** | the swipe down from the top center that opens Settings |
+| **Alert strip** | the message panel at the top center of the dashboard, for errors, warnings and hints |
+| **Edit mode** | moving, removing, adding and changing tiles (areas, clocks) on the screen |
+| **Recovery page**, **recovery app** | the web page built into the firmware; the small firmware in its own partition |
 
 Code and developer docs use the ESP-IDF terms (AP, STA). Users never see them. The UI is English
-only (decided).
+only.
 
 ## How to read the wireframes
 
@@ -53,8 +53,9 @@ only (decided).
 * `[text]` is a button or a field, `[  o]` / `[o  ]` a switch (off / on), `>` opens a sub page,
   `<` in the bar goes back, `||||` is the signal strength, `[wifi]` an icon.
 * Every value in a wireframe is an example.
-* Each document ends with its open points. Decided items are marked as decided; everything else
-  is a proposal.
+* The documents describe the UI as built. Something that is not built says so ("not built").
+  Each document ends with its open points; the work itself is tracked in
+  [TODO.md](../TODO.md).
 
 ## Previews
 

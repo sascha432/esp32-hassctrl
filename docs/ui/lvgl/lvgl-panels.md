@@ -1,6 +1,6 @@
 # Panels (LVGL)
 
-Status: **running**. The full screen views a tile opens: the light (dimmer), the climate, the
+The full screen views a tile opens: the light (dimmer), the climate, the
 sensor, the lock, the weather, the timer and the automation. The picture tile's full screen view is in
 [lvgl-camera.md](lvgl-camera.md).
 Tiles and their states: [lvgl-dashboard.md](lvgl-dashboard.md); colors, fonts and the shared
@@ -54,22 +54,20 @@ middle (no further than the end of the list).
 
 Boards with `Info::ui_panel_dialogs` (the JC4880P443C, `hc::ui::Options::panel_dialogs`): the
 panels of a dimmer, a climate, a sensor and a lock are a dialog of 620x420 (440x600 in portrait),
-centered over the page. The page behind it is dimmed by a black veil of 80 % (50 % until 2026-10-13), the dialog is
+centered over the page. The page behind it is dimmed by a black veil of 80 %, the dialog is
 opaque in `theme::kDialog` (0x161d25, a step lighter than the page so it stands out of the dimmed
 page, a step darker than its cards), radius 12, 1 px border. The veil darkens at once; the dialog slides down from above the screen into
 the middle (250 ms, easing out) and back up when it closes (easing in). The full-screen panel of
-the other boards slides in from the right and out to the right like an area page (your request
-2026-10-14; before, it just appeared). A fading veil redrew the whole screen every frame and is gone. A tap on the veil closes the dialog like the back tile. The camera image stays full
+the other boards slides in from the right and out to the right like an area page. The veil does not fade (a
+fading veil redrew the whole screen every frame). A tap on the veil closes the dialog like the back tile. The camera image stays full
 screen.
 
 ## 2. Light panel
 
-Carried over from `behavior.md` section 7 of the old firmware.
-
 | Part | Content | Touch |
 | --- | --- | --- |
 | power (header) | power glyph, filled orange while on (no running dot in the panels) | toggles |
-| history (header, left of power) | `chart-timeline-variant`, white while the history is shown (2026-10-15, your request) | shows the on/off timeline of the light (section 4) in the place of the control; a second tap, or a mode button, goes back |
+| history (header, left of power) | `chart-timeline-variant`, white while the history is shown | shows the on/off timeline of the light (section 4) in the place of the control; a second tap, or a mode button, goes back |
 | buttons | level (`brightness-6`), color (`palette`), color temperature (`thermometer`), effects (`creation`); only those the light offers (`supported_color_modes`, `effect_list`), none when only the level is left; the selected one white | shows its control |
 | level | vertical slider (113 px at most, the fill orange, the percentage in the middle) and the round `+`/`-` steppers (64 px) beside it | drag or tap sets the level on release; the steppers go to the next multiple of the tile's `step` (default 1 %), held 4 times a second, sent 0.5 s after the last step; 0 turns the light off |
 | level of an on/off light | `On` / `Off` in large type | (the power button) |
@@ -84,13 +82,13 @@ color temperature within 2 % and the effect) until HA reports it.
 
 ## 3. Climate panel
 
-Carried over from `behavior.md` section 6 of the old firmware (the Lyric thermostat card).
+Modeled on the Lyric thermostat card of Home Assistant.
 
 | Part | Content | Touch |
 | --- | --- | --- |
 | power (header) | power glyph, filled orange; only while the mode (the pending one first) is not `off` and the entity has `off` in its `hvac_modes` | `set_hvac_mode` `off` (not `climate.turn_off`, which needs the entity's TURN_OFF feature); turning on again is the mode pill's job |
-| history (header, left of power; in its place while the power button is hidden) | `chart-timeline-variant`, white while the history is shown (2026-10-15, your request) | shows the room temperature over time (section 4: the curve of `current_temperature` from the state history, `HistoryKind::Temperature`, each change holding until the next, the unit `°`) in the place of the arc or the list; a second tap goes back, a pill opens its list |
-| pills | mode, preset, fan mode: the option's name (small), its value, the glyph left of them when the pill is at least 100 px wide (mode: `fire`, `snowflake`, `sun-snowflake-variant`, `thermostat-auto`, `water-percent`, `fan`, `power`; preset `record`; fan `fan`); a value too wide for the pill takes the small font before it is cut with "..." ("Heat cool" at 480x320, 2026-10-17); only the options the entity has a list for; the pill of the open list white | shows the list of the option in the place of the arc; a second tap goes back |
+| history (header, left of power; in its place while the power button is hidden) | `chart-timeline-variant`, white while the history is shown | shows the room temperature over time (section 4: the curve of `current_temperature` from the state history, `HistoryKind::Temperature`, each change holding until the next, the unit `°`) in the place of the arc or the list; a second tap goes back, a pill opens its list |
+| pills | mode, preset, fan mode: the option's name (small), its value, the glyph left of them when the pill is at least 100 px wide (mode: `fire`, `snowflake`, `sun-snowflake-variant`, `thermostat-auto`, `water-percent`, `fan`, `power`; preset `record`; fan `fan`); a value too wide for the pill takes the small font before it is cut with "..." ("Heat cool" at 480x320); only the options the entity has a list for; the pill of the open list white | shows the list of the option in the place of the arc; a second tap goes back |
 | arc | 270 degrees, the gap at the bottom, the ring a tenth of its diameter (at least 12 px), the track `0x2b3844`, the value orange while the mode is not `off` (grey when off), the knob white; centered on its ring, not on its box | drag on the ring sets the setpoint on release |
 | inside the arc | the action (`Heating`, else the mode; orange while not off), the setpoint (28 px, cyan while pending), `Current temperature` (`Current` in an arc under 180 px) and the room temperature | |
 | steppers | `+` above `-` right of the arc in landscape, `-` left of `+` under it in portrait | step the setpoint by `target_temp_step`, the tile's `step` or 0.5; sent 0.7 s after the last step |
@@ -99,18 +97,17 @@ Carried over from `behavior.md` section 6 of the old firmware (the Lyric thermos
 
 While the mode is `off` the panel opens on the mode list instead of the arc (the arc does nothing
 then), and the power button leads to it as well; once per opening, a tap on the mode pill goes to
-the arc (2026-10-08, your request).
+the arc.
 
 The range is `min_temp`..`max_temp` of the entity (7..35 until they arrived); the arc is built
 again when the range or the step arrives with the panel's fields, and when a mode change brings or
 takes the two setpoints (most integrations report `temperature` in heat and cool and the range,
-`temperature` null, in heat_cool). Added 2026-10-17 without a device that has a range: checked in the
-simulator (`climate.*heat_pump*` is a sample in heat_cool) at 480x320, 320x480 and 480x800;
-the look and the steppers' logic approved by you there (2026-10-17).
+`temperature` null, in heat_cool). The Windows version's sample `climate.*heat_pump*` is in
+heat_cool.
 
 ## 4. Sensor panel
 
-Carried over from the old firmware (the entity card of the Home Assistant app). No options: the
+Modeled on the entity card of the Home Assistant app. No options: the
 frame is the portrait one in both orientations, the control takes the whole width below the
 header.
 
@@ -176,8 +173,7 @@ does not end it); `open` waits for nothing, the lock locks again by itself.
 
 ## 6. Weather panel
 
-Added 2026-10-13 (your request: a tile and its details, no history). The panel of a `weather.*`
-entity, tested with OpenWeatherMap (One Call 3.0, which has both forecasts). Like the sensor panel
+The panel of a `weather.*` entity (no history), tested with OpenWeatherMap (One Call 3.0, which has both forecasts). Like the sensor panel
 it has no options: the frame is the portrait one in both orientations. Code: `weather_panel.cpp`.
 
 The panel works on the WT32-SC01 (480x320), the JC3248W535 (320x480) and the JC4880P443C (dialog).
@@ -223,13 +219,10 @@ An unavailable entity (Home Assistant restarting) has no `supported_features`: b
 the selected one stays selected. A forecast that fails is asked for again every 10 s while the
 panel is open (Home Assistant answers "not found" or "not supported" until the integration is
 set up again); what is drawn stays meanwhile.
-Checked on the WT32-SC01 (2026-10-13): the 8 days match the Home Assistant app, the hourly strip
-scrolls, closing and reopening works.
 
 ## 7. Timer panel
 
-Added 2026-10-16 (your request: timer support with a proper UI; a tap opens the details, a double
-tap starts or stops). The panel of a `timer.*` entity (a timer helper of Home Assistant). Like the
+The panel of a `timer.*` entity (a timer helper of Home Assistant). Like the
 lock panel: two buttons in the options choose the control (`timer-outline`) or the timeline
 (`chart-timeline-variant`); the panel opens on the control. No header action. Code:
 `timer_panel.cpp`. The helper and an automation that switches a fan with it:
@@ -262,9 +255,7 @@ A button the state does not allow is drawn at 40 % and does nothing. The expecte
 once (`core::Expectation` compares the state: `active`, `paused`, `idle`) until Home Assistant
 reports it. The rows are centered in the control; the countdown takes the largest digit font that
 leaves the buttons at least 36 px, the buttons grow up to 64 px (80 px in the P4's dialog) with
-the room that is left. Checked in the simulator at 480x320, 320x480 and 480x800 (the
-dialog); confirmed on the WT32-SC01 (2026-10-17). The rollers replaced the -/+ steppers on 2026-10-17
-(your request), checked in the simulator at 480x320, 320x480 and 800x480.
+the room that is left.
 
 The tile and the panel read three attributes (`hass_protocol::kTimer`): `duration` and `remaining`
 as Home Assistant writes them (`0:30:00`, `1 day, 2:00:00`; `core::duration_seconds`) and
@@ -276,8 +267,7 @@ comes from `finishes_at` and the device's clock.
 
 ## 8. Automation panel
 
-Added 2026-10-17 (your report: the automation tile toggled on a tap, as a switch; your request: a
-double tap runs it, the details with an enable switch and a run button, scripts too). The panel of
+The panel of
 an `automation.*` or a `script.*` entity, as Home Assistant's dialog. Like the lock panel: two
 buttons in the options choose the control (`robot`, `script-text` for a script) or the timeline
 (`chart-timeline-variant`); the panel opens on the control. No header action. Code:
@@ -303,9 +293,7 @@ buttons in the options choose the control (`robot`, `script-text` for a script) 
 | timeline | `history_view` with the states: an automation's is whether it is enabled (`Enabled` orange, `Disabled`), a script's whether it runs (`Running`, `Idle`); not the runs of the automation (Home Assistant records those in the logbook, not as states) | the range buttons as in the sensor panel |
 
 The rows are centered in the control; the Run button takes the room that is left between 44 px
-and the stepper size. Checked in
-the simulator at 480x320, 320x480 and 480x800 (the dialog); the double tap of both tiles
-drives `call_service` in the simulator. Confirmed working by you on the WT32-SC01 (2026-10-17).
+and the stepper size.
 
 The tile and the panel read one attribute, `last_triggered`, rendered as epoch seconds like the
 timer's `finishes_at` (`as_timestamp(state_attr(e,'last_triggered'),none)`, null while it never
@@ -315,7 +303,7 @@ ran; kept as an `int64_t`, 0 then).
 
 * The graph of a sensor needs long term statistics (a `state_class`); a sensor without them shows
   "No statistics for this sensor". Reading its state history instead is possible, but a busy
-  sensor's changes may not fit a message (16 KB per 6 hours).
+  sensor's changes may not fit a message (32 KB per 6 hours).
 * The range of a climate (`heat_cool`) keeps the low setpoint at or below the high one; a
   minimum gap (`target_temp_low` + deadband) is left to the integration, which may refuse the call.
 * The weather panel: `twice_daily` forecasts are not read; the icon of `partlycloudy` is the day

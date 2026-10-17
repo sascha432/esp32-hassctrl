@@ -1,6 +1,6 @@
 # Web design
 
-Status: **running**; the conventions below are the ones of `web/` (2026-10-12). The design guide
+The conventions below are the ones of `web/`. The design guide
 of the web UI: principles, look, page frame and how a page is built. Read it before adding or
 changing a page. The pages themselves are in [web-app.md](web-app.md), the dashboard editor in
 [web-dashboard-editor.md](web-dashboard-editor.md), the recovery page in
@@ -9,11 +9,11 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
 ## 1. Principles
 
 * **Phone first.** The first contact is a phone in the captive portal. One column, at most
-  800 px wide (480 until 2026-10-10; the log's lines need the room), centered on large screens.
+  800 px wide (the log's lines need the room), centered on large screens.
   Only the dashboard editor uses the whole width (`app-wide`).
 * **Works without internet.** Everything is served by the device: no CDN, no web fonts. In the
   captive portal there is no internet.
-* **Bootstrap look with light and dark mode** (decided), the full Bootstrap CSS file (decided),
+* **Bootstrap look with light and dark mode**, the full Bootstrap CSS file,
   section 2. No JavaScript framework, no build step: the files in `web/` are what the browser gets
   (gzipped by `tools/build_fs.py`). The device keeps only the gzipped files: a client without
   `Accept-Encoding: gzip` gets 406 (`curl` needs `--compressed`).
@@ -24,22 +24,22 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
   answers with an `error` in words, which the page shows. Rules are not written twice in
   JavaScript (the dashboard editor's preview is the documented exception).
 * **Always recoverable.** Login and firmware update work even when the file system is broken
-  (decided), see [web-recovery.md](web-recovery.md).
-* **Same terms** as the screen. English only (decided).
+ , see [web-recovery.md](web-recovery.md).
+* **Same terms** as the screen. English only.
 
 ## 2. Look
 
-* **Bootstrap 5.3** (decided), `web/vendor/bootstrap.min.css`, the full minified file (about
+* **Bootstrap 5.3**, `web/vendor/bootstrap.min.css`, the full minified file (about
   30 KB gzipped). Only the CSS: Bootstrap's script bundle is not shipped; tabs, the menu and the
   editor's dialogs are a few lines of the site's own JavaScript with Bootstrap's markup.
-* **Light and dark mode** (decided): it follows the browser, with Automatic, Light and Dark in the
+* **Light and dark mode**: it follows the browser, with Automatic, Light and Dark in the
   menu, stored in the browser (`localStorage` `theme`) and set before the first paint
   (`index.html`).
 * **Colors only through Bootstrap**: its classes (`text-body-secondary`, `text-bg-*`,
   `btn-*`) and its CSS variables (`var(--bs-success)`, `var(--bs-border-color)`) in `app.css`. No
-  hex color in the site's own CSS or JS, so both modes and a later custom theme work. The screen's
+  hex color in the site's own CSS or JS, so both modes and a custom theme would work. The screen's
   colors are used only where the web shows the screen: the dashboard editor's preview.
-* **Custom themes** (proposal, not built): one small CSS file that overrides Bootstrap's CSS
+* **Custom themes** (not built): one small CSS file that overrides Bootstrap's CSS
   variables, uploaded like the other web files.
 * Fonts: Bootstrap's system font stack, no web fonts.
 * Icons: small inline SVGs in `app.js` for the header (Wi-Fi, menu, lock); the MDI icons of the

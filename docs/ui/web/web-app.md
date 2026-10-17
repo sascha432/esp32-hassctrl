@@ -1,7 +1,7 @@
 # Web app
 
-Status: **running**: setup, login, Status, Home Assistant, Wi-Fi, Hotspot, Camera, Dashboard, Logs
-and System pages in `web/`. The look, the page frame and how a page is built:
+The setup, login, Status, Home Assistant, Wi-Fi, Hotspot, Camera, Dashboard, Logs and System
+pages in `web/`. The look, the page frame and how a page is built:
 [web-design.md](web-design.md). The dashboard editor: [web-dashboard-editor.md](web-dashboard-editor.md).
 The built-in recovery page and the recovery app: [web-recovery.md](web-recovery.md).
 
@@ -26,10 +26,10 @@ Main pages                after login
 Recovery                  compiled into the firmware: login, update, format
 ```
 
-The dashboard is edited here (decided). YAML import and export are for advanced users, also
-with a tool. There is no file manager (decided).
+The dashboard is edited here. YAML import and export are for advanced users, also
+with a tool. There is no file manager.
 Settings are exported and imported on the System page as YAML, without secrets; an import may
-carry passwords added by hand (decided).
+carry passwords added by hand.
 
 ## 2. Setup pages
 
@@ -70,13 +70,12 @@ the device is now reachable:
 +--------------------------------------------+
 ```
 
-When the device joins the home network, the phone may lose the hotspot for a moment (decided:
-accepted). The page keeps polling and shows the result as soon as the phone is back. The hotspot
-stays on for a while after the setup with the same password, so there is no hurry (decided;
-proposal: 15 minutes).
+When the device joins the home network, the phone may lose the hotspot for a moment
+(accepted). The page keeps polling and shows the result as soon as the phone is back. The hotspot
+stays on for 15 minutes after the setup with the same password, so there is no hurry.
 
 If the screen and a phone submit setup data at the same time, the first submission wins and the
-other side is not told (decided).
+other side is not told.
 
 ## 3. Login
 
@@ -92,22 +91,22 @@ other side is not told (decided).
 +--------------------------------------------+
 ```
 
-* **Remember me** stores a persistent cookie that lasts 90 days (decided). Without it the
+* **Remember me** stores a persistent cookie that lasts 90 days. Without it the
   cookie ends with the browser session.
 * The cookie is a signed token holding the username and the expiry, so no session table is
   needed.
-* **Anything that changes ends all tokens** (decided): the username, the password, or a counter
+* **Anything that changes ends all tokens**: the username, the password, or a counter
   stored in NVS. The counter is increased by "log out everywhere" in the menu.
-* **Change the password** (2026-10-17): System, card "Password": the current password, the new one
+* **Change the password**: System, card "Password": the current password, the new one
   twice (8 to 64 characters). `POST /api/password` (`current`, `password`, the login of the
   session): a wrong current password waits 1 s and answers 400 (not 401, which would send the web
   UI to its login page). Every other session ends; the browser that changed it gets a new session
   cookie, not remembered. The username stays (a new one: the reset on the screen or a `webui:` file).
-* **From a file** (2026-10-12): a `webui:` section with `user` and `password` in the backup file or
+* **From a file**: a `webui:` section with `user` and `password` in the backup file or
   in a dashboard import's `hass.yaml` replaces the login (same rules as the setup page; every
   session ends, the browser that imported signs in again). Import only: the device stores a
   hash, the export writes a commented hint where the section goes.
-* How (decided): the signing key is derived from the stored login record and the counter,
+* How: the signing key is derived from the stored login record and the counter,
   `key = HMAC(stored password hash, counter)`. The stored hash is `hash(salt, username,
   password)` with PBKDF2. A new password or username gives a new hash, a new counter gives a new
   key, and either way every old token fails the check. The counter is kept out of the password
@@ -122,7 +121,7 @@ other side is not told (decided).
 **Home Assistant.** URLs found by mDNS are offered in the list, a URL can also be typed. The token
 field is empty. `stored` says that a token exists.
 
-Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`):
+Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 
 * The connection card shows the state (not set up, waiting for Wi-Fi, connecting, connected,
   token rejected, disconnected with the seconds to the next try), the problem in words, the
@@ -134,11 +133,9 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
 * The address is cleaned up: `http://` is added, `ws://`/`wss://` become `http://`/`https://`,
   a path (`/lovelace/0`) is dropped, the port is checked. The token is checked for characters a
   token cannot have (a space from pasting).
-* Changed from the sketch below: **Save and connect** instead of "Test connection" and "Save".
-  The status shows the result within seconds. Open: a separate test that does not store the
-  token, so a typo cannot replace a working token ([TODO](../../TODO.md)).
+* **Save and connect** stores both and connects; the status shows the result within seconds.
 * The header's `HA` is green while connected, red for a rejected token, yellow otherwise.
-* A self-signed certificate (https, 2026-10-10, confirmed by the user): when the bundle does not trust the server's
+* A self-signed certificate (https): when the bundle does not trust the server's
   certificate, the card "Certificate not trusted" shows its SHA-256 fingerprint
   (`AB:CD:...`, as browsers show it) and asks to compare it with the browser's. **Trust this
   certificate** stores it and connects. From then on the card "Certificate" shows the trusted
@@ -165,23 +162,22 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
 | | [http://homeassistant.local:8123  v] |   |
 | | Token                        stored  |   |
 | | [paste a new token                 ] |   |
-| | [ Test connection ]        [ Save ]  |   |
+| | [ Search ]        [ Save and connect ]|   |
 | +--------------------------------------+   |
 | Create a token in Home Assistant:          |
 | Profile > Security > Long-lived tokens     |
 +--------------------------------------------+
 ```
 
-**Logs.** Viewable over the web with a filter, plus a debug mode that adds notice and info
-messages to the normal error log (decided; details are discussed later). No live view: the page
-shows the log as of loading, `Refresh` loads it again (decided).
+**Logs.** Viewable over the web with a filter and a debug mode. No live view: the page shows the
+log as of loading, `Refresh` loads it again.
 
-Built (2026-10-10, `components/logbuf`, `api_log.cpp`): the last 16 KB of esp_log messages in
+Code: `components/logbuf`, `api_log.cpp`. The last 16 KB of esp_log messages in
 PSRAM, the oldest lines go first, empty after a restart. Errors and warnings are always kept,
 Debug (stored) keeps info messages as well (ESP-IDF has no "notice"). The console's `log` level
 only changes the serial output. Filter: Errors, Warnings and errors, Everything (the default).
 Times are the device's clock once it is set, else `+h:mm:ss` since the start. Download saves the
-whole log as text. The bar right of the box drags the page wider than its 800 px (2026-10-14),
+whole log as text. The bar right of the box drags the page wider than its 800 px,
 kept in the browser, a double-click goes back to the default. API: `GET /api/log` `{"debug", "capacity"}`, `POST /api/log` `debug=1|0`,
 `GET /api/log.txt` one line per message, `<unix time or 0> <esp_log line>`.
 
@@ -199,11 +195,11 @@ kept in the browser, a double-click goes back to the default. API: `GET /api/log
 +--------------------------------------------+
 ```
 
-**System.** Firmware and file system updates are uploaded here (decided), see section 5. The
-backup card sits above the update card, so the backup is seen before an update (decided).
+**System.** Firmware and file system updates are uploaded here, see section 5. The
+backup card sits above the update card, so the backup is seen before an update.
 
-Backup (2026-10-09): one YAML file with the sections `network`, `display`, `sound`, `alarm`,
-`camera` (2026-10-12), `hass`, `webui` (import only, section 3; 2026-10-12) and the dashboard (`defaults`, `tiles`); Export all, Settings only,
+Backup: one YAML file with the sections `network`, `display`, `sound`, `alarm`,
+`camera`, `hass`, `webui` (import only, section 3) and the dashboard (`defaults`, `tiles`); Export all, Settings only,
 Dashboard only (`GET /api/backup.yaml[?parts=settings|dashboard]`). A section of something the
 device does not have (`sound`, `alarm`, `camera`) is not written, and in a file from another
 device it is ignored ("camera (not on this device)"). No password and no token is written; a
@@ -220,7 +216,7 @@ not tried until it gets one. Only the main firmware: the recovery app has no bac
 its System page shows no Backup card.
 
 The dashboard import (Dashboard page, Import & export) reads the same settings sections from
-`hass.yaml` (2026-10-12): checked with the dashboard, applied after it, the message names them
+`hass.yaml`: checked with the dashboard, applied after it, the message names them
 ("settings: hass, camera"), the notes and what was ignored. `docs/dashboard-sample/hass.yaml`
 shows every section, commented out.
 
@@ -248,7 +244,7 @@ shows every section, commented out.
 ### 4.1 Camera stream
 
 Only on a board with a camera (docs/architecture.md section 9.8). The stream is set on the screen
-(Settings, Camera, docs/ui/lvgl/lvgl-settings.md section 3) or on the web UI's Camera page (2026-10-12); the
+(Settings, Camera, docs/ui/lvgl/lvgl-settings.md section 3) or on the web UI's Camera page; the
 picture (exposure, gain, mirror, flip, mains frequency) only on the screen, next to its preview.
 
 **Camera page** (in the menu only when `/api/status` says `"camera": true`): one form with "Stream
@@ -276,9 +272,9 @@ removes the login and the stream goes off.
 
 ## 5. Firmware update
 
-* **Update form** (decided): the System page and the recovery page take a firmware image and a
+* **Update form**: the System page and the recovery page take a firmware image and a
   file system image, either as a file upload or as a URL the device downloads from.
-* **OTA over the network** (decided, running): the same authenticated endpoints take the raw
+* **OTA over the network**: the same authenticated endpoints take the raw
   image as the request body (`POST /api/update/firmware`, `/api/update/filesystem`), so `curl
   --data-binary` or `tools/update.py` push a build without a browser. `POST /api/update/url`
   makes the device download the image (http or https, common CA bundle, redirects followed);
@@ -293,20 +289,21 @@ removes the login and the stream goes off.
   for the TTGO T4, this is the WT32-SC01".
 * The firmware image goes to the inactive OTA partition and is booted after a check. If the new
   firmware does not confirm itself after boot, the bootloader rolls back (ESP-IDF app rollback).
-* **Flash budget**: two OTA partitions on the 4 MB boards leave about 1.9 MB per firmware image
-  and little room for LittleFS. The proposal is a small recovery app in its own partition, see
+* **Flash budget**: two OTA partitions on the 4 MB boards would leave about 1.9 MB per firmware
+  image and little room for LittleFS, so they carry one OTA partition and the recovery app, see
   [architecture.md](../../architecture.md) section 9.5.
 
 ## 6. HTTPS
 
-* Cancelled (decided): there will be no HTTPS web server. The web UI is plain HTTP only, with no
+* Cancelled: there will be no HTTPS web server. The web UI is plain HTTP only, with no
   certificate and no HTTPS option in the settings.
 * TLS stays in use as a client: `wss://` to Home Assistant, camera snapshots over https and the
   update download by URL. For this the main firmware keeps mbedTLS in PSRAM
-  (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` in `sdkconfig.main`, 2026-10-07): a `wss://` connection with
+  (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` in `sdkconfig.main`): a `wss://` connection with
   certificate check runs on the WT32 with 19 KB internal RAM left during the handshake. The
   recovery app keeps mbedTLS in internal RAM (it must run without PSRAM).
 
 ## 7. Open points
 
-* None.
+* Home Assistant: a test of address and token that does not store them, so a typo cannot
+  replace a working token (today Save and connect stores first).

@@ -1,8 +1,9 @@
 # TODO
 
-State as of 2026-10-17: steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
-WT32-SC01 (COM9), the JC3248W535 (COM10) and the JC4880P443C (COM11); the TTGO T4 (COM13) is a
-test device only. Step 7 (LVGL 9) has not started. What is next is in "Next steps" at the end.
+State as of 2026-10-17: the firmware runs on the WT32-SC01 (COM9), the JC3248W535 (COM10) and
+the JC4880P443C (COM11); the TTGO T4 (COM13) is a test device only. The sections "Step 1" to
+"Step 6" are the bring-up of the port, in its order. LVGL 9 has not started. What is next is in
+"Next steps" at the end.
 The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
 
 ## Step 1: first boot
@@ -1598,7 +1599,7 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
       NVS survives a firmware reflash, files.zip covers LittleFS, and the recovery partition is
       4 % free.
 
-Dashboard ([architecture.md](architecture.md) section 14):
+Dashboard ([architecture.md](architecture.md) section 5):
 
 - [x] ~~**Landscape strict, portrait falls back**~~ (2026-10-13): gone with format version 2
       (2026-10-14): both orientations leave a tile without room out of the screen, the web
@@ -1625,8 +1626,8 @@ Dashboard ([architecture.md](architecture.md) section 14):
 - [x] **Tile looks for every shape** (step 3 of the plan of 2026-10-14, built the same day):
       the shape follows the span (tall, wide, one-cell look), the climate's bars down the left
       and right of a wide card, the wide row (icon left, texts right) for the other kinds,
-      reviewed in the sim at 480x320, 320x480 and 800x480 (lvgl-dashboard.md section 3). Open:
-      a 2x2 switch on the P4 looks empty with the 48 px glyph (no larger glyph size).
+      reviewed in the sim at 480x320, 320x480 and 800x480 (lvgl-dashboard.md section 3). A 2x2 switch
+      with the 48 px glyph is the user's choice of size, not an open point (2026-10-17).
 - [x] **Discussed 2026-10-07.** Decided: only `defaults` (grid, more later) and `tiles`; URL,
       token, poll and the other connection values are not part of the dashboard; no reload by
       file size; the web UI edits areas and tiles, the screen only allows a few settings; YAML
@@ -1666,11 +1667,15 @@ Dashboard ([architecture.md](architecture.md) section 14):
 
 ## Review
 
-- [ ] Read [architecture.md](architecture.md) and [ui/](ui/README.md) once from top to bottom.
-      Everything not marked as decided is a proposal; mark disagreements as comments or in chat.
-      architecture.md checked against the code on 2026-10-12: section 4 now describes the
-      queues as built (no typed mailbox, no `ReloadConfig`: the UI polls the current layout),
-      the components, partitions, repository layout and section 13 brought up to date.
+- [ ] Read [architecture.md](architecture.md) and [ui/](ui/README.md) once from top to bottom;
+      mark disagreements as comments or in chat. architecture.md rewritten on 2026-10-17 to
+      describe the firmware as built, checked against the code: the migration parts are gone
+      (porting map, implementation order, open questions, "proposal" and "decided on" marks),
+      section 7 (UI) describes the code as it is, section 9.2 the network choice as built
+      (no 802.11k/v). docs/ui the same day: no "decided"/"proposal"/"your request" marks, test
+      logs and history moved out (they are in this file and the changelog); corrected: the PPA
+      hang (DIG-734, fixed), TJpgDec on the ESP32 only, the 32 KB message limit, web recovery's
+      three proposals (two did not apply, the version check is not built), the HA page's buttons.
 - [x] **UI docs split into LVGL and web** (2026-10-12, your request: no design guides found).
       `docs/ui/lvgl/` (lvgl-design, lvgl-touch, lvgl-dashboard, lvgl-panels, lvgl-camera,
       lvgl-settings) and `docs/ui/web/` (web-design, web-app, web-dashboard-editor,
@@ -1719,11 +1724,35 @@ Dashboard ([architecture.md](architecture.md) section 14):
 
 ## Next steps
 
-State as of 2026-10-14. Steps 1 to 6 of [architecture.md](architecture.md) section 13 run on the
-WT32-SC01, the JC3248W535 and the JC4880P443C; what is left of them is listed in their sections
-above. The dashboard format is version 2 (sizes, hiding and overflow per orientation); the tile
-looks per shape and the swipe navigation on the screen are the next two steps (Open decisions).
-In order:
+State as of 2026-10-17. The firmware runs on the WT32-SC01, the JC3248W535 and the
+JC4880P443C; what is left of the bring-up is listed in the "Step" sections above.
+
+- [ ] **LVGL 9** ([architecture.md](architecture.md) section 7.1): build the dashboard's screens
+      on LVGL 9 and measure them against 8.4 on the boards; when it works well, remove LVGL 8
+      (`ui/lvgl_compat.hpp` goes with it). Not started.
+- [ ] The analog clock face is an `lv_meter`, which LVGL 9 does not have: redraw it with
+      `lv_scale` or by hand with the LVGL 9 step (found 2026-10-17).
+- [ ] Files over the 600 lines of architecture.md section 11: `tiles.cpp` (1,579, every tile
+      kind in one file), `settings_pages.cpp` (1,074), `climate_panel.cpp` (1,027),
+      `light_panel.cpp` (848), and a few just over. Split or accept, to discuss (found
+      2026-10-17).
+- [ ] **Explore: a simpler UI code by designing from DPI** (your idea 2026-10-17). Main goal:
+      less code. Today the screens follow three fixed patterns, one per board: pixel thresholds
+      (90 px for the large look), fixed font, glyph, gap and stepper sizes, and board options
+      that patch them per board (`large_fonts`, `tile_gap`, `panel_dialogs`; lvgl-design.md
+      section 6). Explore whether one rule set driven by `Info::dpi` (sizes and thresholds in
+      mm; the fonts stay discrete sizes, DPI picks among them) and by how the unit is used (hand
+      held: read and touched up close; mounted on a wall: read from further away, larger text
+      and values; a property of the unit's variant, or a setting if a unit moves) can replace
+      the patterns and the options, and what code that removes. Outcome first: a list of the
+      places in `ui` that branch on board size or options and what each would become. Then,
+      if it is simpler, build it and review every tile look and panel in the Windows version at
+      all sizes.
+- [ ] Web UI, Home Assistant page: a test of address and token that does not store them, so a
+      typo cannot replace a working token (Save and connect stores first;
+      [ui/web/web-app.md](ui/web/web-app.md) section 7). Was only in the doc, not here.
+
+Done, in order:
 
 1. [x] **WT32 memory** (closed 2026-10-17: no memory problem seen by you since the change of
        2026-10-10): LVGL ran out of memory (Vibration, 2026-10-09) and
