@@ -2,6 +2,8 @@
 
 ## 2026-10-17
 
+- Web UI, Home Assistant: Save and connect tries a new token first (`GET /api/`); one that Home Assistant
+  rejects is not stored, the working token stays (your report). Confirmed by you on the WT32.
 - Docs: architecture.md and docs/ui describe the firmware as built (migration sections, proposal/decided
   marks and test logs gone; UI, network choice, rotation, components, PPA and JPEG notes corrected against the code).
 - Docs: no swipe back on a page with a back tile, also not from the left edge (decided); camera live view

@@ -596,7 +596,8 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
   `button.phone_ctrl_answer` (answers the intercom), `switch.phone_ctrl_allow`, the blinds
   (`switch.blinds_living_room`) and the fireplace (`switch.fireplace`). Anything else: ask.
 - [x] **Save and connect** stays (decided 2026-10-07): a new token replaces the stored one, that
-      is the user's choice; no test before storing.
+      is the user's choice. Changed 2026-10-17: a token that Home Assistant rejects is not
+      stored (see Next steps).
 - [x] **Internal RAM on the WT32**: 25 KB left with Home Assistant connected, before the
       dashboard. `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384` keeps every allocation under 16 KB
       in internal RAM (LVGL objects too; 512 on the ESP32 since 2026-10-10, see Next steps). Decided 2026-10-07: the dashboard lives in PSRAM (as
@@ -1748,9 +1749,12 @@ JC4880P443C; what is left of the bring-up is listed in the "Step" sections above
       places in `ui` that branch on board size or options and what each would become. Then,
       if it is simpler, build it and review every tile look and panel in the Windows version at
       all sizes.
-- [ ] Web UI, Home Assistant page: a test of address and token that does not store them, so a
-      typo cannot replace a working token (Save and connect stores first;
-      [ui/web/web-app.md](ui/web/web-app.md) section 7). Was only in the doc, not here.
+- [x] Web UI, Home Assistant page: a typo cannot replace a working token (2026-10-17, your
+      report: a wrong token was stored and the working one gone). Save and connect asks Home
+      Assistant with a new token first (`GET /api/`); rejected (401), nothing is stored and the
+      error shows. Without an answer it stores as before. Confirmed by you on the WT32 (401
+      refused, 200 stored and connected).
+      [ui/web/web-app.md](ui/web/web-app.md) section 4.
 
 Done, in order:
 

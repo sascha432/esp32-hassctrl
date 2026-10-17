@@ -133,7 +133,11 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 * The address is cleaned up: `http://` is added, `ws://`/`wss://` become `http://`/`https://`,
   a path (`/lovelace/0`) is dropped, the port is checked. The token is checked for characters a
   token cannot have (a space from pasting).
-* **Save and connect** stores both and connects; the status shows the result within seconds.
+* **Save and connect** with a new token asks Home Assistant first (`GET /api/` with the token,
+  up to 10 s). If it rejects the token (HTTP 401) nothing is stored, the stored token stays
+  and the error shows. Otherwise, also without an answer, both are stored and the connection
+  starts; the status shows the result within seconds. An empty token field keeps the stored
+  token without a test.
 * The header's `HA` is green while connected, red for a rejected token, yellow otherwise.
 * A self-signed certificate (https): when the bundle does not trust the server's
   certificate, the card "Certificate not trusted" shows its SHA-256 fingerprint
@@ -145,8 +149,8 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 * A board with a motion sensor: the row "Motion helper" with `input_boolean.<device>_motion`, and
   "missing" when Home Assistant has no such entity ([motion-sensor.md](../../home-assistant/motion-sensor.md) section 4).
 * API: `GET /api/hass` (also `certificate` and `refused_certificate`, SHA-256 as hex, empty:
-  none; `motion_helper`: empty without a sensor, `unknown`, `missing`, `found`, and `motion_entity`), `POST /api/hass` (`url`, `token`; an empty token keeps the stored one, an empty url
-  removes both), `POST /api/hass/reconnect`, `POST /api/hass/certificate` (`fingerprint`, 64 hex
+  none; `motion_helper`: empty without a sensor, `unknown`, `missing`, `found`, and `motion_entity`), `POST /api/hass` (`url`, `token`; a new token is tried first, 400 when Home Assistant
+  rejects it; an empty token keeps the stored one, an empty url removes both), `POST /api/hass/reconnect`, `POST /api/hass/certificate` (`fingerprint`, 64 hex
   digits, colons allowed; empty forgets it), `GET /api/hass/discover`, and for the
   dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`
   ([web-dashboard-editor.md](web-dashboard-editor.md) section 3). The token is write-only. The recovery app has none of them (404).
@@ -305,5 +309,4 @@ removes the login and the stream goes off.
 
 ## 7. Open points
 
-* Home Assistant: a test of address and token that does not store them, so a typo cannot
-  replace a working token (today Save and connect stores first).
+None.

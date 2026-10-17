@@ -19,16 +19,6 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 0.5.3
-  espressif/esp_audio_codec:
-    component_hash: a5b9275af74247e3ce536d16a7080e4d77207a185b63e1bea368eb4d57176c2b
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.4'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 2.6.2
   espressif/esp_jpeg:
     component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
     dependencies:
@@ -129,25 +119,6 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 2.9.0
-  espressif/esp_new_jpeg:
-    component_hash: e1e7e6991193c41ed6c9fc386702aa7821433319e7aa9c3147cd3236310cd69c
-    dependencies: []
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    targets:
-    - esp32
-    - esp32s2
-    - esp32s3
-    - esp32s31
-    - esp32p4
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h4
-    version: 1.0.2
   espressif/esp_websocket_client:
     component_hash: dc00233af846f3a744ada283a300e0d586040aadc3ee67361645ecdce4523672
     dependencies:
@@ -191,7 +162,6 @@ dependencies:
     version: 8.4.0
 direct_dependencies:
 - espressif/cjson
-- espressif/esp_audio_codec
 - espressif/esp_jpeg
 - espressif/esp_lcd_axs15231b
 - espressif/esp_lcd_ili9341
@@ -199,12 +169,11 @@ direct_dependencies:
 - espressif/esp_lcd_touch
 - espressif/esp_lcd_touch_ft5x06
 - espressif/esp_lvgl_port
-- espressif/esp_new_jpeg
 - espressif/esp_websocket_client
 - espressif/mdns
 - idf
 - joltwallet/littlefs
 - lvgl/lvgl
 manifest_hash: 5980ce6610a60d156dc2f424a9d3693049c31134185331035c33a3a19967cff0
-target: esp32s3
+target: esp32
 version: 3.0.0

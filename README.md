@@ -63,7 +63,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 **Web UI**
 
-- Status, Home Assistant (URL, token, connection test), Wi-Fi, hotspot, camera, the dashboard
+- Status, Home Assistant (URL, token checked before it is stored, connection test), Wi-Fi, hotspot, camera, the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
   a debug mode and a width to drag, system (backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.

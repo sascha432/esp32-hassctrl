@@ -13,6 +13,7 @@
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_heap_caps.h"
+#include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_timer.h"
@@ -1564,6 +1565,55 @@ esp_err_t set_config(const char *url, const char *token, char *error, size_t err
              clean_token[0] != 0 ? ", new token" : "");
     post({.type = EventType::ConfigChanged}, pdMS_TO_TICKS(100));
     return ESP_OK;
+}
+
+esp_err_t test_token(const char *url, const char *token, char *error, size_t error_size)
+{
+    // the token is 512 bytes: off the caller's stack (the web server's)
+    struct Buffers {
+        char normalized[kUrlSize];
+        char token[kTokenSize];
+        char api[kUrlSize + 8];
+        char authorization[kTokenSize + 8];
+    };
+    auto *b = static_cast<Buffers *>(heap_caps_calloc_prefer(1, sizeof(Buffers), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                                             MALLOC_CAP_DEFAULT));
+    if (b == nullptr) {
+        std::snprintf(error, error_size, "no memory for the test");
+        return ESP_ERR_NO_MEM;
+    }
+    esp_err_t err = clean_config(url, token, b->normalized, b->token, error, error_size);
+    int status = 0;
+    if (err == ESP_OK && b->normalized[0] != 0 && b->token[0] != 0) {
+        std::snprintf(b->api, sizeof(b->api), "%s/api/", b->normalized);
+        std::snprintf(b->authorization, sizeof(b->authorization), "Bearer %s", b->token);
+        esp_http_client_config_t config{};
+        config.url = b->api;
+        config.timeout_ms = 10000;
+        config.crt_bundle_attach = detail::tls_attach;
+        // the token goes into a header longer than the default send buffer
+        config.buffer_size_tx = 1024;
+        config.user_agent = "hassctrl";
+        if (esp_http_client_handle_t client = esp_http_client_init(&config); client != nullptr) {
+            esp_http_client_set_header(client, "Authorization", b->authorization);
+            if (esp_http_client_open(client, 0) == ESP_OK && esp_http_client_fetch_headers(client) >= 0) {
+                status = esp_http_client_get_status_code(client);
+            }
+            esp_http_client_close(client);
+            esp_http_client_cleanup(client);
+        }
+        // a refused certificate is for the connection to report; not left behind in this task
+        uint8_t digest[kFingerprintBytes];
+        detail::refused_certificate(digest);
+        ESP_LOGI(kTag, "token test at %s: %s%d", b->normalized, status != 0 ? "HTTP " : "no answer ", status);
+        if (status == 401) {
+            std::snprintf(error, error_size, "Home Assistant rejected the token, nothing was stored");
+            err = ESP_ERR_INVALID_ARG;
+        }
+    }
+    std::memset(b, 0, sizeof(Buffers));
+    std::free(b);
+    return err;
 }
 
 void reconnect()

@@ -274,7 +274,14 @@ const hc::webserver::HassAccess kHassAccess{
             out.motion_helper = motion_helper_key(s.motion_helper);
             snprintf(out.motion_entity, sizeof(out.motion_entity), "%s", s.motion_entity);
         },
-    .set = hc::hass::set_config,
+    // a new token is tried first: a typo does not replace a working one
+    .set =
+        [](const char *url, const char *token, char *error, size_t error_size) {
+            if (const esp_err_t err = hc::hass::test_token(url, token, error, error_size); err != ESP_OK) {
+                return err;
+            }
+            return hc::hass::set_config(url, token, error, error_size);
+        },
     .reconnect = hc::hass::reconnect,
     .trust = hc::hass::trust_certificate,
     .discover =

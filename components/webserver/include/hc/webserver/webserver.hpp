@@ -49,7 +49,8 @@ struct HassFound {
 // does not depend on it: the recovery app has none and passes nullptr).
 struct HassAccess {
     void (*status)(HassStatus &out);
-    // stores the URL and, unless empty, the token, and connects; an empty URL removes both
+    // stores the URL and, unless empty, the token, and connects; an empty URL removes both. A new
+    // token is tried with Home Assistant first (up to 10 s): rejected, nothing is stored
     esp_err_t (*set)(const char *url, const char *token, char *error, size_t error_size);
     void (*reconnect)();
     // trusts the certificate with this SHA-256 besides the bundle and connects; empty forgets it

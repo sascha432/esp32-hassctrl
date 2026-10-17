@@ -94,6 +94,12 @@ esp_err_t set_config(const char *url, const char *token, char *error, size_t err
 // would refuse the URL or the token. Stores nothing (the backup import checks every section first).
 esp_err_t check_config(const char *url, const char *token, char *error, size_t error_size);
 
+// Asks Home Assistant at `url` whether it takes `token` (GET /api/), blocking for up to 10 s, and
+// stores nothing. ESP_ERR_INVALID_ARG with `error` filled when the URL or the token is not usable
+// or Home Assistant rejects the token (HTTP 401); ESP_OK otherwise, also when no answer came: the
+// connection reports that after set_config().
+esp_err_t test_token(const char *url, const char *token, char *error, size_t error_size);
+
 // tries at once instead of after the backoff, also after a rejected token
 void reconnect();
 

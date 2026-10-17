@@ -1,7 +1,8 @@
 // The Home Assistant connection (docs/ui/web/web-app.md section 4), login required after the setup:
 //
 //   GET  /api/hass             state, address, whether a token is stored, version, last error
-//   POST /api/hass             url, token: stores them and connects; an empty token keeps the
+//   POST /api/hass             url, token: stores them and connects; a new token is tried with
+//                              Home Assistant first (rejected: 400, nothing stored); an empty token keeps the
 //                              stored one, an empty url removes address and token
 //   POST /api/hass/reconnect   connects at once (also after a rejected token)
 //   POST /api/hass/certificate fingerprint: trusts the https certificate with this SHA-256 (the
