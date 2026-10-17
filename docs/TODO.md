@@ -1092,9 +1092,6 @@ Your report of the first version (2026-10-09):
 - [x] Alarm in Settings with time, days, snooze, sound; full volume, cannot be muted by the
       volume; six AOSP alarm sounds (Apache 2.0) with a preview on selection.
 
-Checks for you (the second version is on the board):
-
-- [x] COM10 dropped out during a flash: you were restarting the board then; flashed afterwards.
 Your report of the second version (2026-10-09):
 
 - [x] Alarm with snooze works (`sound ring`, you snoozed it); the sounds are not too loud.
@@ -1202,11 +1199,6 @@ sim.
       after it; the alarm pattern 500 ms on, 500 ms off.
 - [x] Click length: shorter than 70 ms does not move this motor (you); now 75 ms, a constant of
       the board (`Info::vibration_click_ms`), measured by the developer (adding-a-board.md step 10).
-- [ ] New, seen 2026-10-14: 2 of 15 hard resets with esptool panicked during ESP-IDF's start, before any code
-      of ours (`Store access fault` in a ROM memset, `esp_startup_start_app` ->
-      `xTaskCreatePinnedToCore` -> `prvInitialiseNewTask`, filling the first task's stack with 0xa5
-      at internal RAM 0x4ff4cd40). The board restarted by itself (reset reason "panic") and ran
-      normally. Cause not known; it only costs a second boot.
 
 - [x] Working on the device, confirmed by you (2026-10-09).
 - [x] Bug (you): with both touch sounds off, letting go of the volume slider still clicked. It
@@ -1493,8 +1485,8 @@ Setup and network ([architecture.md](architecture.md) section 9.2):
 
 Screen ([ui/lvgl/lvgl-touch.md](ui/lvgl/lvgl-touch.md) section 6, [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 8):
 
-- [ ] Does a swipe from the left edge also go back on a page with a back tile? (On a swipe
-      page a swipe right goes back from anywhere, 2026-10-14.)
+- [x] A swipe from the left edge on a page with a back tile: no swiping there (your decision,
+      2026-10-17). Only a swipe page goes back with a swipe right.
 - [x] Pull-down start zone 160 x 40 px (was 80 x 24, confirmed by you 2026-10-10); message
       order errors, connecting, hint.
 - [x] Line limit of the alert strip: 3 lines, then "..." (approved by you 2026-10-14; it wraps at
@@ -1662,12 +1654,10 @@ Dashboard ([architecture.md](architecture.md) section 14):
       import of the old `type:`, icon order the same as or close to Home Assistant,
       `friendly_name` fallback, climate step from `target_temp_step`, light step for `+`/`-`
       (default 10 %, repeat while held), no `min`/`max` for lights.
-- [ ] **Camera live view** (later): Home Assistant streams every camera as MJPEG on
-      `/api/camera_proxy_stream/<entity>` (from still images, at least 0.5 s apart, unless the
-      camera has its own MJPEG stream), so no extra MJPEG source is needed for tests (`stream:
-      hass` plays it since 2026-10-08, see the MJPEG stream test above). The P4 has a
-      hardware JPEG decoder; H.264 is hardware encode only, decoding is software. The fullscreen
-      view of the old firmware already asks for a frame in display size.
+- [x] **Camera live view**: done, the full screen view plays a tile's MJPEG `stream:` (go2rtc or
+      `stream: hass`, Home Assistant's `/api/camera_proxy_stream/<entity>`) and asks for frames in
+      display size; the P4 decodes them in hardware. See [ui/lvgl/lvgl-camera.md](ui/lvgl/lvgl-camera.md)
+      section 2. H.264 is not planned (the P4 only encodes it in hardware; go2rtc serves MJPEG).
 
 ## Review
 

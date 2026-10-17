@@ -59,7 +59,7 @@ good: the scale now has 500 ms, after that the decoder and the PPA stay off unti
 the images are decoded in software (25 to 30 ms for a tile). The buffers of that scale are never
 freed, the DMA may still use them.
 
-## 2. MJPEG stream (test, 2026-10-08)
+## 2. MJPEG stream (since 2026-10-08)
 
 A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
 from the first frame of the stream instead of Home Assistant; full screen plays the stream.

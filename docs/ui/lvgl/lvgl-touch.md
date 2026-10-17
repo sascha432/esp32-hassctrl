@@ -98,7 +98,7 @@ The board reads its touch controller and hands LVGL the points; `ui` sees only L
 device. Two points (pinch) where the controller has them; the WT32-SC01's FT6336U makes one point
 of two fingers closer than about 3 cm. The Windows version has one pointer (the mouse): no pinch.
 
-## 6. Open points
+## 6. Decided
 
-* Whether a swipe from the left edge also goes back on a page with a back tile. On a swipe page
-  (an area with `swipe`, 2026-10-14) a swipe right goes back from anywhere.
+* A page with a back tile takes no swipe, also not from the left edge (decided 2026-10-17). Only a
+  swipe page (an area with `swipe`) goes back with a swipe right, from anywhere.

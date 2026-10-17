@@ -292,3 +292,7 @@ voltage. The JC4880P443C recommends 5 V at 2 to 3 A (an AI summary on Reddit say
 and both boards restarted at random until their USB cables were replaced; with the new cable the
 P4 plays at the DAC's full scale on a hub with 2.4 A (2026-10-14). Test with a proper
 5 V supply and a short cable first.
+
+A "power on" reset at random can also be a program on the PC opening the COM port: DTR/RTS reset
+the board as esptool does. Cura's printer search did this; close such programs while a board is
+on the PC.

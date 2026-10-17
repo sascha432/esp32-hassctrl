@@ -2,6 +2,10 @@
 
 ## 2026-10-17
 
+- Docs: no swipe back on a page with a back tile, also not from the left edge (decided); camera live view
+  closed as done (MJPEG streams), H.264 not planned.
+- Docs: serial and flash glitches of 2026-10-09 to 10-14 removed (COM10 drop-out, panics after esptool resets):
+  Cura probed the COM ports then and reset boards over DTR/RTS. adding-a-board.md, "Power" mentions it.
 - Docs: JC3248W535 touch INT (GPIO 3) measured, not used (no pulse on a lift); the 100 ms `post_command`
   wait on a full hass queue accepted.
 - Docs: the dashboard's open points are decided (no fill for numeric sensors, push aside, no move between
