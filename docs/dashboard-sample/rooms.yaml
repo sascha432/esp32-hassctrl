@@ -43,7 +43,7 @@
       date: true
     # A timer (a helper in Home Assistant): the time left counts down on the tile, filled while
     # it runs. A double tap starts (resumes) or cancels it, a tap opens the panel: the duration
-    # with -/+ steppers, Start, Pause, Cancel, Finish and the timeline.
+    # on rollers (hours, minutes, seconds), Start, Pause, Cancel, Finish and the timeline.
     - entity: timer.bathroom_fan_30min
       name: Fan Timer
     # An automation: the tile shows the time of its last run (Disabled while it is off). A double

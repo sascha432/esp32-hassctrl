@@ -88,37 +88,6 @@ void snooze_text()
 
 // --------------------------------------------------------------------------------- time
 
-// "00\n01\n...": the options of a roller from 0 to count - 1
-void number_options(char *out, size_t size, int count)
-{
-    size_t used = 0;
-    for (int i = 0; i < count && used + 4 < size; i++) {
-        used += static_cast<size_t>(std::snprintf(out + used, size - used, i == 0 ? "%02d" : "\n%02d", i));
-    }
-}
-
-lv_obj_t *roller(lv_obj_t *parent, int count, int value)
-{
-    char options[60 * 3 + 1];
-    number_options(options, sizeof(options), count);
-    lv_obj_t *obj = lv_roller_create(parent);
-    // not LV_ROLLER_MODE_INFINITE: its seven copies of 60 minutes in the large font drew the
-    // selected row from another place (LVGL 8.4)
-    lv_roller_set_options(obj, options, LV_ROLLER_MODE_NORMAL);
-    lv_roller_set_visible_row_count(obj, 3);
-    lv_roller_set_selected(obj, static_cast<uint16_t>(value), LV_ANIM_OFF);
-    lv_obj_set_width(obj, t::scaled(80));
-    // the selected row in the same font, or it is drawn at another height than the others
-    lv_obj_set_style_text_font(obj, &t::font_large(), 0);
-    lv_obj_set_style_text_font(obj, &t::font_large(), LV_PART_SELECTED);
-    lv_obj_set_style_text_color(obj, t::color(t::kTextLabel), 0);
-    lv_obj_set_style_bg_color(obj, t::color(t::kCard), 0);
-    lv_obj_set_style_border_width(obj, 0, 0);
-    lv_obj_set_style_bg_color(obj, t::color(t::kActive), LV_PART_SELECTED);
-    lv_obj_set_style_text_color(obj, t::color(t::kBackground), LV_PART_SELECTED);
-    return obj;
-}
-
 void time_card(lv_obj_t *parent, const AlarmSettings &s)
 {
     lv_obj_t *card = t::plain(parent);
@@ -131,9 +100,9 @@ void time_card(lv_obj_t *parent, const AlarmSettings &s)
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(card, t::dim(8), 0);
 
-    lv_obj_t *hour = roller(card, 24, s.hour);
+    lv_obj_t *hour = t::roller(card, 24, s.hour);
     t::label(card, ":", t::font_large(), t::kText);
-    lv_obj_t *minute = roller(card, 60, s.minute);
+    lv_obj_t *minute = t::roller(card, 60, s.minute);
     lv_obj_add_event_cb(
         hour,
         [](lv_event_t *event) {

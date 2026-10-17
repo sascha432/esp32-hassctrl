@@ -522,6 +522,15 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
                 at = points.insert(at, {jammed, hc::core::kProblem});
                 points.insert(at + 1, {jammed + 1800, 0.0f});
             }
+            if (entity_id.starts_with("timer.")) {
+                // a timer made 26 hours ago: the 48 h window starts without history
+                const uint32_t created = history.end - 26 * 3600;
+                auto &points = history.points;
+                points.erase(std::remove_if(points.begin(), points.end(),
+                                            [created](const hc::core::HistoryPoint &p) { return p.time < created; }),
+                             points.end());
+                points.insert(points.begin(), {created, 0.0f});
+            }
         }
     }
     g.queue.push_back({lv_tick_get() + kHistoryMs, std::move(history)});

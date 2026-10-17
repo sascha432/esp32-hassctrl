@@ -99,6 +99,7 @@ struct State {
     // as built: LVGL lays the objects out only before the next frame
     lv_coord_t card_w = 0;
     lv_coord_t strip_y = 0;
+    lv_coord_t strip_h = 0;
     lv_coord_t graph_x = 0; // the left of the curve or the strip
     lv_coord_t graph_w = 0;
     lv_coord_t graph_h = 0;
@@ -428,7 +429,10 @@ void draw_states(const core::History &history)
     set_hidden(g.strip, false);
     set_hidden(g.legend, false);
     set_hidden(g.problem_item, !problem);
-    draw_ticks(history.start, history.end, g.strip_y, static_cast<lv_coord_t>(sizes.graph_y + g.graph_h - g.strip_y));
+    // the lines from the strip's bottom down to the labels: a time without history leaves the strip
+    // empty, a line through it would show there
+    const auto lines_top = static_cast<lv_coord_t>(g.strip_y + g.strip_h);
+    draw_ticks(history.start, history.end, lines_top, static_cast<lv_coord_t>(sizes.graph_y + g.graph_h - lines_top));
     show_message("");
 }
 
@@ -549,6 +553,7 @@ void build_card(lv_obj_t *parent, const lv_area_t &area)
         // the space above the strip
         const auto above_times = static_cast<lv_coord_t>(card_h - 2 - sizes.time_height);
         const lv_coord_t strip_h = std::min<lv_coord_t>(kStripHeight, static_cast<lv_coord_t>(above_times / 3));
+        g.strip_h = strip_h;
         g.strip = t::plain(g.card);
         g.strip_y = static_cast<lv_coord_t>((above_times - strip_h) / 2);
         lv_obj_set_pos(g.strip, g.graph_x, g.strip_y);

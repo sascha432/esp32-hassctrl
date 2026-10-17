@@ -31,17 +31,17 @@ constexpr int kActions = static_cast<int>(Action::Count);
 constexpr const char *kActionGlyphs[kActions] = {"play", "pause", "stop", "check"};
 constexpr const char *kActionWords[kActions] = {"Start", "Pause", "Cancel", "Finish"};
 
-// the rows of the control: between them, and between the duration and its steppers
+// the rows of the control: between them, and between the rollers of the duration
 constexpr lv_coord_t kRowGap = 8;
-constexpr lv_coord_t kStepGap = 16;
+constexpr lv_coord_t kRollerGap = 4;
 // the round buttons: at least this large (the T4 has little room), this far apart at most
 constexpr lv_coord_t kSmallestButton = 36;
 constexpr lv_coord_t kWidestGap = 24;
-// a duration steps by a minute from two minutes on, by 10 s below; never under 10 s
-constexpr float kMinuteStep = 60;
-constexpr float kSecondsStep = 10;
-constexpr float kStepLimit = 120;
-constexpr float kShortest = 10;
+// the duration's rollers: hours, minutes, seconds (as the alarm's time)
+constexpr int kRollers = 3;
+constexpr int kRollerCounts[kRollers] = {24, 60, 60};
+constexpr int kRollerSeconds[kRollers] = {3600, 60, 1};
+constexpr float kLongest = 24 * 3600 - 1;
 // the countdown looks at the clock this often
 constexpr uint32_t kTickMs = 1000;
 
@@ -55,13 +55,10 @@ struct State {
 
     lv_obj_t *countdown = nullptr;
     lv_obj_t *status = nullptr;  // "Ends at 22:51", "Paused", "Idle"
-    lv_obj_t *duration = nullptr;
-    lv_obj_t *minus = nullptr;
-    lv_obj_t *plus = nullptr;
+    lv_obj_t *rollers[kRollers] = {};
     lv_obj_t *actions[kActions] = {};
     lv_obj_t *words[kActions] = {};
-    float chosen = core::kUnknown; // the duration the steppers set, NaN: the entity's
-    uint32_t last_step = 0;
+    float chosen = core::kUnknown; // the duration the rollers set, NaN: the entity's
     lv_timer_t *tick = nullptr;
 };
 
@@ -80,7 +77,7 @@ bool available()
     return s.known != 0 && !s.unavailable();
 }
 
-// the duration the panel shows: the steppers' choice, else the entity's
+// the duration the panel shows: the rollers' choice, else the entity's
 float shown_duration(const core::EntityState &s)
 {
     return !std::isnan(g.chosen) ? g.chosen : s.duration;
@@ -98,25 +95,18 @@ void send(float action, float duration, core::Expectation expected)
 
 // ------------------------------------------------------------------------------- the control
 
-void on_step(lv_event_t *event)
+// a roller turned: the duration is the three of them
+void on_roller(lv_event_t *)
 {
-    if (lv_event_get_code(event) == LV_EVENT_LONG_PRESSED_REPEAT && lv_tick_elaps(g.last_step) < panel::kStepRepeatMs) {
-        return;
-    }
-    const core::EntityState &s = state();
     if (!available()) {
+        update(); // back to what the entity has
         return;
     }
-    g.last_step = lv_tick_get();
-    const bool plus = lv_event_get_target(event) == g.plus;
-    float base = shown_duration(s);
-    if (std::isnan(base)) {
-        base = 0;
+    int seconds = 0;
+    for (int i = 0; i < kRollers; i++) {
+        seconds += lv_roller_get_selected(g.rollers[i]) * kRollerSeconds[i];
     }
-    const float step = (plus ? base >= kStepLimit : base > kStepLimit) ? kMinuteStep : kSecondsStep;
-    // to the next multiple of the step, so 0:30:30 steps to 0:31:00
-    const float next = plus ? std::floor(base / step + 1) * step : std::ceil(base / step - 1) * step;
-    g.chosen = std::max(next, kShortest);
+    g.chosen = static_cast<float>(seconds);
     update();
 }
 
@@ -138,7 +128,7 @@ void on_action(lv_event_t *event)
     core::Expectation expected;
     switch (static_cast<Action>(index)) {
     case Action::Start: {
-        // with the duration the steppers chose; without one the entity's, or the rest of a
+        // with the duration the rollers chose; without one the entity's, or the rest of a
         // paused timer
         // the chosen duration stays shown (as expected) until the entity reports it
         const float duration = !std::isnan(g.chosen) && g.chosen != s.duration ? g.chosen : 0;
@@ -171,27 +161,48 @@ void on_tick(lv_timer_t *)
     update();
 }
 
-// The rows of the control, centered in it: the countdown, its state, the duration between the
-// steppers, the action buttons with their words. The countdown takes the largest digit font that
-// leaves the buttons at least kSmallestButton; the buttons shrink to the room that is left.
+// The rows of the control, centered in it: the countdown, its state, the duration on three
+// rollers (hours, minutes, seconds), the action buttons with their words. The countdown takes the
+// largest digit font that leaves the buttons at least kSmallestButton with three rows of the
+// rollers seen, else with one; the buttons shrink to the room that is left.
 void build_control(lv_coord_t w, lv_coord_t h)
 {
     const lv_coord_t status_h = lv_font_get_line_height(&t::font_normal());
     const lv_coord_t word_h = lv_font_get_line_height(&t::font_small());
     const lv_coord_t largest = std::min<lv_coord_t>(panel::step_size(g.frame), static_cast<lv_coord_t>((w - 3 * kRowGap) / 4));
+    const lv_coord_t colon_w = lv_txt_get_width(":", 1, &t::font_large(), 0, LV_TEXT_FLAG_NONE);
+    const auto roller_w = std::min<lv_coord_t>(
+        t::scaled(80), static_cast<lv_coord_t>((w - (kRollers - 1) * (colon_w + 2 * kRollerGap)) / kRollers));
+    for (int i = 0; i < kRollers; i++) {
+        g.rollers[i] = t::roller(g.control, kRollerCounts[i], 0);
+        lv_obj_set_width(g.rollers[i], roller_w);
+        lv_obj_add_event_cb(g.rollers[i], on_roller, LV_EVENT_VALUE_CHANGED, nullptr);
+    }
     const lv_font_t *font = &t::font_large();
     lv_coord_t button = kSmallestButton;
-    for (const lv_font_t *candidate : {&t::font_digits_72(), &t::font_digits_48(), &t::font_huge(), &t::font_large()}) {
-        const lv_coord_t rows = static_cast<lv_coord_t>(lv_font_get_line_height(candidate) + status_h + word_h + 2 + 3 * kRowGap);
-        const auto room = static_cast<lv_coord_t>((h - rows) / 2);
-        if (room >= kSmallestButton || candidate == &t::font_large()) {
-            font = candidate;
-            button = std::clamp<lv_coord_t>(room, kSmallestButton, largest);
+    lv_coord_t roller_h = 0;
+    bool fits = false;
+    for (const uint8_t seen : {3, 1}) {
+        for (lv_obj_t *roller : g.rollers) {
+            lv_roller_set_visible_row_count(roller, seen);
+        }
+        roller_h = lv_obj_get_style_height(g.rollers[0], LV_PART_MAIN);
+        for (const lv_font_t *candidate : {&t::font_digits_72(), &t::font_digits_48(), &t::font_huge(), &t::font_large()}) {
+            const auto room = static_cast<lv_coord_t>(
+                h - (lv_font_get_line_height(candidate) + status_h + roller_h + word_h + 2 + 3 * kRowGap));
+            fits = room >= kSmallestButton;
+            if (fits || (seen == 1 && candidate == &t::font_large())) {
+                font = candidate;
+                button = std::clamp<lv_coord_t>(room, kSmallestButton, largest);
+                break;
+            }
+        }
+        if (fits) {
             break;
         }
     }
     const lv_coord_t count_h = lv_font_get_line_height(font);
-    const lv_coord_t total = static_cast<lv_coord_t>(count_h + status_h + 2 * button + word_h + 2 + 3 * kRowGap);
+    const lv_coord_t total = static_cast<lv_coord_t>(count_h + status_h + roller_h + button + word_h + 2 + 3 * kRowGap);
     lv_coord_t y = std::max<lv_coord_t>(0, static_cast<lv_coord_t>((h - total) / 2));
 
     g.countdown = t::label(g.control, "", *font, t::kText);
@@ -206,21 +217,19 @@ void build_control(lv_coord_t w, lv_coord_t h)
     lv_obj_set_pos(g.status, 0, y);
     y = static_cast<lv_coord_t>(y + status_h + kRowGap);
 
-    // the duration between its steppers, as wide as "00:00:00" in its font
-    const lv_font_t &duration_font = t::font_large();
-    const auto duration_w = static_cast<lv_coord_t>(
-        lv_txt_get_width("00:00:00", 8, &duration_font, 0, LV_TEXT_FLAG_NONE) + 8);
-    const auto row_w = static_cast<lv_coord_t>(2 * button + 2 * kStepGap + duration_w);
+    // the rollers with a colon between them
+    const auto row_w = static_cast<lv_coord_t>(kRollers * roller_w + (kRollers - 1) * (colon_w + 2 * kRollerGap));
     lv_coord_t x = static_cast<lv_coord_t>((w - row_w) / 2);
-    g.minus = panel::step_button(g.control, x, y, button, "minus", on_step);
-    g.duration = t::label(g.control, "", duration_font, t::kText);
-    lv_obj_set_width(g.duration, duration_w);
-    lv_obj_set_style_text_align(g.duration, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(g.duration, static_cast<lv_coord_t>(x + button + kStepGap),
-                   static_cast<lv_coord_t>(y + (button - lv_font_get_line_height(&duration_font)) / 2));
-    g.plus = panel::step_button(g.control, static_cast<lv_coord_t>(x + button + 2 * kStepGap + duration_w), y, button,
-                                "plus", on_step);
-    y = static_cast<lv_coord_t>(y + button + kRowGap);
+    const auto colon_y = static_cast<lv_coord_t>(y + (roller_h - lv_font_get_line_height(&t::font_large())) / 2);
+    for (int i = 0; i < kRollers; i++) {
+        lv_obj_set_pos(g.rollers[i], x, y);
+        x = static_cast<lv_coord_t>(x + roller_w + kRollerGap);
+        if (i + 1 < kRollers) {
+            lv_obj_set_pos(t::label(g.control, ":", t::font_large(), t::kText), x, colon_y);
+            x = static_cast<lv_coord_t>(x + colon_w + kRollerGap);
+        }
+    }
+    y = static_cast<lv_coord_t>(y + roller_h + kRowGap);
 
     // the actions, spread by at most kWidestGap
     const lv_coord_t gap = std::clamp<lv_coord_t>(static_cast<lv_coord_t>((w - kActions * button) / (kActions - 1)), kRowGap,
@@ -295,19 +304,27 @@ void update_control(const core::EntityState &s, const core::Expectation *pending
     set_text(g.status, status);
     lv_obj_set_style_text_color(g.status, t::color(shown == TimerState::Active ? t::kActive : t::kTextLabel), 0);
 
+    // the rollers show the duration (a longer one as 23:59:59), unless a finger is on them
+    const bool changed = !std::isnan(g.chosen) && g.chosen != s.duration;
     const float duration = shown_duration(s);
-    set_text(g.duration, std::isnan(duration) ? std::string("-:--:--") : std::string(core::duration_text(duration)));
-    // a duration the steppers changed shows in the pending color until it is started
-    lv_obj_set_style_text_color(g.duration, t::color(!std::isnan(g.chosen) && g.chosen != s.duration ? panel::kPendingBorder : t::kText), 0);
-    for (lv_obj_t *step : {g.minus, g.plus}) {
-        lv_obj_set_style_opa(step, avail ? LV_OPA_COVER : LV_OPA_40, 0);
+    auto seconds = static_cast<int>(std::clamp(std::isnan(duration) ? 0.0f : duration, 0.0f, kLongest));
+    for (int i = 0; i < kRollers; i++) {
+        lv_obj_t *roller = g.rollers[i];
+        const int value = seconds / kRollerSeconds[i];
+        seconds %= kRollerSeconds[i];
+        if (!lv_obj_has_state(roller, LV_STATE_PRESSED) && lv_roller_get_selected(roller) != value) {
+            lv_roller_set_selected(roller, static_cast<uint16_t>(value), LV_ANIM_ON);
+        }
+        lv_obj_set_style_opa(roller, avail ? LV_OPA_COVER : LV_OPA_40, 0);
     }
 
-    // Start starts an idle timer, resumes a paused one, restarts a running one
-    const bool changed = !std::isnan(g.chosen) && g.chosen != s.duration;
+    // Start starts an idle timer, resumes a paused one, restarts a running one; not for 0:00:00
+    // a restart has its own glyph, a start and a resume the play glyph
+    set_text(lv_obj_get_child(g.actions[static_cast<int>(Action::Start)], 0),
+             icons::glyph(shown == TimerState::Active ? "restart" : "play"));
     set_text(g.words[static_cast<int>(Action::Start)],
              shown == TimerState::Active ? "Restart" : shown == TimerState::Paused && !changed ? "Resume" : "Start");
-    enable(static_cast<int>(Action::Start), avail);
+    enable(static_cast<int>(Action::Start), avail && !(changed && g.chosen <= 0));
     enable(static_cast<int>(Action::Pause), avail && shown == TimerState::Active);
     enable(static_cast<int>(Action::Cancel), avail && shown != TimerState::Idle);
     enable(static_cast<int>(Action::Finish), avail && shown != TimerState::Idle);
@@ -326,7 +343,10 @@ void clear_control()
         lv_obj_del(g.control);
     }
     g.control = nullptr;
-    g.countdown = g.status = g.duration = g.minus = g.plus = nullptr;
+    g.countdown = g.status = nullptr;
+    for (lv_obj_t *&roller : g.rollers) {
+        roller = nullptr;
+    }
     for (int i = 0; i < kActions; i++) {
         g.actions[i] = g.words[i] = nullptr;
     }

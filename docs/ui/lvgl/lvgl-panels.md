@@ -130,7 +130,7 @@ History                         [48 h][24 h][12 h]
 | header | the tile's icon (48 px; orange while an on/off entity is on), the name (16 px) above the live value (28 px, the tile's text) |
 | range buttons | 48, 24 and 12 hours, round 52x26 px, the selected one white; the panel opens with the range used last |
 | graph (statistics) | the 5 minute means of the long term statistics as a 2 px line in the accent color (`0x00ffff`), a bucket without a value is a gap; three value lines with round labels (steps of 1, 2, 2.5 or 5 times a power of ten) and the unit above them |
-| timeline (on/off) | a binary sensor, an entity whose state is one of two words (`core::on_off_words`: on/off, Detected/Clear as the motion helper `input_text.<device>_motion` reports, Occupied/Clear, Open/Closed, any case; the legend then uses those words), or a lock (section 5): a 40 px strip of the state changes, 16 px from the card's edges left and right, centered in the card above the time labels, the legend centered in the space above it (on orange, off `0x2b3844`, unknown/unavailable the background), each pixel column taking the most important state of its time, so a short motion stays visible; the legend in the words of the device class |
+| timeline (on/off) | a binary sensor, an entity whose state is one of two words (`core::on_off_words`: on/off, Detected/Clear as the motion helper `input_text.<device>_motion` reports, Occupied/Clear, Open/Closed, any case; the legend then uses those words), or a lock (section 5): a 40 px strip of the state changes, 16 px from the card's edges left and right, centered in the card above the time labels, the legend centered in the space above it (on orange, off `0x2b3844`, unknown/unavailable the background), each pixel column taking the most important state of its time, so a short motion stays visible; the hour lines run from the strip's bottom to the time labels (a time without history leaves the strip empty, a line through it would show); the legend in the words of the device class |
 | time axis | lines at whole local hours, 1 to 24 hours apart so the labels keep 44 px; `HH:00` under each line whose label fits in the card |
 | message | `Loading...`, `No statistics for this sensor`, `No values in this time`, or the error of the request (`The clock is not set yet`, `Not connected to Home Assistant`); a refresh that fails keeps the graph |
 
@@ -237,7 +237,7 @@ lock panel: two buttons in the options choose the control (`timer-outline`) or t
 +--------+------------------------------+
 | [timer]|            29:07             |   the countdown (72 px digits when they fit,
 | [time] |         Ends at 23:34        |   else 48, 28, 20); the state under it
-|        |     (-)   0:30:00   (+)      |   the duration and its steppers
+|        |     [00] : [30] : [00]       |   the duration on three rollers (h, min, s)
 |        |   (>)   (||)   ([])   (v)    |   Start  Pause  Cancel  Finish
 |        |  Restart Pause Cancel Finish |
 +--------+------------------------------+
@@ -247,8 +247,8 @@ lock panel: two buttons in the options choose the control (`timer-outline`) or t
 | --- | --- | --- |
 | countdown | the time left (`29:07`, `1:02:15`), counting down once a second from `finishes_at` by the device's clock while the timer runs (the remaining time reported last while the clock is not set), the remaining time while paused, the duration (muted) while idle; cyan while an action is on its way | |
 | state | `Ends at HH:MM` (orange) while it runs, `Paused`, `Idle`, `Unavailable` | |
-| duration | the entity's `duration` (`0:30:00`), or the one the steppers chose (cyan until it is started); the round steppers (64 px, the T4 36 px) step a minute from two minutes up, 10 s below, never under 10 s, to the next multiple of the step; held they step 4 times a second | the steppers change the duration of the next start |
-| Start | `play`; the word is `Start` while idle, `Resume` while paused (a start resumes a paused timer with its rest), `Restart` while it runs (a start restarts it) | `timer.start`, with `duration` when the steppers changed it (`0:45:00`), else without (the entity's duration, or the rest of a paused timer); the chosen duration stays shown, as the countdown too (`Expectation::duration`), until Home Assistant reports it |
+| duration | three rollers as the alarm's time (`theme::roller`): hours 0-23, minutes, seconds; the entity's `duration` (a longer one as 23:59:59), or the one the rollers chose (no color of its own: cyan meant nothing to you); three rows seen, one where the control has no room for three (320x240); a quick drag moves them up to 4x the finger, a fling 3x LVGL's throw (`theme::roller`) | a drag changes the duration of the next start; 0:00:00 turns Start off |
+| Start | `play`, `restart` while it runs; the word is `Start` while idle, `Resume` while paused (a start resumes a paused timer with its rest), `Restart` while it runs (a start restarts it) | `timer.start`, with `duration` when the rollers changed it (`0:45:00`), else without (the entity's duration, or the rest of a paused timer); the chosen duration stays shown, as the countdown too (`Expectation::duration`), until Home Assistant reports it |
 | Pause | `pause`, only while it runs | `timer.pause` |
 | Cancel | `stop`, while it runs or is paused | `timer.cancel` |
 | Finish | `check`, while it runs or is paused | `timer.finish` (fires the finished event as if the time were up) |
@@ -259,7 +259,8 @@ once (`core::Expectation` compares the state: `active`, `paused`, `idle`) until 
 reports it. The rows are centered in the control; the countdown takes the largest digit font that
 leaves the buttons at least 36 px, the buttons grow up to 64 px (80 px in the P4's dialog) with
 the room that is left. Checked in the simulator at 480x320, 320x480, 320x240 and 480x800 (the
-dialog); confirmed on the WT32-SC01 (2026-10-17).
+dialog); confirmed on the WT32-SC01 (2026-10-17). The rollers replaced the -/+ steppers on 2026-10-17
+(your request), checked in the simulator at 480x320, 320x480, 320x240 and 800x480.
 
 The tile and the panel read three attributes (`hass_protocol::kTimer`): `duration` and `remaining`
 as Home Assistant writes them (`0:30:00`, `1 day, 2:00:00`; `core::duration_seconds`) and
@@ -321,6 +322,6 @@ ran; kept as an `int64_t`, 0 then).
   double tap (a light that only switches gets the sensor panel with its timeline).
 * The automation panel's timeline is the enabled state, not the runs; the runs are in Home
   Assistant's logbook, which the device does not read. `last_triggered` is the last one.
-* The timer panel offers no `timer.change` (adding or taking time while it runs); the steppers
+* The timer panel offers no `timer.change` (adding or taking time while it runs); the rollers
   set the duration of the next start. The countdown is as right as the two clocks agree (SNTP on
   the device, Home Assistant's clock for `finishes_at`).

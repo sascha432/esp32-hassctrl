@@ -99,6 +99,10 @@ lv_obj_t *toggle(lv_obj_t *parent, bool on, lv_event_cb_t callback, void *user_d
 // a slider styled like the theme
 lv_obj_t *slider(lv_obj_t *parent, int32_t min, int32_t max, int32_t value);
 
+// A roller of the numbers 0 to count - 1 ("00", "01", ...; count up to 100), three rows seen, the
+// selected one in the accent color; 80 px wide, scaled
+lv_obj_t *roller(lv_obj_t *parent, int count, int value);
+
 // a column container that fills the parent and scrolls vertically
 lv_obj_t *column(lv_obj_t *parent);
 

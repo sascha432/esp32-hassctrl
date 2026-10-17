@@ -1,6 +1,8 @@
 #include "theme.hpp"
 
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "sound.hpp"
@@ -112,7 +114,9 @@ constexpr Fonts kSettingsFonts{155, &lv_font_montserrat_18, &lv_font_montserrat_
 constexpr int kSettingsMetricPercent = 128;
 
 const Fonts *g_fonts = &kFonts;
-bool g_large = false;
+#if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_24 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
+bool g_large = false; // only the boards with the large fonts built in (the P4)
+#endif
 int g_metric = 100;
 
 } // namespace
@@ -374,6 +378,73 @@ lv_obj_t *slider(lv_obj_t *parent, int32_t min, int32_t max, int32_t value)
     // touches: a drag that started there did nothing. The slider takes touches as far as the knob
     // reaches (and a little more for a finger).
     lv_obj_set_ext_click_area(obj, kSliderTouchMargin);
+    return obj;
+}
+
+namespace {
+
+// "00\n01\n...": the options of a roller from 0 to count - 1
+void number_options(char *out, size_t size, int count)
+{
+    size_t used = 0;
+    for (int i = 0; i < count && used + 4 < size; i++) {
+        used += static_cast<size_t>(std::snprintf(out + used, size - used, i == 0 ? "%02d" : "\n%02d", i));
+    }
+}
+
+// A roller follows the finger 1:1 (LVGL 8.4): 45 rows are about 1350 px. A quick drag moves it up to
+// kRollerMaxGain times as far, a step of kRollerSlowPx or less per read stays exact; a fling on
+// release goes kRollerThrow times as far as LVGL's prediction.
+constexpr lv_coord_t kRollerSlowPx = 2;
+constexpr lv_coord_t kRollerMaxGain = 4;
+constexpr lv_coord_t kRollerThrow = 3;
+
+// after the roller's own handler moved its label by the step
+void on_roller_pressing(lv_event_t *event)
+{
+    lv_point_t step;
+    lv_indev_get_vect(lv_indev_get_act(), &step);
+    const lv_coord_t gain = std::clamp<lv_coord_t>(static_cast<lv_coord_t>(std::abs(step.y) / kRollerSlowPx), 1, kRollerMaxGain);
+    if (step.y != 0 && gain > 1) {
+        lv_obj_t *label = lv_obj_get_child(lv_event_get_target(event), 0);
+        lv_obj_set_y(label, static_cast<lv_coord_t>(lv_obj_get_y(label) + step.y * (gain - 1)));
+    }
+}
+
+// before the roller's own handler predicts where the fling ends (it reads the _ori vector, the
+// scrolling of pages reads the other one)
+void on_roller_released(lv_event_t *)
+{
+    lv_indev_t *indev = lv_indev_get_act();
+    if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        lv_coord_t &y = indev->proc.types.pointer.scroll_throw_vect_ori.y;
+        y = static_cast<lv_coord_t>(std::clamp<int32_t>(y * kRollerThrow, -1000, 1000));
+    }
+}
+
+} // namespace
+
+lv_obj_t *roller(lv_obj_t *parent, int count, int value)
+{
+    char options[100 * 3 + 1];
+    number_options(options, sizeof(options), count);
+    lv_obj_t *obj = lv_roller_create(parent);
+    // not LV_ROLLER_MODE_INFINITE: its seven copies of 60 minutes in the large font drew the
+    // selected row from another place (LVGL 8.4)
+    lv_roller_set_options(obj, options, LV_ROLLER_MODE_NORMAL);
+    lv_roller_set_visible_row_count(obj, 3);
+    lv_roller_set_selected(obj, static_cast<uint16_t>(value), LV_ANIM_OFF);
+    lv_obj_set_width(obj, scaled(80));
+    // the selected row in the same font, or it is drawn at another height than the others
+    lv_obj_set_style_text_font(obj, &font_large(), 0);
+    lv_obj_set_style_text_font(obj, &font_large(), LV_PART_SELECTED);
+    lv_obj_set_style_text_color(obj, color(kTextLabel), 0);
+    lv_obj_set_style_bg_color(obj, color(kCard), 0);
+    lv_obj_set_style_border_width(obj, 0, 0);
+    lv_obj_set_style_bg_color(obj, color(kActive), LV_PART_SELECTED);
+    lv_obj_set_style_text_color(obj, color(kBackground), LV_PART_SELECTED);
+    lv_obj_add_event_cb(obj, on_roller_pressing, LV_EVENT_PRESSING, nullptr);
+    lv_obj_add_event_cb(obj, on_roller_released, static_cast<lv_event_code_t>(LV_EVENT_RELEASED | LV_EVENT_PREPROCESS), nullptr);
     return obj;
 }
 

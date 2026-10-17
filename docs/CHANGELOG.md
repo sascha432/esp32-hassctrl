@@ -2,6 +2,9 @@
 
 ## 2026-10-17
 
+- Timer panel (your requests): the duration on three rollers (h, min, s) as the alarm's, faster on a quick
+  drag or fling; Restart has the `restart` icon. Timelines: hour lines no longer cross an empty strip. Confirmed by you.
+- Architecture: notes for a later SD card (slots per board, FATFS buffers in PSRAM); the partition use measured.
 - No double math where float or int is enough (the FPUs are single precision): compass, kelvin color,
   decimals in the config, brightness percent; `-Werror=double-promotion` for our own components.
 - Automations and scripts (your report: the automation tile toggled on a tap, as a switch): their own tile with the

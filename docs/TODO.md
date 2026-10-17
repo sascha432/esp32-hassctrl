@@ -1348,6 +1348,13 @@ double tap starts or stops.
       tap "disabled" the entity came from that build too and is gone with it (2026-10-17). Start with a changed
       duration showed the old time in cyan for a moment: the duration is part of the expectation now. Confirmed
       by you on the WT32-SC01 (2026-10-17).
+- [x] Your report (2026-10-17): the timeline's hour lines crossed the strip where the timer has no history yet
+      (every on/off timeline). They start at the strip's bottom now; sim checked (48 h, 12 h). Confirmed by you on
+      the WT32-SC01 (2026-10-17).
+- [x] Your request (2026-10-17): the timer's duration on rollers as the alarm's time (hours, minutes, seconds,
+      your choice) in place of the -/+ steppers. Sim checked at 480x320, 320x480, 320x240 (one row seen), 800x480.
+      Faster on your request: drag gain up to 4x by speed, fling 3x (sim: 30 px slow = 1 row, 75 px quick = 8).
+      Restart (while it runs) has the `restart` icon. Confirmed by you on the WT32-SC01 (2026-10-17).
 - [ ] The countdown needs the device clock and Home Assistant's clock to agree (SNTP, within a second);
       `timer.change` (add or take time while it runs) is not offered.
 - [ ] The web editor has no timer options (there are none); the preview shows the timer glyph.
@@ -1411,6 +1418,10 @@ Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen v
 
 ## Known issues
 
+- [ ] **Recovery app nearly fills `factory`** on the 4 MB layout (measured 2026-10-17, WT32-SC01): recovery
+      1073 KB of 1088 KB (15 KB free), main 2155 KB of 2432 KB in ota_0, LittleFS 77 KB of 448 KB. IDF's
+      "1/2 app partitions are too small" for the main image is the factory partition and harmless. Open: move
+      64 KB from `storage` to `factory` (one full USB flash per 4 MB board), or a size margin check in `build.py`.
 - [x] **"Header fields are too long" (431)** in your browser on 192.168.0.199 (2026-10-07): the
       web server took 1 KB of request headers; your browser sends more, most likely cookies of a
       device that had this address before. Now 8 KB (`max_req_hdr_len`; the buffer grows only as

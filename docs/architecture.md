@@ -808,6 +808,34 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   file (decided).
 * **Logs** are viewable in the web UI, with a debug mode that adds notice and info messages to the
   normal error log (decided; details later).
+* **SD card** (not implemented, no use decided yet). FAT through ESP-IDF's `fatfs` and
+  `esp_vfs_fat_sdmmc_mount` / `esp_vfs_fat_sdspi_mount`, mounted at e.g. `/sdcard`; the pins and
+  an "SD present" flag belong to the board.
+  * Slots: JC4880P443C SDMMC 4-bit (D0-D3 39-42, CMD 44, CLK 43), TTGO T4 SPI on its own bus
+    (CS 13, MOSI 15, SCK 14, MISO 2), JC3248W535 slot reserved on the module (pins unknown, needs
+    the schematic), WT32-SC01 none.
+  * P4: the C6 (esp_hosted) uses SDMMC slot 1, so the card takes slot 0 and the host is
+    initialized once for both. Slot 0's pins are powered from an on-chip LDO channel that may
+    have to be switched on first (`sd_pwr_ctrl_new_on_chip_ldo`). Both unverified.
+  * T4: MISO on GPIO 2 is a strapping pin; it needs the card's pull-up, and a card may get in the
+    way of download mode. Unverified.
+  * **RAM: FATFS buffers in PSRAM.** In IDF 6.1, `ff_memalloc()` tries PSRAM only when
+    `CONFIG_FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS` is set; `CONFIG_FATFS_ALLOC_PREFER_EXTRAM`
+    alone falls through to `MALLOC_CAP_DEFAULT`, which keeps small blocks internal (our
+    `SPIRAM_MALLOC_ALWAYSINTERNAL` is 16384 B, 512 B on the T4 and WT32-SC01). The defaults are
+    right on all boards with a slot and stay as they are:
+    `FATFS_ALLOC_PREFER_EXTRAM=y`, `FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS=y`,
+    `FATFS_PER_FILE_CACHE=y`, `FATFS_USE_DYN_BUFFERS=y`.
+  * With these, the volume's work buffer, the table of open files (`max_files` x `sizeof(FIL)`)
+    and each file's one-sector cache (512 B on SD cards) are in PSRAM: about 2 KB plus the table
+    for `max_files = 4`. The order tried is DMA-capable aligned PSRAM, aligned PSRAM, aligned
+    internal RAM, then any RAM.
+  * P4: its PSRAM is DMA-capable, so the SDMMC controller reads and writes the cache directly.
+    ESP32 and S3: PSRAM is not DMA-capable, so the SD driver copies each sector through a small
+    internal bounce buffer, slower but fine for logs, sounds and backups. Internal RAM left per
+    volume: that bounce buffer and FATFS's locks.
+  * `FATFS_PER_FILE_CACHE=n` (one shared buffer for all files) saves the 512 B per file at the
+    cost of speed with several open files; not needed with the caches in PSRAM.
 
 ### 9.4 Components
 
@@ -875,7 +903,8 @@ in the main firmware.
   `http://192.168.4.1/`); with a Wi-Fi connection its IP is a line of text. An update in progress
   adds a line with its state and percent (`ota::status()`), and the reason when it failed. Redrawn
   when something changes (checked once a second). The drivers made the app 45 KB larger, so the factory partition of the 4 MB layout is
-  1.06 MB (ota_0 2.4 MB).
+  1.06 MB (ota_0 2.4 MB). Measured 2026-10-17 on the WT32-SC01: recovery 1073 KB (15 KB free), main 2155 KB
+  (277 KB free); IDF's build warns that the main image does not fit `factory`, which it never goes to.
 * **Web pages in the recovery app**: the built-in page (always at `/recovery`, at `/` without web
   files) with first setup, login, status, firmware and file system update by file or URL, the
   files as .zip, format, restart and "Start the firmware"; and the web UI from LittleFS when it

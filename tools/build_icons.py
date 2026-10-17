@@ -44,7 +44,7 @@ SIZES = ((24, 4), (48, 2))
 UI_GLYPHS = ("arrow-left", "plus", "minus", "creation", "fire", "snowflake", "sun-snowflake-variant",
              "thermostat-auto", "record", "chart-timeline-variant", "thermometer-water",
              # the timer panel's buttons
-             "play", "pause", "stop", "check")
+             "play", "restart", "pause", "stop", "check")
 
 # the clock tile's digits (theme::font_digits_48/72): space - 0..9 : A M P (lv_font_conv ranges)
 DIGITS_TTF = ROOT / "managed_components" / "lvgl__lvgl" / "scripts" / "built_in_font" / "Montserrat-Medium.ttf"
