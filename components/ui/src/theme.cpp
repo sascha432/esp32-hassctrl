@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 
@@ -39,13 +40,27 @@ lv_coord_t available_width(lv_obj_t *label)
     return max;
 }
 
+// The text of a label set with line_text(): its own copy, and the font to try before a cut.
+struct Line {
+    const lv_font_t *font;
+    const lv_font_t *smaller;
+    char text[1];
+};
+
 void fit_line(lv_obj_t *label)
 {
-    const char *full = static_cast<const char *>(lv_obj_get_user_data(label));
-    const lv_font_t *font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    const auto *line = static_cast<const Line *>(lv_obj_get_user_data(label));
+    const char *full = line->text;
     const lv_coord_t space = lv_obj_get_style_text_letter_space(label, LV_PART_MAIN);
     const lv_coord_t width = available_width(label);
     size_t length = std::strlen(full);
+    const lv_font_t *font = line->font;
+    if (line->smaller != nullptr && width > 0 && text_width(full, length, font, space) > width) {
+        font = line->smaller;
+    }
+    if (line->smaller != nullptr && lv_obj_get_style_text_font(label, LV_PART_MAIN) != font) {
+        lv_obj_set_style_text_font(label, font, 0);
+    }
     if (width <= 0 || text_width(full, length, font, space) <= width) {
         lv_label_set_text(label, full);
         return;
@@ -233,10 +248,10 @@ lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t &font, uint3
     return obj;
 }
 
-void line_text(lv_obj_t *label, const char *text)
+void line_text(lv_obj_t *label, const char *text, const lv_font_t *smaller)
 {
-    void *old = lv_obj_get_user_data(label);
-    if (old != nullptr && std::strcmp(static_cast<const char *>(old), text) == 0) {
+    auto *old = static_cast<Line *>(lv_obj_get_user_data(label));
+    if (old != nullptr && old->smaller == smaller && std::strcmp(old->text, text) == 0) {
         return; // refreshes set the same text every second
     }
     if (old == nullptr) {
@@ -247,14 +262,17 @@ void line_text(lv_obj_t *label, const char *text)
         lv_obj_add_event_cb(lv_obj_get_parent(label), on_parent_size, LV_EVENT_SIZE_CHANGED, label);
     }
     const size_t size = std::strlen(text) + 1;
-    char *copy = static_cast<char *>(lv_mem_alloc(size));
-    if (copy == nullptr) {
+    auto *line = static_cast<Line *>(lv_mem_alloc(offsetof(Line, text) + size));
+    if (line == nullptr) {
         lv_label_set_text(label, text);
         return;
     }
-    std::memcpy(copy, text, size);
+    // the label's own font, also after fit_line() set the smaller one
+    line->font = old != nullptr ? old->font : lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    line->smaller = smaller;
+    std::memcpy(line->text, text, size);
     lv_mem_free(old);
-    lv_obj_set_user_data(label, copy);
+    lv_obj_set_user_data(label, line);
     fit_line(label);
 }
 

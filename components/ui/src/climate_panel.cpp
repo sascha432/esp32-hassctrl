@@ -894,7 +894,8 @@ void update_pills(const core::EntityState &s, const core::Expectation *pending, 
         lv_obj_set_style_text_color(g.pill_values[i], t::color(text), 0);
         lv_obj_set_style_text_color(g.pill_glyphs[i], t::color(text), 0);
         const std::string words = avail && !value.empty() ? tiles::words(value) : std::string("--");
-        t::line_text(g.pill_values[i], words.c_str());
+        // "Heat cool" in a narrow pill: the small font before "..."
+        t::line_text(g.pill_values[i], words.c_str(), &t::font_small());
         const char *glyph = option_glyph(option, value);
         if (glyph != nullptr && std::string_view(glyph) != lv_label_get_text(g.pill_glyphs[i])) {
             lv_label_set_text(g.pill_glyphs[i], glyph);

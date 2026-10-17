@@ -659,6 +659,12 @@ void update_climate(View &view, const core::EntityState &state, const core::Expe
         if (available && !std::isnan(state.current)) {
             // after the action in the line of a small tile
             current = (view.full ? "" : "\xe2\x80\xa2 ") + temperature(state.current) + "°";
+            // a long action ("Heat cool" of a thermostat without hvac_action) keeps the line to
+            // itself in a narrow tile; the panel shows the room temperature
+            if (!view.full && text_width(action.c_str(), t::font_small()) + 4 + text_width(current.c_str(), t::font_small()) >
+                                  view.value_width) {
+                current.clear();
+            }
         }
         set_text(view.current, current);
     }

@@ -11,7 +11,9 @@
   zone keeps between a panel's header buttons (it took the history button's taps at 320 px). Confirmed by you.
 
 - Climate heat_cool: `target_temp_low`/`_high` are read; the tile shows `20-24°`, the panel two knobs on the
-  arc (drag the nearer one, tap a setpoint for the steppers). Approved by you in the simulator; no device with a range yet.
+  arc (drag the nearer one, tap a setpoint for the steppers). Approved by you in the simulator; tested on the WT32 with HA's demo `climate.ecobee`.
+- "Heat cool" no longer cut: the climate pill takes the small font first (`theme::line_text` with `smaller`), a
+  one-cell tile drops the room temperature when both do not fit; sim sample `climate.*ecobee*`. Confirmed by you on the WT32.
 - TODO cleanup (your choices): closed as kept or not wanted (clock timer, 1x1 analog face, tzdata year, twice_daily,
   HA wake event, reconnect scans, timer default and `timer.change`); WT32 memory closed, no problem since 2026-10-10.
 - Camera stream login (your decisions): `http://user:password@host/` is sent as Basic auth, the export leaves the

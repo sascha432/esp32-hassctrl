@@ -1807,6 +1807,12 @@ Not built yet (placeholders in the code or the documentation):
       both knobs dragged, each setpoint stepped, mode heat_cool <-> cool (the demo has no heat),
       every `set_temperature` sends both setpoints; tile `18.5-25.5°`. Tried by you and by me over
       the serial console. Remove the demo entry from configuration.yaml again.
+- [x] Climate "Heat cool" cut (found in the device test, 2026-10-17): the mode pill at 480x320 takes the
+      small font now (`theme::line_text` with `smaller`); the one-cell tile at 5 columns (your report)
+      shows the action alone when the room temperature does not fit beside it. Simulator sample
+      `climate.*ecobee*`: heat_cool without hvac_action, like HA's demo. Checked by me in the simulator at
+      480x320 (small font), 320x480 and 480x800 (normal font), back to Heat restores the normal font.
+      Confirmed by you on the WT32 (2026-10-17).
 - [x] Home Assistant events waking the screen (`ui/src/power.hpp`): not wanted (your choice,
       2026-10-17).
 - [x] "Start the firmware" on the System page of the web UI in the recovery app (2026-10-17;

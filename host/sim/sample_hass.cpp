@@ -186,7 +186,7 @@ EntityState make_sample(std::string_view id, size_t i)
         s.preset_modes = list({"none", "eco", "comfort", "away"});
         s.fan_mode = "auto";
         s.fan_modes = list({"auto", "on", "circulate"});
-        if (contains(id, "heat_pump")) {
+        if (contains(id, "heat_pump") || contains(id, "ecobee")) {
             // heat_cool with two setpoints, like HA's demo climate.ecobee: `temperature` is null
             s.state = "heat_cool";
             s.target = hc::core::kUnknown;
@@ -195,6 +195,10 @@ EntityState make_sample(std::string_view id, size_t i)
             s.current = 22.3f;
             s.hvac_action = "idle";
             s.hvac_modes = list({"off", "heat", "cool", "heat_cool"});
+            if (contains(id, "ecobee")) {
+                // HA's demo reports no action: the tile and the panel show the mode
+                s.hvac_action.clear();
+            }
         }
     } else if (domain == "sensor") {
         sensor(s, id, i);
@@ -288,6 +292,14 @@ const char *hvac_action(const EntityState &s)
     return s.target > s.current ? "heating" : "idle";
 }
 
+// an entity without an action (HA's demo climate.ecobee) keeps none
+void update_action(EntityState &s)
+{
+    if (!s.hvac_action.empty()) {
+        s.hvac_action = hvac_action(s);
+    }
+}
+
 // as the integrations with a range do (ecobee, HA's demo): heat_cool has the two setpoints and
 // no `temperature`, heat and cool the one of their side
 void set_hvac_mode(EntityState &s, std::string_view mode)
@@ -302,7 +314,7 @@ void set_hvac_mode(EntityState &s, std::string_view mode)
         s.target_low = s.target_high = hc::core::kUnknown;
     }
     s.state.assign(mode.data(), mode.size());
-    s.hvac_action = hvac_action(s);
+    update_action(s);
 }
 
 } // namespace
@@ -422,12 +434,12 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
         break;
     case IntentKind::SetTemperature:
         s.target = intent.value;
-        s.hvac_action = hvac_action(s);
+        update_action(s);
         break;
     case IntentKind::SetTemperatureRange:
         s.target_low = std::round(intent.value * 10) / 10;
         s.target_high = std::round(intent.value2 * 10) / 10;
-        s.hvac_action = hvac_action(s);
+        update_action(s);
         break;
     case IntentKind::SetHvacMode:
         set_hvac_mode(s, intent.text);

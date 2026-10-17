@@ -79,8 +79,10 @@ lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t &font, uint3
 
 // Sets the text of a one-line label whose width comes from the layout (flex grow): a text that is
 // too wide ends in "...". LVGL's LV_LABEL_LONG_DOT wraps at spaces first, which leaves "1..." of
-// "1  My network". The text is kept and fitted again when the label's size changes.
-void line_text(lv_obj_t *label, const char *text);
+// "1  My network". The text is kept and fitted again when the label's size changes. With
+// `smaller`, a text too wide for the label's font takes that font first and is cut only if it
+// still does not fit.
+void line_text(lv_obj_t *label, const char *text, const lv_font_t *smaller = nullptr);
 
 // A list row of kRowHeight over the full width: a label on the left, an optional value, and a
 // ">" when `opens_page`. Clicking it sends LV_EVENT_CLICKED to `callback`.
