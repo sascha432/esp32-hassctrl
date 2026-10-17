@@ -23,6 +23,7 @@ struct Expectation {
     memory::String effect;       // empty: not compared
     memory::String preset;       // climate preset_mode; empty: not compared
     memory::String fan_mode;     // climate; empty: not compared
+    float duration = kUnknown;   // timer: the duration a start was sent with, seconds
 
     bool operator==(const Expectation &) const = default;
 
@@ -30,7 +31,8 @@ struct Expectation {
     bool says_something() const
     {
         return !state.empty() || brightness >= 0 || !std::isnan(target) || !std::isnan(hue) ||
-               !std::isnan(color_temp) || !effect.empty() || !preset.empty() || !fan_mode.empty();
+               !std::isnan(color_temp) || !effect.empty() || !preset.empty() || !fan_mode.empty() ||
+               !std::isnan(duration);
     }
 };
 

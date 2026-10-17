@@ -51,20 +51,21 @@ bool epoch_of(const cJSON *item, double divisor, uint32_t &out)
 
 // the value of a state in the timeline: one of two words (core::on_off_words: on/off,
 // Detected/Clear, ...); a lock that is not locked counts as on (HA's lock binary sensor), the
-// words are the lock's own so no domain is needed
+// words are the lock's own so no domain is needed; a timer runs (active) or not (idle), paused
+// takes the third color (kProblem) of the legend
 float state_value(std::string_view s)
 {
     bool on = false;
     if (core::on_off_words(s, &on) != nullptr) {
         return on ? 1.0f : 0.0f;
     }
-    if (s == "unlocked" || s == "unlocking" || s == "opening") {
+    if (s == "unlocked" || s == "unlocking" || s == "opening" || s == "active") {
         return 1.0f;
     }
-    if (s == "locked" || s == "locking") {
+    if (s == "locked" || s == "locking" || s == "idle") {
         return 0.0f;
     }
-    return s == "jammed" ? core::kProblem : core::kUnknown;
+    return s == "jammed" || s == "paused" ? core::kProblem : core::kUnknown;
 }
 
 } // namespace

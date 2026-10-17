@@ -63,7 +63,7 @@ def main() -> None:
 
     sample = folder(SAMPLE)
     status, answer, _ = upload(c, sample, check_only=True)
-    check(status == 200 and answer.get("checked") is True and answer.get("tiles") == 21 and answer.get("pages") == 3
+    check(status == 200 and answer.get("checked") is True and answer.get("tiles") == 22 and answer.get("pages") == 3
           and answer.get("revision") == 0 and answer.get("ignored") == "hass", "check only: the sample is valid", f"{status} {answer}")
 
     broken = dict(sample)
@@ -90,7 +90,7 @@ def main() -> None:
     check(before_status == after_status and before == after, "a refused import changed nothing")
 
     status, answer, _ = upload(c, sample)
-    check(status == 200 and answer.get("checked") is False and answer.get("tiles") == 21 and answer.get("revision", 0) >= 1,
+    check(status == 200 and answer.get("checked") is False and answer.get("tiles") == 22 and answer.get("revision", 0) >= 1,
           "import the sample", f"{status} {answer}")
     revision = answer.get("revision", 0)
 
@@ -181,7 +181,7 @@ def main() -> None:
     check(status == 200 and "attachment" in headers.get("Content-Disposition", "") and isinstance(text, str)
           and text.startswith("defaults:"), "export as YAML", f"{status}")
     status, answer, _ = upload(c, {"hass.yaml": text.encode()}, check_only=True)
-    check(status == 200 and answer.get("tiles") == 21 and answer.get("pages") == 3, "the exported YAML imports again", f"{status} {answer}")
+    check(status == 200 and answer.get("tiles") == 22 and answer.get("pages") == 3, "the exported YAML imports again", f"{status} {answer}")
 
     if args.set_up:
         files = folder(Path(args.set_up))

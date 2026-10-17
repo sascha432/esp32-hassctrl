@@ -154,6 +154,7 @@ window.hcEditor = (() => {
     if (d === "camera") return "picture";
     if (d === "lock") return "lock";
     if (d === "weather") return "weather";
+    if (d === "timer") return "timer";
     return "sensor";
   }
   const okey = (o) => (o === "p" ? "portrait" : "landscape");
@@ -416,6 +417,7 @@ window.hcEditor = (() => {
     if (k === "climate") return "thermostat";
     if (k === "picture") return "camera";
     if (k === "weather") return "weather-partly-cloudy";
+    if (k === "timer") return "timer-outline";
     const d = e.split(".")[0];
     if (d === "fan") return "fan";
     if (d === "scene") return "palette";
@@ -848,7 +850,7 @@ window.hcEditor = (() => {
   // The device searches Home Assistant (GET /api/hass/entities); without a connection the list
   // falls back to the entities on the dashboard, and a typed entity id works always.
   const PICK_DOMAINS = ["light", "switch", "sensor", "binary_sensor", "climate", "camera", "fan", "input_boolean",
-    "button", "input_button", "scene", "script", "automation", "lock", "cover", "media_player", "weather"];
+    "button", "input_button", "scene", "script", "automation", "lock", "cover", "media_player", "weather", "timer"];
 
   function openPicker(cell, replaceK = null) {
     addCell = cell;

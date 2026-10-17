@@ -7,7 +7,7 @@
 - type: area
   name: Rooms
   # the grid of this page, 1x1 to 32x32. Without it the page uses `defaults.grid`.
-  grid: 3x3
+  grid: 4x3
   tiles:
     - entity: lock.stardust_gate
       name: Front Gate
@@ -41,6 +41,11 @@
       zone: Europe/London
       hours: 12
       date: true
+    # A timer (a helper in Home Assistant): the time left counts down on the tile, filled while
+    # it runs. A double tap starts (resumes) or cancels it, a tap opens the panel: the duration
+    # with -/+ steppers, Start, Pause, Cancel, Finish and the timeline.
+    - entity: timer.bathroom_fan_30min
+      name: Fan Timer
     # An automation: the tile shows the time of its last run (Disabled while it is off). A double
     # tap runs its actions, a tap opens the panel: the Enabled switch, the last run, Run actions
     # and the timeline. A script (rooms/workshop.yaml) is the same tile without the switch.

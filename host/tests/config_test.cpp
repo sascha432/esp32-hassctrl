@@ -150,7 +150,7 @@ TEST(config_imports_the_documented_sample)
     CHECK(imported->other_keys.empty()); // the settings sections are commented out
     CHECK(layout.grid == (Span{4, 3}));
     CHECK(layout.pages.size() == 3);
-    CHECK(layout.tiles.size() == 22);
+    CHECK(layout.tiles.size() == 23);
 
     const Tile *ceiling = named(layout, "Ceiling");
     REQUIRE(ceiling != nullptr);
@@ -167,8 +167,8 @@ TEST(config_imports_the_documented_sample)
     REQUIRE(rooms != nullptr);
     CHECK(rooms->in(L).cell == (Cell{2, 2}));
     CHECK(named(layout, "Movie Night")->in(L).cell == (Cell{3, 2}));
-    CHECK(layout.pages[rooms->opens].grid == (Span{3, 3}));
-    CHECK(named(layout, "Workshop")->in(L).cell == (Cell{0, 1}));
+    CHECK(layout.pages[rooms->opens].grid == (Span{4, 3}));
+    CHECK(named(layout, "Workshop")->in(L).cell == (Cell{3, 0}));
     const Tile *closeup = named(layout, "Owl Closeup");
     REQUIRE(closeup != nullptr);
     CHECK(closeup->in(L).size == (Span{2, 1}) && closeup->in(P).size == (Span{2, 1}) && closeup->in(P).has_size);
@@ -185,7 +185,7 @@ TEST(config_imports_the_documented_sample)
     CHECK(humidity->in(L).shown && humidity->in(P).hidden && !humidity->in(P).shown);
     const Tile *weather = named(layout, "Weather");
     REQUIRE(weather != nullptr);
-    CHECK(weather->kind == TileKind::Weather && weather->in(L).cell == (Cell{0, 2}));
+    CHECK(weather->kind == TileKind::Weather && weather->in(L).cell == (Cell{2, 1}));
     // the Workshop area has swipe navigation: no back tile on its page
     CHECK(named(layout, "Workshop")->swipe && !has_back_tile(layout, anvil->page));
     CHECK(has_back_tile(layout, rooms->opens));
@@ -193,12 +193,12 @@ TEST(config_imports_the_documented_sample)
     const Tile *london = named(layout, "London");
     REQUIRE(london != nullptr);
     CHECK(london->kind == TileKind::Clock && london->zone == "Europe/London" && london->hours12 && london->date &&
-          london->style == ClockStyle::Digital && london->in(L).cell == (Cell{1, 2}));
+          london->style == ClockStyle::Digital && london->in(L).cell == (Cell{3, 1}));
     const Tile *shop = named(layout, "Shop Clock");
     REQUIRE(shop != nullptr);
     CHECK(shop->style == ClockStyle::Analog && shop->ticks == ClockTicks::Minute && shop->border && shop->seconds &&
           shop->in(L).size == (Span{2, 1}) && shop->in(L).cell == (Cell{2, 1}) && shop->in(P).size == (Span{1, 2}));
-    CHECK(layout.entities.size() == 16);
+    CHECK(layout.entities.size() == 17);
     for (size_t i = 0; i < layout.tiles.size(); i++) {
         CHECK(layout.tiles[i].id == i + 1);
     }

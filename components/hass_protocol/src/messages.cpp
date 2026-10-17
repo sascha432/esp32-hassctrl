@@ -104,6 +104,14 @@ Call service_of(const core::Intent &intent, std::string_view domain)
             return {"light", "turn_on"};
         }
         break;
+    case IntentKind::SetTimer:
+        if (domain == "timer") {
+            return {"timer", intent.value == core::kTimerPause    ? "pause"
+                             : intent.value == core::kTimerCancel ? "cancel"
+                             : intent.value == core::kTimerFinish ? "finish"
+                                                                   : "start"};
+        }
+        break;
     }
     return {};
 }
@@ -200,6 +208,13 @@ bool call_service_message(uint32_t id, const core::Intent &intent, std::string_v
             // Home Assistant does
             if (domain == "automation") {
                 w.boolean("skip_condition", true);
+            }
+            break;
+        case IntentKind::SetTimer:
+            // a start with a duration of its own ("0:45:00"); without one the entity's, or the
+            // rest of a paused timer
+            if (intent.value == core::kTimerStart && intent.value2 > 0) {
+                w.string("duration", core::duration_text(intent.value2).c_str());
             }
             break;
         default:

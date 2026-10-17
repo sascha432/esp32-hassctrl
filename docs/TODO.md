@@ -1328,6 +1328,30 @@ A permanent feature of the JC4880P443C (relay 1 on GPIO 32), no longer a test.
       Cause unclear (`relay 1 off` on GPIO 32 without the wire: no reset). Relay 1 on GPIO 28 now, confirmed
       by you; the variant also turns the FPS overlay off.
 
+## Timer tiles (2026-10-16)
+
+Your request: timer support (`timer.bathroom_fan_30min`) with a proper UI; a tap opens the details, a
+double tap starts or stops.
+
+- [x] `TileKind::Timer` for `timer.*`, three fields (`duration`, `remaining` as seconds, `finishes_at` as epoch
+      seconds: the template renders `as_timestamp(...)`), `IntentKind::SetTimer` (start with an optional
+      duration, pause, cancel, finish).
+- [x] Tile: the countdown from `finishes_at` by the device's clock, once a second; `Idle`; filled while active;
+      the icons of the HA frontend by state. Double tap: cancel while active, start else.
+- [x] Panel (`timer_panel.cpp`): countdown, "Ends at HH:MM" / Paused / Idle, duration steppers (a minute
+      from two minutes up, else 10 s), Start / Resume / Restart, Pause, Cancel, Finish (those the state
+      allows), the timeline (active orange, idle, paused). Checked in the simulator at 480x320, 320x480,
+      320x240 and in the P4's dialog; confirmed by you on the WT32-SC01.
+- [x] Your report on the WT32 (2026-10-16): the countdown was off by up to half a minute either way (30:30 at
+      the start, stuck at 0:00 while HA had 26 s left). Cause: `finishes_at` was a float, which holds epoch
+      seconds only to the nearest 128 s; an `int64_t` now (your remark: an integer, not a double). Your report that a
+      tap "disabled" the entity came from that build too and is gone with it (2026-10-17). Start with a changed
+      duration showed the old time in cyan for a moment: the duration is part of the expectation now. Confirmed
+      by you on the WT32-SC01 (2026-10-17).
+- [ ] The countdown needs the device clock and Home Assistant's clock to agree (SNTP, within a second);
+      `timer.change` (add or take time while it runs) is not offered.
+- [ ] The web editor has no timer options (there are none); the preview shows the timer glyph.
+
 ## History buttons (2026-10-15)
 
 Your requests: a switch's history on a double tap, a history button in the light and the climate

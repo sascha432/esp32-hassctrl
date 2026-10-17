@@ -29,6 +29,8 @@ constexpr uint32_t kError = 0xff0000;
 constexpr uint32_t kLockUnlocked = 0x4caf50;
 constexpr uint32_t kLockLocked = kActive;
 constexpr uint32_t kLockJammed = kError;
+// a paused timer in the timeline of the timer panel (active is orange, idle the border)
+constexpr uint32_t kTimerPaused = kTextLabel;
 
 constexpr lv_coord_t kStatusBarHeight = 36;
 constexpr lv_coord_t kRowHeight = 44;

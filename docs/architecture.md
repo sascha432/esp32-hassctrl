@@ -237,6 +237,11 @@ struct FieldSpec {
   `dew_point`, `uv_index` and the units of four of them. The tile needs the temperature, its unit
   and the humidity, the panel the rest and `supported_features`. The condition is the state
   (`core/weather.hpp`: words, MDI names, compass).
+* A timer entity (`TileKind::Timer`, `timer.*`) has 3 more fields: `duration` and `remaining`
+  (Home Assistant's `0:30:00`, decoded to seconds by `core::duration_seconds`) and `finishes_at`.
+  The template renders that one as epoch seconds, kept as an `int64_t` (`Kind::Timestamp`:
+  `as_timestamp(state_attr(e,'finishes_at'),none)`), so the device parses no ISO time; the
+  countdown runs from it by the device's clock (docs/ui/lvgl/lvgl-panels.md section 7).
 * An automation or a script (`TileKind::Automation`, `automation.*`, `script.*`) has one more
   field, `last_triggered`, rendered as epoch seconds (`Kind::Timestamp`:
   `as_timestamp(state_attr(e,'last_triggered'),none)`, null while it never ran, kept as an
@@ -262,7 +267,7 @@ reassembly path described in section 6.
 
 The UI turns gestures into intents: `Toggle`, `Press`, `SetLevel`, `SetTemperature`,
 `SetHvacMode`, `SetPreset`, `SetFanMode`, `SetEffect`, `SetColor`, `SetColorTemp`, `SetLock`
-(lock, unlock or open), `Run` (the
+(lock, unlock or open), `SetTimer` (start with an optional duration, pause, cancel or finish), `Run` (the
 actions of an automation with `skip_condition`, a script; `kStop` turns a running script off). Each holds an
 `EntityRef` plus its value. `PendingTracker` records the optimistic value and `hass_protocol` turns
 the intent into a `call_service` message. Gesture rules (double tap window, drag release) stay in

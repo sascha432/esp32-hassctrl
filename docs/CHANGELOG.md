@@ -12,6 +12,13 @@
 
 ## 2026-10-16
 
+- Timer tiles (`timer.*`, your request): the time left counts down on the tile, filled while the timer runs; a
+  double tap starts (resumes) or cancels it, a tap opens the timer panel: countdown, duration with -/+ steppers,
+  Start, Pause, Cancel, Finish, the timeline. Icons `timer-outline`, `timer-pause-outline`, `timer-off-outline`.
+  Your report (the countdown off by up to half a minute, stuck at 0:00): `finishes_at` was a float, which holds
+  epoch seconds only to 128 s; an integer now. Your report: Start with a changed duration showed the old time in
+  cyan until Home Assistant answered; the chosen duration is part of the expectation now and shows at once.
+  Confirmed by you on the WT32-SC01.
 - Edit mode: the finger that starts it is ignored until it is lifted (no move, no remove dialog, no tap); hold and
   drag in one move is gone (your decision). Confirmed by you.
 - Lock tile (your report): a double tap locks or unlocks it, a single tap opens the panel (was: a tap on the

@@ -143,6 +143,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | button, scene | icon (48 px), name | press / turn on |
 | sensor | icon (24 px), value with unit, name | opens the sensor panel with the history |
 | lock | icon (24 px), the state in words (`Locked`, `Unlocking`, `Jammed`), name | a double tap locks an unlocked or open lock and unlocks a locked one (2026-10-16, your request; was: never from the tile); jammed or unavailable it opens the panel instead; a single tap opens the lock panel once the double-tap window (300 ms) has passed |
+| timer | icon (24 px: `timer-outline` running, `timer-pause-outline` paused, `timer-off-outline` idle), the time left (`29:07`, `1:02:15`; counting down once a second from `finishes_at` by the device's clock while it runs, the remaining time while paused, `Idle`), name | a double tap cancels a running timer and starts an idle or a paused one (resumed with its rest); unavailable or unknown it opens the panel instead; a single tap opens the timer panel ([lvgl-panels.md](lvgl-panels.md) section 7) once the double-tap window has passed |
 | automation, script | icon (24 px: `robot`/`robot-off` by the enabled state, `script-text`), the time of the last run (`10:52` today, else `Yesterday` or `14 Oct`; `Never`), name; an automation that is off shows `Disabled` with the name struck through, a script that runs `Running` | a double tap runs the actions of the automation (whatever its conditions say, as "Run actions" in Home Assistant) or the script, and stops a script that runs; unavailable or unknown it opens the panel instead; a single tap opens the automation panel ([lvgl-panels.md](lvgl-panels.md) section 8) once the double-tap window (300 ms) has passed (2026-10-17, your report: the automation tile toggled on a tap, as a switch) |
 | dimmer (light with `dimmer`) | the level as a fill from the bottom, the percentage in the middle, the name at the bottom; off or unavailable the icon over the name, as a light without `dimmer`; the same in every shape | drag up or down sets the level on release, double tap toggles, a single tap opens the light panel ([lvgl-panels.md](lvgl-panels.md) section 2) |
 | climate, tall | `+` bar, action ("Heating", the mode when the entity has none), setpoint, room temperature, name, `-` bar | the bars step the setpoint; the steps are sent 0.7 s after the last tap; a tap beside the bars opens the climate panel |
@@ -151,7 +152,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | weather, one cell | icon (24 px) beside the temperature, the condition and the humidity in one line (`Cloudy • 81%`), name | opens the weather panel ([lvgl-panels.md](lvgl-panels.md) section 6) |
 | weather, tall | icon (48 px), the temperature, the condition, the humidity with its drop glyph, name | opens the weather panel |
 | weather, wide | the large icon left; right of it the temperature (28 px), the condition and the humidity in one line, the name | opens the weather panel |
-| switch, button, sensor, lock, automation, area, wide | the icon left (48 px on a large cell, else 24), right of it the value (sensor, lock, automation) and the name | as the one-cell tile |
+| switch, button, sensor, lock, timer, automation, area, wide | the icon left (48 px on a large cell, else 24), right of it the value (sensor, lock, timer, automation) and the name | as the one-cell tile |
 | picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives; any shape | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
@@ -190,6 +191,7 @@ P4 looks empty around its 48 px glyph (no larger glyph size).
 | dimmer | the fill is the indicator, the card stays dark; the name is white on the fill |
 | climate | the bars are orange while the mode is not `off`, the action is orange |
 | lock | filled in the color of its state (your choice, 2026-10-11): unlocked, unlocking, open, opening green (`0x4caf50`), locked and locking orange (`0xff8000`), jammed red (`0xff0000`); `theme::kLock*` |
+| timer | filled with the active color while it runs (the expected state at once: a double tap shows the start or the end before Home Assistant reports it); paused and idle as a card |
 | automation, script | a running script is filled with the active color (the expected state at once); an automation is always a card: disabled it has the off glyph and its name struck through (your choice 2026-10-17: a page of enabled automations is no page of orange tiles; the strike covers a tile with its own icon, which has no off glyph) |
 
 A light that is switched on shows the level it had before (HA turns it on at that level), not
@@ -209,7 +211,7 @@ the tile's `decimals` or HA's display precision. A state of several lines shows 
 The tile's `icon`; else the entity's `icon` attribute when the glyph is in the firmware; else the
 default of the domain and device class (light `lightbulb`/`lightbulb-off`, outlet `power-plug`,
 motion `motion-sensor`, temperature `thermometer`, lock `lock`/`lock-open`/`lock-alert` (jammed),
-automation `robot`/`robot-off`, script `script-text`,
+timer `timer-outline`/`timer-pause-outline`/`timer-off-outline` by its state, automation `robot`/`robot-off`, script `script-text`,
 ...; `icons.cpp`; a weather entity: the glyph of its condition, as the Home Assistant app has
 them: `weather-sunny`, `weather-partly-cloudy`, `weather-pouring`, ...). The glyphs are the 60 names of `core` plus the ones the screens draw themselves
 (`UI_GLYPHS`: `arrow-left`, `plus`, `minus`, `chart-timeline-variant`, ...), in 24 and 48 px (`tools/build_icons.py`, which also writes `web/icons.svg` for the

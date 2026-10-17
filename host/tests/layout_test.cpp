@@ -74,6 +74,8 @@ TEST(layout_kind_follows_the_domain)
     CHECK(kind_of_entity("lock.front_door") == TileKind::Lock);
     CHECK(kind_of_entity("weather.openweathermap") == TileKind::Weather);
     CHECK(std::string_view(kind_name(TileKind::Weather)) == "weather");
+    CHECK(kind_of_entity("timer.bathroom_fan") == TileKind::Timer);
+    CHECK(std::string_view(kind_name(TileKind::Timer)) == "timer");
 }
 
 TEST(layout_checks_entity_ids)

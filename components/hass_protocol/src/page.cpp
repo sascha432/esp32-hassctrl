@@ -25,6 +25,7 @@ enum class Kind : uint8_t {
     Number, // a number or a string of one; null is unknown
     List,   // a list of strings
     Pair,   // hs_color: two numbers
+    Duration,  // a Home Assistant duration ("0:30:00") as seconds
     Timestamp, // an ISO time, rendered as epoch seconds by the template (as_timestamp), kept as an integer
 };
 
@@ -79,6 +80,9 @@ constexpr FieldSpec kFields[] = {
     {Field::CloudCoverage, "wc", "cloud_coverage", Kind::Number},
     {Field::DewPoint, "wd", "dew_point", Kind::Number},
     {Field::UvIndex, "wi", "uv_index", Kind::Number},
+    {Field::Duration, "td", "duration", Kind::Duration},
+    {Field::Remaining, "tr", "remaining", Kind::Duration},
+    {Field::FinishesAt, "tf", "finishes_at", Kind::Timestamp},
     {Field::LastTriggered, "lt", "last_triggered", Kind::Timestamp},
 };
 static_assert(std::size(kFields) == static_cast<size_t>(Field::Count));
@@ -102,6 +106,7 @@ constexpr FieldMask kClimate = bit(Field::Target) | bit(Field::Current) | bit(Fi
                                bit(Field::MinTemp) | bit(Field::MaxTemp) | bit(Field::TempStep);
 constexpr FieldMask kClimatePanel = bit(Field::HvacModes) | bit(Field::PresetMode) | bit(Field::PresetModes) |
                                     bit(Field::FanMode) | bit(Field::FanModes);
+constexpr FieldMask kTimer = bit(Field::Duration) | bit(Field::Remaining) | bit(Field::FinishesAt);
 constexpr FieldMask kWeather = bit(Field::Temperature) | bit(Field::TemperatureUnit) | bit(Field::Humidity);
 // the details, and the forecasts the entity has (supported_features)
 constexpr FieldMask kWeatherPanel = bit(Field::ApparentTemperature) | bit(Field::Pressure) | bit(Field::PressureUnit) |
@@ -300,6 +305,16 @@ void decode_field(const FieldSpec &spec, const cJSON *item, core::EntityState &t
     case Field::UvIndex:
         to.uv_index = number_of(item);
         break;
+    case Field::Duration:
+        to.duration = cJSON_IsString(item) ? core::duration_seconds(item->valuestring) : number_of(item);
+        break;
+    case Field::Remaining:
+        to.remaining = cJSON_IsString(item) ? core::duration_seconds(item->valuestring) : number_of(item);
+        break;
+    case Field::FinishesAt:
+        // whole epoch seconds (as_timestamp has microseconds); 0 while the timer does not run
+        to.finishes_at = cJSON_IsNumber(item) && item->valuedouble > 0 ? static_cast<int64_t>(item->valuedouble) : 0;
+        break;
     case Field::LastTriggered:
         // whole epoch seconds; 0 (null) while it never ran
         to.last_triggered = cJSON_IsNumber(item) && item->valuedouble > 0 ? static_cast<int64_t>(item->valuedouble) : 0;
@@ -367,6 +382,10 @@ FieldMask fields_of(const core::Tile &tile, bool panel)
         if (panel) {
             fields |= kWeatherPanel;
         }
+        break;
+    case TileKind::Timer:
+        // the countdown runs from finishes_at; paused it shows the remaining time
+        fields |= kTimer;
         break;
     case TileKind::Automation:
         // the tile shows the time of the last run

@@ -67,6 +67,10 @@ enum class Field : uint8_t {
     CloudCoverage,
     DewPoint,
     UvIndex,
+    // a timer entity (the state is active, paused or idle)
+    Duration,     // the duration it runs for, seconds ("0:30:00" in Home Assistant)
+    Remaining,    // the seconds left when it was paused (or started: counts down from there)
+    FinishesAt,   // the epoch second it ends at while it runs (an integer)
     // an automation or a script
     LastTriggered, // the epoch second of its last run (an integer; 0: never)
     Count,
@@ -131,6 +135,11 @@ struct EntityState {
     float cloud_coverage = kUnknown; // percent
     float dew_point = kUnknown;
     float uv_index = kUnknown;
+    // a timer entity: seconds (duration, remaining) and the epoch second it ends at while it
+    // runs (0: not running or unknown; whole seconds, like Backend::clock)
+    float duration = kUnknown;
+    float remaining = kUnknown;
+    int64_t finishes_at = 0;
     // an automation or a script: the epoch second of its last run, 0 while it never ran
     int64_t last_triggered = 0;
 
@@ -321,6 +330,7 @@ enum class IntentKind : uint8_t {
     SetColor,       // light, value = hue (0 to 360), value2 = saturation (0 to 100)
     SetColorTemp,   // light, value = kelvin
     SetLock,        // lock, value = kLock, kUnlock or kOpen
+    SetTimer,       // timer, value = kTimerStart (value2 = the duration in seconds, 0: the entity's), kTimerPause, kTimerCancel or kTimerFinish
     Run,            // automation (its actions, conditions skipped), script; value = kRun or kStop (a running script)
 };
 
@@ -328,9 +338,20 @@ enum class IntentKind : uint8_t {
 constexpr float kLock = 0;
 constexpr float kUnlock = 1;
 constexpr float kOpen = 2;
+// the values of IntentKind::SetTimer
+constexpr float kTimerStart = 0;
+constexpr float kTimerPause = 1;
+constexpr float kTimerCancel = 2;
+constexpr float kTimerFinish = 3;
 // the values of IntentKind::Run
 constexpr float kRun = 0;
 constexpr float kStop = 1;
+
+// The seconds of a Home Assistant duration ("0:30:00", "1 day, 2:00:00", "0:00:05.500000");
+// NaN for anything else.
+float duration_seconds(std::string_view text);
+// "H:MM:SS" of the seconds, as Home Assistant writes a duration
+memory::String duration_text(float seconds);
 
 struct Intent {
     IntentKind kind = IntentKind::Toggle;

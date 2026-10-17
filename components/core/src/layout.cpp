@@ -305,6 +305,8 @@ const char *kind_name(TileKind kind)
         return "weather";
     case TileKind::Clock:
         return "clock";
+    case TileKind::Timer:
+        return "timer";
     case TileKind::Automation:
         return "automation";
     }
@@ -379,6 +381,9 @@ TileKind kind_of_entity(std::string_view entity_id)
     }
     if (domain == "weather") {
         return TileKind::Weather;
+    }
+    if (domain == "timer") {
+        return TileKind::Timer;
     }
     return TileKind::Sensor;
 }

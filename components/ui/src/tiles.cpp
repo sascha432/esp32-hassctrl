@@ -292,6 +292,24 @@ void toggle_lock(const View &view)
     send(view, core::IntentKind::SetLock, locked ? core::kUnlock : core::kLock, std::move(expected));
 }
 
+// A double tap on a timer tile: cancels a running timer, starts an idle or a paused one (resumed
+// with the time it has left), from the state it shows. Unavailable or unknown: the panel opens.
+void toggle_timer(const View &view)
+{
+    const TimerState shown = timer_shown(dashboard::state(view.entity), dashboard::pending(view.entity));
+    if (shown == TimerState::Unknown) {
+        dashboard::open_panel(view.tile);
+        return;
+    }
+    core::Intent intent;
+    intent.kind = core::IntentKind::SetTimer;
+    intent.entity = view.entity;
+    intent.value = shown == TimerState::Active ? core::kTimerCancel : core::kTimerStart;
+    core::Expectation expected;
+    expected.state = shown == TimerState::Active ? "idle" : "active";
+    dashboard::act(intent, std::move(expected));
+}
+
 // A double tap on an automation tile runs its actions, on a script tile the script, or stops
 // the script while it runs (what the panel's button does). Unavailable or unknown: the panel opens.
 void run(const View &view)
@@ -354,14 +372,18 @@ void on_click(lv_event_t *event)
         break;
     }
     case TileKind::Lock:
+    case TileKind::Timer:
     case TileKind::Automation: {
-        // a double tap locks or unlocks (runs an automation or a script), a single one opens the
-        // panel once the window has passed (as a dimmer; docs/ui/lvgl/lvgl-dashboard.md section 3)
+        // a double tap locks or unlocks (starts or cancels a timer, runs an automation or a
+        // script), a single one opens the panel once the window has passed (as a dimmer;
+        // docs/ui/lvgl/lvgl-dashboard.md section 3)
         const uint32_t now = lv_tick_get();
         if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
             lv_timer_del(view.tap_timer);
             view.tap_timer = nullptr;
-            if (view.kind == TileKind::Automation) {
+            if (view.kind == TileKind::Timer) {
+                toggle_timer(view);
+            } else if (view.kind == TileKind::Automation) {
                 run(view);
             } else {
                 toggle_lock(view);
@@ -520,6 +542,19 @@ void request_image(View &view)
 }
 
 namespace {
+
+// a running timer counts down once a second (the clock timer of the view)
+void on_timer_tick(lv_timer_t *timer)
+{
+    auto &view = *static_cast<View *>(timer->user_data);
+    if (view.card == nullptr || !dashboard::shown()) {
+        return;
+    }
+    const core::EntityState &state = dashboard::state(view.entity);
+    if (timer_shown(state, dashboard::pending(view.entity)) == TimerState::Active) {
+        update(view, dashboard::layout(), state, dashboard::pending(view.entity));
+    }
+}
 
 void on_delete(lv_event_t *event)
 {
@@ -1043,6 +1078,33 @@ float climate_step(const core::Tile &tile, const core::EntityState &state)
     return tile.step > 0 ? tile.step : kDefaultClimateStep;
 }
 
+TimerState timer_shown(const core::EntityState &state, const core::Expectation *pending)
+{
+    const std::string_view shown = pending != nullptr && !pending->state.empty() ? std::string_view(pending->state)
+                                                                                  : std::string_view(state.state);
+    if (shown == "active") {
+        return TimerState::Active;
+    }
+    if (shown == "paused") {
+        return TimerState::Paused;
+    }
+    if (shown == "idle") {
+        return TimerState::Idle;
+    }
+    return TimerState::Unknown;
+}
+
+float timer_left(const core::EntityState &state, int64_t now)
+{
+    if (state.state == "active" && now != 0 && state.finishes_at != 0) {
+        return static_cast<float>(std::max<int64_t>(0, state.finishes_at - now));
+    }
+    if (!std::isnan(state.remaining) && state.state != "idle") {
+        return state.remaining;
+    }
+    return state.duration;
+}
+
 std::string when_text(int64_t when, bool with_time)
 {
     if (when == 0) {
@@ -1079,6 +1141,21 @@ std::string when_text(int64_t when, bool with_time)
         return std::string_view(day) == "Today" ? std::string(clock) : std::string(day);
     }
     return std::string(day != nullptr ? day : date) + " " + clock;
+}
+
+std::string timer_text(float seconds)
+{
+    if (std::isnan(seconds)) {
+        return "--:--";
+    }
+    const auto total = static_cast<long>(std::lround(std::max(seconds, 0.0f)));
+    char text[24];
+    if (total >= 3600) {
+        std::snprintf(text, sizeof(text), "%ld:%02ld:%02ld", total / 3600, total / 60 % 60, total % 60);
+    } else {
+        std::snprintf(text, sizeof(text), "%02ld:%02ld", total / 60, total % 60);
+    }
+    return text;
 }
 
 int shown_level(const core::EntityState &state, const core::Expectation *pending, bool &on)
@@ -1259,8 +1336,11 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
 
     // a light without `dimmer` shows its level while it is on (update_light)
     const bool light_level = tile.kind == TileKind::Light;
-    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock ||
+    const bool has_value = tile.kind == TileKind::Sensor || tile.kind == TileKind::Lock || tile.kind == TileKind::Timer ||
                            tile.kind == TileKind::Automation;
+    if (tile.kind == TileKind::Timer) {
+        view.clock_timer = lv_timer_create(on_timer_tick, kClockTickMs, &view);
+    }
     if (view.wide && tile.kind != TileKind::Picture) {
         // the icon left, the value and the name right of it
         lv_obj_t *col = wide_row(view, view.large ? icons::large() : icons::small());
@@ -1411,6 +1491,28 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
     case TileKind::Weather:
         update_weather(view, state, known, available);
         break;
+    case TileKind::Timer: {
+        // the time left while it runs (filled, counting down by the tick) or is paused, Idle
+        // else; the expected state at once
+        const TimerState shown = timer_shown(state, pending);
+        look.active = available && shown == TimerState::Active;
+        std::string text;
+        if (!known) {
+            text = "...";
+        } else if (!available) {
+            text = "--";
+        } else if (shown == TimerState::Idle) {
+            text = "Idle";
+        } else if (shown == TimerState::Unknown) {
+            text = words(state.state);
+        } else if (pending != nullptr && !std::isnan(pending->duration)) {
+            text = timer_text(pending->duration); // a start with a new duration on its way
+        } else {
+            text = timer_text(timer_left(state, dashboard::backend().clock()));
+        }
+        set_value(view, text);
+        break;
+    }
     case TileKind::Automation: {
         // an automation: the time of its last run while it is enabled, Disabled else, with the
         // off glyph and the name struck through (the tile's own icon has no off glyph; your

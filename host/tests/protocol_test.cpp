@@ -92,6 +92,12 @@ TEST(protocol_fields_follow_the_tile)
     // the last field of the table is above bit 31
     CHECK(bit(Field::UvIndex) > 0xffffffffull);
 
+    // a timer: its duration, the rest and the end, on the tile as in the panel
+    Tile timer = entity_tile(layout, "timer.fan");
+    CHECK(fields_of(timer, false) ==
+          (bit(Field::State) | bit(Field::Duration) | bit(Field::Remaining) | bit(Field::FinishesAt)));
+    CHECK(fields_of(timer, true) == fields_of(timer, false));
+
     // an automation and a script: the time of the last run, on the tile as in the panel
     Tile automation = entity_tile(layout, "automation.alarm");
     CHECK(fields_of(automation, false) == (bit(Field::State) | bit(Field::LastTriggered)));
@@ -216,6 +222,37 @@ TEST(protocol_decode_weather)
     CHECK(store.apply(updates[0]));
     CHECK(!store.apply(updates[0]));
     CHECK(store.state(updates[0].entity).has(Field::UvIndex));
+}
+
+TEST(protocol_decode_timer)
+{
+    Layout layout;
+    const TileIndex index = layout.add_tile(0, entity_tile(layout, "timer.bathroom_fan_30min"));
+    const PageSubscription sub = build_page(layout, 0, Orientation::Landscape, index);
+    REQUIRE(sub.entities.size() == 1);
+    // the end as epoch seconds, rendered by Home Assistant; null while the timer does not run
+    CHECK(sub.template_text.find("\"td\":{{state_attr(e,'duration')|tojson}}") != std::string::npos);
+    CHECK(sub.template_text.find("\"tf\":{{as_timestamp(state_attr(e,'finishes_at'),none)|tojson}}") != std::string::npos);
+    Json result(cJSON_Parse(R"({"0":{"s":"active","td":"0:30:00","tr":"0:30:00","tf":1792191080.5}})"));
+    hc::memory::Vector<EntityUpdate> updates;
+    hc::memory::String error;
+    REQUIRE(decode_page(result.get(), sub, updates, error));
+    REQUIRE(updates.size() == 1);
+    const EntityState &a = updates[0].values;
+    // the end as whole epoch seconds (an integer: a float would round it to 128 s, your report 2026-10-16)
+    CHECK(a.state == "active" && a.duration == 1800 && a.remaining == 1800 && a.finishes_at == 1792191080);
+
+    Json paused(cJSON_Parse(R"({"0":{"s":"paused","td":"1 day, 2:00:00","tr":"0:29:07.351000","tf":null}})"));
+    REQUIRE(decode_page(paused.get(), sub, updates, error));
+    const EntityState &p = updates[0].values;
+    CHECK(p.state == "paused" && p.duration == 93600 && std::fabs(p.remaining - 1747.351f) < 0.01f && p.finishes_at == 0);
+
+    // the durations of Home Assistant
+    CHECK(duration_seconds("0:00:05") == 5 && duration_seconds("2 days, 0:00:00") == 172800);
+    CHECK(std::isnan(duration_seconds("")) && std::isnan(duration_seconds("30")) && std::isnan(duration_seconds("0:30")));
+    CHECK(std::isnan(duration_seconds("1:2:3x")));
+    CHECK_STR(duration_text(1800).c_str(), "0:30:00");
+    CHECK_STR(duration_text(3725).c_str(), "1:02:05");
 }
 
 TEST(protocol_forecast)
@@ -413,6 +450,27 @@ TEST(protocol_messages)
     intent.value = hc::core::kOpen;
     REQUIRE(call_service_message(9, intent, "lock.front_door", out, error));
     CHECK(out.find(R"("domain":"lock","service":"open")") != std::string::npos);
+    CHECK(!call_service_message(9, intent, "switch.anvil_fan", out, error));
+
+    // a timer: start with its own duration, else as the entity has it; pause, cancel, finish
+    intent.kind = IntentKind::SetTimer;
+    intent.value = hc::core::kTimerStart;
+    intent.value2 = 2700;
+    REQUIRE(call_service_message(9, intent, "timer.fan", out, error));
+    CHECK_STR(out.c_str(), R"({"id":9,"type":"call_service","domain":"timer","service":"start","service_data":{"duration":"0:45:00"},)"
+                           R"("target":{"entity_id":"timer.fan"}})");
+    intent.value2 = 0;
+    REQUIRE(call_service_message(9, intent, "timer.fan", out, error));
+    CHECK(out.find(R"("service":"start","service_data":{})") != std::string::npos);
+    intent.value = hc::core::kTimerPause;
+    REQUIRE(call_service_message(9, intent, "timer.fan", out, error));
+    CHECK(out.find(R"("domain":"timer","service":"pause","service_data":{})") != std::string::npos);
+    intent.value = hc::core::kTimerCancel;
+    REQUIRE(call_service_message(9, intent, "timer.fan", out, error));
+    CHECK(out.find(R"("service":"cancel")") != std::string::npos);
+    intent.value = hc::core::kTimerFinish;
+    REQUIRE(call_service_message(9, intent, "timer.fan", out, error));
+    CHECK(out.find(R"("service":"finish")") != std::string::npos);
     CHECK(!call_service_message(9, intent, "switch.anvil_fan", out, error));
 
     intent.kind = IntentKind::SetTemperature;

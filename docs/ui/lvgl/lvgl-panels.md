@@ -1,7 +1,7 @@
 # Panels (LVGL)
 
 Status: **running**. The full screen views a tile opens: the light (dimmer), the climate, the
-sensor, the lock, the weather and the automation. The picture tile's full screen view is in
+sensor, the lock, the weather, the timer and the automation. The picture tile's full screen view is in
 [lvgl-camera.md](lvgl-camera.md).
 Tiles and their states: [lvgl-dashboard.md](lvgl-dashboard.md); colors, fonts and the shared
 parts: [lvgl-design.md](lvgl-design.md).
@@ -12,8 +12,8 @@ A tap opens the panel of a tile over the page; the back tile closes it, opening 
 new layout closes it, turning the display builds it again. While it is open the page's
 subscription carries the panel's fields as well (`hass_protocol::fields_of`). Code: `panel.cpp`
 (the frame), `light_panel.cpp`, `climate_panel.cpp`, `sensor_panel.cpp`, `lock_panel.cpp`,
-`picture_panel.cpp`, `weather_panel.cpp`, `automation_panel.cpp`; the history graph of the sensor, the
-lock and the automation panel is `history_view.cpp`.
+`picture_panel.cpp`, `weather_panel.cpp`, `timer_panel.cpp`, `automation_panel.cpp`; the history graph of
+the sensor, the lock, the timer and the automation panel is `history_view.cpp`.
 
 ```
 landscape (480x320, 320x240)            portrait (320x480)
@@ -223,6 +223,52 @@ set up again); what is drawn stays meanwhile.
 Checked on the WT32-SC01 (2026-10-13): the 8 days match the Home Assistant app, the hourly strip
 scrolls, closing and reopening works.
 
+## 7. Timer panel
+
+Added 2026-10-16 (your request: timer support with a proper UI; a tap opens the details, a double
+tap starts or stops). The panel of a `timer.*` entity (a timer helper of Home Assistant). Like the
+lock panel: two buttons in the options choose the control (`timer-outline`) or the timeline
+(`chart-timeline-variant`); the panel opens on the control. No header action. Code:
+`timer_panel.cpp`.
+
+```
++--------+------------------------------+
+|  back  | Fan Timer                    |
++--------+------------------------------+
+| [timer]|            29:07             |   the countdown (72 px digits when they fit,
+| [time] |         Ends at 23:34        |   else 48, 28, 20); the state under it
+|        |     (-)   0:30:00   (+)      |   the duration and its steppers
+|        |   (>)   (||)   ([])   (v)    |   Start  Pause  Cancel  Finish
+|        |  Restart Pause Cancel Finish |
++--------+------------------------------+
+```
+
+| Part | Content | Touch |
+| --- | --- | --- |
+| countdown | the time left (`29:07`, `1:02:15`), counting down once a second from `finishes_at` by the device's clock while the timer runs (the remaining time reported last while the clock is not set), the remaining time while paused, the duration (muted) while idle; cyan while an action is on its way | |
+| state | `Ends at HH:MM` (orange) while it runs, `Paused`, `Idle`, `Unavailable` | |
+| duration | the entity's `duration` (`0:30:00`), or the one the steppers chose (cyan until it is started); the round steppers (64 px, the T4 36 px) step a minute from two minutes up, 10 s below, never under 10 s, to the next multiple of the step; held they step 4 times a second | the steppers change the duration of the next start |
+| Start | `play`; the word is `Start` while idle, `Resume` while paused (a start resumes a paused timer with its rest), `Restart` while it runs (a start restarts it) | `timer.start`, with `duration` when the steppers changed it (`0:45:00`), else without (the entity's duration, or the rest of a paused timer); the chosen duration stays shown, as the countdown too (`Expectation::duration`), until Home Assistant reports it |
+| Pause | `pause`, only while it runs | `timer.pause` |
+| Cancel | `stop`, while it runs or is paused | `timer.cancel` |
+| Finish | `check`, while it runs or is paused | `timer.finish` (fires the finished event as if the time were up) |
+| timeline | `history_view` with the states of the timer: `active` counts as on (orange), `idle` as off, `paused` takes the third color (`theme::kTimerPaused`, the label blue; shown in the legend only while the window has one), the rest unknown | the range buttons as in the sensor panel |
+
+A button the state does not allow is drawn at 40 % and does nothing. The expected state shows at
+once (`core::Expectation` compares the state: `active`, `paused`, `idle`) until Home Assistant
+reports it. The rows are centered in the control; the countdown takes the largest digit font that
+leaves the buttons at least 36 px, the buttons grow up to 64 px (80 px in the P4's dialog) with
+the room that is left. Checked in the simulator at 480x320, 320x480, 320x240 and 480x800 (the
+dialog); confirmed on the WT32-SC01 (2026-10-17).
+
+The tile and the panel read three attributes (`hass_protocol::kTimer`): `duration` and `remaining`
+as Home Assistant writes them (`0:30:00`, `1 day, 2:00:00`; `core::duration_seconds`) and
+`finishes_at`, which the template renders as epoch seconds
+(`as_timestamp(state_attr(e,'finishes_at'),none)`, null while the timer does not run; kept as an
+`int64_t`, 0 while it does not run) so the device parses no ISO time. `remaining` is the rest at the last change (the duration at a start,
+the rest at a pause); Home Assistant does not update it while the timer runs, so the countdown
+comes from `finishes_at` and the device's clock.
+
 ## 8. Automation panel
 
 Added 2026-10-17 (your report: the automation tile toggled on a tap, as a switch; your request: a
@@ -275,3 +321,6 @@ ran; kept as an `int64_t`, 0 then).
   double tap (a light that only switches gets the sensor panel with its timeline).
 * The automation panel's timeline is the enabled state, not the runs; the runs are in Home
   Assistant's logbook, which the device does not read. `last_triggered` is the last one.
+* The timer panel offers no `timer.change` (adding or taking time while it runs); the steppers
+  set the duration of the next start. The countdown is as right as the two clocks agree (SNTP on
+  the device, Home Assistant's clock for `finishes_at`).

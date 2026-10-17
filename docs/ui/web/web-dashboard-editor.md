@@ -28,7 +28,8 @@ dashboard as one file is on the System page (web-app.md section 1), not here (de
   another page, reorder. A clock (2026-10-16) has no entity: style (digital, analog), 24 or 12 h,
   seconds, date, rim and ticks of an analog face, and the time zone (a text field with the
   device's list of IANA names as suggestions; an unknown name is refused by the device's check).
-  The preview shows a fixed time or the clock glyph; an automation or a script (2026-10-17, `automation.*`, `script.*`: the
+  The preview shows a fixed time or the clock glyph. A timer (2026-10-16, `timer.*`) has no keys of its own;
+  the preview shows the timer glyph; an automation or a script (2026-10-17, `automation.*`, `script.*`: the
   `automation` kind) shows the robot or script glyph. Every key of the tile format; the keys a kind does not have are hidden.
   A new tile is 1x1. The size is set per orientation, in the orientation the preview shows
   (1x1 up to the grid of the page; portrait offers "landscape turned" as the default), and a

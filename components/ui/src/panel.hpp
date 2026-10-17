@@ -50,8 +50,9 @@ struct Frame {
     bool large = false;       // a dialog (the P4): the larger buttons, see step_size()
 };
 
-// true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a lock, a weather, a
-// picture: its image full screen; a switch and a plain light: the sensor panel with the timeline)
+// true when `tile` has a panel (a light with `dimmer`, a climate, a sensor, a lock, a timer, a
+// weather, a picture: its image full screen; a switch and a plain light: the sensor panel with
+// the timeline)
 bool has_panel(const core::Tile &tile);
 
 // A second square of the header, left of `Frame::action` with the grid's gap between them (the

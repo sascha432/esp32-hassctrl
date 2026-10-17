@@ -48,6 +48,7 @@ enum class TileKind : uint8_t {
     Lock,    // lock: shows the state, a tap opens the lock panel (never locks or unlocks by itself)
     Weather, // weather: the condition, the temperature, a tap opens the forecast
     Clock,   // the time, digital or analog, in the device's zone or one of its own; no entity
+    Timer,   // timer: the time left, a tap opens the timer panel, a double tap starts or cancels
     Automation, // automation, script: the last run, a tap opens the automation panel, a double tap runs it
 };
 

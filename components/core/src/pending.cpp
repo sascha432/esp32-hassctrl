@@ -14,6 +14,8 @@ constexpr float kTargetTolerance = 0.05f;
 constexpr float kHueTolerance = 2;
 constexpr float kSaturationTolerance = 2;
 constexpr float kColorTempTolerance = 0.02f; // of the value
+// a timer's duration comes back as HA's "0:45:00", whole seconds
+constexpr float kDurationTolerance = 0.5f;
 
 bool near(float expected, float reported, float tolerance)
 {
@@ -57,6 +59,9 @@ bool met(const Expectation &expected, const EntityState &state)
         return false;
     }
     if (!expected.fan_mode.empty() && state.fan_mode != expected.fan_mode) {
+        return false;
+    }
+    if (!near(expected.duration, state.duration, kDurationTolerance)) {
         return false;
     }
     return true;

@@ -212,6 +212,12 @@ EntityState make_sample(std::string_view id, size_t i)
         s.cloud_coverage = 90;
         s.dew_point = 8.6f;
         s.features = hc::core::kForecastDaily | hc::core::kForecastHourly;
+    } else if (domain == "timer") {
+        // a 30 minute timer that ran for 37 seconds (as the clock of the PC has it)
+        s.state = "active";
+        s.duration = 1800;
+        s.remaining = 1800;
+        s.finishes_at = std::time(nullptr) + 1800 - 37;
     } else if (domain == "script") {
         // not running, ran yesterday
         s.state = "off";
@@ -384,6 +390,31 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
     case IntentKind::SetFanMode:
         s.fan_mode = intent.text;
         break;
+    case IntentKind::SetTimer: {
+        // as HA: a start (re)starts with the duration given or the entity's, resumes a paused
+        // timer with its rest; a pause keeps the rest; cancel and finish end it
+        const int64_t now = std::time(nullptr);
+        if (intent.value == hc::core::kTimerStart) {
+            if (intent.value2 > 0) {
+                s.duration = intent.value2;
+            }
+            const float run = s.state == "paused" && !std::isnan(s.remaining) ? s.remaining : s.duration;
+            s.state = "active";
+            s.remaining = run;
+            s.finishes_at = now + static_cast<int64_t>(std::lround(run));
+        } else if (intent.value == hc::core::kTimerPause) {
+            if (s.state == "active") {
+                s.remaining = static_cast<float>(std::max<int64_t>(0, s.finishes_at - now));
+                s.finishes_at = 0;
+                s.state = "paused";
+            }
+        } else {
+            s.state = "idle";
+            s.remaining = hc::core::kUnknown;
+            s.finishes_at = 0;
+        }
+        break;
+    }
     case IntentKind::Run: {
         // an automation runs at once; a script runs for a second
         const int64_t now = std::time(nullptr);
@@ -477,8 +508,8 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
                 }
                 history.points.push_back({t, on ? 1.0f : 0.0f});
             }
-            if (entity_id.starts_with("lock.")) {
-                // jammed for half an hour 20 hours ago
+            if (entity_id.starts_with("lock.") || entity_id.starts_with("timer.")) {
+                // jammed (a timer: paused) for half an hour 20 hours ago
                 const uint32_t jammed = history.end - 20 * 3600;
                 auto &points = history.points;
                 points.erase(std::remove_if(points.begin(), points.end(),

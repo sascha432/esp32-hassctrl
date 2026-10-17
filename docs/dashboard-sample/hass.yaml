@@ -168,6 +168,10 @@ defaults:
 #   weather.*                                       weather: the condition, the temperature and
 #                                                   the humidity; a tap opens the current values
 #                                                   and the daily and hourly forecast
+#   timer.*                                         timer: the time left counting down; a double
+#                                                   tap starts or cancels it, a tap opens the
+#                                                   panel (duration, start, pause, cancel, finish,
+#                                                   the timeline)
 #   automation.* script.*                           automation: the time of the last run; a
 #                                                   double tap runs it, a tap opens the panel
 #                                                   (Enabled switch, last run, Run, the timeline)

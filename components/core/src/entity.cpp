@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <charconv>
+#include <cmath>
 #include <cstdio>
 
 namespace hc::core {
@@ -39,6 +40,7 @@ bool assign(float &to, float from)
     to = from;
     return true;
 }
+
 
 bool copy(EntityState &to, const EntityState &from, Field field)
 {
@@ -127,6 +129,12 @@ bool copy(EntityState &to, const EntityState &from, Field field)
         return assign(to.dew_point, from.dew_point);
     case Field::UvIndex:
         return assign(to.uv_index, from.uv_index);
+    case Field::Duration:
+        return assign(to.duration, from.duration);
+    case Field::Remaining:
+        return assign(to.remaining, from.remaining);
+    case Field::FinishesAt:
+        return assign(to.finishes_at, from.finishes_at);
     case Field::LastTriggered:
         return assign(to.last_triggered, from.last_triggered);
     case Field::Count:
@@ -204,6 +212,53 @@ memory::String display_value(const EntityState &state, const Tile &tile)
 std::string_view display_unit(const EntityState &state, const Tile &tile)
 {
     return tile.unit.empty() ? std::string_view(state.unit) : std::string_view(tile.unit);
+}
+
+float duration_seconds(std::string_view text)
+{
+    // "[D day[s], ]H:MM:SS[.ffffff]"
+    float days = 0;
+    const size_t comma = text.find(',');
+    if (comma != std::string_view::npos) {
+        const std::string_view head = text.substr(0, comma);
+        const auto [end, error] = std::from_chars(head.data(), head.data() + head.size(), days);
+        if (error != std::errc() || end == head.data()) {
+            return kUnknown;
+        }
+        text = text.substr(comma + 1);
+        while (!text.empty() && text.front() == ' ') {
+            text.remove_prefix(1);
+        }
+    }
+    float parts[3] = {0, 0, 0};
+    int count = 0;
+    while (count < 3) {
+        const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), parts[count]);
+        if (error != std::errc() || end == text.data()) {
+            return kUnknown;
+        }
+        count++;
+        text.remove_prefix(static_cast<size_t>(end - text.data()));
+        if (text.empty()) {
+            break;
+        }
+        if (text.front() != ':') {
+            return kUnknown;
+        }
+        text.remove_prefix(1);
+    }
+    if (count != 3 || !text.empty()) {
+        return kUnknown;
+    }
+    return days * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2];
+}
+
+memory::String duration_text(float seconds)
+{
+    const auto total = static_cast<long>(std::lround(std::fmax(seconds, 0.0f)));
+    char text[24];
+    std::snprintf(text, sizeof(text), "%ld:%02ld:%02ld", total / 3600, total / 60 % 60, total % 60);
+    return text;
 }
 
 std::string_view display_name(const EntityState &state, const Tile &tile, std::string_view entity_id)

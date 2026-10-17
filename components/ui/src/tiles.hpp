@@ -100,6 +100,17 @@ std::string temperature(float value);
 // the setpoint step of a climate: the entity's target_temp_step, else the tile's step, else 0.5
 float climate_step(const core::Tile &tile, const core::EntityState &state);
 
+// a timer entity (docs/ui/lvgl/lvgl-dashboard.md section 3): the state the screens show
+enum class TimerState : uint8_t { Active, Paused, Idle, Unknown };
+// the pending action's state, else the entity's
+TimerState timer_shown(const core::EntityState &state, const core::Expectation *pending);
+// The seconds left: a running timer counts down from finishes_at by the clock `now` (epoch
+// seconds; 0 while it is not set: the remaining time reported last), a paused one has the
+// remaining time it was paused with; the duration while neither is known. NaN when nothing is.
+float timer_left(const core::EntityState &state, int64_t now);
+// "29:07", "1:02:15" (never negative); "--:--" for NaN
+std::string timer_text(float seconds);
+
 // The moment `when` (epoch seconds) as the automation tile and panel show it: with_time
 // "Today 10:52", "Yesterday 18:12", "14 Oct 09:00"; without (the tile) "10:52" today, else the
 // day ("Yesterday", "14 Oct"). "Never" for 0. While the device's clock is not set, every day is a date.

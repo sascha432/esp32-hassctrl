@@ -110,6 +110,11 @@ const char *by_domain(std::string_view domain, const core::EntityState &state, b
     if (domain == "weather") {
         return core::condition_icon(core::condition_of(state.state));
     }
+    if (domain == "timer") {
+        // as the HA frontend: running, paused, idle
+        const std::string_view s = state.state;
+        return s == "active" ? "timer-outline" : s == "paused" ? "timer-pause-outline" : "timer-off-outline";
+    }
     return "home-assistant";
 }
 
