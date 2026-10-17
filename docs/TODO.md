@@ -1465,9 +1465,10 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       (`curl` without `--compressed` gets binary data). Browsers always accept gzip. Now 406
       without `Accept-Encoding: gzip` (your choice, 2026-10-14; `send_file` in webserver.cpp).
 
-- [ ] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
-      argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Worth
-      reporting to Espressif; `read_ota_partition` probably has the same problem.
+- [x] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
+      argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Cause:
+      `main()` passes the CLI arg as `input=`, but `_write_ota_partition()` takes `input_file`
+      (`components/app_update/otatool.py`). `read_ota_partition` is fine (`output` matches).
 - [x] ~~Size check against the recovery partition~~: with Wi-Fi the main firmware passed 1 MB
       (1.22 MB). ESP-IDF 6.1 only warns that 1 of 2 app partitions is too small and the build
       succeeds, so nothing blocks. The warning stays in the build output.
