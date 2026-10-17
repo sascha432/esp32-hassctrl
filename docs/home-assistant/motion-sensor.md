@@ -1,7 +1,8 @@
 # Motion sensor helper
 
 How to set up Home Assistant for the motion sensor of a panel: a PIR or radar on a GPIO of the
-board (the JC4880P443C: GPIO 34 of the expansion header; another board through `motion_gpio` in its
+board (the JC4880P443C: GPIO 34 of the expansion header, its kitchen variant a radar on GPIO 49;
+another board through `motion_gpio` in its
 variant, [adding-a-board.md](../adding-a-board.md) "Variants"). The panel does not create an entity
 of its own: it turns a toggle helper that you create, `input_boolean.<device>_motion`, on while it
 sees motion and off when it is clear (docs/architecture.md section 9.7b). Nothing is configured on
@@ -18,7 +19,7 @@ is `hassctrl-` and the last two bytes of the MAC address. It is shown:
 
 * on the panel: Settings → Hotspot, "Name";
 * in the web UI's address: `http://hassctrl-7e7d.local/`;
-* in the log when the helper is missing (section 4).
+* in the web UI's Home Assistant page, row "Motion helper", as the whole entity ID (section 4).
 
 ## 2. The toggle helper
 
@@ -31,8 +32,8 @@ Settings → Devices & services → Helpers → Create helper → Toggle:
 
 A toggle can be switched by anyone, so keep it out of the way once the binary sensor of section 6
 exists: in its entity settings turn "Visible" off (no auto-generated dashboards), and don't expose
-it to Assist (Settings → Voice assistants → Expose). Don't turn "Enabled" off: the panel could not
-switch a disabled helper.
+it to Assist (Settings → Voice assistants → Expose). Don't turn "Enabled" off: a disabled helper is
+missing for the panel (section 4).
 
 Or in `configuration.yaml` (section 6 says how to edit it; the key is the entity ID, the name is
 free):
@@ -48,7 +49,8 @@ A panel with a normal long-lived token may switch it; no other permission is nee
 
 ## 3. Check it
 
-On the panel's console (`python tools/build.py <board> -p COMx monitor`, or any serial terminal):
+The web UI's Home Assistant page shows the row "Motion helper" with the entity ID and no warning
+(section 4). On the panel's console (`python tools/build.py <board> -p COMx monitor`, or any serial terminal):
 
 ```
 motion detected
@@ -62,14 +64,27 @@ switch in its entity dialog.
 
 ## 4. When the helper is missing
 
-The panel logs once per connection:
+The panel asks Home Assistant for the helper on every connection and hears when it is created or
+removed. The web UI's Home Assistant page shows the answer in the row "Motion helper" (left out
+on a panel without a sensor):
+
+| Shown | Meaning |
+| --- | --- |
+| `input_boolean.hassctrl_7e7d_motion` | the helper is there; the panel switches it |
+| ... missing: create this toggle helper in Home Assistant | Home Assistant has no entity with that ID (also a disabled helper) |
+| ... not checked yet | the panel is not connected, or the answer is on its way |
+
+The log says the same, once each time the helper goes missing:
 
 ```
-W (...) hass: motion not published: ... (create the toggle helper input_boolean.hassctrl_7e7d_motion in Home Assistant)
+W (...) hass: motion helper missing: create the toggle helper input_boolean.hassctrl_7e7d_motion in Home Assistant
 ```
 
-That line also names the exact entity ID to create. After the helper exists, the next change of
-the sensor switches it; a reconnect (or a restart of the panel) switches it at once.
+Create it with exactly that entity ID (section 2). The panel sees it at once and sends the
+current state; no restart is needed.
+
+Switching a missing helper shows no error of its own: Home Assistant answers a call for an entity
+it does not have as done. That is why the panel asks for the helper instead.
 
 ## 5. How it behaves
 
@@ -78,6 +93,7 @@ the sensor switches it; a reconnect (or a restart of the panel) switches it at o
 | The sensor sees motion | on at once (the pin is read every 100 ms, two equal reads count) |
 | The sensor stops seeing motion | stays on for the hold time, then off; every new motion restarts the hold |
 | The panel connects to Home Assistant (start, reconnect) | the current state is sent again |
+| The helper is created (or enabled) while the panel is connected | the current state is sent at once |
 | Someone switches the toggle by hand | stays so until the sensor's next change or the next reconnect |
 | The panel is off or offline | keeps its last state: Home Assistant does not know the panel is gone |
 | Home Assistant restarts | the helper restores its last state; the panel sends the current one when it reconnects |

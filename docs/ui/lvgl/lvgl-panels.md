@@ -16,7 +16,7 @@ subscription carries the panel's fields as well (`hass_protocol::fields_of`). Co
 the sensor, the lock, the timer and the automation panel is `history_view.cpp`.
 
 ```
-landscape (480x320, 320x240)            portrait (320x480)
+landscape (480x320)                     portrait (320x480)
 +--------+------------------+----+      +----+---------------+----+
 |  back  | name             | on |      | <- | name          | on |
 +--------+------------------+----+      +----+---------------+----+
@@ -64,7 +64,7 @@ screen.
 
 ## 2. Light panel
 
-Carried over from `behavior.md` section 7 of the old firmware, fitted to 320x240.
+Carried over from `behavior.md` section 7 of the old firmware.
 
 | Part | Content | Touch |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ History                         [48 h][24 h][12 h]
 | header | the tile's icon (48 px; orange while an on/off entity is on), the name (16 px) above the live value (28 px, the tile's text) |
 | range buttons | 48, 24 and 12 hours, round 52x26 px, the selected one white; the panel opens with the range used last |
 | graph (statistics) | the 5 minute means of the long term statistics as a 2 px line in the accent color (`0x00ffff`), a bucket without a value is a gap; three value lines with round labels (steps of 1, 2, 2.5 or 5 times a power of ten) and the unit above them |
-| timeline (on/off) | a binary sensor, an entity whose state is one of two words (`core::on_off_words`: on/off, Detected/Clear as the motion helper `input_text.<device>_motion` reports, Occupied/Clear, Open/Closed, any case; the legend then uses those words), or a lock (section 5): a 40 px strip of the state changes, 16 px from the card's edges left and right, centered in the card above the time labels, the legend centered in the space above it (on orange, off `0x2b3844`, unknown/unavailable the background), each pixel column taking the most important state of its time, so a short motion stays visible; the hour lines run from the strip's bottom to the time labels (a time without history leaves the strip empty, a line through it would show); the legend in the words of the device class |
+| timeline (on/off) | a binary sensor, an entity whose state is one of two words (`core::on_off_words`: on/off, Detected/Clear, Occupied/Clear, Open/Closed, any case; the legend then uses those words), or a lock (section 5): a 40 px strip of the state changes, 16 px from the card's edges left and right, centered in the card above the time labels, the legend centered in the space above it (on orange, off `0x2b3844`, unknown/unavailable the background), each pixel column taking the most important state of its time, so a short motion stays visible; the hour lines run from the strip's bottom to the time labels (a time without history leaves the strip empty, a line through it would show); the legend in the words of the device class |
 | time axis | lines at whole local hours, 1 to 24 hours apart so the labels keep 44 px; `HH:00` under each line whose label fits in the card |
 | message | `Loading...`, `No statistics for this sensor`, `No values in this time`, or the error of the request (`The clock is not set yet`, `Not connected to Home Assistant`); a refresh that fails keeps the graph |
 
@@ -175,9 +175,7 @@ Added 2026-10-13 (your request: a tile and its details, no history). The panel o
 entity, tested with OpenWeatherMap (One Call 3.0, which has both forecasts). Like the sensor panel
 it has no options: the frame is the portrait one in both orientations. Code: `weather_panel.cpp`.
 
-**Not supported on the TTGO T4's 320x240** (decided 2026-10-13, your request): the rows do not
-fit above the forecast there (only "Feels like" does), and the T4 is a test device. The panel
-works on the WT32-SC01 (480x320), the JC3248W535 (320x480) and the JC4880P443C (dialog).
+The panel works on the WT32-SC01 (480x320), the JC3248W535 (320x480) and the JC4880P443C (dialog).
 
 ```
 +----+ (icon) Weather
@@ -248,7 +246,7 @@ lock panel: two buttons in the options choose the control (`timer-outline`) or t
 | --- | --- | --- |
 | countdown | the time left (`29:07`, `1:02:15`), counting down once a second from `finishes_at` by the device's clock while the timer runs (the remaining time reported last while the clock is not set), the remaining time while paused, the duration (muted) while idle; cyan while an action is on its way | |
 | state | `Ends at HH:MM` (orange) while it runs, `Paused`, `Idle`, `Unavailable` | |
-| duration | three rollers as the alarm's time (`theme::roller`): hours 0-23, minutes, seconds; the entity's `duration` (a longer one as 23:59:59), or the one the rollers chose (no color of its own: cyan meant nothing to you); three rows seen, one where the control has no room for three (320x240); a quick drag moves them up to 4x the finger, a fling 3x LVGL's throw (`theme::roller`) | a drag changes the duration of the next start; 0:00:00 turns Start off |
+| duration | three rollers as the alarm's time (`theme::roller`): hours 0-23, minutes, seconds; the entity's `duration` (a longer one as 23:59:59), or the one the rollers chose (no color of its own: cyan meant nothing to you); three rows seen; a quick drag moves them up to 4x the finger, a fling 3x LVGL's throw (`theme::roller`) | a drag changes the duration of the next start; 0:00:00 turns Start off |
 | Start | `play`, `restart` while it runs; the word is `Start` while idle, `Resume` while paused (a start resumes a paused timer with its rest), `Restart` while it runs (a start restarts it) | `timer.start`, with `duration` when the rollers changed it (`0:45:00`), else without (the entity's duration, or the rest of a paused timer); the chosen duration stays shown, as the countdown too (`Expectation::duration`), until Home Assistant reports it |
 | Pause | `pause`, only while it runs | `timer.pause` |
 | Cancel | `stop`, while it runs or is paused | `timer.cancel` |
@@ -259,9 +257,9 @@ A button the state does not allow is drawn at 40 % and does nothing. The expecte
 once (`core::Expectation` compares the state: `active`, `paused`, `idle`) until Home Assistant
 reports it. The rows are centered in the control; the countdown takes the largest digit font that
 leaves the buttons at least 36 px, the buttons grow up to 64 px (80 px in the P4's dialog) with
-the room that is left. Checked in the simulator at 480x320, 320x480, 320x240 and 480x800 (the
+the room that is left. Checked in the simulator at 480x320, 320x480 and 480x800 (the
 dialog); confirmed on the WT32-SC01 (2026-10-17). The rollers replaced the -/+ steppers on 2026-10-17
-(your request), checked in the simulator at 480x320, 320x480, 320x240 and 800x480.
+(your request), checked in the simulator at 480x320, 320x480 and 800x480.
 
 The tile and the panel read three attributes (`hass_protocol::kTimer`): `duration` and `remaining`
 as Home Assistant writes them (`0:30:00`, `1 day, 2:00:00`; `core::duration_seconds`) and
@@ -296,13 +294,12 @@ buttons in the options choose the control (`robot`, `script-text` for a script) 
 | --- | --- | --- |
 | Enabled | a card row with the theme's switch, 320 px wide at most; only for an automation (a script has no enabled state). The switch shows the expected state at once, the row's border is cyan while the action is on its way; at 40 % while the entity is unavailable | a tap anywhere on the row or on the switch: `automation.toggle` (the expected state `on`/`off`) |
 | Last triggered | the caption, and under it `last_triggered` as `Today 10:52`, `Yesterday 18:12` or `14 Oct 09:00` (`Never` while it never ran, `Unavailable`); while the device's clock is not set every day is a date | |
-| Run | a round button (64 px, 80 in the P4's dialog, down to 44 on the T4) with `play` and the word `Run actions` (an automation) or `Run script`; while a script runs, `stop` and `Stop`; at 40 % and dead while unavailable | `automation.trigger` with `skip_condition: true` (what "Run actions" in Home Assistant does: the actions run whatever the conditions say; a disabled automation runs too); `script.turn_on`, `script.turn_off` while it runs. A script expects `on` (cyan border until Home Assistant reports it, or the 5 s pass: a short script is off again before the next values come); an automation expects nothing, its tile shows the new time |
+| Run | a round button (64 px, 80 in the P4's dialog, at least 44) with `play` and the word `Run actions` (an automation) or `Run script`; while a script runs, `stop` and `Stop`; at 40 % and dead while unavailable | `automation.trigger` with `skip_condition: true` (what "Run actions" in Home Assistant does: the actions run whatever the conditions say; a disabled automation runs too); `script.turn_on`, `script.turn_off` while it runs. A script expects `on` (cyan border until Home Assistant reports it, or the 5 s pass: a short script is off again before the next values come); an automation expects nothing, its tile shows the new time |
 | timeline | `history_view` with the states: an automation's is whether it is enabled (`Enabled` orange, `Disabled`), a script's whether it runs (`Running`, `Idle`); not the runs of the automation (Home Assistant records those in the logbook, not as states) | the range buttons as in the sensor panel |
 
 The rows are centered in the control; the Run button takes the room that is left between 44 px
-and the stepper size. When the rows do not fit with the smallest button (the T4's 320x240) the
-compact rows are used: a 44 px Enabled row, the medium font for the time, 6 px gaps. Checked in
-the simulator at 480x320, 320x480, 320x240 and 480x800 (the dialog); the double tap of both tiles
+and the stepper size. Checked in
+the simulator at 480x320, 320x480 and 480x800 (the dialog); the double tap of both tiles
 drives `call_service` in the simulator. Confirmed working by you on the WT32-SC01 (2026-10-17).
 
 The tile and the panel read one attribute, `last_triggered`, rendered as epoch seconds like the

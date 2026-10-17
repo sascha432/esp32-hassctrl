@@ -20,15 +20,12 @@ using panel::set_text;
 enum class Mode : uint8_t { Control, History, Count };
 constexpr int kModes = static_cast<int>(Mode::Count);
 
-// the rows of the control: between them, the Enabled row's size and its padding; the compact
-// values when the rows do not fit the control with the smallest button (the T4's 320x240)
+// the rows of the control: between them, the Enabled row's size and its padding
 constexpr lv_coord_t kRowGap = 12;
-constexpr lv_coord_t kRowGapCompact = 6;
 constexpr lv_coord_t kEnabledWidth = 320;
 constexpr lv_coord_t kEnabledHeight = 52;
-constexpr lv_coord_t kEnabledHeightCompact = 44;
 constexpr lv_coord_t kEnabledPad = 16;
-// the Run button: at least this large (the T4 has little room)
+// the Run button: at least this large
 constexpr lv_coord_t kSmallestButton = 44;
 
 struct State {
@@ -129,23 +126,14 @@ void on_run(lv_event_t *event)
 
 // The rows of the control, centered in it: the Enabled row (an automation), the time of the
 // last run under its caption, the Run button with its word. The button takes the room that is
-// left, between kSmallestButton and the stepper size; when the rows do not fit even with the
-// smallest button, the rows are the compact ones (a lower Enabled row, the medium font, less gap).
+// left, between kSmallestButton and the stepper size.
 void build_control(lv_coord_t w, lv_coord_t h)
 {
     const lv_coord_t caption_h = lv_font_get_line_height(&t::font_small());
     const lv_coord_t word_h = lv_font_get_line_height(&t::font_small());
-    const auto rows_of = [&](bool compact) {
-        const lv_coord_t gap = compact ? kRowGapCompact : kRowGap;
-        const lv_coord_t enabled = g.script ? 0 : static_cast<lv_coord_t>((compact ? kEnabledHeightCompact : kEnabledHeight) + gap);
-        const lv_coord_t last_h = lv_font_get_line_height(compact ? &t::font_medium() : &t::font_large());
-        return static_cast<lv_coord_t>(enabled + caption_h + last_h + gap + word_h + 2 + gap);
-    };
-    const bool compact = rows_of(false) + kSmallestButton > h;
-    const lv_coord_t gap = compact ? kRowGapCompact : kRowGap;
-    const lv_coord_t enabled_h = compact ? kEnabledHeightCompact : kEnabledHeight;
-    const lv_font_t &last_font = compact ? t::font_medium() : t::font_large();
-    const lv_coord_t rows = rows_of(compact);
+    const lv_coord_t last_h = lv_font_get_line_height(&t::font_large());
+    const lv_coord_t enabled = g.script ? 0 : static_cast<lv_coord_t>(kEnabledHeight + kRowGap);
+    const auto rows = static_cast<lv_coord_t>(enabled + caption_h + last_h + kRowGap + word_h + 2 + kRowGap);
     const lv_coord_t button = std::clamp<lv_coord_t>(static_cast<lv_coord_t>(h - rows), kSmallestButton, panel::step_size(g.frame));
     const lv_coord_t total = static_cast<lv_coord_t>(rows + button);
     lv_coord_t y = std::max<lv_coord_t>(0, static_cast<lv_coord_t>((h - total) / 2));
@@ -154,13 +142,13 @@ void build_control(lv_coord_t w, lv_coord_t h)
         const lv_coord_t row_w = std::min<lv_coord_t>(kEnabledWidth, w);
         g.enabled = panel::card(g.control, {static_cast<lv_coord_t>((w - row_w) / 2), y,
                                             static_cast<lv_coord_t>((w - row_w) / 2 + row_w - 1),
-                                            static_cast<lv_coord_t>(y + enabled_h - 1)});
+                                            static_cast<lv_coord_t>(y + kEnabledHeight - 1)});
         lv_obj_add_event_cb(g.enabled, on_enabled_row, LV_EVENT_CLICKED, nullptr);
         lv_obj_t *label = t::label(g.enabled, "Enabled", t::font_normal(), t::kText);
         lv_obj_align(label, LV_ALIGN_LEFT_MID, kEnabledPad, 0);
         g.toggle = t::toggle(g.enabled, false, on_toggle);
         lv_obj_align(g.toggle, LV_ALIGN_RIGHT_MID, -kEnabledPad, 0);
-        y = static_cast<lv_coord_t>(y + enabled_h + gap);
+        y = static_cast<lv_coord_t>(y + kEnabledHeight + kRowGap);
     }
 
     g.caption = t::label(g.control, "Last triggered", t::font_small(), t::kTextLabel);
@@ -169,11 +157,11 @@ void build_control(lv_coord_t w, lv_coord_t h)
     lv_obj_set_pos(g.caption, 0, y);
     y = static_cast<lv_coord_t>(y + caption_h);
 
-    g.last = t::label(g.control, "", last_font, t::kText);
+    g.last = t::label(g.control, "", t::font_large(), t::kText);
     lv_obj_set_width(g.last, w);
     lv_obj_set_style_text_align(g.last, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_pos(g.last, 0, y);
-    y = static_cast<lv_coord_t>(y + lv_font_get_line_height(&last_font) + gap);
+    y = static_cast<lv_coord_t>(y + last_h + kRowGap);
 
     g.run = panel::step_button(g.control, static_cast<lv_coord_t>((w - button) / 2), y, button, "play", on_run);
     g.run_glyph = lv_obj_get_child(g.run, 0);
@@ -197,7 +185,7 @@ void update_control(const core::EntityState &s, const core::Expectation *pending
         } else {
             lv_obj_clear_state(g.toggle, LV_STATE_CHECKED);
         }
-        lv_obj_set_style_border_color(g.enabled, t::color(waiting ? panel::kPendingBorder : t::kBorder), 0);
+        lv_obj_set_style_border_color(g.enabled, t::color(waiting ? t::kAccent : t::kBorder), 0);
         lv_obj_set_style_opa(g.enabled, avail ? LV_OPA_COVER : LV_OPA_40, 0);
     }
     set_text(g.last, !s.known ? std::string("...") : !avail ? std::string("Unavailable") : tiles::when_text(s.last_triggered, true));
@@ -205,7 +193,7 @@ void update_control(const core::EntityState &s, const core::Expectation *pending
     const bool stop = g.script && on && avail;
     set_text(g.run_glyph, icons::glyph(stop ? "stop" : "play"));
     set_text(g.word, stop ? "Stop" : g.script ? "Run script" : "Run actions");
-    lv_obj_set_style_border_color(g.run, t::color(g.script && waiting ? panel::kPendingBorder : t::kBorder), 0);
+    lv_obj_set_style_border_color(g.run, t::color(g.script && waiting ? t::kAccent : t::kBorder), 0);
     if (avail) {
         lv_obj_clear_state(g.run, LV_STATE_DISABLED);
     } else {

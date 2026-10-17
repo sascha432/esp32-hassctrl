@@ -25,6 +25,8 @@ constexpr uint32_t kTextMuted = 0x4d6274;
 constexpr uint32_t kActive = 0xff8000;
 constexpr uint32_t kAlert = 0xff8000;
 constexpr uint32_t kError = 0xff0000;
+// cyan: an action on its way (the runner, a pending value; lvgl-dashboard.md section 4), the sensor graph
+constexpr uint32_t kAccent = 0x00ffff;
 // a lock in the tile, the panel and the timeline (your choice, 2026-10-11)
 constexpr uint32_t kLockUnlocked = 0x4caf50;
 constexpr uint32_t kLockLocked = kActive;

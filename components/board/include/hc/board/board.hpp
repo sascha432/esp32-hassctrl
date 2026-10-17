@@ -97,7 +97,7 @@ struct Info {
     // Relay n+1 is a module without its own pullup, closed while its input is high: open drain with
     // the internal pullup, closed (on) while the board starts instead of off.
     std::array<bool, 4> relay_pullup = {};
-    // A motion sensor (PIR) on this GPIO, -1: none. Its state goes to Home Assistant as
+    // A motion sensor (PIR or radar) on this GPIO, -1: none. Its state goes to Home Assistant as
     // input_boolean.<device>_motion, on or off (hc::motion, docs/architecture.md 9.7b).
     int8_t motion_gpio = -1;
     // the level of the sensor's output while it sees motion

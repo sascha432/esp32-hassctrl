@@ -34,7 +34,7 @@ constexpr const char *kActionWords[kActions] = {"Start", "Pause", "Cancel", "Fin
 // the rows of the control: between them, and between the rollers of the duration
 constexpr lv_coord_t kRowGap = 8;
 constexpr lv_coord_t kRollerGap = 4;
-// the round buttons: at least this large (the T4 has little room), this far apart at most
+// the round buttons: at least this large, this far apart at most
 constexpr lv_coord_t kSmallestButton = 36;
 constexpr lv_coord_t kWidestGap = 24;
 // the duration's rollers: hours, minutes, seconds (as the alarm's time)
@@ -163,8 +163,8 @@ void on_tick(lv_timer_t *)
 
 // The rows of the control, centered in it: the countdown, its state, the duration on three
 // rollers (hours, minutes, seconds), the action buttons with their words. The countdown takes the
-// largest digit font that leaves the buttons at least kSmallestButton with three rows of the
-// rollers seen, else with one; the buttons shrink to the room that is left.
+// largest digit font that leaves the buttons at least kSmallestButton; the buttons shrink to the
+// room that is left.
 void build_control(lv_coord_t w, lv_coord_t h)
 {
     const lv_coord_t status_h = lv_font_get_line_height(&t::font_normal());
@@ -180,24 +180,13 @@ void build_control(lv_coord_t w, lv_coord_t h)
     }
     const lv_font_t *font = &t::font_large();
     lv_coord_t button = kSmallestButton;
-    lv_coord_t roller_h = 0;
-    bool fits = false;
-    for (const uint8_t seen : {3, 1}) {
-        for (lv_obj_t *roller : g.rollers) {
-            lv_roller_set_visible_row_count(roller, seen);
-        }
-        roller_h = lv_obj_get_style_height(g.rollers[0], LV_PART_MAIN);
-        for (const lv_font_t *candidate : {&t::font_digits_72(), &t::font_digits_48(), &t::font_huge(), &t::font_large()}) {
-            const auto room = static_cast<lv_coord_t>(
-                h - (lv_font_get_line_height(candidate) + status_h + roller_h + word_h + 2 + 3 * kRowGap));
-            fits = room >= kSmallestButton;
-            if (fits || (seen == 1 && candidate == &t::font_large())) {
-                font = candidate;
-                button = std::clamp<lv_coord_t>(room, kSmallestButton, largest);
-                break;
-            }
-        }
-        if (fits) {
+    const lv_coord_t roller_h = lv_obj_get_style_height(g.rollers[0], LV_PART_MAIN);
+    for (const lv_font_t *candidate : {&t::font_digits_72(), &t::font_digits_48(), &t::font_huge(), &t::font_large()}) {
+        const auto room = static_cast<lv_coord_t>(
+            h - (lv_font_get_line_height(candidate) + status_h + roller_h + word_h + 2 + 3 * kRowGap));
+        if (room >= kSmallestButton || candidate == &t::font_large()) {
+            font = candidate;
+            button = std::clamp<lv_coord_t>(room, kSmallestButton, largest);
             break;
         }
     }
@@ -300,7 +289,7 @@ void update_control(const core::EntityState &s, const core::Expectation *pending
         }
     }
     set_text(g.countdown, count);
-    lv_obj_set_style_text_color(g.countdown, t::color(waiting ? panel::kPendingBorder : shown == TimerState::Idle ? t::kTextValue : t::kText), 0);
+    lv_obj_set_style_text_color(g.countdown, t::color(waiting ? t::kAccent : shown == TimerState::Idle ? t::kTextValue : t::kText), 0);
     set_text(g.status, status);
     lv_obj_set_style_text_color(g.status, t::color(shown == TimerState::Active ? t::kActive : t::kTextLabel), 0);
 

@@ -33,6 +33,9 @@ struct HassStatus {
     // empty: none
     char certificate[65];
     char refused_certificate[65];
+    // the motion sensor's helper: "" no sensor, unknown, missing, found; and its entity ID
+    const char *motion_helper;
+    char motion_entity[48];
 };
 
 // a Home Assistant instance found on the network

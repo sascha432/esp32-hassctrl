@@ -5,6 +5,7 @@
 //   POST /api/login        username, password, remember  sets the session cookie
 //   POST /api/logout                                     clears the cookie
 //   POST /api/logout-all                                 ends every session ("log out everywhere")
+//   POST /api/password     current, password             a new password for the user logged in
 
 #include <cstring>
 
@@ -132,6 +133,50 @@ esp_err_t post_logout_all(httpd_req_t *req)
     return post_logout(req);
 }
 
+// The user logged in sets a new password with the current one. set_user ends every session, this
+// browser gets a new one (not remembered: the old cookie's lifetime is not known here).
+esp_err_t post_password(httpd_req_t *req)
+{
+    char token[auth::kTokenSize];
+    char user[auth::kUsernameSize] = {};
+    size_t size = sizeof(token);
+    if (!auth::has_user() || httpd_req_get_cookie_val(req, kSessionCookie, token, &size) != ESP_OK ||
+        !auth::check_token(token, user)) {
+        return send_error(req, "401 Unauthorized", "login required");
+    }
+    // both passwords form encoded: up to 3 x 64 characters each
+    char body[512];
+    char current[auth::kMaxPassword + 1] = {};
+    char password[auth::kMaxPassword + 1] = {};
+    const bool read = read_body(req, body, sizeof(body)) && form_value(body, "current", current, sizeof(current)) &&
+                      form_value(body, "password", password, sizeof(password));
+    std::memset(body, 0, sizeof(body));
+    const size_t length = std::strlen(password);
+    const char *problem = !read                                                        ? "current and new password required"
+                          : length < auth::kMinPassword || length > auth::kMaxPassword ? "password: 8 to 64 characters"
+                                                                                       : nullptr;
+    if (problem == nullptr && !auth::check_password(user, current)) {
+        vTaskDelay(pdMS_TO_TICKS(kFailedLoginDelayMs));
+        problem = "the current password is wrong";
+    }
+    std::memset(current, 0, sizeof(current));
+    if (problem != nullptr) {
+        std::memset(password, 0, sizeof(password));
+        // not 401: the session is fine, the web UI would go to its login page
+        return send_error(req, "400 Bad Request", problem);
+    }
+    const esp_err_t stored = auth::set_user(user, password);
+    std::memset(password, 0, sizeof(password));
+    if (stored != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "the password could not be stored");
+    }
+    const bool logged_in = set_session_cookie(req, user, false);
+    char buffer[96];
+    JsonWriter json(buffer, sizeof(buffer));
+    json.begin_object().boolean("logged_in", logged_in).string("user", logged_in ? user : "").end_object();
+    return send_json(req, json);
+}
+
 } // namespace
 
 void register_session_routes(httpd_handle_t server)
@@ -142,6 +187,7 @@ void register_session_routes(httpd_handle_t server)
         {.uri = "/api/login", .method = HTTP_POST, .handler = post_login, .user_ctx = nullptr},
         {.uri = "/api/logout", .method = HTTP_POST, .handler = post_logout, .user_ctx = nullptr},
         {.uri = "/api/logout-all", .method = HTTP_POST, .handler = post_logout_all, .user_ctx = nullptr},
+        {.uri = "/api/password", .method = HTTP_POST, .handler = post_password, .user_ctx = nullptr},
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

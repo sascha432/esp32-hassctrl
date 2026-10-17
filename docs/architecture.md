@@ -27,7 +27,7 @@ Goals:
   entity states come from a sample file written by the agent, and a tap or drag changes those
   sample states, so the developer can click through pages, panels and controls to judge the
   look. LVGL 8.4 with LVGL's Windows driver, window sizes of the boards (480x320, 320x480,
-  320x240, later 640x480 and 480x800), a key to rotate.
+  640x480, 480x800), a key to rotate.
 * Adding a board touches one board directory and one Kconfig choice, nothing else.
 * LVGL 8.4 first, because the existing UI code is LVGL 8. LVGL 9 follows; once it works well,
   LVGL 8 support is removed (see section 7.1).
@@ -804,8 +804,9 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   (`dashboard.json`, proposal in section 5). The dashboard is edited in the web UI or imported
   as YAML. There is no file manager (decided).
 * **Export and import** of the settings are actions in the web UI, as YAML like the dashboard,
-  without secrets; an import may carry passwords added by hand. There is no automatic export
-  file (decided).
+  without secrets; an import may carry passwords added by hand. The password of a camera
+  stream's address (`http://user:password@host/`) stays in `dashboard.json`; the export leaves
+  it out (2026-10-17). There is no automatic export file (decided).
 * **Logs** are viewable in the web UI, with a debug mode that adds notice and info messages to the
   normal error log (decided; details later).
 * **SD card** (not implemented, no use decided yet). FAT through ESP-IDF's `fatfs` and
@@ -913,7 +914,7 @@ in the main firmware.
   files) with first setup, login, status, firmware and file system update by file or URL, the
   files as .zip, format, restart and "Start the firmware"; and the web UI from LittleFS when it
   is there, without Home Assistant, dashboard and backup (their routes are not registered: 404,
-  the pages say so or leave the card out). See [ui/web/web-recovery.md](ui/web/web-recovery.md).
+  the pages say so or leave the card out), with "Start the firmware" on its System page. See [ui/web/web-recovery.md](ui/web/web-recovery.md).
 * **Alternative**: compressed or delta OTA updates exist for ESP-IDF, but they need a custom
   bootloader or a patch component. The recovery app is simpler and also covers the recovery case.
 
@@ -1108,14 +1109,15 @@ the host name with `_` (`hassctrl-7e7d` is `input_boolean.hassctrl_7e7d_relay_1`
 
 ### 9.7b Motion sensor
 
-Component `motion` (2026-10-15): a PIR on a GPIO of the board (`Info::motion_gpio`, -1: none;
+Component `motion` (2026-10-15): a PIR or radar on a GPIO of the board (`Info::motion_gpio`, -1: none;
 `Info::motion_active_high`: the level of its output while it sees motion). The other way round
 from the relays: the device tells Home Assistant. It turns the toggle helper
 `input_boolean.<device>_motion` (`input_boolean.hassctrl_7e7d_motion`, the host name with `_`) on or
 off; the user creates the helper (Settings, Devices, Helpers, Toggle), nothing is configured on the
 device. No words of a language: a template binary sensor of device class motion on the helper (a UI
 helper of Home Assistant) shows Detected / Clear in HA's language (2026-10-17, was an input_text with
-`Detected` / `Clear`). The JC4880P443C: GPIO 34 of the expansion header, active low. Setup in Home
+`Detected` / `Clear`). The JC4880P443C: GPIO 34 of the expansion header, active low; its kitchen variant a radar on
+GPIO 49, active high. Setup in Home
 Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
 
 * **Pin**: an input with the internal pull toward the level that means clear (pull-down for an
@@ -1133,8 +1135,15 @@ Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
 * **Publishing**: a command of the hass task (`Motion`); the task remembers the last state, sends
   `input_boolean.turn_on` / `turn_off` (hass_protocol `motion_message`, `target.entity_id`) when it is
   connected and the state changed, and sends the last state again after every `auth_ok`, so the
-  helper follows the sensor across reconnects. A failed call (no such helper) is logged once per
-  connection with the entity id to create; the next change tries again. A normal token is enough.
+  helper follows the sensor across reconnects. A normal token is enough.
+* **Is the helper there** (2026-10-17): Home Assistant answers the call with success also for an
+  entity it does not have. So with the first state of a connection the task subscribes
+  `{{ states('input_boolean.<device>_motion') }}` (render_template, hass_protocol `motion_template`):
+  `unknown` is missing (logged once each time it goes missing, with the entity ID to create), a
+  helper that appears gets the current state at once. `hass::Status::motion_helper` (no sensor,
+  unknown, missing, found) and the entity ID go to `GET /api/hass` (`motion_helper`,
+  `motion_entity`) and the web UI's Home Assistant page ("Motion helper"). A call that fails all
+  the same (no permission) is logged once per connection.
 * Console `motion [status|detected|clear]`: the sensor's and the held state with the hold time, or a state sent by hand to try the helper
   without the sensor; the sensor's next change overrides it.
 * On the dashboard the tile goes on the template binary sensor: Detected / Clear by its device

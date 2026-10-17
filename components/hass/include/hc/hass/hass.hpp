@@ -50,8 +50,19 @@ enum class State : uint8_t {
 // "connected", "token rejected", ...
 const char *state_name(State state);
 
+// What Home Assistant has of the motion sensor's helper input_boolean.<device>_motion
+// (docs/architecture.md section 9.7b)
+enum class MotionHelper : uint8_t {
+    NoSensor, // no motion state published yet (the board has no sensor)
+    Unknown,  // not connected, or Home Assistant did not answer yet
+    Missing,  // no such entity: the user creates the toggle helper
+    Found,
+};
+
 struct Status {
     State state;
+    MotionHelper motion_helper;
+    char motion_entity[48]; // "input_boolean.hassctrl_7e7d_motion", empty with NoSensor
     // as stored: scheme, host and port ("http://homeassistant.local:8123")
     char url[kUrlSize];
     bool token_set;

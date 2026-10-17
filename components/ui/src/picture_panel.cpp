@@ -496,6 +496,9 @@ const char *reason(const core::Image &image, char *out, size_t size)
     case core::StreamProblem::Http:
         std::snprintf(out, size, "HTTP %d", image.http_status);
         return out;
+    case core::StreamProblem::Login:
+        // "login needed", "password missing" (an imported dashboard), "login rejected"
+        return image.error.c_str();
     case core::StreamProblem::Ended:
         return "ended";
     case core::StreamProblem::BrokeOff:

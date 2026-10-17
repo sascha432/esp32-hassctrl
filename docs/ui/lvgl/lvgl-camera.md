@@ -64,6 +64,14 @@ freed, the DMA may still use them.
 A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
 from the first frame of the stream instead of Home Assistant; full screen plays the stream.
 
+A stream with a login has it in its address, `http://user:password@host/...` (2026-10-17): the
+media task sends it as Basic auth (`CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH` in `sdkconfig.main`).
+The device keeps the whole address; the backup export leaves the password out (`http://user@host/`),
+so after an import the stream asks for it. A 401 is `core::StreamProblem::Login`, its reason
+"login needed" (no login in the address), "password missing" (the user alone) or "login
+rejected". A tile without a picture whose image failed (a login, a camera not reached) shows the
+camera struck through (`camera-off`) until an image comes.
+
 What the full screen view shows when the stream stops (decided by you 2026-10-12; the frame rate
 in the corner is gone, the media log has it every 5 s). The last picture stays under the alert
 strip ([lvgl-design.md](lvgl-design.md) section 8):
@@ -81,8 +89,8 @@ its server (your requirement, 2026-10-12). A connection that is not taken within
 restarting server answered nothing, and the connect waited 18 s); the answer and the data still
 get 30 s each (`kStreamConnectMs`, `kStreamTimeoutMs` in `media.cpp`). The media task tells the
 UI when the connection is up and the request sent (`core::Image::opened`). The
-reason is a word or two ("unreachable", "no answer", "HTTP 404", "ended", "broke off", "not
-MJPEG", "no memory", `core::StreamProblem`), the whole text is in the log. A zoom change asks the
+reason is a word or two ("unreachable", "no answer", "HTTP 404", "login needed", "ended", "broke
+off", "not MJPEG", "no memory", `core::StreamProblem`), the whole text is in the log. A zoom change asks the
 stream for the new size and changes nothing in the strip. The Windows version plays this with
 `--do "stream down"` / `"stream up"` (a down server fails a try after 5 s, an up one sends the
 first frame 4 s after the connection). Full screen waits 30 s for the stream's answer (go2rtc

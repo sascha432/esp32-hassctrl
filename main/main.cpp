@@ -224,6 +224,23 @@ const char *hass_state_key(hc::hass::State state)
     return "?";
 }
 
+// the motion sensor's helper for the web UI; "" without a sensor
+const char *motion_helper_key(hc::hass::MotionHelper helper)
+{
+    using hc::hass::MotionHelper;
+    switch (helper) {
+    case MotionHelper::NoSensor:
+        return "";
+    case MotionHelper::Unknown:
+        return "unknown";
+    case MotionHelper::Missing:
+        return "missing";
+    case MotionHelper::Found:
+        return "found";
+    }
+    return "?";
+}
+
 // the picker's answer into a buffer of the large heap, which the web server frees
 char *hass_answer(bool ok, const hc::memory::String &json, const hc::memory::String &problem, size_t &length,
                   char *error, size_t error_size)
@@ -254,6 +271,8 @@ const hc::webserver::HassAccess kHassAccess{
             out.connected_s = s.connected_s;
             snprintf(out.certificate, sizeof(out.certificate), "%s", s.certificate);
             snprintf(out.refused_certificate, sizeof(out.refused_certificate), "%s", s.refused_certificate);
+            out.motion_helper = motion_helper_key(s.motion_helper);
+            snprintf(out.motion_entity, sizeof(out.motion_entity), "%s", s.motion_entity);
         },
     .set = hc::hass::set_config,
     .reconnect = hc::hass::reconnect,

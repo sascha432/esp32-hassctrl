@@ -460,11 +460,29 @@ struct Session {
     int8_t motion = -1;
     uint32_t motion_id = 0;
     bool motion_failed = false;
+    // the render_template subscription that tells whether the helper exists (0: none), and what it
+    // said last: -1 nothing yet, 0 missing, 1 there
+    uint32_t motion_watch_id = 0;
+    int8_t motion_helper = -1;
     PendingCall calls[kMaxCalls] = {};
     size_t next_call = 0;
 };
 
 Session s;
+
+// the session's view of the motion helper into the status
+void update_motion_status()
+{
+    const MotionHelper helper = s.motion < 0             ? MotionHelper::NoSensor
+                                : s.motion_helper < 0    ? MotionHelper::Unknown
+                                : s.motion_helper == 0   ? MotionHelper::Missing
+                                                         : MotionHelper::Found;
+    const memory::String entity =
+        helper == MotionHelper::NoSensor ? memory::String() : hass_protocol::motion_entity_id(platform::device_name());
+    std::lock_guard lock(g_mutex);
+    g_status.motion_helper = helper;
+    std::snprintf(g_status.motion_entity, sizeof(g_status.motion_entity), "%s", entity.c_str());
+}
 
 void set_state(State state, const char *error = nullptr)
 {
@@ -674,6 +692,9 @@ void close_connection()
     s.relays = {};
     s.motion_id = 0;
     s.motion_failed = false;
+    s.motion_watch_id = 0;
+    s.motion_helper = -1;
+    update_motion_status();
     for (PendingCall &call : s.calls) {
         if (call.id != 0) {
             report_failed(call.entity, "the connection to Home Assistant broke");
@@ -846,17 +867,48 @@ void subscribe_relays()
     }
 }
 
-// the motion sensor's state to Home Assistant's helper, when connected and there is one
+// the motion sensor's state to Home Assistant's helper, when connected and there is one; the first
+// one on a connection also subscribes the template that tells whether the helper exists
 void send_motion()
 {
     if (!s.authenticated || s.motion < 0) {
         return;
+    }
+    if (s.motion_watch_id == 0) {
+        s.motion_watch_id = s.next_id++;
+        if (!send_text(hass_protocol::render_template_message(s.motion_watch_id,
+                                                              hass_protocol::motion_template(platform::device_name())))) {
+            retry_later("the motion helper subscription could not be sent");
+            return;
+        }
     }
     s.motion_id = s.next_id++;
     const bool occupied = s.motion != 0;
     ESP_LOGI(kTag, "motion -> %s", occupied ? "on" : "off");
     if (!send_text(hass_protocol::motion_message(s.motion_id, platform::device_name(), occupied))) {
         retry_later("the motion state could not be sent");
+    }
+}
+
+// a state of the motion helper's template: a missing helper is logged with the entity ID to create,
+// once each time it goes missing; a helper that appears gets the current state at once
+void on_motion_helper_event(const cJSON *root)
+{
+    const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
+    if (const char *error = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "error"))) {
+        ESP_LOGW(kTag, "motion helper template: %s", error);
+        return;
+    }
+    const bool exists = hass_protocol::motion_helper_exists(cJSON_GetObjectItemCaseSensitive(event, "result"));
+    const int8_t before = s.motion_helper;
+    s.motion_helper = exists ? 1 : 0;
+    update_motion_status();
+    if (!exists && before != 0) {
+        ESP_LOGW(kTag, "motion helper missing: create the toggle helper %s in Home Assistant",
+                 hass_protocol::motion_entity_id(platform::device_name()).c_str());
+    } else if (exists && before == 0) {
+        ESP_LOGI(kTag, "motion helper found");
+        send_motion();
     }
 }
 
@@ -1005,6 +1057,7 @@ void on_command(Command &command)
         const int8_t state = motion->occupied ? 1 : 0;
         if (state != s.motion) {
             s.motion = state;
+            update_motion_status();
             send_motion();
         }
         return;
@@ -1064,6 +1117,10 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         on_relay_event(root);
         return;
     }
+    if (std::strcmp(type, "event") == 0 && id == s.motion_watch_id && s.motion_watch_id != 0) {
+        on_motion_helper_event(root);
+        return;
+    }
     QueryState &q = s.query;
     if (std::strcmp(type, "event") == 0 && id == q.id && q.id != 0) {
         const cJSON *event = cJSON_GetObjectItemCaseSensitive(root, "event");
@@ -1112,13 +1169,20 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
         }
         return;
     }
+    if (id == s.motion_watch_id && s.motion_watch_id != 0) {
+        if (!success) {
+            s.motion_watch_id = 0;
+            ESP_LOGW(kTag, "motion helper not watched: %s", message != nullptr ? message : "refused");
+        }
+        return;
+    }
     if (id == s.motion_id && s.motion_id != 0) {
         s.motion_id = 0;
+        // a missing helper is not an error here (Home Assistant answers success); the template
+        // above reports it. Once per connection; the next change of the sensor tries again.
         if (!success && !s.motion_failed) {
-            // once per connection; the next change of the sensor tries again
             s.motion_failed = true;
-            ESP_LOGW(kTag, "motion not published: %s (create the toggle helper %s in Home Assistant)",
-                     message != nullptr ? message : "refused", hass_protocol::motion_entity_id(platform::device_name()).c_str());
+            ESP_LOGW(kTag, "motion not published: %s", message != nullptr ? message : "refused");
         }
         return;
     }

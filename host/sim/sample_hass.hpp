@@ -56,5 +56,7 @@ void set_forecast_mode(ForecastMode mode);
 // The stream's server: down ends the stream that plays ("ended") and refuses new ones
 // ("unreachable"); up answers them again (the first frame 1.5 s after the answer).
 void set_stream_server(bool up);
+// the stream's server answers 401 from now on (StreamProblem::Login, "login needed")
+void set_stream_login(bool login);
 
 } // namespace sim

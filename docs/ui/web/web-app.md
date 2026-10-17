@@ -98,6 +98,11 @@ other side is not told (decided).
   needed.
 * **Anything that changes ends all tokens** (decided): the username, the password, or a counter
   stored in NVS. The counter is increased by "log out everywhere" in the menu.
+* **Change the password** (2026-10-17): System, card "Password": the current password, the new one
+  twice (8 to 64 characters). `POST /api/password` (`current`, `password`, the login of the
+  session): a wrong current password waits 1 s and answers 400 (not 401, which would send the web
+  UI to its login page). Every other session ends; the browser that changed it gets a new session
+  cookie, not remembered. The username stays (a new one: the reset on the screen or a `webui:` file).
 * **From a file** (2026-10-12): a `webui:` section with `user` and `password` in the backup file or
   in a dashboard import's `hass.yaml` replaces the login (same rules as the setup page; every
   session ends, the browser that imported signs in again). Import only: the device stores a
@@ -140,8 +145,10 @@ Running since 2026-10-07 (`components/hass`, `api_hass.cpp`, the `ha` view of `w
   fingerprint with **Forget**. A new address forgets it. If the server presents a different
   certificate later, the problem reads "the server's certificate changed" and the new
   fingerprint is offered.
+* A board with a motion sensor: the row "Motion helper" with `input_boolean.<device>_motion`, and
+  "missing" when Home Assistant has no such entity ([motion-sensor.md](../../home-assistant/motion-sensor.md) section 4).
 * API: `GET /api/hass` (also `certificate` and `refused_certificate`, SHA-256 as hex, empty:
-  none), `POST /api/hass` (`url`, `token`; an empty token keeps the stored one, an empty url
+  none; `motion_helper`: empty without a sensor, `unknown`, `missing`, `found`, and `motion_entity`), `POST /api/hass` (`url`, `token`; an empty token keeps the stored one, an empty url
   removes both), `POST /api/hass/reconnect`, `POST /api/hass/certificate` (`fingerprint`, 64 hex
   digits, colons allowed; empty forgets it), `GET /api/hass/discover`, and for the
   dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`

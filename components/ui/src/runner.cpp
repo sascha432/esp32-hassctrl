@@ -3,11 +3,12 @@
 #include <algorithm>
 #include <cmath>
 
+#include "theme.hpp"
+
 namespace hc::ui::runner {
 
 namespace {
 
-constexpr uint32_t kColor = 0x00ffff;
 // the dot runs this many pixels a second, the same speed on every size of card
 constexpr int32_t kSpeed = 220;
 // the tail: this many dots behind the head, this far apart, fading out
@@ -227,7 +228,7 @@ void on_draw(lv_event_t *event)
     }
     lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(event);
     const Track path = track_of(obj, outline_of(obj));
-    const lv_color_t color = lv_color_hex(kColor);
+    const lv_color_t color = lv_color_hex(theme::kAccent);
     // the tail from its end, so the dots nearer the head lie over the others
     for (int i = kTailDots; i >= 1; i--) {
         const auto opa = static_cast<lv_opa_t>(200 * (kTailDots + 1 - i) / (kTailDots + 1));

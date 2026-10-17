@@ -211,6 +211,23 @@ struct Connection {
 // the UI learns that a stream is connected and waits for its answer (defined below)
 void stream_connected(const Request &request);
 
+// The login in a stream's address (http://user:password@host/...): none, the user alone (an
+// imported dashboard: the export leaves the password out), or both
+enum class UrlLogin : uint8_t { None, UserOnly, Both };
+
+UrlLogin url_login(std::string_view url)
+{
+    const size_t scheme = url.find("://");
+    const size_t start = scheme == std::string_view::npos ? 0 : scheme + 3;
+    const size_t end = std::min(url.find('/', start), url.size());
+    const size_t at = url.rfind('@', end);
+    if (at == std::string_view::npos || at < start) {
+        return UrlLogin::None;
+    }
+    const size_t colon = url.find(':', start);
+    return colon < at && colon + 1 < at ? UrlLogin::Both : UrlLogin::UserOnly;
+}
+
 // Opens a GET of `url` and reads its headers; false with `error` set unless the answer is 200.
 // `authorize`: with the token of Home Assistant. `connect_ms` (0: `timeout_ms`): the connection
 // itself; the answer then gets `timeout_ms`. `announce`: the stream whose UI is told once the
@@ -225,6 +242,12 @@ bool open(Context &ctx, Connection &c, const char *url, bool authorize, int time
     // the token goes into a header longer than the default send buffer
     config.buffer_size_tx = 1024;
     config.user_agent = "hassctrl";
+    // esp_http_client takes user and password from the address, but sends them only with Basic
+    // auth set: open() does not answer a 401 the way perform() does
+    const UrlLogin login = authorize ? UrlLogin::None : url_login(url);
+    if (login != UrlLogin::None) {
+        config.auth_type = HTTP_AUTH_TYPE_BASIC;
+    }
     c.client = esp_http_client_init(&config);
     if (c.client == nullptr) {
         std::snprintf(error, error_size, "no memory for the request");
@@ -255,6 +278,15 @@ bool open(Context &ctx, Connection &c, const char *url, bool authorize, int time
         return false;
     }
     const int status = esp_http_client_get_status_code(c.client);
+    if (status == 401 && !authorize) {
+        // the screen shows these words: a stream of its own wants a login
+        std::snprintf(error, error_size, "%s", login == UrlLogin::None       ? "login needed"
+                                               : login == UrlLogin::UserOnly ? "password missing"
+                                                                             : "login rejected");
+        c.problem = core::StreamProblem::Login;
+        c.status = status;
+        return false;
+    }
     if (status != 200) {
         std::snprintf(error, error_size, status == 401 ? "the token was rejected" : "HTTP %d", status);
         c.problem = core::StreamProblem::Http;

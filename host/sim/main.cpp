@@ -425,6 +425,8 @@ bool run_step(const std::string &step)
     } else if (verb == "info") {
         // a progress message that stays, as the camera view shows "Loading stream ..."
         ui::overlay::show((LV_SYMBOL_REFRESH "  " + argument).c_str(), ui::theme::kTextValue, 0);
+    } else if (verb == "stream" && argument == "login") {
+        sim::set_stream_login(true);
     } else if (verb == "stream") {
         if (argument != "up" && argument != "down") {
             std::fprintf(stderr, "stream needs up or down\n");
@@ -483,8 +485,8 @@ void usage()
     std::puts(
         "hassctrl simulator: the screens on the PC, with sample data (docs/architecture.md section 1)\n"
         "\n"
-        "  --size WxH|name      window size at rotation 0: 480x320 (default), 320x480, 320x240, 640x480,\n"
-        "                       480x800; or wt32, jc3248, t4, vga, p4 (p4 and 480x800: pages\n"
+        "  --size WxH|name      window size at rotation 0: 480x320 (default), 320x480, 640x480, 480x800;\n"
+        "                       or wt32, jc3248, vga, p4 (p4 and 480x800: pages\n"
         "                       slide, panels are dialogs, large fonts, like on the JC4880P443C)\n"
         "  --zoom N             every display pixel as N x N window pixels (default 1)\n"
         "  --dashboard FILE     the hass.yaml to show (default docs/dashboard-sample/hass.yaml); the\n"
@@ -501,6 +503,7 @@ void usage()
         "                         alert TEXT (an event message in the alert strip, 5 s)\n"
         "                         info TEXT (a progress message in the alert strip that stays)\n"
         "                         stream down|up (the stream's server ends and refuses streams, or answers again)\n"
+        "                         stream login (the stream's server answers 401, also for a tile's first frame)\n"
         "                         forecast ok|loading|error (how the next forecast subscription answers)\n"
         "                         tap TEXT (a label on the screen) | tap X,Y | doubletap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
@@ -537,7 +540,6 @@ bool parse_size(const char *text, Options &o, char *board, size_t board_size)
     static const Preset presets[] = {
         {"wt32", 480, 320, "WT32-SC01", {}},
         {"jc3248", 320, 480, "JC3248W535", {}},
-        {"t4", 320, 240, "TTGO T4", {}},
         {"vga", 640, 480, "640x480 panel", {}},
         {"p4", 480, 800, "JC4880P443C", {.slide_pages = true, .panel_dialogs = true, .large_fonts = true, .tile_gap = 7}},
     };

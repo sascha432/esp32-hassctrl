@@ -380,6 +380,27 @@ TEST(config_keeps_the_stream_of_a_camera)
     check_round_trips(imported->layout);
 }
 
+TEST(config_exports_a_stream_without_its_password)
+{
+    FileSet files;
+    files.add("hass.yaml", "tiles:\n"
+                           "  - entity: camera.a\n"
+                           "    stream: http://viewer:s3cr@t@192.168.0.62:1984/api/stream.mjpeg?src=a\n"
+                           "  - entity: camera.b\n"
+                           "    stream: http://viewer@192.168.0.62/x\n"
+                           "  - entity: camera.c\n"
+                           "    stream: http://192.168.0.62:1984/a@b\n");
+    const auto imported = hc::config::import_yaml(files.view(), "hass.yaml");
+    REQUIRE(imported.has_value());
+    // the device keeps the login, only the export drops the password
+    CHECK(imported->layout.tiles[0].stream == "http://viewer:s3cr@t@192.168.0.62:1984/api/stream.mjpeg?src=a");
+    const std::string yaml(hc::config::write_yaml(imported->layout));
+    CHECK(yaml.find("s3cr") == std::string::npos);
+    CHECK(yaml.find("http://viewer@192.168.0.62:1984/api/stream.mjpeg?src=a") != std::string::npos);
+    CHECK(yaml.find("http://viewer@192.168.0.62/x") != std::string::npos);
+    CHECK(yaml.find("http://192.168.0.62:1984/a@b") != std::string::npos);
+}
+
 TEST(config_checks_the_main_file)
 {
     FileSet list_only;

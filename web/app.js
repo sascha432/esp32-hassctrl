@@ -436,6 +436,13 @@ function hassFacts(h) {
   rows.push(["Address", esc(h.url || "-")], ["Version", esc(h.version || "-")]);
   if (h.state === "connected" && h.connected_s !== undefined) rows.push(["Connected for", duration(h.connected_s)]);
   if (h.certificate) rows.push(["Certificate", "self-signed, trusted on this device"]);
+  // a board with a motion sensor: its toggle helper (docs/home-assistant/motion-sensor.md)
+  if (h.motion_helper) {
+    const entity = `<code>${esc(h.motion_entity)}</code>`;
+    rows.push(["Motion helper", h.motion_helper === "found" ? entity
+      : h.motion_helper === "missing" ? `${entity} <span class="text-danger">missing: create this toggle helper in Home Assistant</span>`
+      : `${entity} <span class="text-body-secondary small">not checked yet</span>`]);
+  }
   return facts(rows);
 }
 // a SHA-256 the way browsers show it: AB:CD:...
@@ -935,6 +942,13 @@ const views = {
           <button id="backup-import" class="btn btn-primary" type="button">Import</button>
         </div>
         <div id="backup-report" class="mt-3"></div>`)) +
+      (session.logged_in ? card("Password", `
+        <p class="small text-body-secondary">The password of the web UI login <code>${esc(session.user)}</code>. Every other
+          browser is logged out; this one stays logged in until it is closed.</p>
+        <input id="pw-current" type="password" class="form-control mb-2" placeholder="Current password" autocomplete="current-password">
+        <input id="pw-new" type="password" class="form-control mb-2" placeholder="New password, 8 to 64 characters" autocomplete="new-password">
+        <input id="pw-repeat" type="password" class="form-control mb-2" placeholder="New password again" autocomplete="new-password">
+        <div class="d-flex justify-content-end"><button id="pw-go" class="btn btn-primary" type="button">Change password</button></div>`) : "") +
       card("Update", `
         <label class="form-label" for="fw-file">Firmware image</label>
         <input id="fw-file" type="file" class="form-control mb-2" accept=".bin">
@@ -955,11 +969,22 @@ const views = {
       card("Restart and reset", `
         <div class="d-flex gap-2 flex-wrap">
           <button id="restart" class="btn btn-outline-secondary" type="button">Restart</button>
+          ${recovery && u.firmware_present ? '<button id="to-firmware" class="btn btn-outline-secondary" type="button">Start the firmware</button>' : ""}
           <button id="reset" class="btn btn-outline-danger ms-auto" type="button">Factory reset</button>
         </div>`));
     if (!recovery) {
       $("#backup-check").onclick = (e) => busy(e.target, () => importBackup(true));
       $("#backup-import").onclick = (e) => busy(e.target, () => importBackup(false));
+    }
+    if ($("#pw-go")) {
+      $("#pw-go").onclick = (e) => busy(e.target, async () => {
+        const current = $("#pw-current").value, password = $("#pw-new").value;
+        if (password.length < 8 || password.length > 64) throw new Error("the new password needs 8 to 64 characters");
+        if (password !== $("#pw-repeat").value) throw new Error("the two new passwords differ");
+        await api("/api/password", { current, password });
+        for (const id of ["#pw-current", "#pw-new", "#pw-repeat"]) $(id).value = "";
+        toast("password changed, other browsers are logged out");
+      });
     }
     $("#fw-go").onclick = (e) => busy(e.target, () => runUpdate("firmware"));
     $("#fs-go").onclick = (e) => busy(e.target, () => runUpdate("filesystem"));
@@ -974,6 +999,15 @@ const views = {
       await api("/api/restart", {});
       toast("restarting ...");
     });
+    if ($("#to-firmware")) {
+      // back from the recovery app; the page then shows the firmware's System page
+      $("#to-firmware").onclick = (e) => busy(e.target, async () => {
+        await api("/api/restart", { to: "firmware" });
+        toast("starting the firmware ...");
+        await waitForApp("main");
+        location.reload();
+      });
+    }
     $("#reset").onclick = (e) => busy(e.target, async () => {
       if (!confirm("Factory reset? All settings, Wi-Fi networks and the web UI login are deleted.")) return;
       if (!confirm("Really? The device starts like new, with its hotspot.")) return;

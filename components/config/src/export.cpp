@@ -2,6 +2,8 @@
 // the backup (docs/architecture.md section 5, "YAML import and export"). The import reads it back
 // to the same layout; ids are not written, the import gives new ones in the same order.
 
+#include <algorithm>
+
 #include "hc/config/dashboard.hpp"
 #include "hc/formats/yaml.hpp"
 #include "values.hpp"
@@ -13,6 +15,26 @@ namespace {
 using core::Tile;
 using core::TileIndex;
 using core::TileKind;
+
+// A stream's address without the password of its login: http://user:secret@host/ becomes
+// http://user@host/. No secrets in an export; after an import the stream says "password missing".
+memory::String without_password(std::string_view url)
+{
+    const size_t scheme = url.find("://");
+    const size_t start = scheme == std::string_view::npos ? 0 : scheme + 3;
+    const size_t end = std::min(url.find('/', start), url.size());
+    const size_t at = url.rfind('@', end);
+    if (at == std::string_view::npos || at < start) {
+        return memory::String(url);
+    }
+    const size_t colon = url.find(':', start);
+    if (colon == std::string_view::npos || colon > at) {
+        return memory::String(url);
+    }
+    memory::String out(url.substr(0, colon));
+    out += url.substr(at);
+    return out;
+}
 
 class Writer {
 public:
@@ -117,7 +139,7 @@ private:
             put("refresh", text);
         }
         if (!tile.stream.empty()) {
-            put("stream", formats::yaml::quote(tile.stream));
+            put("stream", formats::yaml::quote(without_password(tile.stream)));
         }
         if (tile.hours12) {
             put("hours", "12");

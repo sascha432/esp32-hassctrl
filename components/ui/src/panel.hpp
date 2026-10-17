@@ -94,9 +94,6 @@ inline lv_coord_t step_size(const Frame &frame)
 }
 // holding a stepper steps this often (the touch repeats every 100 ms, too fast to stop on a value)
 constexpr uint32_t kStepRepeatMs = 250;
-// the color of an action on its way (docs/ui/lvgl/lvgl-dashboard.md section 4; cards show runner.hpp)
-constexpr uint32_t kPendingBorder = 0x00ffff;
-
 // a card of the panel in `area`, pressed a shade lighter
 lv_obj_t *card(lv_obj_t *parent, const lv_area_t &area);
 

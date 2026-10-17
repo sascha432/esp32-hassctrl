@@ -201,8 +201,17 @@ bool decode_relays(const cJSON *result, RelayStates &out);
 // "input_boolean.hassctrl_7e7d_motion" for "hassctrl-7e7d"
 memory::String motion_entity_id(std::string_view device_name);
 
-// The call_service message that switches the helper: input_boolean.turn_on or turn_off.
+// The call_service message that switches the helper: input_boolean.turn_on or turn_off. Home
+// Assistant answers success also when the helper does not exist; motion_template tells.
 memory::String motion_message(uint32_t id, std::string_view device_name, bool detected);
+
+// {{ states('input_boolean.hassctrl_7e7d_motion') }}: subscribed with render_template, it renders
+// again when the helper is created or removed.
+memory::String motion_template(std::string_view device_name);
+
+// Whether the helper exists, from the `result` of that template: Home Assistant renders "unknown"
+// for an entity it does not have (a toggle is on or off, also a restored one).
+bool motion_helper_exists(const cJSON *result);
 
 // The path of the answer to it ({"url": "http://.../api/tts_proxy/x.mp3", "path": "/api/..."});
 // the device fetches it from its own address of Home Assistant, not from the one HA thinks it has.

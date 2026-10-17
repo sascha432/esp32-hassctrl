@@ -83,8 +83,6 @@ Sizes sizes = sizes_now();
 
 // unknown is a hole in the card; on, off and a problem have the colors of the Legend
 constexpr uint32_t kColorUnknown = t::kBackground;
-// the curve, in the accent color of the old firmware
-constexpr uint32_t kColorCurve = 0x00ffff;
 
 // the states of a column of the strip
 enum : int8_t { kNone = -1, kOff = 0, kOn = 1, kUnknownState = 2, kProblemState = 3 };
@@ -545,7 +543,7 @@ void build_card(lv_obj_t *parent, const lv_area_t &area)
         // the point count is set before the series: LVGL 8.4 leaves the x points of a line series
         // unset, a series is never removed (lv_chart_remove_series would free them)
         lv_chart_set_point_count(g.chart, static_cast<uint16_t>(hours() * 3600 / kBucketSeconds));
-        g.series = lv_chart_add_series(g.chart, t::color(kColorCurve), LV_CHART_AXIS_PRIMARY_Y);
+        g.series = lv_chart_add_series(g.chart, t::color(t::kAccent), LV_CHART_AXIS_PRIMARY_Y);
         lv_chart_set_all_value(g.chart, g.series, LV_CHART_POINT_NONE);
         set_hidden(g.chart, true);
     } else {

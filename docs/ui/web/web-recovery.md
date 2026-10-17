@@ -24,7 +24,8 @@ system has happened on earlier devices, mostly with the files still readable. So
 * **In the recovery app** (2026-10-12): the same rules, `/` serves the web UI from LittleFS when
   it is there. Its Home Assistant and Dashboard pages say "not in the recovery app", the System
   page has no Backup card; Status, Wi-Fi, Hotspot, Logs, update, files, format, restart and
-  factory reset work. "Start the firmware" is only on the built-in page (`/recovery`).
+  factory reset work. "Start the firmware" is on the built-in page (`/recovery`) and, since
+  2026-10-17, on the System page (Restart and reset) when a firmware is in flash.
 * **No automatic format** (decided): a LittleFS that fails to mount starts the recovery mode
   instead of being formatted, so files that are still readable can be exported first. Only a
   partition without any LittleFS (new device, leftovers of another firmware) is formatted.

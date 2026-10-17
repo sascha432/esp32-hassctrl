@@ -30,8 +30,9 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   hourly forecast). A double tap on a switch opens its timeline, on a light that dims the light
   panel; a double tap on a lock locks or unlocks it, on a timer starts or cancels it, on an
   automation or a script runs it.
-- Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant), a full
-  screen live view that comes back by itself after a dropped stream.
+- Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant; a login in
+  its address, left out of the export), a full screen live view that comes back by itself after a
+  dropped stream.
 - Edit mode on the screen: long press, drag tiles around, remove them, per orientation; a "+" on
   every free cell adds a tile (entity found by a search in Home Assistant), an area or a clock;
   a tap on a tile changes its title, entity and options.
@@ -51,7 +52,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
-  reported to Home Assistant, held on for 1 to 60 min after the last motion. Both found by the device's name, no setup (see "Supported hardware").
+  reported to Home Assistant, held on for 1 to 60 min after the last motion; the web UI shows a missing helper. Both found by the device's name, no setup (see "Supported hardware").
 
 **Setup and network**
 
@@ -64,7 +65,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 - Status, Home Assistant (URL, token, connection test), Wi-Fi, hotspot, camera, the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
-  a debug mode and a width to drag, system (backup export and import, updates, restart, factory reset). Plain HTTP
+  a debug mode and a width to drag, system (backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.
 
 **Updates and recovery**
@@ -74,8 +75,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   not confirm itself is rolled back.
 - A recovery app in its own partition with the same Wi-Fi, hotspot and login, a web page built
   into it and a text screen; 4 MB boards update through it.
-- Settings in NVS, secrets never in a file that can be downloaded; the dashboard and the web
-  files on LittleFS.
+- Settings in NVS, secrets never in a file that can be downloaded (a camera stream's login
+  sits in the dashboard file, the export leaves it out); the dashboard and the web files on LittleFS.
 
 **Development**
 
@@ -168,7 +169,7 @@ after the icon list of `core` changed; commit the output, then flash the firmwar
 
 ```powershell
 python tools/sim.py                          # build and open the window (480x320)
-python tools/sim.py --size 320x480 --zoom 2  # a board's size (wt32, jc3248, t4, vga, p4), 2x pixels
+python tools/sim.py --size 320x480 --zoom 2  # a board's size (wt32, jc3248, vga, p4), 2x pixels
 python tools/sim.py --scenario hotspot --page hotspot
 python tools/sim.py --dashboard my/hass.yaml   # the dashboard file (default docs/dashboard-sample/hass.yaml)
 python tools/sim.py --dashboard none           # no dashboard: the start screen stays

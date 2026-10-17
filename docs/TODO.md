@@ -611,8 +611,10 @@ of a page and `call_service` followed with step 6 (2026-10-07, see there).
 - [x] Try the "Certificate not trusted" card of the web UI (Home Assistant page) with
       `https://self-signed.badssl.com`: fingerprint, **Trust this certificate**, **Forget**.
       Confirmed working by the user (2026-10-10).
-- [ ] A new address while a connection attempt hangs (up to 10 s, the network timeout) takes
-      effect when that attempt ends; the page shows "connecting" meanwhile.
+- [x] A new address while a connection attempt hangs (up to 10 s, the network timeout) takes
+      effect when that attempt ends; the page shows "connecting" meanwhile. Stays (decided
+      2026-10-17): only while changing the address, and a background destroy would cost a
+      second task stack in internal RAM.
 - [x] Host tests for `hass/src/url.cpp` (2026-10-07): `python tools/host_test.py`, 8 tests.
       `strncasecmp` (POSIX, missing in MSVC) replaced by a small helper in `url.cpp`.
 - [x] **Windows version of the UI** for the design review (decided 2026-10-07; the final version
@@ -873,7 +875,7 @@ Next:
       exactly. 10 s tested and confirmed by you on the P4 (a single stream, it goes on after a
       reconnect). The real fix for a stream too large for the Wi-Fi is a lower bit rate at the
       source; the reconnect is the fallback for streams without that option.
-- [ ] Panels: light, climate, sensor history (statistics), camera image. Your first test of the
+- [x] Panels: light, climate, sensor history (statistics), camera image (all built). Your first test of the
       Windows version (2026-10-07): tapping a sensor, a dimmer and a climate tile does nothing,
       because these panels are not built yet (the taps are reserved for them). Order (your
       decision): light, climate, graph.
@@ -1040,13 +1042,13 @@ Next:
       the tile views and their names on the large heap. WT32 with Home Assistant connected, test
       screen: internal RAM free 23 -> 45 KB; partial refresh avg 7 -> 10 ms (max 15 -> 25 ms,
       80 -> 70/s), full screen 55 -> 60-65 ms.
-- [ ] **Internal RAM of the WT32 is nearly used up**: 23 KB free with Home Assistant connected,
+- [x] **Internal RAM of the WT32 is nearly used up**: 23 KB free with Home Assistant connected,
       and about 21 KB of that is IRAM, which data cannot use. The T4 has 71 KB. The large users
       are the two DMA draw buffers (320 x 40 lines x 2 bytes x 2 = 51 KB) and every allocation
       below 16 KB, which goes to internal RAM first (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384`,
       LVGL objects, strings). Proposal: lower that limit so small allocations go to PSRAM and
-      measure the render times, or use fewer draw buffer lines. To decide. Lowered to 512 on
-      2026-10-10, see Next steps.
+      measure the render times, or use fewer draw buffer lines. Lowered to 512 on 2026-10-10;
+      closed 2026-10-17: no memory problem seen by you since (Next steps, item 1).
 
 ## Your review of 2026-10-07 (evening)
 
@@ -1215,12 +1217,13 @@ sim.
 - [x] WT32-SC01: motor on IO27 (2026-10-09, flashed), the first board with a motor and no audio
       (main.cpp included the vibration header only with audio). Click 50 ms on both boards (you,
       after `vibrate 50`; the P4 had 75 ms).
-- [ ] **LVGL ran out of memory on the WT32** (your crash, 2026-10-09): the task watchdog fired every
+- [x] **LVGL ran out of memory on the WT32** (your crash, 2026-10-09): the task watchdog fired every
       5 s, the LVGL task hung in `LV_ASSERT_MALLOC` of `lv_obj_add_event_cb` (`theme::line_text`,
       `tiles::update`, `build_page` after a page was opened). After the restart 3.9 MB PSRAM and
       30 KB internal were free, so the size of the failed request is the question. Now every
       failed allocation prints its size, caps and both heaps (also with the log off), and a
-      failed LVGL assert aborts (panic and restart) instead of halting. To do: catch the line.
+      failed LVGL assert aborts (panic and restart) instead of halting. Closed 2026-10-17: not
+      seen again by you since the change of 2026-10-10 (Next steps, item 1).
 - [x] Tune the click (`kClickMs`, 25 ms now) with `vibrate <ms>`: the shortest pulse that is
       felt clearly; and the alarm rhythm (500 / 500 ms). Done by you (2026-10-14).
 - [x] Check (done by you, 2026-10-14): taps vibrate, the switch turns it off, `sound ring` vibrates until Stop or Snooze.
@@ -1359,13 +1362,14 @@ double tap starts or stops.
       your choice) in place of the -/+ steppers. Sim checked at 480x320, 320x480, 320x240 (one row seen), 800x480.
       Faster on your request: drag gain up to 4x by speed, fling 3x (sim: 30 px slow = 1 row, 75 px quick = 8).
       Restart (while it runs) has the `restart` icon. Confirmed by you on the WT32-SC01 (2026-10-17).
-- [ ] The countdown needs the device clock and Home Assistant's clock to agree (SNTP, within a second);
-      `timer.change` (add or take time while it runs) is not offered.
-- [ ] The web editor has no timer options (there are none); the preview shows the timer glyph.
+- [x] The countdown needs the device clock and Home Assistant's clock to agree (SNTP, within a second);
+      `timer.change` (add or take time while it runs) is not offered: not wanted, the duration as set
+      is fine (your choice, 2026-10-17).
 - [x] Your request (2026-10-17): a document for the Home Assistant side, the timer helper and the fan automation
       ([home-assistant/timer-helper.md](home-assistant/timer-helper.md)).
-- [ ] A double tap starts with the helper's default; the duration last chosen on the rollers is not kept
-      (Home Assistant has no action that changes the default). Open: keep it on the device, per tile?
+- [x] A double tap starts with the helper's default; the duration last chosen on the rollers is not kept
+      (Home Assistant has no action that changes the default). Not kept on the device either (your
+      choice, 2026-10-17).
 
 ## History buttons (2026-10-15)
 
@@ -1403,9 +1407,9 @@ panel left of the power button.
 
 ## Motion sensor (2026-10-15)
 
-Component `motion` (architecture.md section 9.7b): a PIR on `Info::motion_gpio` sets the text helper
-`input_text.<device>_motion` to Detected / Clear (Occupied until your change of 2026-10-15, to match Home
-Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen variant: a radar on GPIO 49, active high.
+Component `motion` (architecture.md section 9.7b): a PIR or radar on `Info::motion_gpio` switches the
+toggle helper `input_boolean.<device>_motion` (an `input_text` with Detected / Clear until 2026-10-17);
+setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The JC4880P443C: GPIO 34, active low; its kitchen variant: a radar on GPIO 49, active high.
 
 - [x] Component (100 ms sampling, two samples), `motion_message` (host test `protocol_motion`), the hass
       command with the resend after `auth_ok`, console `motion`; built and flashed on the P4.
@@ -1427,10 +1431,11 @@ Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen v
       `input_boolean.<device>_motion` on / off; a UI template binary sensor (device class motion) shows Detected /
       Clear in HA's language. Host tests pass. Works on the kitchen P4 (2026-10-17, read over the web API: motion
       at 1586 s turned the toggle and the binary sensor on). Confirmed by you in HA (Detected / Clear, 2026-10-17).
-- [ ] The "motion not published" warning for a missing helper: a `turn_on` for an entity HA does not have came
-      back as success (the first "on" at 825 s went before the toggle existed, nothing was logged). Check with a
-      toggle that does not exist; if HA answers success, find another check (e.g. ask for the entity after
-      `auth_ok`) or take the promise out of motion-sensor.md section 4 and architecture 9.7b.
+- [x] The "motion not published" warning for a missing helper (2026-10-17): HA answers a `turn_on` for an
+      entity it does not have as success (the first "on" at 825 s went before the toggle existed). Now the
+      panel subscribes `{{ states('input_boolean.<device>_motion') }}`: `unknown` is missing (log once, web UI
+      Home Assistant page "Motion helper"), a new helper gets the state at once. Host test `protocol_motion`;
+      WT32 built and flashed, status empty without a sensor (the console's `motion` needs one).
 
 ## Known issues
 
@@ -1467,8 +1472,8 @@ Assistant's motion sensors). The JC4880P443C: GPIO 34, active low; its kitchen v
 Setup and network ([architecture.md](architecture.md) section 9.2):
 
 - [x] Fast reconnect with the stored access point and channel (decided and running).
-- [ ] Slowing down reconnect scans while a phone is on the hotspot: still open, less important
-      now that most reconnects need no scan.
+- [x] Slowing down reconnect scans while a phone is on the hotspot: not needed (your choice,
+      2026-10-17), most reconnects need no scan.
 
 Screen ([ui/lvgl/lvgl-touch.md](ui/lvgl/lvgl-touch.md) section 6, [ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 8):
 
@@ -1683,12 +1688,12 @@ Dashboard ([architecture.md](architecture.md) section 14):
       with an unknown `weather`, `display.brightness: 101` refused, `hass` with a token,
       `camera` "not on this device", a network without password (note). Confirmed working by
       you (2026-10-12).
-- [ ] **Login of a tile's `stream:` URL** (2026-10-12): `http://user:password@host/...` is parsed
-      by esp_http_client, but `media.cpp` opens with `esp_http_client_open`, which sends no
-      Basic auth (auth_type stays none, only `perform` answers a 401), so a go2rtc with a login
-      answers 401. Fix: Basic auth when the URL has a user. Open: the password then sits in the
-      dashboard JSON and in every export, against "no secrets in the export"; alternative a
-      `stream_user`/`stream_password` per tile, left out of the export like the token.
+- [x] **Login of a tile's `stream:` URL** (2026-10-12, built 2026-10-17, your decisions): Basic auth when
+      the address has `user:password@` (`media.cpp`, `CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH`); the
+      backup export strips the password (host test `config_exports_a_stream_without_its_password`); a 401
+      says "login needed" / "password missing" / "login rejected" in the alert strip of the full screen
+      view; a tile without a picture whose image failed shows `camera-off`. Sim checked at 480x320
+      (`--do "stream login"`); WT32 built and flashed. Not tried against a go2rtc with a login.
 - [x] **Web UI login from a file** (2026-10-12, your decision: import yes, export no): a `webui:`
       section (`user`, `password`, both or neither) in the backup file and in `hass.yaml`. Checked
       like the setup page (`hc::webserver::import_login`), stored as a hash, every session ends
@@ -1696,10 +1701,11 @@ Dashboard ([architecture.md](architecture.md) section 14):
       short password, bad user and a user alone refused with the field named, a valid one
       checked; the export hint; an applied backup import with the same login: the old cookie
       is logged out, signing in again works. Confirmed working by you (2026-10-12).
-- [ ] **Change password in the web UI**: there is none (reset on the screen + setup again, or a
-      file with `webui:`). Proposal: a form on the System page (current password, new one twice).
-- [ ] The accent cyan `0x00ffff` is defined three times (`panel::kPendingBorder`, `runner.cpp`,
-      `history_view.cpp`); proposal: `theme::kAccent` (lvgl-design.md section 11).
+- [x] **Change password in the web UI** (2026-10-17): System, "Password" (current, new twice),
+      `POST /api/password`; ends every other session. Tested on the WT32 over the API: wrong current
+      400, too short 400, no session 401, change, other session out, old password refused, changed back.
+- [x] The accent cyan `0x00ffff` was defined three times (`panel::kPendingBorder`, `runner.cpp`,
+      `history_view.cpp`): now `theme::kAccent` (2026-10-17).
 
 ## Next steps
 
@@ -1709,7 +1715,8 @@ above. The dashboard format is version 2 (sizes, hiding and overflow per orienta
 looks per shape and the swipe navigation on the screen are the next two steps (Open decisions).
 In order:
 
-1. [ ] **WT32 memory** (the only open crash): LVGL ran out of memory (Vibration, 2026-10-09) and
+1. [x] **WT32 memory** (closed 2026-10-17: no memory problem seen by you since the change of
+       2026-10-10): LVGL ran out of memory (Vibration, 2026-10-09) and
        internal RAM is nearly used up (Step 6).
        - [x] 2026-10-10: `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` 16384 -> 512 for the main firmware
              on the ESP32 (`sdkconfig.main.esp32`): allocations above 512 bytes go to PSRAM. New
@@ -1718,12 +1725,11 @@ In order:
              (largest block 8 -> 14 KB), unchanged over five page swipes; no failed allocation
              in the boot log. Render times: not measured again, LVGL already allocated from PSRAM
              (`hc_lv_mem.h`), so its speed does not depend on this setting.
-       - [ ] Use it for a while: does the LVGL crash come back? If it does, the failed allocation
-             prints its size and both heaps (the log with it is what is needed). Note: with
-             PSRAM 3.9 MB free, LVGL's own allocations should not fail; the crash may come from
-             another cause.
-       - [ ] If more is needed: 20 instead of 40 draw buffer lines frees about 25 KB of DMA RAM,
-             at some cost in render time (measure first).
+       - [x] Use it for a while: does the LVGL crash come back? Not in a week of use (your
+             report, 2026-10-17). If it does, the failed allocation prints its size and both
+             heaps (the log with it is what is needed).
+       - [x] Not needed: 20 instead of 40 draw buffer lines would free about 25 KB of DMA RAM, at
+             some cost in render time (measure first).
 2. [x] Test the panels on the WT32 against your Home Assistant (Step 6, done 2026-10-14).
 3. [x] Vibration checks: click length, alarm rhythm, the switch, `sound ring` (done 2026-10-14).
 4. [x] `web/icons.svg` (2026-10-10, confirmed by you).
@@ -1746,16 +1752,19 @@ Clock tile (2026-10-16, your request: like Home Assistant's clock card):
       The board's own dashboard (24 pages, 160 tiles) was backed up first and restored after.
 - [x] Confirmed by you on the JC3248W535 (2026-10-16): clocks added in the web editor, analog
       and digital, with seconds (they update), date, time zone and the name.
-- [ ] The clock timer keeps ticking while the screen is off (a `clock()` call and a comparison
-      per tick; the redraw does nothing on a dark screen).
-- [ ] `core::local_time` takes the year from standard time: a transition within hours of New
-      Year would be looked up in the wrong year (no zone has one). A zone a future tzdata drops
+- [x] The clock timer keeps ticking while the screen is off: a `clock()` call per tick, and the
+      time redraws and flushes once a minute (a second with seconds) behind the dark backlight,
+      like every other tile. Kept (your choice, 2026-10-17): no battery board, the screen is
+      current on wake.
+- [x] Kept (your choice, 2026-10-17): `core::local_time` takes the year from standard time: a
+      transition within hours of New Year would be looked up in the wrong year (no zone has one,
+      all are March to November; at worst a zone clock an hour off for hours, no state kept). A zone a future tzdata drops
       fails `finish()` like an unknown icon. The table is tzdata 2026e; a new release means
       `python tools/build_timezones.py` and a firmware update, nothing updates it on the device.
       Morocco (`Africa/Casablanca`) differs between 2026e (`<+00>0`) and the 2024a of an old
       Python: not a bug of the evaluator.
-- [ ] Open: a 1x1 analog clock with name and date leaves a small face (approved as is; the date
-      could go first).
+- [x] A 1x1 analog clock with name and date leaves a small face (about 60 px): kept (your
+      choice, 2026-10-17), the user picked both lines.
 
 Weather tile and panel (2026-10-13, your request: a tile and its details, no history):
 
@@ -1771,15 +1780,17 @@ Weather tile and panel (2026-10-13, your request: a tile and its details, no his
       and the strip came back (bugs fixed the same day).
 - [x] A change of the values (wind speed) after 30 minutes and a reconnect while the panel is
       open: seen by you. Not tested: the other boards (they build).
-- [ ] Not supported: the TTGO T4's 320x240 (decided: only "Feels like" fits above the forecast).
-- [ ] `twice_daily` forecasts, the night glyph of `partlycloudy`.
+- [x] Left (your choice, 2026-10-17, OpenWeatherMap here has daily and hourly, nothing to test
+      with): `twice_daily` forecasts (needed by entities without daily), the night glyph of
+      `partlycloudy` (HA has no night condition for it; `sun.sun` would tell).
 
 Not built yet (placeholders in the code or the documentation):
 
 - [ ] Climate `heat_cool` with two setpoints (climate panel, Step 6).
-- [ ] Home Assistant events waking the screen (`ui/src/power.hpp`).
-- [ ] "Start the firmware" on the System page of the web UI in the recovery app (only the
-      built-in page `/recovery` has it).
+- [x] Home Assistant events waking the screen (`ui/src/power.hpp`): not wanted (your choice,
+      2026-10-17).
+- [x] "Start the firmware" on the System page of the web UI in the recovery app (2026-10-17;
+      was only on the built-in page `/recovery`).
 - [x] Trusting a self-signed Home Assistant certificate on first use (Step 5, 2026-10-10).
 - [x] OTA push method in detail (Open decisions).
 

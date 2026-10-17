@@ -56,6 +56,7 @@ struct View {
     uint16_t source_height = 0;
     uint32_t image_generation = 0;
     uint32_t image_asked = 0; // the tick of the request on its way, 0: none
+    bool image_failed = false; // no image yet and the last one failed: the camera-off glyph
     lv_timer_t *image_timer = nullptr;
 
     // clock (docs/ui/lvgl/lvgl-dashboard.md section 3): the time in `value`, ticked by its own timer

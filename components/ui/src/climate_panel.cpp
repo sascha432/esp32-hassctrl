@@ -386,7 +386,7 @@ void update_arc(const core::EntityState &s, const core::Expectation *pending, bo
     set_text(g.setpoint, known ? tiles::temperature(target) + "\xc2\xb0" : std::string("--"));
     // a setpoint on its way is drawn in the pending color
     const bool waiting = !g.dragging && pending != nullptr && !std::isnan(pending->target);
-    lv_obj_set_style_text_color(g.setpoint, t::color(waiting ? panel::kPendingBorder : t::kText), 0);
+    lv_obj_set_style_text_color(g.setpoint, t::color(waiting ? t::kAccent : t::kText), 0);
     set_text(g.current, avail && !std::isnan(s.current) ? tiles::temperature(s.current) + "\xc2\xb0" : std::string("--"));
     set_hidden(g.plus, !known);
     set_hidden(g.minus, !known);

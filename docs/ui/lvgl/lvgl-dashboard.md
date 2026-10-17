@@ -153,7 +153,7 @@ did. Any other page change (a new layout, turning the display) has no slide.
 | weather, tall | icon (48 px), the temperature, the condition, the humidity with its drop glyph, name | opens the weather panel |
 | weather, wide | the large icon left; right of it the temperature (28 px), the condition and the humidity in one line, the name | opens the weather panel |
 | switch, button, sensor, lock, timer, automation, area, wide | the icon left (48 px on a large cell, else 24), right of it the value (sensor, lock, timer, automation) and the name | as the one-cell tile |
-| picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives; any shape | shows the image full screen |
+| picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives, the camera struck through when it failed (`camera-off`: a stream that wants a login, a camera not reached); any shape | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
 | clock, digital | the icon when the tile has one (24 px), the time in the largest digit font that fits the width and leaves the lines below their room (72 or 48 px digits, `theme::font_digits_*`, then the text fonts; chosen once, so the digits stay put), with `hours: 12` AM/PM beside it, with `seconds` the seconds; the date under it (`date: true`, "Fri 16 Oct"); the name when the tile has one | nothing |

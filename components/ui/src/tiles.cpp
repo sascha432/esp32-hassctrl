@@ -630,7 +630,8 @@ void update_icon(View &view, const core::Layout &layout, const core::EntityState
         return;
     }
     const core::Tile &tile = layout.tiles[view.tile];
-    const char *glyph = icons::for_tile(tile, layout.entity_id(tile), state, on);
+    // a camera without a picture whose image failed: the camera struck through
+    const char *glyph = view.image_failed ? icons::glyph("camera-off") : icons::for_tile(tile, layout.entity_id(tile), state, on);
     set_hidden(view.icon, glyph == nullptr);
     if (glyph != nullptr && std::strcmp(glyph, lv_label_get_text(view.icon)) != 0) {
         lv_label_set_text(view.icon, glyph);
@@ -1402,10 +1403,17 @@ void show_image(View &view, const core::Image &image)
     }
     view.image_asked = 0;
     if (!image.error.empty() || !image.pixels) {
-        // the last image stays; the camera icon while there is none
+        // the last image stays; without one the camera icon is struck through (a stream that
+        // wants a login, a camera that is not reached), until an image comes
         LV_LOG_WARN("camera: %s", image.error.c_str());
+        if (!view.pixels && !view.image_failed) {
+            view.image_failed = true;
+            set_hidden(view.icon, false);
+            lv_label_set_text(view.icon, icons::glyph("camera-off"));
+        }
         return;
     }
+    view.image_failed = false;
     if (view.pixels) {
         compat::image_forget(view.image_dsc);
     }

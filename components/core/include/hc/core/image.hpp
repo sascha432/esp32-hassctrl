@@ -27,6 +27,7 @@ enum class StreamProblem : uint8_t {
     Unreachable, // no connection to the server
     NoAnswer,    // connected, no answer or no data in time
     Http,        // the server answered with an error status (Image::http_status)
+    Login,       // a stream of its own answered 401: Image::error says why in two words
     Ended,       // the server ended the stream
     BrokeOff,    // the connection broke off in a frame
     NotMjpeg,    // the answer is not an MJPEG stream, or its frames cannot be decoded

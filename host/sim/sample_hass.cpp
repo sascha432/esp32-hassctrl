@@ -64,6 +64,8 @@ struct State {
         uint32_t frame = 0;
     } play;
     bool stream_server_down = false;
+    // the stream's server wants a login (answers 401): `--do "stream login"`
+    bool stream_login = false;
     ForecastMode forecast_mode = ForecastMode::Ok;
 };
 
@@ -641,6 +643,11 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
     hc::core::Image image;
     image.generation = generation;
     image.entity = entity;
+    if (!stream.empty() && g.stream_login) {
+        image.error = "login needed";
+        g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
+        return;
+    }
     if (!hass_connected() && stream.empty()) {
         image.error = "not connected to Home Assistant";
         g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
@@ -677,6 +684,17 @@ void play_stream(std::string_view entity_id, std::string_view stream, hc::core::
         g.play.generation = generation;
         return;
     }
+    if (g.stream_login) {
+        hc::core::Image refused;
+        refused.generation = generation;
+        refused.entity = entity;
+        refused.live = true;
+        refused.error = "login needed";
+        refused.problem = hc::core::StreamProblem::Login;
+        refused.http_status = 401;
+        queue_at(lv_tick_get() + kAnswerMs, std::move(refused));
+        return;
+    }
     if (g.stream_server_down) {
         hc::core::Image refused;
         refused.generation = generation;
@@ -695,6 +713,11 @@ void play_stream(std::string_view entity_id, std::string_view stream, hc::core::
     queue_at(lv_tick_get() + kAnswerMs, std::move(opened));
     g.play = {.entity = entity, .width = width, .height = height, .generation = generation,
               .next = lv_tick_get() + kAnswerMs + kStreamStartMs};
+}
+
+void set_stream_login(bool login)
+{
+    g.stream_login = login;
 }
 
 void set_stream_server(bool up)

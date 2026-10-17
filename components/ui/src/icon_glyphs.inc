@@ -4,6 +4,7 @@
 {"arrow-left", "\xF3\xB0\x81\x8D"},
 {"brightness-6", "\xF3\xB0\x83\x9F"},
 {"camera", "\xF3\xB0\x84\x80"},
+{"camera-off", "\xF3\xB0\x97\x9F"},
 {"chart-timeline-variant", "\xF3\xB0\xBA\x93"},
 {"check", "\xF3\xB0\x84\xAC"},
 {"checkbox-marked-circle", "\xF3\xB0\x84\xB3"},

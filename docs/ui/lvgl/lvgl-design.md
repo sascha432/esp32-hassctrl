@@ -46,7 +46,7 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 | alert | `kAlert` | `#ff8000` | notes and status lines |
 | error | `kError` | `#ff0000` | errors, destructive buttons |
 | lock unlocked / locked / jammed | `kLockUnlocked`, `kLockLocked`, `kLockJammed` | `#4caf50`, `#ff8000`, `#ff0000` | the lock's tile, panel and timeline (2026-10-11) |
-| accent | (see below) | `#00ffff` | an action on its way (the runner, a pending setpoint), the sensor graph |
+| accent | `kAccent` | `#00ffff` | an action on its way (the runner, a pending setpoint), the sensor graph |
 
 Colors with one owner, kept next to their code: the edit mode's "fits" outline `0x2ecc71`
 (`edit_mode.cpp`), the splash's logo colors (`splash.cpp`), the dialog veil black at 80 %
@@ -271,7 +271,5 @@ The alert strip ([lvgl-dashboard.md](lvgl-dashboard.md) section 1.1):
 
 ## 11. Open points
 
-* The accent cyan is defined three times (`panel::kPendingBorder`, `runner.cpp`,
-  `history_view.cpp`). Proposal: `theme::kAccent`.
 * Montserrat 28 costs 37 KB of flash for the values; a subset (digits, units, the state words) is
   possible if flash gets tight.

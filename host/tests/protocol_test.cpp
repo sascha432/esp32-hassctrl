@@ -535,6 +535,17 @@ TEST(protocol_motion)
     Json clear(cJSON_Parse(motion_message(13, "hassctrl-7e7d", false).c_str()));
     REQUIRE(clear);
     CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(clear.get(), "service")), "turn_off");
+
+    CHECK_STR(motion_template("hassctrl-7e7d").c_str(), "{{ states('input_boolean.hassctrl_7e7d_motion') }}");
+    Json on(cJSON_CreateString("on"));
+    Json off(cJSON_CreateString("off"));
+    Json unknown(cJSON_CreateString("unknown"));
+    Json number(cJSON_CreateNumber(1));
+    CHECK(motion_helper_exists(on.get()));
+    CHECK(motion_helper_exists(off.get()));
+    CHECK(!motion_helper_exists(unknown.get()));
+    CHECK(!motion_helper_exists(number.get()));
+    CHECK(!motion_helper_exists(nullptr));
 }
 
 TEST(protocol_say)

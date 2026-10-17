@@ -52,6 +52,8 @@ esp_err_t send_status(httpd_req_t *req)
         .number("connected_s", status.connected_s)
         .string("certificate", status.certificate)
         .string("refused_certificate", status.refused_certificate)
+        .string("motion_helper", status.motion_helper != nullptr ? status.motion_helper : "")
+        .string("motion_entity", status.motion_entity)
         .end_object();
     return send_json(req, json);
 }

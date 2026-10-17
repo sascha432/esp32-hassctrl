@@ -113,8 +113,8 @@
 # Motion sensor: a board with a motion GPIO (the JC4880P443C) turns a toggle helper of Home
 # Assistant on or off; it stays on for `display`, `motion_hold_s` after the last motion. Create it
 # in Home Assistant (Settings, Devices, Helpers, Toggle) with the entity id
-# `input_boolean.<device>_motion` (hassctrl-7e7d: input_boolean.hassctrl_7e7d_motion); without it
-# the log says so once per connection. A template binary sensor of device class motion on it shows
+# `input_boolean.<device>_motion` (hassctrl-7e7d: input_boolean.hassctrl_7e7d_motion); the web UI's
+# Home Assistant page shows it, or that it is missing. A template binary sensor of device class motion on it shows
 # Detected / Clear; put the tile on that. Setup and an example automation:
 # docs/home-assistant/motion-sensor.md.
 #
@@ -132,8 +132,10 @@
 #  days: [mon, tue, wed, thu, fri]   # [] for once, then it turns itself off
 #  snooze_min: 9            # 1 to 60
 
-# A camera tile's `stream:` URL (below) cannot carry a login yet: `http://user:password@host/`
-# is not sent to the server (docs/TODO.md).
+# A camera tile's `stream:` URL (below) carries its login in the address:
+# `http://user:password@host/...`, sent as Basic auth. The device keeps it; the backup export
+# leaves the password out (`http://user@host/...`), so after an import add it again (the full
+# screen view says "password missing").
 
 # --------------------------------------------------------------------------------- dashboard
 # Defaults for the whole dashboard.

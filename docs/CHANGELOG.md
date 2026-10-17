@@ -2,6 +2,18 @@
 
 ## 2026-10-17
 
+- TODO cleanup (your choices): closed as kept or not wanted (clock timer, 1x1 analog face, tzdata year, twice_daily,
+  HA wake event, reconnect scans, timer default and `timer.change`); WT32 memory closed, no problem since 2026-10-10.
+- Camera stream login (your decisions): `http://user:password@host/` is sent as Basic auth, the export leaves the
+  password out, a 401 says "login needed" / "password missing" / "login rejected"; a failed tile shows `camera-off`.
+- Web UI: change the login's password on the System page (`POST /api/password`, other sessions end).
+- Theme: the accent cyan is `theme::kAccent` (was defined three times).
+- Motion helper: Home Assistant answers a call for a missing helper as done, so the panel now asks for it
+  (a template); the web UI's Home Assistant page shows "Motion helper" found / missing, a new helper gets the state at once.
+- Web UI in the recovery app: "Start the firmware" on the System page, where its Home Assistant and
+  Dashboard pages send you (was only on the built-in page `/recovery`).
+- TTGO T4's 320x240 dropped as a layout size (your request; it is a test device): the compact rows of the
+  automation panel, the one-row rollers of the timer panel, the sim's `t4` preset and the open TODO item are gone.
 - Motion sensor (your request: no English words in HA): the panel switches the toggle `input_boolean.<device>_motion`
   (was `input_text` with Detected / Clear); a UI template binary sensor adds the motion class. Guide in
   `docs/home-assistant/motion-sensor.md`. Confirmed by you on the kitchen P4.

@@ -205,7 +205,7 @@ void close_dialog()
     }
 }
 
-// the side of a popup: fits the smallest display (240 px high) with room around it
+// the side of a popup: fits the smallest display (320 px high) with room around it
 constexpr lv_coord_t kPopupSize = 200;
 
 // the dark layer under a dialog: nothing below it takes touches
