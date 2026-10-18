@@ -30,14 +30,34 @@ still linked the IDF's driver and hung as before).
 
 ## Keeping it with a new IDF
 
-After an IDF update, compare the copy with the IDF's file:
+The IDF's own `ppa_srm.c` stays as shipped, unpatched: the build compiles only the copy here.
+Don't edit the file under `$IDF_PATH`.
+
+The CMake checks this on every configure of the P4 and stops the build with an error if the
+copy lacks the patch, or if the copy without the four added lines is not the IDF's file (an IDF
+update, or an edited IDF; a change of either file reruns the check). To see what changed:
 
 ```
 diff $IDF_PATH/components/esp_driver_ppa/src/ppa_srm.c components/esp_driver_ppa/ppa_srm.c
 ```
 
-Only the four added lines may differ. If more does, copy the IDF's file over this one and put the
-line back. Drop the component once a release's formula covers this case (test: build without the
+The correct output is the four lines of the patch, added in the copy, and nothing else:
+
+```
+174a175,178
+>     // hassctrl: always bypass. ...
+>     ...
+>     bypass_mb_order = true;
+```
+
+If more differs:
+
+- The IDF's file was edited (check with `git -C $IDF_PATH diff components/esp_driver_ppa`):
+  restore it with `git -C $IDF_PATH checkout components/esp_driver_ppa`.
+- The IDF was updated: copy the IDF's file to `components/esp_driver_ppa/ppa_srm.c` and add the
+  four lines to that copy again, after the driver's `if` that sets `bypass_mb_order`.
+
+Drop the component once a release's formula covers this case (test: build without the
 component, 8 boots with the cameras page, no `image_hw: the PPA did not scale` in the log).
 
 License of `ppa_srm.c`: Apache-2.0, Copyright 2023-2026 Espressif Systems (Shanghai) CO LTD (file

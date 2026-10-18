@@ -867,7 +867,8 @@ Next:
         hung. `components/esp_driver_ppa` overrides the IDF's component: its own sources, and
         `ppa_srm.c` copied from v6.1.0 with the flag always set (README: the numbers, the diff to
         check after an IDF update, when to drop it). The 500 ms timeout and the software fallback
-        stay. Built for all three boards, flashed on the P4.
+        stay. Built for all three boards, flashed on the P4. Since 2026-10-18 the build of the P4
+        stops with an error if the copy lacks the patch or no longer matches the IDF's file.
 - [x] **Bug (your report): MJPEG streams fall behind over time** (2026-10-11): Doorspy (go2rtc,
       460x600, `-q:v 5 -r 10`, 37 KB frames, 370 KB/s) was 10 s behind on the P4 after a few
       minutes and 30 s on the WT32. go2rtc queues up to 64 frames per client that reads slower

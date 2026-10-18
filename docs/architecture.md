@@ -826,7 +826,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `uidebug` | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Removable, not over the network |
 | `relay` | up to four relays on GPIOs, switched by Home Assistant entities found by the device's name (section 9.7a) |
 | `motion` | a motion sensor on a GPIO, reported to a Home Assistant helper, and wake on motion (section 9.7b) |
-| `esp_driver_ppa` | replaces ESP-IDF's PPA driver with a fix for the ESP32-P4's silicon bug DIG-734 (its README: the numbers, the diff to check after an IDF update, when to drop it) |
+| `esp_driver_ppa` | replaces ESP-IDF's PPA driver with a fix for the ESP32-P4's silicon bug DIG-734 (its README: the numbers, the diff to check after an IDF update, when to drop it); the build of the P4 stops if `ppa_srm.c` lacks the patch or differs from the IDF's file by more |
 
 ### 9.5 Partition layout and the recovery app
 

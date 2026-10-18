@@ -3,6 +3,8 @@
 ## 2026-10-18
 
 - Board variants are in git now (`wt32_sc01.bench`, `jc4880p443c.kitchen`), no longer ignored.
+- Build: the P4 stops with an error if `components/esp_driver_ppa/ppa_srm.c` lacks the DIG-734 patch
+  or, without it, differs from the IDF's file (an IDF update); this was a manual diff before.
 
 ## 2026-10-17
 
