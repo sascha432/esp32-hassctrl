@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-18
+
+- Board variants are in git now (`wt32_sc01.bench`, `jc4880p443c.kitchen`), no longer ignored.
+
 ## 2026-10-17
 
 - Benchmark: `tools/bench.py` and the console's `bench` run fixed scenes on a fixed dashboard and sample

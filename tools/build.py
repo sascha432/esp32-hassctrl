@@ -22,8 +22,8 @@ sdkconfig.defaults, boards/<board>/sdkconfig.defaults, sdkconfig.<app>, each fol
 <layer>.<target> file when it exists (sdkconfig.main.esp32). When a layer is newer than
 the generated sdkconfig, the sdkconfig is regenerated, so menuconfig changes are temporary.
 
-A variant of a board (docs/adding-a-board.md "Variants"): one unit's add-ons as a private
-directory boards/<board>/variants/<variant>/ (not in git) with hc_board_variant.hpp (the changes
+A variant of a board (docs/adding-a-board.md "Variants"): one unit's add-ons as a
+directory boards/<board>/variants/<variant>/ with hc_board_variant.hpp (the changes
 to the board's Info) and, if wanted, one more sdkconfig.defaults, the last layer. It builds in
 build/<board>.<variant>/<app>.
 

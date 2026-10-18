@@ -489,7 +489,7 @@ Open:
       checked with the first bytes before anything is written. Tested on the T4 with a WT32
       image: "the firmware is for the WT32-SC01, this is the TTGO T4", nothing erased.
 - [x] **Board variants** (2026-10-15): one unit's add-ons (LDR, motor, relays, MPU6050 calibration,
-      a config option) as a private `boards/<board>/variants/<name>/` the repository ignores, its
+      a config option) as a `boards/<board>/variants/<name>/` (in git since 2026-10-18), its
       `hc_board_variant.hpp` changing the board's `Info` at compile time (`variant::apply`), built as
       `<board>.<name>` (architecture.md section 8, adding-a-board.md "Variants"). The board files
       keep the developer's units as the example. The image tag stays the board type. Console

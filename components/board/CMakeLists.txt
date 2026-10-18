@@ -15,7 +15,7 @@ if(CONFIG_HC_BOARD_JC4880P443C)
     list(APPEND srcs "boards/jc4880p443c/jc4880p443c.cpp" "boards/jc4880p443c/es8311.cpp")
 endif()
 
-# The variant (hc_board_variant.hpp, included by every board file): the private one of
+# The variant (hc_board_variant.hpp, included by every board file): the one of
 # boards/<board>/variants/<name>/ when tools/build.py passes its directory, else src/variant,
 # which changes nothing. Only one of the two is on the include path.
 if(HC_VARIANT_DIR)

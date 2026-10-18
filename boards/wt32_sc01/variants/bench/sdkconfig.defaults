@@ -1,0 +1,2 @@
+# the bench variant of the WT32-SC01: a visible line, to see the layer in the generated sdkconfig
+CONFIG_LV_FONT_MONTSERRAT_10=y

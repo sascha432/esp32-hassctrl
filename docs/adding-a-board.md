@@ -38,7 +38,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | `components/board/CMakeLists.txt` | `if(CONFIG_HC_BOARD_<NAME>)` adds `boards/<name>/<name>.cpp` |
 | `components/board/boards/<name>/<name>.cpp` | `Info`, `init()` and the backlight functions, like the existing boards |
 | `components/board/idf_component.yml` | the panel and touch drivers from the component registry |
-| `boards/<name>/variants/<variant>/` | not in git: the add-ons of one unit, see "Variants" at the end |
+| `boards/<name>/variants/<variant>/` | the add-ons of one unit, see "Variants" at the end |
 
 The `Info` fields:
 
@@ -257,12 +257,12 @@ OV02C10 of the JC4880P443C (docs/devices/JC4880P443C, "Camera", and architecture
 - [ ] `docs/architecture.md` section 8: the board in the board table.
 - [ ] `docs/TODO.md`: what is still open for the board.
 
-## Variants: one unit's add-ons, outside git
+## Variants: one unit's add-ons
 
 The board file in the repository holds the board type and, as an example, the add-ons of the
 developer's unit: the WT32-SC01's LDR on GPIO 34, motor on 27 and the calibration of its MPU6050,
-the JC4880P443C's relay 1 on GPIO 32. A unit wired differently is a **variant**: a private
-directory the repository ignores (`.gitignore`: `boards/*/variants/`).
+the JC4880P443C's relay 1 on GPIO 32. A unit wired differently is a **variant**: a directory
+of its own in git (`wt32_sc01.bench`, `jc4880p443c.kitchen`).
 
 1. Create `boards/<board>/variants/<name>/` (`<name>`: letters, digits, underscore) and copy
    `components/board/src/variant/hc_board_variant.hpp` into it.

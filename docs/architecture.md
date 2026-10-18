@@ -555,8 +555,7 @@ const Info &info();                    // the board's constants: size, pins, add
   No `#ifdef` chains inside shared sources.
 * Pins and panel parameters live in the board's own source file, not in Kconfig.
 * **Variants**: the add-ons of one unit (an LDR, a motor, relays, the calibration of
-  its MPU6050, a config option) are a private directory `boards/<board>/variants/<name>/`, ignored
-  by git. Its `hc_board_variant.hpp` is a copy of `components/board/src/variant/hc_board_variant.hpp`
+  its MPU6050, a config option) are a directory `boards/<board>/variants/<name>/` in git. Its `hc_board_variant.hpp` is a copy of `components/board/src/variant/hc_board_variant.hpp`
   whose constexpr `variant::apply(Info)` changes the fields of the board's `Info`; every board file
   builds its `kInfo` through it, and `tools/build.py <board>.<name>` puts the variant's directory
   on the include path instead of the default, which changes nothing. An `sdkconfig.defaults` in
@@ -1174,7 +1173,7 @@ esp32-hassctrl/
   bench/                         the benchmark dashboard and its version (docs/benchmark.md)
   partitions/                    4mb.csv, 16mb.csv
   boards/<name>/sdkconfig.defaults   target, flash, PSRAM, board choice
-  boards/<name>/variants/<variant>/  private (not in git): hc_board_variant.hpp, sdkconfig.defaults
+  boards/<name>/variants/<variant>/  one unit's add-ons: hc_board_variant.hpp, sdkconfig.defaults
   boards/jc4880p443c/c6/         ESP-IDF project of the board's ESP32-C6 (esp_hosted coprocessor)
   main/                          app_main and the wiring: ui_backend, ui_sound, backup, camera_preview,
                                  bench_mode (the benchmark's boot)

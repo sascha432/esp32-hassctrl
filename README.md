@@ -83,7 +83,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - A Windows version of the UI with sample states and scripted screenshots, host tests on MSVC for
   the pure components, a serial console with screenshots and virtual taps, one build script for
   every board and app.
-- Board variants: a private folder per unit, outside git, changes the options a board has (pins,
+- Board variants: a folder per unit changes the options a board has (pins,
   sensor calibration, config); the board in the repository is the example.
 - A rendering benchmark on a fixed dashboard and sample data, run over the serial console, the
   same on every board ([docs/benchmark.md](docs/benchmark.md)); it measured LVGL 9 against 8.4.
@@ -133,7 +133,7 @@ or its variant (below).
 
 **Variants.** One unit of a board with other add-ons than the board file in the repository
 (the pins of its LDR, vibration motor or relays, the calibration of its MPU6050, a config option)
-is a variant: a private directory `boards/<board>/variants/<name>/`, ignored by git, with a copy
+is a variant: a directory `boards/<board>/variants/<name>/` with a copy
 of `components/board/src/variant/hc_board_variant.hpp` that changes those fields and, if wanted,
 an `sdkconfig.defaults` read last. It is built, flashed and given its web image as
 `<board>.<name>` (`wt32_sc01.kitchen`, output in `build/wt32_sc01.kitchen/`). The board files in
