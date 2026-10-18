@@ -52,6 +52,7 @@
 #include "hc/webserver/webserver.hpp"
 #include "soc/soc_caps.h"
 #include "backup.hpp"
+#include "bench_mode.hpp"
 #include "ui_backend.hpp"
 #include "ui_sound.hpp"
 
@@ -516,10 +517,16 @@ extern "C" void app_main()
     ESP_LOGI(kTag, "board %s%s%s, panel %ux%u, touch %s", board.name, board.variant != nullptr ? " variant " : "",
              board.variant != nullptr ? board.variant : "", board.width, board.height, board.has_touch ? "yes" : "no");
 
+    // benchmark mode (docs/benchmark.md): the screens on sample data, no network, the screen not
+    // turned by the sensor
+    const bool bench = bench_mode::active();
+    const hc::ui::Backend &backend = bench ? bench_mode::backend() : ui_backend();
+
     hc::board::Handles handles{};
+    lv_disp_t *disp = nullptr;
     if (hc::board::init(handles) == ESP_OK) {
-        lv_disp_t *disp = start_lvgl(handles);
-        const bool imu = disp != nullptr && board.imu_address != 0 && handles.i2c != nullptr &&
+        disp = start_lvgl(handles);
+        const bool imu = !bench && disp != nullptr && board.imu_address != 0 && handles.i2c != nullptr &&
                          hc::orientation::start(handles.i2c, board.imu_address, board.imu_axes.data(), board.imu_offset.data(), on_rotation, nullptr) == ESP_OK;
         // optional per device: automatic brightness when one answers
         const bool bh1750 = handles.i2c != nullptr &&
@@ -572,13 +579,13 @@ extern "C" void app_main()
                 .max_duty = hc::board::backlight_max_duty(),
                 .frequency_hz = board.backlight_hz,
             };
-            hc::ui::start(disp, ui_backend(), imu, ui_options, hc::ui::hide_test_screen);
+            hc::ui::start(disp, backend, imu, ui_options, hc::ui::hide_test_screen);
             hc::ui::show_test_screen(disp, {.board_name = board.name,
                                             .cycle_rotation = false,
                                             .backlight = &backlight,
                                             .network_text = nullptr});
 #else
-            hc::ui::start(disp, ui_backend(), imu, ui_options);
+            hc::ui::start(disp, backend, imu, ui_options);
 #endif
 #if CONFIG_HC_BOARD_HAS_CAMERA
             // the camera of Settings, Camera and the web stream; the preview draws past LVGL
@@ -597,7 +604,9 @@ extern "C" void app_main()
         ESP_LOGW(kTag, "no display");
     }
 
-    if (hc::network::start(hc::platform::device_name(), nullptr, nullptr) != ESP_OK) {
+    if (bench) {
+        // no network: nothing but the screens runs while they are measured
+    } else if (hc::network::start(hc::platform::device_name(), nullptr, nullptr) != ESP_OK) {
         ESP_LOGE(kTag, "network did not start");
     } else {
         hc::platform::start_time_sync();
@@ -634,6 +643,7 @@ extern "C" void app_main()
 #if CONFIG_HC_BOARD_HAS_CAMERA
     hc::camera::register_console();
 #endif
+    bench_mode::register_console(disp);
     hc::devconsole::ready();
 #endif
 }

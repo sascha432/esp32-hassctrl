@@ -85,6 +85,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   every board and app.
 - Board variants: a private folder per unit, outside git, changes the options a board has (pins,
   sensor calibration, config); the board in the repository is the example.
+- A rendering benchmark on a fixed dashboard and sample data, run over the serial console, the
+  same on every board ([docs/benchmark.md](docs/benchmark.md)); it measured LVGL 9 against 8.4.
 
 ## Supported hardware
 
@@ -158,12 +160,14 @@ python tools/host_test.py config_      # only the tests whose name contains "con
 
 The Windows version of the UI (`host/sim/`) runs the screens of `components/ui` in a window, for
 the design review: LVGL 8.4 with the firmware's settings, the same fonts and text widths, the mouse
-as the finger. It shows only the GUI. The data comes from a stub of `hc::ui::Backend` with sample
+as the finger. It shows only the GUI. The data comes from a stub of `hc::ui::Backend`
+(`components/sample_backend`, which the firmware's benchmark mode uses as well) with sample
 states ("scenarios": connected, no network, hotspot on, Home Assistant token rejected, ...), and
 a tap changes them (a network is forgotten, a connect succeeds or fails). The dashboard shows
 the dashboard file with sample values made up from the entities' domains and names; a tap on a
 tile acts on them. Same compiler and tools as the tests; build the firmware once first so
-`managed_components/lvgl__lvgl` exists. The icon fonts and the web editor's
+`managed_components/lvgl__lvgl` exists.
+`--time EPOCH` starts its clock at a fixed time, `--do bench` runs the benchmark's scenes. The icon fonts and the web editor's
 `web/icons.svg` are generated files: `python tools/build_icons.py` (needs Node.js and the network once)
 after the icon list of `core` changed; commit the output, then flash the firmware and the web image.
 
@@ -216,7 +220,8 @@ python tools/build_fs.py wt32_sc01 -p COM9
 
 The ports of the developer's boards: WT32-SC01 COM9, JC3248W535 COM10, JC4880P443C COM11,
 TTGO T4 COM13. `python tools/screenshot.py COM9 out.png` takes a screenshot of a running board
-over the serial console.
+over the serial console, `python tools/bench.py wt32_sc01 -p COM9` runs the rendering benchmark
+([docs/benchmark.md](docs/benchmark.md)).
 
 ## Web UI
 

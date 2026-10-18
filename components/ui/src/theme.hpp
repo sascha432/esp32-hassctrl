@@ -75,6 +75,11 @@ lv_color_t color(uint32_t hex);
 // an object without the default theme styles
 lv_obj_t *plain(lv_obj_t *parent);
 
+// An image of `pixels` (width x height lv_color_t, kept alive by the caller) for lv_img_set_src.
+// LVGL keeps what it read of a source by its address: before the pixels change or are freed,
+// lv_img_cache_invalidate_src(&dsc).
+void image_dsc(lv_img_dsc_t &dsc, const void *pixels, uint16_t width, uint16_t height);
+
 lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t &font, uint32_t text_color);
 
 // Sets the text of a one-line label whose width comes from the layout (flex grow): a text that is

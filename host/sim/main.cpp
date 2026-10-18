@@ -1,5 +1,5 @@
 // The Windows version of the UI (docs/architecture.md section 1): the screens of components/ui on
-// LVGL's Windows driver, with sample data from stub_backend.cpp. Only the look: no network, no
+// LVGL's Windows driver, with sample data from components/sample_backend. Only the look: no network, no
 // Home Assistant. tools/sim.py builds and starts it; `hc_sim --help` lists the options.
 
 #include <Windows.h>
@@ -18,19 +18,21 @@
 #include "dashboard.hpp"
 #include "dashboard_file.hpp"
 #include "hc/core/layout.hpp"
+#include "hc/sample/sample_hass.hpp"
+#include "hc/sample/stub_backend.hpp"
+#include "hc/ui/bench.hpp"
 #include "hc/ui/ui.hpp"
 #include "lvgl.h"
 #include "overlay.hpp"
 #include "png.hpp"
 #include "rotation.hpp"
-#include "sample_hass.hpp"
 #include "settings.hpp"
-#include "stub_backend.hpp"
 #include "win32drv/win32drv.h"
 
 namespace {
 
 namespace ui = hc::ui;
+namespace sample = hc::sample;
 
 struct Options {
     int width = 480;
@@ -138,7 +140,7 @@ const Page kPages[] = {
     {"network", "Settings, Wi-Fi, the first saved network",
      [] {
          char ssids[ui::kMaxSavedNetworks][ui::kSsidSize];
-         const size_t count = sim::backend().saved_networks(ssids, ui::kMaxSavedNetworks, nullptr);
+         const size_t count = sample::backend().saved_networks(ssids, ui::kMaxSavedNetworks, nullptr);
          ui::settings::open(ui::settings::Page::Wifi);
          ui::settings::push(ui::settings::Page::NetworkDetail, count > 0 ? ssids[0] : "", 0);
      }},
@@ -320,13 +322,13 @@ bool screenshot(const std::string &path)
 
 void select_scenario(int index)
 {
-    const int count = static_cast<int>(sim::scenario_count());
-    sim::start_scenario(static_cast<size_t>((index % count + count) % count));
+    const int count = static_cast<int>(sample::scenario_count());
+    sample::start_scenario(static_cast<size_t>((index % count + count) % count));
     // a boot with no network saved opens the first setup; the others start from the dashboard. (The
     // UI has no way to undo a first setup that is open: "Next" there leads on.)
     ui::settings::close();
     ui::WifiInfo wifi{};
-    sim::backend().wifi_info(wifi);
+    sample::backend().wifi_info(wifi);
     if (!wifi.has_networks) {
         ui::show_setup();
     }
@@ -341,7 +343,7 @@ void handle_keys()
         if (key == 'R') {
             ui::rotation::rotate_clockwise();
         } else if (key == 'S') {
-            select_scenario(static_cast<int>(sim::current_scenario()) + (shift ? -1 : 1));
+            select_scenario(static_cast<int>(sample::current_scenario()) + (shift ? -1 : 1));
         } else if (key >= '1' && key <= '9') {
             select_scenario(key - '1');
         } else if (key == VK_F12) {
@@ -363,9 +365,9 @@ void update_title()
     std::snprintf(title, sizeof(title),
                   "hassctrl sim | %s %dx%d x%d | %s (%u of %u) | backlight %u %% | R rotate, S scenario, 1-9, F12 shot, Q quit",
                   g.board, static_cast<int>(lv_disp_get_hor_res(nullptr)), static_cast<int>(lv_disp_get_ver_res(nullptr)),
-                  g.options.zoom, sim::scenario_info(sim::current_scenario()).name,
-                  static_cast<unsigned>(sim::current_scenario() + 1), static_cast<unsigned>(sim::scenario_count()),
-                  sim::backlight_percent());
+                  g.options.zoom, sample::scenario_info(sample::current_scenario()).name,
+                  static_cast<unsigned>(sample::current_scenario() + 1), static_cast<unsigned>(sample::scenario_count()),
+                  sample::backlight_percent());
     lv_win32_set_title(title);
 }
 
@@ -400,6 +402,39 @@ bool numbers(const std::string &text, size_t count, int *out)
     return true;
 }
 
+// The rendering benchmark (hc/ui/bench.hpp) on the dashboard that is shown, its lines on stdout:
+// checks the scenes; the times are the PC's (docs/benchmark.md).
+bool run_bench()
+{
+    static bool done = false;
+    done = false;
+    const ui::bench::Hooks hooks{
+        .now_us =
+            [] {
+                using Clock = std::chrono::steady_clock;
+                static const Clock::time_point start = Clock::now();
+                return static_cast<uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - start).count());
+            },
+        .touch = [](int16_t x, int16_t y, bool pressed) { lv_win32_pointer_override(true, x, y, pressed); },
+        .memory = nullptr,
+        .line = [](const char *text) { std::printf("%s\n", text); },
+        .done =
+            [] {
+                done = true;
+                lv_win32_pointer_override(false, 0, 0, false);
+            },
+    };
+    if (!ui::bench::start(lv_disp_get_default(), hooks, "\"board\":\"sim\"")) {
+        std::fprintf(stderr, "bench: no dashboard shown\n");
+        return false;
+    }
+    for (int i = 0; i < 6000 && !done && !g.quit; i++) {
+        pump(kStepMs * 2);
+    }
+    return done;
+}
+
 bool run_step(const std::string &step)
 {
     const size_t space = step.find(' ');
@@ -412,7 +447,7 @@ bool run_step(const std::string &step)
     } else if (verb == "page") {
         return open_page(argument.c_str());
     } else if (verb == "scenario") {
-        const int index = sim::find_scenario(argument.c_str());
+        const int index = sample::find_scenario(argument.c_str());
         if (index < 0) {
             std::fprintf(stderr, "unknown scenario '%s' (--list shows them)\n", argument.c_str());
             return false;
@@ -426,26 +461,28 @@ bool run_step(const std::string &step)
         // a progress message that stays, as the camera view shows "Loading stream ..."
         ui::overlay::show((LV_SYMBOL_REFRESH "  " + argument).c_str(), ui::theme::kTextValue, 0);
     } else if (verb == "stream" && argument == "login") {
-        sim::set_stream_login(true);
+        sample::set_stream_login(true);
     } else if (verb == "stream") {
         if (argument != "up" && argument != "down") {
             std::fprintf(stderr, "stream needs up or down\n");
             return false;
         }
-        sim::set_stream_server(argument == "up");
+        sample::set_stream_server(argument == "up");
     } else if (verb == "forecast") {
         if (argument == "ok") {
-            sim::set_forecast_mode(sim::ForecastMode::Ok);
+            sample::set_forecast_mode(sample::ForecastMode::Ok);
         } else if (argument == "loading") {
-            sim::set_forecast_mode(sim::ForecastMode::Loading);
+            sample::set_forecast_mode(sample::ForecastMode::Loading);
         } else if (argument == "error") {
-            sim::set_forecast_mode(sim::ForecastMode::Error);
+            sample::set_forecast_mode(sample::ForecastMode::Error);
         } else {
             std::fprintf(stderr, "forecast needs ok, loading or error\n");
             return false;
         }
     } else if (verb == "rotate") {
         ui::rotation::rotate_clockwise();
+    } else if (verb == "bench") {
+        return run_bench();
     } else if (verb == "shot") {
         pump(g.options.wait_ms);
         return screenshot(argument);
@@ -500,6 +537,7 @@ void usage()
         "  --motion             a motion sensor that sees no motion (Settings, Wake on motion)\n"
         "  --do STEP            a scripted step, repeatable, run in order after the start:\n"
         "                         page NAME | scenario NAME | rotate | wait MS | shot FILE\n"
+        "                         bench (the rendering benchmark, docs/benchmark.md; its lines on stdout)\n"
         "                         alert TEXT (an event message in the alert strip, 5 s)\n"
         "                         info TEXT (a progress message in the alert strip that stays)\n"
         "                         stream down|up (the stream's server ends and refuses streams, or answers again)\n"
@@ -508,6 +546,7 @@ void usage()
         "                         tap TEXT (a label on the screen) | tap X,Y | doubletap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"
+        "  --time EPOCH         the clock starts at this time (seconds) instead of the computer's\n"
         "  --action-ms MS       an action changes the sample state this long after the tap (default 400)\n"
         "  --list               scenarios, pages and keys\n"
         "\n"
@@ -519,8 +558,8 @@ void usage()
 void list()
 {
     std::puts("scenarios (--scenario, key S or 1-9):");
-    for (size_t i = 0; i < sim::scenario_count(); i++) {
-        std::printf("  %-18s %s\n", sim::scenario_info(i).name, sim::scenario_info(i).description);
+    for (size_t i = 0; i < sample::scenario_count(); i++) {
+        std::printf("  %-18s %s\n", sample::scenario_info(i).name, sample::scenario_info(i).description);
     }
     std::puts("\npages (--page, step 'page'):");
     for (const Page &page : kPages) {
@@ -601,7 +640,7 @@ bool parse(int argc, char **argv, Options &o)
                 return false;
             }
         } else if (arg == "--scenario") {
-            if ((v = value()) == nullptr || (o.scenario = sim::find_scenario(v)) < 0) {
+            if ((v = value()) == nullptr || (o.scenario = sample::find_scenario(v)) < 0) {
                 std::fprintf(stderr, "unknown scenario (--list)\n");
                 return false;
             }
@@ -643,12 +682,17 @@ bool parse(int argc, char **argv, Options &o)
             if ((v = value()) == nullptr) {
                 return false;
             }
-            sim::set_action_ms(static_cast<uint32_t>(std::atoi(v)));
+            sample::set_action_ms(static_cast<uint32_t>(std::atoi(v)));
         } else if (arg == "--wait") {
             if ((v = value()) == nullptr) {
                 return false;
             }
             o.wait_ms = static_cast<uint32_t>(std::atoi(v));
+        } else if (arg == "--time") {
+            if ((v = value()) == nullptr) {
+                return false;
+            }
+            sample::set_start_time(std::atoll(v));
         } else {
             std::fprintf(stderr, "unknown option %s (--help)\n", arg.c_str());
             return false;
@@ -700,18 +744,18 @@ int main(int argc, char **argv)
         }
         std::printf("[sim] dashboard %s: %u pages, %u tiles\n", o.dashboard.c_str(),
                     static_cast<unsigned>(layout->pages.size()), static_cast<unsigned>(layout->tiles.size()));
-        sim::set_dashboard(std::move(layout));
+        sample::set_dashboard(std::move(layout));
     }
 
-    sim::set_board(g.board);
-    sim::set_rotation(o.rotation);
+    sample::set_board(g.board);
+    sample::set_rotation(o.rotation);
     if (o.lux_set) {
-        sim::set_ambient_light(true, o.lux);
+        sample::set_ambient_light(true, o.lux);
     }
-    sim::set_motion_sensor(o.motion);
-    sim::start_scenario(static_cast<size_t>(o.scenario));
+    sample::set_motion_sensor(o.motion);
+    sample::start_scenario(static_cast<size_t>(o.scenario));
 
-    ui::start(lv_disp_get_default(), sim::backend(), o.sensor, o.ui);
+    ui::start(lv_disp_get_default(), sample::backend(), o.sensor, o.ui);
     // the boot: the first setup opens in the timer that follows
     pump(800);
 

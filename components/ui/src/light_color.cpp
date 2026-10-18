@@ -7,7 +7,6 @@
 #include <string>
 
 #include "light_parts.hpp"
-#include "lvgl_compat.hpp"
 #include "sound.hpp"
 #include "theme.hpp"
 
@@ -52,7 +51,7 @@ lv_color_t kelvin_color(float kelvin)
 // of the large heap, the edge blended into the background.
 void render_wheel(lv_coord_t size)
 {
-    g.pixels.assign(static_cast<size_t>(size) * size, compat::pixel(t::color(t::kBackground)));
+    g.pixels.assign(static_cast<size_t>(size) * size, t::color(t::kBackground));
     const lv_color_t background = t::color(t::kBackground);
     const float radius = size / 2.0f;
     for (lv_coord_t y = 0; y < size; y++) {
@@ -73,7 +72,7 @@ void render_wheel(lv_coord_t size)
                 // the last pixel of the rim: as much of it as the circle covers
                 color = lv_color_mix(color, background, static_cast<lv_opa_t>((radius - distance) * 255));
             }
-            g.pixels[static_cast<size_t>(y) * size + x] = compat::pixel(color);
+            g.pixels[static_cast<size_t>(y) * size + x] = color;
         }
     }
 }
@@ -147,7 +146,7 @@ void build_color(lv_coord_t w, lv_coord_t h)
     g.wheel_size = static_cast<lv_coord_t>(std::min({kWheelSize, w, h}) & ~1);
     render_wheel(g.wheel_size);
     g.wheel = lv_canvas_create(g.control);
-    compat::canvas_set_buffer(g.wheel, g.pixels.data(), g.wheel_size, g.wheel_size);
+    lv_canvas_set_buffer(g.wheel, g.pixels.data(), g.wheel_size, g.wheel_size, LV_IMG_CF_TRUE_COLOR);
     lv_obj_set_pos(g.wheel, static_cast<lv_coord_t>((w - g.wheel_size) / 2), static_cast<lv_coord_t>((h - g.wheel_size) / 2));
     lv_obj_add_flag(g.wheel, LV_OBJ_FLAG_CLICKABLE);
     sound::tappable(g.wheel);

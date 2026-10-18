@@ -1,0 +1,92 @@
+# The benchmark dashboard (docs/benchmark.md). Frozen: results are only comparable while this
+# file, the sample data and the scenes stay the same; any change raises bench/VERSION and needs a
+# new baseline on every board. The values come from the sample data (components/sample_backend),
+# made up from the entity names, so the names matter.
+
+defaults:
+  grid: 4x3
+
+tiles:
+  # page 0: the tiles with a panel (weather and automation are on Large); 12 cells
+  - entity: light.bench_ceiling
+    name: Ceiling
+    dimmer: true
+    landscape:
+      size: 1x2
+  - entity: climate.bench_thermostat
+    name: Thermostat
+    landscape:
+      size: 1x2
+  - entity: switch.bench_lamp
+    name: Lamp
+  - entity: sensor.bench_temperature
+    name: Temperature
+    unit: "°C"
+    decimals: 1
+  - entity: lock.bench_door
+    name: Door
+  - entity: timer.bench_timer
+    name: Timer
+  - entity: camera.bench_cam
+    name: Camera
+    landscape:
+      size: 2x1
+  - type: area
+    name: Dense
+    # 23 tiles and the back tile
+    grid: 6x4
+    tiles:
+      - entity: switch.dense_a
+      - entity: switch.dense_b
+      - entity: light.dense_c
+      - entity: light.dense_d
+      - entity: sensor.dense_temperature
+        unit: "°C"
+        decimals: 1
+      - entity: sensor.dense_humidity
+        unit: "%"
+      - entity: binary_sensor.dense_motion
+      - entity: binary_sensor.dense_door
+      - entity: switch.dense_e
+      - entity: switch.dense_f
+      - entity: light.dense_g
+      - entity: light.dense_h
+      - entity: sensor.dense_power
+        unit: W
+      - entity: sensor.dense_energy
+        unit: kWh
+        decimals: 2
+      - entity: fan.dense_fan
+      - entity: scene.dense_scene
+      - entity: switch.dense_i
+      - entity: switch.dense_j
+      - entity: light.dense_k
+      - entity: light.dense_l
+      - entity: sensor.dense_pressure
+        unit: hPa
+      - entity: sensor.dense_co2
+        unit: ppm
+      - entity: lock.dense_lock
+  - type: area
+    name: Large
+    grid: 4x2
+    tiles:
+      - type: clock
+        name: Analog
+        style: analog
+        ticks: minute
+        border: true
+        seconds: true
+        date: true
+        landscape:
+          size: 1x2
+      - type: clock
+        name: Digital
+        seconds: true
+        date: true
+        landscape:
+          size: 2x1
+      - entity: weather.bench_forecast
+        name: Weather
+      - entity: automation.bench_lights
+        name: Automation

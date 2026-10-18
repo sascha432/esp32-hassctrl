@@ -8,7 +8,6 @@
 #include "dashboard.hpp"
 #include "history_view.hpp"
 #include "icons.hpp"
-#include "lvgl_compat.hpp"
 #include "sound.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"

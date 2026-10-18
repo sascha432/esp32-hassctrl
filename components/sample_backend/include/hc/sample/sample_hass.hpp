@@ -1,6 +1,6 @@
 #pragma once
 
-// The Home Assistant of the Windows version: sample states for the entities of the dashboard file,
+// The Home Assistant of the sample backend (stub_backend.hpp): sample states for the entities of the dashboard file,
 // made up from the domain and the name of each entity (a "..._temperature" sensor reports °C).
 // The values of a page arrive 150 ms after it is subscribed, an action changes the sample state
 // 400 ms after the tap (--action-ms), so a pending tile is seen for a moment. Every tenth entity is unavailable.
@@ -17,7 +17,7 @@
 #include "hc/core/entity.hpp"
 #include "hc/core/layout.hpp"
 
-namespace sim {
+namespace hc::sample {
 
 // how long an action takes until the sample state changes (--action-ms)
 void set_action_ms(uint32_t ms);
@@ -59,4 +59,4 @@ void set_stream_server(bool up);
 // the stream's server answers 401 from now on (StreamProblem::Login, "login needed")
 void set_stream_login(bool login);
 
-} // namespace sim
+} // namespace hc::sample

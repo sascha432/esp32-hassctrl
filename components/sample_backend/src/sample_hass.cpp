@@ -1,4 +1,4 @@
-#include "sample_hass.hpp"
+#include "hc/sample/sample_hass.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,9 +11,9 @@
 
 #include "hc/config/dashboard.hpp"
 #include "lvgl.h"
-#include "stub_backend.hpp"
+#include "hc/sample/stub_backend.hpp"
 
-namespace sim {
+namespace hc::sample {
 
 namespace {
 
@@ -173,7 +173,7 @@ EntityState make_sample(std::string_view id, size_t i)
     } else if (domain == "automation") {
         // enabled or not, ran 37 minutes ago
         s.state = i % 2 == 0 ? "on" : "off";
-        s.last_triggered = std::time(nullptr) - 37 * 60;
+        s.last_triggered = now() - 37 * 60;
     } else if (domain == "climate") {
         s.state = "heat";
         s.target = 21.5f;
@@ -233,11 +233,11 @@ EntityState make_sample(std::string_view id, size_t i)
         s.state = "active";
         s.duration = 1800;
         s.remaining = 1800;
-        s.finishes_at = std::time(nullptr) + 1800 - 37;
+        s.finishes_at = now() + 1800 - 37;
     } else if (domain == "script") {
         // not running, ran yesterday
         s.state = "off";
-        s.last_triggered = std::time(nullptr) - 86400;
+        s.last_triggered = now() - 86400;
     } else {
         // scene, button: the time of the last use
         s.state = "2026-10-07T18:12:00+00:00";
@@ -354,7 +354,7 @@ bool save_dashboard(const hc::core::Layout &layout, uint32_t revision, char *err
         return false;
     }
     stored->revision = revision + 1;
-    std::printf("dashboard saved: revision %u\n", static_cast<unsigned>(stored->revision));
+    say("dashboard saved: revision %u\n", static_cast<unsigned>(stored->revision));
     set_dashboard(std::make_shared<const hc::core::Layout>(std::move(*stored)));
     return true;
 }
@@ -385,7 +385,7 @@ void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::Pa
 
 void call_service(const hc::core::Intent &intent, std::string_view entity_id)
 {
-    std::printf("[sim] call_service kind %d for %.*s, value %g\n", static_cast<int>(intent.kind),
+    say("[sim] call_service kind %d for %.*s, value %g\n", static_cast<int>(intent.kind),
                 static_cast<int>(entity_id.size()), entity_id.data(), static_cast<double>(intent.value));
     if (!hass_connected()) {
         g.queue.push_back({lv_tick_get(), hc::core::ServiceFailed{intent.entity, "not connected to Home Assistant"}});
@@ -453,7 +453,7 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
     case IntentKind::SetTimer: {
         // as HA: a start (re)starts with the duration given or the entity's, resumes a paused
         // timer with its rest; a pause keeps the rest; cancel and finish end it
-        const int64_t now = std::time(nullptr);
+        const int64_t now = hc::sample::now();
         if (intent.value == hc::core::kTimerStart) {
             if (intent.value2 > 0) {
                 s.duration = intent.value2;
@@ -477,7 +477,7 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
     }
     case IntentKind::Run: {
         // an automation runs at once; a script runs for a second
-        const int64_t now = std::time(nullptr);
+        const int64_t now = hc::sample::now();
         if (entity_id.starts_with("automation.")) {
             s.last_triggered = now;
             break;
@@ -516,7 +516,7 @@ void call_service(const hc::core::Intent &intent, std::string_view entity_id)
 void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc::core::HistoryKind kind, uint32_t hours,
                    uint32_t generation)
 {
-    std::printf("[sim] history of %.*s, %u hours, %s\n", static_cast<int>(entity_id.size()), entity_id.data(), hours,
+    say("[sim] history of %.*s, %u hours, %s\n", static_cast<int>(entity_id.size()), entity_id.data(), static_cast<unsigned>(hours),
                 kind == hc::core::HistoryKind::Statistics   ? "statistics"
                 : kind == hc::core::HistoryKind::Temperature ? "temperature"
                                                              : "states");
@@ -524,7 +524,7 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
     history.generation = generation;
     history.entity = entity;
     history.kind = kind;
-    history.end = static_cast<uint32_t>(std::time(nullptr));
+    history.end = static_cast<uint32_t>(now());
     history.start = history.end - hours * 3600;
     if (!hass_connected()) {
         history.error = "not connected to Home Assistant";
@@ -538,7 +538,7 @@ void fetch_history(std::string_view entity_id, hc::core::EntityIndex entity, hc:
             // a temperature: the climate's room temperature, a change every 10 minutes
             const bool temperature = kind == hc::core::HistoryKind::Temperature;
             char *end = nullptr;
-            const double base = temperature ? s.current : std::strtod(s.state.c_str(), &end);
+            const double base = temperature ? static_cast<double>(s.current) : std::strtod(s.state.c_str(), &end);
             const bool numeric = temperature ? !std::isnan(s.current) : !s.state.empty() && end != nullptr && *end == 0;
             const double amplitude = std::max(1.0, std::fabs(base) * 0.1);
             const uint32_t step = temperature ? 600 : 300;
@@ -601,11 +601,11 @@ void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity
 {
     using hc::core::ForecastType;
     if (type == ForecastType::None) {
-        std::printf("[sim] forecast ends\n");
+        say("[sim] forecast ends\n");
         return;
     }
     const bool daily = type == ForecastType::Daily;
-    std::printf("[sim] %s forecast of %.*s\n", daily ? "daily" : "hourly", static_cast<int>(entity_id.size()),
+    say("[sim] %s forecast of %.*s\n", daily ? "daily" : "hourly", static_cast<int>(entity_id.size()),
                 entity_id.data());
     hc::core::Forecast forecast;
     forecast.generation = generation;
@@ -620,7 +620,7 @@ void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity
         forecast.error = "forecast not supported for this entity";
     } else {
         // from the start of this day or hour, the conditions in turn so every glyph is seen
-        const auto now = static_cast<uint32_t>(std::time(nullptr));
+        const auto now = static_cast<uint32_t>(hc::sample::now());
         const uint32_t step = daily ? 86400 : 3600;
         const uint32_t first = now / step * step;
         const size_t count = daily ? 8 : hc::core::kMaxForecastEntries;
@@ -647,45 +647,50 @@ void set_forecast_mode(ForecastMode mode)
 }
 
 // A landscape: the sky, a hill, a house, and a sun at `phase` (0..1) of its way across the sky.
-hc::core::Pixels landscape(hc::core::EntityIndex entity, uint16_t width, uint16_t height,
-                                                        double phase)
+// Single precision and the hill's line once per column: the ESP32 computes doubles in software,
+// and the firmware's benchmark mode draws this in the LVGL task.
+hc::core::Pixels landscape(hc::core::EntityIndex entity, uint16_t width, uint16_t height, float phase)
 {
     hc::core::Pixels pixels = hc::core::allocate_pixels(static_cast<size_t>(width) * height);
-    const double tint = static_cast<double>(entity % 5) * 0.12;
-    const double sun_x = width * (0.1 + 0.8 * phase);
-    const double sun_y = height * (0.45 - 0.3 * std::sin(phase * 3.14159265));
-    const double sun_r = std::max(4.0, height * 0.08);
+    const float tint = static_cast<float>(entity % 5) * 0.12f;
+    const float sun_x = width * (0.1f + 0.8f * phase);
+    const float sun_y = height * (0.45f - 0.3f * std::sin(phase * 3.14159265f));
+    const float sun_r = std::max(4.0f, height * 0.08f);
+    std::vector<float> hills(width);
+    for (uint16_t x = 0; x < width; x++) {
+        hills[x] = 0.62f + 0.08f * std::sin(static_cast<float>(x) / width * 6.0f + tint * 10);
+    }
+    const auto c = [](float v) { return static_cast<uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255); };
     for (uint16_t y = 0; y < height; y++) {
+        const float fy = static_cast<float>(y) / height;
         for (uint16_t x = 0; x < width; x++) {
-            const double fx = static_cast<double>(x) / width;
-            const double fy = static_cast<double>(y) / height;
-            const double hill = 0.62 + 0.08 * std::sin(fx * 6.0 + tint * 10);
-            double r = 0;
-            double gr = 0;
-            double b = 0;
+            const float fx = static_cast<float>(x) / width;
+            const float hill = hills[x];
+            float r = 0;
+            float gr = 0;
+            float b = 0;
             if (fy > hill) {
-                r = 0.20 + tint;
-                gr = 0.45 - 0.2 * (fy - hill);
-                b = 0.18;
+                r = 0.20f + tint;
+                gr = 0.45f - 0.2f * (fy - hill);
+                b = 0.18f;
             } else {
-                r = 0.35 + 0.4 * fy;
-                gr = 0.55 + 0.35 * fy;
-                b = 0.95 - 0.2 * fy;
+                r = 0.35f + 0.4f * fy;
+                gr = 0.55f + 0.35f * fy;
+                b = 0.95f - 0.2f * fy;
             }
             // the house on the hill
-            if (fx > 0.62 && fx < 0.78 && fy > hill - 0.16 && fy <= hill + 0.02) {
-                r = 0.75;
-                gr = 0.7;
-                b = 0.62;
+            if (fx > 0.62f && fx < 0.78f && fy > hill - 0.16f && fy <= hill + 0.02f) {
+                r = 0.75f;
+                gr = 0.7f;
+                b = 0.62f;
             }
-            const double dx = x - sun_x;
-            const double dy = y - sun_y;
+            const float dx = x - sun_x;
+            const float dy = y - sun_y;
             if (dx * dx + dy * dy < sun_r * sun_r && fy < hill) {
-                r = 1.0;
-                gr = 0.85;
-                b = 0.3;
+                r = 1.0f;
+                gr = 0.85f;
+                b = 0.3f;
             }
-            const auto c = [](double v) { return static_cast<uint8_t>(std::clamp(v, 0.0, 1.0) * 255); };
             pixels.get()[static_cast<size_t>(y) * width + x] = lv_color_make(c(r), c(gr), c(b)).full;
         }
     }
@@ -696,7 +701,7 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
                  uint16_t height, bool whole, uint32_t generation)
 {
     (void)whole; // the landscape is drawn in any shape: the whole picture is the box
-    std::printf("[sim] image of %.*s%s, %ux%u\n", static_cast<int>(entity_id.size()), entity_id.data(),
+    say("[sim] image of %.*s%s, %ux%u\n", static_cast<int>(entity_id.size()), entity_id.data(),
                 stream.empty() ? "" : " (first frame of its stream)", width, height);
     hc::core::Image image;
     image.generation = generation;
@@ -716,7 +721,7 @@ void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::
     image.height = height;
     image.source_width = width; // drawn in the box's shape: nothing is cut
     image.source_height = height;
-    image.pixels = landscape(entity, width, height, static_cast<double>(std::time(nullptr) % 60) / 60.0);
+    image.pixels = landscape(entity, width, height, static_cast<float>(now() % 60) / 60.0f);
     g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
 }
 
@@ -733,7 +738,7 @@ void queue_at(uint32_t at, hc::core::HassEvent event)
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
                  uint16_t height, uint32_t generation)
 {
-    std::printf("[sim] stream of %.*s, %ux%u: %.*s\n", static_cast<int>(entity_id.size()), entity_id.data(), width,
+    say("[sim] stream of %.*s, %ux%u: %.*s\n", static_cast<int>(entity_id.size()), entity_id.data(), width,
                 height, static_cast<int>(stream.size()), stream.data());
     if (g.play.generation != 0 && g.play.entity == entity) {
         // another size of the stream that plays: it goes on
@@ -791,13 +796,13 @@ void set_stream_server(bool up)
         g.queue.push_back({lv_tick_get(), std::move(ended)});
         g.play = {};
     }
-    std::printf("[sim] stream server %s\n", up ? "up" : "down");
+    say("[sim] stream server %s\n", up ? "up" : "down");
 }
 
 void stop_stream()
 {
     if (g.play.generation != 0) {
-        std::printf("[sim] stream stopped\n");
+        say("[sim] stream stopped\n");
     }
     g.play = {};
 }
@@ -836,7 +841,7 @@ std::string lower(std::string_view text)
 
 void find_entities(std::string_view query, size_t max, uint32_t generation)
 {
-    std::printf("[sim] entity search '%.*s'\n", static_cast<int>(query.size()), query.data());
+    say("[sim] entity search '%.*s'\n", static_cast<int>(query.size()), query.data());
     hc::core::EntityList list;
     list.generation = generation;
     if (!hass_connected()) {
@@ -910,7 +915,7 @@ bool take_event(hc::core::HassEvent &out)
         image.height = g.play.height;
         image.source_width = g.play.width;
         image.source_height = g.play.height;
-        image.pixels = landscape(g.play.entity, g.play.width, g.play.height, (g.play.frame % 100) / 100.0);
+        image.pixels = landscape(g.play.entity, g.play.width, g.play.height, static_cast<float>(g.play.frame % 100) / 100.0f);
         out = std::move(image);
         return true;
     }
@@ -922,4 +927,4 @@ bool take_event(hc::core::HassEvent &out)
     return true;
 }
 
-} // namespace sim
+} // namespace hc::sample

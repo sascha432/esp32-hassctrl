@@ -15,9 +15,20 @@
 #include "hc/core/timezone.hpp"
 #include "hc/memory/large.hpp"
 #include "lvgl.h"
-#include "lvgl_compat.hpp"
 
 namespace hc::ui::tiles {
+
+// The face of an analog clock, drawn by hand (tiles_clock.cpp): its sizes, fixed when it is built,
+// and where the hands point
+struct ClockFace {
+    lv_coord_t r = 0;          // the radius inside the rim
+    lv_coord_t hub = 0;        // the dot over the hands, across
+    core::ClockTicks ticks = core::ClockTicks::None;
+    bool seconds = false;      // with the second hand
+    bool clock_set = false;    // else the hub is muted
+    // the hands in tenths of a degree clockwise from twelve: hour, minute, second
+    int16_t angles[3] = {0, 0, 0};
+};
 
 struct View {
     core::TileIndex tile = core::kNone; // kNone: the back tile of an area page
@@ -47,7 +58,7 @@ struct View {
     // picture: the camera image over the whole card, the name on a band at its bottom
     lv_obj_t *image = nullptr;
     lv_obj_t *caption = nullptr;
-    compat::ImageDsc image_dsc{};
+    lv_img_dsc_t image_dsc{};
     core::Pixels pixels;
     uint16_t image_width = 0;  // the frame that is asked for
     uint16_t image_height = 0;
@@ -64,11 +75,8 @@ struct View {
     bool seconds = false;
     lv_obj_t *suffix = nullptr;     // "AM"/"PM"
     lv_obj_t *date = nullptr;       // "Tue 13 Oct"
-    lv_obj_t *face = nullptr;       // analog: the lv_meter
-    lv_obj_t *hub = nullptr;        // analog: the dot over the hands
-    lv_meter_indicator_t *hour_hand = nullptr;
-    lv_meter_indicator_t *minute_hand = nullptr;
-    lv_meter_indicator_t *second_hand = nullptr;
+    lv_obj_t *face = nullptr;       // analog: the face, drawn by hand (tiles_clock.cpp)
+    ClockFace clock_face;
     bool has_zone = false;          // `zone_rule` is the tile's zone; else the device's
     core::TzRule zone_rule;
     int64_t clock_shown = -1;       // the minute (or second) drawn, -1: nothing yet

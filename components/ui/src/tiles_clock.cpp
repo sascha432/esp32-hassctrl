@@ -2,6 +2,7 @@
 // timer, in the tile's time zone or the device's.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 
@@ -15,6 +16,136 @@ namespace hc::ui::tiles::detail {
 namespace {
 
 namespace t = theme;
+
+constexpr int kHour = 0;
+constexpr int kMinute = 1;
+
+// the middle of the face inside its padding (the rim)
+lv_point_t face_center(lv_obj_t *face)
+{
+    lv_area_t area;
+    lv_obj_get_content_coords(face, &area);
+    return {static_cast<lv_coord_t>(area.x1 + lv_area_get_width(&area) / 2),
+            static_cast<lv_coord_t>(area.y1 + lv_area_get_height(&area) / 2)};
+}
+
+// the point `radius` px from `c` at `angle` (tenths of a degree clockwise from twelve)
+lv_point_t at(lv_point_t c, int32_t angle, lv_coord_t radius)
+{
+    const float rad = static_cast<float>(angle) * 3.14159265f / 1800.0f;
+    return {static_cast<lv_coord_t>(c.x + std::lround(static_cast<float>(radius) * std::sin(rad))),
+            static_cast<lv_coord_t>(c.y - std::lround(static_cast<float>(radius) * std::cos(rad)))};
+}
+
+// a hand: its length and width as parts of the face's radius, its color
+struct Hand {
+    lv_coord_t length;
+    lv_coord_t width;
+    uint32_t color;
+};
+
+Hand hand(const ClockFace &f, int which)
+{
+    switch (which) {
+    case kHour:
+        return {static_cast<lv_coord_t>(f.r - f.r * 45 / 100), std::max<lv_coord_t>(3, f.r / 14), t::kText};
+    case kMinute:
+        return {static_cast<lv_coord_t>(f.r - f.r * 20 / 100), std::max<lv_coord_t>(2, f.r / 20), t::kText};
+    default:
+        return {static_cast<lv_coord_t>(f.r - f.r * 10 / 100), static_cast<lv_coord_t>(f.r >= 100 ? 2 : 1), t::kActive};
+    }
+}
+
+// the strip a hand covers at `angle`, with its round end and the hub
+lv_area_t hand_area(lv_obj_t *face, const ClockFace &f, int which, int16_t angle)
+{
+    const lv_point_t c = face_center(face);
+    const Hand h = hand(f, which);
+    const lv_point_t end = at(c, angle, h.length);
+    const auto grow = static_cast<lv_coord_t>(std::max<lv_coord_t>(h.width, f.hub) / 2 + 2);
+    return {static_cast<lv_coord_t>(std::min(c.x, end.x) - grow), static_cast<lv_coord_t>(std::min(c.y, end.y) - grow),
+            static_cast<lv_coord_t>(std::max(c.x, end.x) + grow), static_cast<lv_coord_t>(std::max(c.y, end.y) + grow)};
+}
+
+// Turns the hands and redraws only the strips of the ones that moved (each holds the hub).
+void set_hands(View &view, const int16_t (&angles)[3], bool clock_set)
+{
+    ClockFace &f = view.clock_face;
+    if (clock_set != f.clock_set) {
+        f.clock_set = clock_set;
+        lv_obj_invalidate(view.face);
+    }
+    for (int i = 0; i < (f.seconds ? 3 : 2); i++) {
+        if (angles[i] == f.angles[i]) {
+            continue;
+        }
+        lv_area_t area = hand_area(view.face, f, i, f.angles[i]);
+        lv_obj_invalidate_area(view.face, &area);
+        f.angles[i] = angles[i];
+        area = hand_area(view.face, f, i, f.angles[i]);
+        lv_obj_invalidate_area(view.face, &area);
+    }
+}
+
+void line(lv_draw_ctx_t *ctx, lv_point_t from, lv_point_t to, lv_coord_t width, lv_color_t color, bool rounded)
+{
+    lv_draw_line_dsc_t dsc;
+    lv_draw_line_dsc_init(&dsc);
+    dsc.width = width;
+    dsc.color = color;
+    dsc.round_start = rounded;
+    dsc.round_end = rounded;
+    lv_draw_line(ctx, &dsc, &from, &to);
+}
+
+// a filled circle `d` px across (odd: centered on the pixel) around `center`
+void dot(lv_draw_ctx_t *ctx, lv_point_t center, lv_coord_t d, lv_color_t color)
+{
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.radius = LV_RADIUS_CIRCLE;
+    dsc.bg_color = color;
+    dsc.bg_opa = LV_OPA_COVER;
+    const lv_area_t area{static_cast<lv_coord_t>(center.x - d / 2), static_cast<lv_coord_t>(center.y - d / 2),
+                         static_cast<lv_coord_t>(center.x - d / 2 + d - 1),
+                         static_cast<lv_coord_t>(center.y - d / 2 + d - 1)};
+    lv_draw_rect(ctx, &dsc, &area);
+}
+
+// The face: the ticks (lines from the radius inwards), the hands from the middle, the hour hand
+// first so the later ones lie over it, and the hub over them all.
+void on_draw_face(lv_event_t *event)
+{
+    const View &view = *static_cast<const View *>(lv_event_get_user_data(event));
+    const ClockFace &f = view.clock_face;
+    const lv_point_t c = face_center(view.face);
+    lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(event);
+    const auto ticks = [&](int count, lv_coord_t width, lv_coord_t length, uint32_t color) {
+        for (int i = 0; i < count; i++) {
+            const int32_t angle = i * 3600 / count;
+            line(ctx, at(c, angle, static_cast<lv_coord_t>(f.r - length)), at(c, angle, f.r), width,
+                 t::color(color), false);
+        }
+    };
+    switch (f.ticks) {
+    case core::ClockTicks::Quarter:
+        ticks(4, std::max<lv_coord_t>(2, f.r / 25), static_cast<lv_coord_t>(f.r / 5), t::kTextLabel);
+        break;
+    case core::ClockTicks::Minute:
+        ticks(60, 1, static_cast<lv_coord_t>(f.r / 10), t::kTextMuted);
+        [[fallthrough]];
+    case core::ClockTicks::Hour:
+        ticks(12, std::max<lv_coord_t>(2, f.r / 40), static_cast<lv_coord_t>(f.r / 6), t::kTextLabel);
+        break;
+    case core::ClockTicks::None:
+        break;
+    }
+    for (int i = 0; i < (f.seconds ? 3 : 2); i++) {
+        const Hand h = hand(f, i);
+        line(ctx, c, at(c, f.angles[i], h.length), h.width, t::color(h.color), true);
+    }
+    dot(ctx, c, f.hub, t::color(f.clock_set ? t::kText : t::kTextMuted));
+}
 
 } // namespace
 
@@ -36,12 +167,7 @@ void tick_clock(View &view, bool force)
         set_hidden(view.suffix, true);
         set_hidden(view.date, true);
         if (view.face != nullptr) {
-            lv_meter_set_indicator_value(view.face, view.hour_hand, 0);
-            lv_meter_set_indicator_value(view.face, view.minute_hand, 0);
-            if (view.second_hand != nullptr) {
-                lv_meter_set_indicator_value(view.face, view.second_hand, 0);
-            }
-            lv_obj_set_style_bg_color(view.face, t::color(t::kTextMuted), LV_PART_INDICATOR);
+            set_hands(view, {0, 0, 0}, false);
         }
         return;
     }
@@ -67,14 +193,12 @@ void tick_clock(View &view, bool force)
         set_hidden(view.suffix, false);
     }
     if (view.face != nullptr) {
-        // the hour hand moves on with the minutes, the minute hand with the seconds when they show
-        lv_meter_set_indicator_value(view.face, view.hour_hand, (local.tm_hour % 12) * 60 + local.tm_min);
-        lv_meter_set_indicator_value(view.face, view.minute_hand,
-                                     view.seconds ? local.tm_min * 60 + local.tm_sec : local.tm_min);
-        if (view.second_hand != nullptr) {
-            lv_meter_set_indicator_value(view.face, view.second_hand, local.tm_sec);
-        }
-        lv_obj_set_style_bg_color(view.face, t::color(t::kText), LV_PART_INDICATOR);
+        // in tenths of a degree: the hour hand moves on with the minutes, the minute hand with the
+        // seconds when they show
+        const int hour = ((local.tm_hour % 12) * 60 + local.tm_min) * 5;
+        const int minute = view.seconds ? local.tm_min * 60 + local.tm_sec : local.tm_min * 60;
+        set_hands(view, {static_cast<int16_t>(hour), static_cast<int16_t>(minute), static_cast<int16_t>(local.tm_sec * 60)},
+                  true);
     }
     if (view.date != nullptr) {
         // "Tue 13 Oct"
@@ -138,15 +262,11 @@ void create_digital_clock(View &view, const core::Tile &tile, lv_coord_t width, 
     }
 }
 
-// The face of an analog clock, `d` px across: an lv_meter (the hands are its needles, the ticks
-// its scales; a tick of the hands redraws only their strips). Three scales: the hours (0 to 720
-// minutes of twelve hours), the minutes (0 to 3600 seconds with the second hand, so it creeps
-// on; else 0 to 60) and the seconds. The ticks follow the tile's `ticks`: the hour marks on the
-// hours scale, the minute marks on the minutes scale below them. No major ticks: they draw labels.
+// The face of an analog clock, `d` px across: a plain object that draws the ticks, the hands and
+// the hub itself (on_draw_face), with `border` a rim around them.
 lv_obj_t *analog_face(View &view, const core::Tile &tile, lv_obj_t *parent, lv_coord_t d)
 {
-    lv_obj_t *face = lv_meter_create(parent);
-    lv_obj_remove_style_all(face);
+    lv_obj_t *face = t::plain(parent);
     lv_obj_set_size(face, d, d);
     lv_obj_clear_flag(face, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(face, LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -159,54 +279,14 @@ lv_obj_t *analog_face(View &view, const core::Tile &tile, lv_obj_t *parent, lv_c
         pad = rim + 2;
     }
     lv_obj_set_style_pad_all(face, pad, 0);
-    const lv_coord_t r = d / 2 - pad;
-    // the hands have round ends; the hub is the meter's own middle
-    lv_obj_set_style_line_rounded(face, true, LV_PART_ITEMS);
-    const lv_coord_t hub = std::max<lv_coord_t>(5, r / 8) | 1;
-    lv_obj_set_style_width(face, hub, LV_PART_INDICATOR);
-    lv_obj_set_style_height(face, hub, LV_PART_INDICATOR);
-    lv_obj_set_style_radius(face, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_opa(face, LV_OPA_COVER, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(face, t::color(t::kText), LV_PART_INDICATOR);
-
-    // scales: 360 degrees from twelve o'clock (270 in LVGL's terms), clockwise. The minutes scale
-    // first, so the hour marks of the hours scale draw over its minute marks.
-    const auto scale = [&](int32_t max) {
-        lv_meter_scale_t *s = lv_meter_add_scale(face);
-        lv_meter_set_scale_range(face, s, 0, max, 360, 270);
-        lv_meter_set_scale_ticks(face, s, 0, 0, 0, t::color(t::kTextMuted));
-        return s;
-    };
-    lv_meter_scale_t *minutes = scale(tile.seconds ? 3600 : 60);
-    lv_meter_scale_t *hours = scale(720);
-    lv_meter_scale_t *seconds = tile.seconds ? scale(60) : nullptr;
-    // ticks: a face under 30 px of radius shows at most the hour marks
-    core::ClockTicks ticks = tile.ticks;
-    if (ticks == core::ClockTicks::Minute && r < 30) {
-        ticks = core::ClockTicks::Hour;
-    }
-    switch (ticks) {
-    case core::ClockTicks::Quarter:
-        lv_meter_set_scale_ticks(face, hours, 5, std::max<lv_coord_t>(2, r / 25), r / 5, t::color(t::kTextLabel));
-        break;
-    case core::ClockTicks::Minute:
-        lv_meter_set_scale_ticks(face, minutes, 61, 1, r / 10, t::color(t::kTextMuted));
-        [[fallthrough]];
-    case core::ClockTicks::Hour:
-        lv_meter_set_scale_ticks(face, hours, 13, std::max<lv_coord_t>(2, r / 40), r / 6, t::color(t::kTextLabel));
-        break;
-    case core::ClockTicks::None:
-        break;
-    }
-    // the hands, hour first: a later needle draws over an earlier one; lengths as parts of r
-    view.hour_hand = lv_meter_add_needle_line(face, hours, static_cast<uint16_t>(std::max<lv_coord_t>(3, r / 14)),
-                                              t::color(t::kText), static_cast<int16_t>(-r * 45 / 100));
-    view.minute_hand = lv_meter_add_needle_line(face, minutes, static_cast<uint16_t>(std::max<lv_coord_t>(2, r / 20)),
-                                                t::color(t::kText), static_cast<int16_t>(-r * 20 / 100));
-    if (seconds != nullptr) {
-        view.second_hand = lv_meter_add_needle_line(face, seconds, r >= 100 ? 2 : 1, t::color(t::kActive),
-                                                    static_cast<int16_t>(-r * 10 / 100));
-    }
+    ClockFace &f = view.clock_face;
+    f = {};
+    f.r = static_cast<lv_coord_t>(d / 2 - pad);
+    f.hub = static_cast<lv_coord_t>(std::max<lv_coord_t>(5, f.r / 8) | 1);
+    f.seconds = tile.seconds;
+    // a face under 30 px of radius shows at most the hour marks
+    f.ticks = tile.ticks == core::ClockTicks::Minute && f.r < 30 ? core::ClockTicks::Hour : tile.ticks;
+    lv_obj_add_event_cb(face, on_draw_face, LV_EVENT_DRAW_MAIN, &view);
     view.face = face;
     return face;
 }

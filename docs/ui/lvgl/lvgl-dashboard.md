@@ -157,7 +157,7 @@ takes no taps while it moves. Every board slides (the swipe fires the slide;
 | area | folder (or the tile's icon), name | opens the page |
 | spacer | nothing | |
 | clock, digital | the icon when the tile has one (24 px), the time in the largest digit font that fits the width and leaves the lines below their room (72 or 48 px digits, `theme::font_digits_*`, then the text fonts; chosen once, so the digits stay put), with `hours: 12` AM/PM beside it, with `seconds` the seconds; the date under it (`date: true`, "Fri 16 Oct"); the name when the tile has one | nothing |
-| clock, analog | the face (an `lv_meter`: hour and minute hand with round ends, with `seconds` a second hand in the active color, `ticks` none / quarter / hour (default) / minute as its scales, `border: true` a rim), the date and the name below it; wide: the face as tall as the card at the left, name and date right of it. A face that would be under 40 px drops the date, then the name; under 30 px of radius the minute ticks become hour ticks | nothing |
+| clock, analog | the face (drawn by hand, `tiles_clock.cpp`: hour and minute hand with round ends, with `seconds` a second hand in the active color, `ticks` none / quarter / hour (default) / minute, `border: true` a rim; a tick redraws only the strips of the hands that moved), the date and the name below it; wide: the face as tall as the card at the left, name and date right of it. A face that would be under 40 px drops the date, then the name; under 30 px of radius the minute ticks become hour ticks | nothing |
 
 A clock has no entity (`type: clock`, [architecture.md](../../architecture.md) section 5). It ticks
 by a timer of its own, once a second (every 250 ms with seconds), and redraws only when the shown

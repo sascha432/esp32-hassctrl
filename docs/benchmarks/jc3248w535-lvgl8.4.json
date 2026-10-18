@@ -1,0 +1,3107 @@
+{
+ "header": {
+  "bench": 1,
+  "lvgl": "8.4.0",
+  "width": 320,
+  "height": 480,
+  "board": "JC3248W535",
+  "variant": "",
+  "firmware": "0.1.0",
+  "idf": "v6.1",
+  "cpu_mhz": 240,
+  "data": "1"
+ },
+ "memory": {
+  "before": {
+   "internal_free": 147539,
+   "internal_largest": 98304,
+   "dma_free": 139751,
+   "psram_free": 7927492,
+   "psram_largest": 7864320,
+   "lvgl_stack_free": 7788
+  },
+  "after": {
+   "internal_free": 147543,
+   "internal_largest": 98304,
+   "dma_free": 139755,
+   "psram_free": 7912980,
+   "psram_largest": 7864320,
+   "lvgl_stack_free": 3208
+  }
+ },
+ "scenes": {
+  "main_redraw": {
+   "fps": 17.8,
+   "total.med": 51.2,
+   "total.p95": 52.13,
+   "total.max": 52.2,
+   "render.med": 34.97,
+   "render.p95": 35.77,
+   "flush.med": 16.24,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.14
+  },
+  "dense_slide_in": {
+   "fps": 5.0,
+   "total.med": 71.36,
+   "total.p95": 82.21,
+   "total.max": 122.19,
+   "render.med": 55.1,
+   "render.p95": 65.97,
+   "flush.med": 16.24,
+   "pixels": 153600,
+   "frames": 5,
+   "spread.total.med": 1.51
+  },
+  "dense_redraw": {
+   "fps": 13.7,
+   "total.med": 67.93,
+   "total.p95": 68.49,
+   "total.max": 68.56,
+   "render.med": 51.51,
+   "render.p95": 52.21,
+   "flush.med": 16.32,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.26
+  },
+  "dense_back": {
+   "fps": 8.0,
+   "total.med": 49.82,
+   "total.p95": 62.2,
+   "total.max": 66.95,
+   "render.med": 33.5,
+   "render.p95": 45.74,
+   "flush.med": 16.28,
+   "pixels": 153600,
+   "frames": 8,
+   "spread.total.med": 4.71
+  },
+  "light_panel_open": {
+   "fps": 8.0,
+   "total.med": 40.32,
+   "total.p95": 68.76,
+   "total.max": 73.29,
+   "render.med": 23.95,
+   "render.p95": 52.41,
+   "flush.med": 16.25,
+   "pixels": 153600,
+   "frames": 8,
+   "spread.total.med": 0.46
+  },
+  "light_panel_redraw": {
+   "fps": 22.5,
+   "total.med": 39.36,
+   "total.p95": 39.9,
+   "total.max": 39.97,
+   "render.med": 22.97,
+   "render.p95": 23.55,
+   "flush.med": 16.3,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.19
+  },
+  "light_panel_close": {
+   "fps": 8.0,
+   "total.med": 22.92,
+   "total.p95": 74.49,
+   "total.max": 75.01,
+   "render.med": 6.53,
+   "render.p95": 58.15,
+   "flush.med": 16.17,
+   "pixels": 172800,
+   "frames": 8,
+   "spread.total.med": 20.02
+  },
+  "climate_panel_open": {
+   "fps": 7.0,
+   "total.med": 65.66,
+   "total.p95": 81.26,
+   "total.max": 83.82,
+   "render.med": 49.28,
+   "render.p95": 64.96,
+   "flush.med": 16.28,
+   "pixels": 153600,
+   "frames": 7,
+   "spread.total.med": 18.52
+  },
+  "climate_panel_redraw": {
+   "fps": 19.0,
+   "total.med": 47.59,
+   "total.p95": 48.39,
+   "total.max": 48.92,
+   "render.med": 31.18,
+   "render.p95": 32.05,
+   "flush.med": 16.31,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.21
+  },
+  "climate_panel_close": {
+   "fps": 7.0,
+   "total.med": 39.57,
+   "total.p95": 83.49,
+   "total.max": 83.86,
+   "render.med": 23.6,
+   "render.p95": 66.97,
+   "flush.med": 16.22,
+   "pixels": 175542,
+   "frames": 7,
+   "spread.total.med": 18.32
+  },
+  "sensor_panel_open": {
+   "fps": 8.0,
+   "total.med": 47.17,
+   "total.p95": 69.13,
+   "total.max": 73.57,
+   "render.med": 30.66,
+   "render.p95": 52.75,
+   "flush.med": 16.27,
+   "pixels": 307200,
+   "frames": 8,
+   "spread.total.med": 1.27
+  },
+  "sensor_panel_redraw": {
+   "fps": 21.2,
+   "total.med": 42.1,
+   "total.p95": 42.83,
+   "total.max": 43.21,
+   "render.med": 25.77,
+   "render.p95": 26.49,
+   "flush.med": 16.3,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.15
+  },
+  "sensor_panel_close": {
+   "fps": 7.0,
+   "total.med": 40.91,
+   "total.p95": 77.26,
+   "total.max": 78.82,
+   "render.med": 24.89,
+   "render.p95": 60.77,
+   "flush.med": 16.23,
+   "pixels": 175542,
+   "frames": 7,
+   "spread.total.med": 2.64
+  },
+  "lock_panel_open": {
+   "fps": 7.0,
+   "total.med": 52.07,
+   "total.p95": 67.96,
+   "total.max": 70.54,
+   "render.med": 35.75,
+   "render.p95": 51.47,
+   "flush.med": 16.31,
+   "pixels": 153600,
+   "frames": 7,
+   "spread.total.med": 0.79
+  },
+  "lock_panel_close": {
+   "fps": 8.0,
+   "total.med": 25.15,
+   "total.p95": 72.34,
+   "total.max": 72.73,
+   "render.med": 9.19,
+   "render.p95": 55.97,
+   "flush.med": 16.2,
+   "pixels": 172800,
+   "frames": 8,
+   "spread.total.med": 20.24
+  },
+  "timer_panel_open": {
+   "fps": 6.0,
+   "total.med": 49.71,
+   "total.p95": 82.79,
+   "total.max": 84.12,
+   "render.med": 33.37,
+   "render.p95": 66.56,
+   "flush.med": 16.24,
+   "pixels": 153600,
+   "frames": 6,
+   "spread.total.med": 16.73
+  },
+  "timer_panel_close": {
+   "fps": 8.0,
+   "total.med": 23.39,
+   "total.p95": 83.4,
+   "total.max": 84.86,
+   "render.med": 7.16,
+   "render.p95": 67.15,
+   "flush.med": 16.2,
+   "pixels": 172800,
+   "frames": 8,
+   "spread.total.med": 16.5
+  },
+  "picture_panel_open": {
+   "fps": 7.3,
+   "total.med": 21.61,
+   "total.p95": 137.27,
+   "total.max": 163.89,
+   "render.med": 5.47,
+   "render.p95": 120.83,
+   "flush.med": 16.18,
+   "pixels": 153600,
+   "frames": 11,
+   "spread.total.med": 1.69
+  },
+  "picture_panel_redraw": {
+   "fps": 21.9,
+   "total.med": 40.64,
+   "total.p95": 41.53,
+   "total.max": 41.89,
+   "render.med": 24.35,
+   "render.p95": 25.26,
+   "flush.med": 16.22,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.22
+  },
+  "picture_panel_close": {
+   "fps": 7.0,
+   "total.med": 41.21,
+   "total.p95": 76.41,
+   "total.max": 76.68,
+   "render.med": 25.03,
+   "render.p95": 60.22,
+   "flush.med": 16.18,
+   "pixels": 153600,
+   "frames": 7,
+   "spread.total.med": 19.78
+  },
+  "pending_runner": {
+   "fps": 42.2,
+   "total.med": 18.46,
+   "total.p95": 20.52,
+   "total.max": 23.07,
+   "render.med": 2.34,
+   "render.p95": 4.54,
+   "flush.med": 16.12,
+   "pixels": 162635,
+   "frames": 85,
+   "spread.total.med": 0.05
+  },
+  "alert_strip": {
+   "fps": 11.2,
+   "total.med": 20.27,
+   "total.p95": 21.33,
+   "total.max": 25.35,
+   "render.med": 4.24,
+   "render.p95": 5.17,
+   "flush.med": 16.05,
+   "pixels": 159085,
+   "frames": 28,
+   "spread.total.med": 0.16
+  },
+  "large_slide_in": {
+   "fps": 7.0,
+   "total.med": 67.68,
+   "total.p95": 71.2,
+   "total.max": 74.64,
+   "render.med": 51.41,
+   "render.p95": 54.89,
+   "flush.med": 16.25,
+   "pixels": 153600,
+   "frames": 7,
+   "spread.total.med": 1.11
+  },
+  "clocks_tick": {
+   "fps": 3.0,
+   "total.med": 19.03,
+   "total.p95": 48.81,
+   "total.max": 48.91,
+   "render.med": 2.92,
+   "render.p95": 32.49,
+   "flush.med": 16.1,
+   "pixels": 256000,
+   "frames": 12,
+   "spread.total.med": 0.47
+  },
+  "weather_panel_open": {
+   "fps": 5.3,
+   "total.med": 30.46,
+   "total.p95": 87.31,
+   "total.max": 91.93,
+   "render.med": 13.94,
+   "render.p95": 71.04,
+   "flush.med": 16.25,
+   "pixels": 238933,
+   "frames": 8,
+   "spread.total.med": 20.23
+  },
+  "weather_panel_redraw": {
+   "fps": 18.5,
+   "total.med": 49.11,
+   "total.p95": 50.33,
+   "total.max": 51.26,
+   "render.med": 32.76,
+   "render.p95": 34.11,
+   "flush.med": 16.29,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.21
+  },
+  "weather_panel_close": {
+   "fps": 7.0,
+   "total.med": 48.94,
+   "total.p95": 97.16,
+   "total.max": 100.04,
+   "render.med": 32.62,
+   "render.p95": 80.81,
+   "flush.med": 16.27,
+   "pixels": 219428,
+   "frames": 7,
+   "spread.total.med": 0.58
+  },
+  "automation_panel_open": {
+   "fps": 8.0,
+   "total.med": 34.46,
+   "total.p95": 75.7,
+   "total.max": 81.83,
+   "render.med": 18.12,
+   "render.p95": 59.26,
+   "flush.med": 16.25,
+   "pixels": 192000,
+   "frames": 8,
+   "spread.total.med": 14.09
+  },
+  "automation_panel_close": {
+   "fps": 7.0,
+   "total.med": 48.28,
+   "total.p95": 81.58,
+   "total.max": 82.04,
+   "render.med": 32.0,
+   "render.p95": 65.33,
+   "flush.med": 16.22,
+   "pixels": 219428,
+   "frames": 7,
+   "spread.total.med": 0.49
+  },
+  "settings_open": {
+   "fps": 3.3,
+   "total.med": 50.13,
+   "total.p95": 51.8,
+   "total.max": 134.32,
+   "render.med": 33.88,
+   "render.p95": 35.47,
+   "flush.med": 16.25,
+   "pixels": 153600,
+   "frames": 5,
+   "spread.total.med": 0.43
+  },
+  "settings_scroll": {
+   "fps": 11.3,
+   "total.med": 39.26,
+   "total.p95": 46.4,
+   "total.max": 47.28,
+   "render.med": 23.0,
+   "render.p95": 30.08,
+   "flush.med": 16.3,
+   "pixels": 153600,
+   "frames": 17,
+   "spread.total.med": 0.19
+  },
+  "settings_close": {
+   "fps": 8.0,
+   "total.med": 31.76,
+   "total.p95": 57.41,
+   "total.max": 63.49,
+   "render.med": 15.53,
+   "render.p95": 41.2,
+   "flush.med": 16.21,
+   "pixels": 153600,
+   "frames": 8,
+   "spread.total.med": 18.56
+  },
+  "rotate_90": {
+   "fps": 3.5,
+   "total.med": 19.27,
+   "total.p95": 24.99,
+   "total.max": 92.61,
+   "render.med": 3.03,
+   "render.p95": 8.4,
+   "flush.med": 16.41,
+   "pixels": 153600,
+   "frames": 7,
+   "spread.total.med": 0.63
+  },
+  "main_redraw_90": {
+   "fps": 17.2,
+   "total.med": 53.13,
+   "total.p95": 53.72,
+   "total.max": 54.2,
+   "render.med": 36.51,
+   "render.p95": 37.22,
+   "flush.med": 16.58,
+   "pixels": 153600,
+   "frames": 20,
+   "spread.total.med": 0.06
+  }
+ },
+ "meta": {
+  "board": "jc3248w535",
+  "label": "lvgl8.4",
+  "runs": 3,
+  "git": "1d9870e+changes",
+  "date": "2026-10-17 17:59",
+  "firmware_bytes": 2401504
+ },
+ "raw": [
+  [
+   {
+    "bench": 1,
+    "lvgl": "8.4.0",
+    "width": 320,
+    "height": 480,
+    "board": "JC3248W535",
+    "variant": "",
+    "firmware": "0.1.0",
+    "idf": "v6.1",
+    "cpu_mhz": 240,
+    "data": "1"
+   },
+   {
+    "memory": "before",
+    "internal_free": 147539,
+    "internal_largest": 98304,
+    "dma_free": 139751,
+    "psram_free": 7927492,
+    "psram_largest": 7864320,
+    "lvgl_stack_free": 7836
+   },
+   {
+    "scene": "main_redraw",
+    "frames": 20,
+    "ms": 1125,
+    "fps": 17.8,
+    "total": {
+     "min": 50.31,
+     "med": 51.2,
+     "p95": 52.15,
+     "max": 52.16
+    },
+    "render": {
+     "min": 34.1,
+     "med": 34.97,
+     "p95": 35.95,
+     "max": 35.96
+    },
+    "flush": {
+     "min": 16.19,
+     "med": 16.24,
+     "p95": 16.34,
+     "max": 16.43
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_slide_in",
+    "frames": 5,
+    "ms": 1000,
+    "fps": 5.0,
+    "total": {
+     "min": 19.14,
+     "med": 71.36,
+     "p95": 83.35,
+     "max": 122.19
+    },
+    "render": {
+     "min": 3.05,
+     "med": 55.1,
+     "p95": 67.06,
+     "max": 105.86
+    },
+    "flush": {
+     "min": 16.09,
+     "med": 16.28,
+     "p95": 16.33,
+     "max": 16.41
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_redraw",
+    "frames": 20,
+    "ms": 1460,
+    "fps": 13.7,
+    "total": {
+     "min": 67.27,
+     "med": 67.97,
+     "p95": 68.49,
+     "max": 69.02
+    },
+    "render": {
+     "min": 50.98,
+     "med": 51.63,
+     "p95": 52.2,
+     "max": 52.8
+    },
+    "flush": {
+     "min": 16.21,
+     "med": 16.34,
+     "p95": 16.48,
+     "max": 16.48
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_back",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.39,
+     "med": 49.76,
+     "p95": 62.05,
+     "max": 66.95
+    },
+    "render": {
+     "min": 2.22,
+     "med": 33.49,
+     "p95": 45.69,
+     "max": 50.69
+    },
+    "flush": {
+     "min": 16.17,
+     "med": 16.27,
+     "p95": 16.36,
+     "max": 16.42
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.24,
+     "med": 39.98,
+     "p95": 68.76,
+     "max": 73.29
+    },
+    "render": {
+     "min": 1.21,
+     "med": 23.5,
+     "p95": 52.28,
+     "max": 56.97
+    },
+    "flush": {
+     "min": 16.03,
+     "med": 16.25,
+     "p95": 16.48,
+     "max": 16.48
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_redraw",
+    "frames": 20,
+    "ms": 890,
+    "fps": 22.5,
+    "total": {
+     "min": 38.84,
+     "med": 39.39,
+     "p95": 39.9,
+     "max": 39.93
+    },
+    "render": {
+     "min": 22.57,
+     "med": 23.05,
+     "p95": 23.55,
+     "max": 23.57
+    },
+    "flush": {
+     "min": 16.24,
+     "med": 16.3,
+     "p95": 16.42,
+     "max": 16.47
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.75,
+     "med": 22.92,
+     "p95": 72.27,
+     "max": 75.01
+    },
+    "render": {
+     "min": 1.72,
+     "med": 6.52,
+     "p95": 55.99,
+     "max": 58.78
+    },
+    "flush": {
+     "min": 16.02,
+     "med": 16.15,
+     "p95": 16.28,
+     "max": 16.4
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "climate_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.5,
+     "med": 65.66,
+     "p95": 81.44,
+     "max": 83.82
+    },
+    "render": {
+     "min": 1.41,
+     "med": 49.28,
+     "p95": 65.17,
+     "max": 67.43
+    },
+    "flush": {
+     "min": 16.09,
+     "med": 16.28,
+     "p95": 16.39,
+     "max": 16.59
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "climate_panel_redraw",
+    "frames": 20,
+    "ms": 1055,
+    "fps": 19.0,
+    "total": {
+     "min": 46.76,
+     "med": 47.71,
+     "p95": 48.35,
+     "max": 48.69
+    },
+    "render": {
+     "min": 30.5,
+     "med": 31.3,
+     "p95": 32.01,
+     "max": 32.32
+    },
+    "flush": {
+     "min": 16.24,
+     "med": 16.31,
+     "p95": 16.46,
+     "max": 16.71
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "climate_panel_close",
+    "frames": 6,
+    "ms": 1000,
+    "fps": 6.0,
+    "total": {
+     "min": 21.65,
+     "med": 39.57,
+     "p95": 82.39,
+     "max": 84.73
+    },
+    "render": {
+     "min": 5.49,
+     "med": 23.6,
+     "p95": 65.92,
+     "max": 68.45
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.25,
+     "p95": 16.31,
+     "max": 16.48
+    },
+    "pixels": 204800
+   },
+   {
+    "scene": "sensor_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 19.34,
+     "med": 46.19,
+     "p95": 69.47,
+     "max": 73.04
+    },
+    "render": {
+     "min": 3.23,
+     "med": 29.82,
+     "p95": 53.24,
+     "max": 56.7
+    },
+    "flush": {
+     "min": 16.11,
+     "med": 16.34,
+     "p95": 16.43,
+     "max": 16.72
+    },
+    "pixels": 307200
+   },
+   {
+    "scene": "sensor_panel_redraw",
+    "frames": 20,
+    "ms": 945,
+    "fps": 21.2,
+    "total": {
+     "min": 41.72,
+     "med": 42.1,
+     "p95": 42.73,
+     "max": 43.36
+    },
+    "render": {
+     "min": 25.41,
+     "med": 25.74,
+     "p95": 26.41,
+     "max": 26.92
+    },
+    "flush": {
+     "min": 16.22,
+     "med": 16.32,
+     "p95": 16.46,
+     "max": 16.61
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "sensor_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.31,
+     "med": 43.47,
+     "p95": 77.26,
+     "max": 78.97
+    },
+    "render": {
+     "min": 2.34,
+     "med": 27.48,
+     "p95": 60.99,
+     "max": 62.73
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.25,
+     "p95": 16.27,
+     "max": 16.36
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "lock_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.14,
+     "med": 52.76,
+     "p95": 68.53,
+     "max": 70.48
+    },
+    "render": {
+     "min": 1.11,
+     "med": 36.3,
+     "p95": 52.29,
+     "max": 54.21
+    },
+    "flush": {
+     "min": 16.03,
+     "med": 16.25,
+     "p95": 16.31,
+     "max": 16.46
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "lock_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.33,
+     "med": 43.2,
+     "p95": 72.34,
+     "max": 72.73
+    },
+    "render": {
+     "min": 2.26,
+     "med": 27.22,
+     "p95": 55.97,
+     "max": 56.25
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.2,
+     "p95": 16.37,
+     "max": 16.48
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "timer_panel_open",
+    "frames": 6,
+    "ms": 1000,
+    "fps": 6.0,
+    "total": {
+     "min": 17.23,
+     "med": 49.27,
+     "p95": 82.79,
+     "max": 84.41
+    },
+    "render": {
+     "min": 1.14,
+     "med": 33.01,
+     "p95": 66.56,
+     "max": 68.11
+    },
+    "flush": {
+     "min": 16.09,
+     "med": 16.23,
+     "p95": 16.26,
+     "max": 16.3
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "timer_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.31,
+     "med": 23.39,
+     "p95": 84.11,
+     "max": 85.25
+    },
+    "render": {
+     "min": 2.34,
+     "med": 7.16,
+     "p95": 67.73,
+     "max": 68.88
+    },
+    "flush": {
+     "min": 15.98,
+     "med": 16.2,
+     "p95": 16.38,
+     "max": 16.44
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "picture_panel_open",
+    "frames": 12,
+    "ms": 1500,
+    "fps": 8.0,
+    "total": {
+     "min": 17.26,
+     "med": 20.15,
+     "p95": 137.27,
+     "max": 164.09
+    },
+    "render": {
+     "min": 1.21,
+     "med": 4.02,
+     "p95": 120.83,
+     "max": 147.82
+    },
+    "flush": {
+     "min": 16.03,
+     "med": 16.12,
+     "p95": 16.44,
+     "max": 16.48
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "picture_panel_redraw",
+    "frames": 20,
+    "ms": 915,
+    "fps": 21.9,
+    "total": {
+     "min": 40.35,
+     "med": 40.54,
+     "p95": 41.76,
+     "max": 41.89
+    },
+    "render": {
+     "min": 24.17,
+     "med": 24.33,
+     "p95": 25.33,
+     "max": 25.65
+    },
+    "flush": {
+     "min": 16.15,
+     "med": 16.21,
+     "p95": 16.31,
+     "max": 16.43
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "picture_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.28,
+     "med": 23.22,
+     "p95": 76.11,
+     "max": 76.27
+    },
+    "render": {
+     "min": 2.3,
+     "med": 6.95,
+     "p95": 59.84,
+     "max": 60.08
+    },
+    "flush": {
+     "min": 15.93,
+     "med": 16.18,
+     "p95": 16.27,
+     "max": 16.27
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "pending_runner",
+    "frames": 85,
+    "ms": 2015,
+    "fps": 42.2,
+    "total": {
+     "min": 17.56,
+     "med": 18.44,
+     "p95": 20.52,
+     "max": 23.07
+    },
+    "render": {
+     "min": 1.46,
+     "med": 2.33,
+     "p95": 4.58,
+     "max": 6.93
+    },
+    "flush": {
+     "min": 15.94,
+     "med": 16.12,
+     "p95": 16.27,
+     "max": 16.4
+    },
+    "pixels": 162635
+   },
+   {
+    "scene": "alert_strip",
+    "frames": 29,
+    "ms": 2500,
+    "fps": 11.6,
+    "total": {
+     "min": 17.26,
+     "med": 20.19,
+     "p95": 21.33,
+     "max": 22.2
+    },
+    "render": {
+     "min": 1.16,
+     "med": 4.14,
+     "p95": 5.17,
+     "max": 6.08
+    },
+    "flush": {
+     "min": 15.94,
+     "med": 16.06,
+     "p95": 16.19,
+     "max": 16.24
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "large_slide_in",
+    "frames": 6,
+    "ms": 1000,
+    "fps": 6.0,
+    "total": {
+     "min": 18.94,
+     "med": 66.66,
+     "p95": 71.2,
+     "max": 74.1
+    },
+    "render": {
+     "min": 2.97,
+     "med": 50.42,
+     "p95": 54.89,
+     "max": 57.81
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.25,
+     "p95": 16.29,
+     "max": 16.31
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "clocks_tick",
+    "frames": 14,
+    "ms": 4000,
+    "fps": 3.5,
+    "total": {
+     "min": 18.6,
+     "med": 19.35,
+     "p95": 46.9,
+     "max": 48.4
+    },
+    "render": {
+     "min": 2.62,
+     "med": 3.41,
+     "p95": 30.63,
+     "max": 32.0
+    },
+    "flush": {
+     "min": 15.92,
+     "med": 16.07,
+     "p95": 16.28,
+     "max": 16.4
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "weather_panel_open",
+    "frames": 8,
+    "ms": 1500,
+    "fps": 5.3,
+    "total": {
+     "min": 18.39,
+     "med": 48.99,
+     "p95": 87.31,
+     "max": 92.07
+    },
+    "render": {
+     "min": 2.28,
+     "med": 32.54,
+     "p95": 71.04,
+     "max": 75.76
+    },
+    "flush": {
+     "min": 16.0,
+     "med": 16.28,
+     "p95": 16.45,
+     "max": 16.62
+    },
+    "pixels": 192000
+   },
+   {
+    "scene": "weather_panel_redraw",
+    "frames": 20,
+    "ms": 1080,
+    "fps": 18.5,
+    "total": {
+     "min": 48.28,
+     "med": 48.9,
+     "p95": 50.33,
+     "max": 51.26
+    },
+    "render": {
+     "min": 32.0,
+     "med": 32.65,
+     "p95": 34.11,
+     "max": 34.85
+    },
+    "flush": {
+     "min": 16.22,
+     "med": 16.29,
+     "p95": 16.4,
+     "max": 16.5
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "weather_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.39,
+     "med": 49.2,
+     "p95": 96.17,
+     "max": 99.82
+    },
+    "render": {
+     "min": 2.24,
+     "med": 32.87,
+     "p95": 79.82,
+     "max": 83.49
+    },
+    "flush": {
+     "min": 15.93,
+     "med": 16.27,
+     "p95": 16.33,
+     "max": 16.34
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "automation_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.51,
+     "med": 48.22,
+     "p95": 75.63,
+     "max": 81.76
+    },
+    "render": {
+     "min": 1.39,
+     "med": 32.01,
+     "p95": 59.21,
+     "max": 65.52
+    },
+    "flush": {
+     "min": 16.12,
+     "med": 16.25,
+     "p95": 16.33,
+     "max": 16.42
+    },
+    "pixels": 197485
+   },
+   {
+    "scene": "automation_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.56,
+     "med": 48.26,
+     "p95": 80.76,
+     "max": 82.03
+    },
+    "render": {
+     "min": 1.57,
+     "med": 31.92,
+     "p95": 64.53,
+     "max": 65.7
+    },
+    "flush": {
+     "min": 15.95,
+     "med": 16.2,
+     "p95": 16.33,
+     "max": 16.34
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "settings_open",
+    "frames": 4,
+    "ms": 1500,
+    "fps": 2.7,
+    "total": {
+     "min": 17.97,
+     "med": 50.13,
+     "p95": 52.72,
+     "max": 134.32
+    },
+    "render": {
+     "min": 1.98,
+     "med": 33.88,
+     "p95": 36.39,
+     "max": 117.86
+    },
+    "flush": {
+     "min": 15.99,
+     "med": 16.26,
+     "p95": 16.32,
+     "max": 16.45
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "settings_scroll",
+    "frames": 17,
+    "ms": 1500,
+    "fps": 11.3,
+    "total": {
+     "min": 38.33,
+     "med": 39.45,
+     "p95": 46.73,
+     "max": 47.07
+    },
+    "render": {
+     "min": 22.08,
+     "med": 23.08,
+     "p95": 30.44,
+     "max": 30.83
+    },
+    "flush": {
+     "min": 16.22,
+     "med": 16.28,
+     "p95": 16.41,
+     "max": 16.49
+    },
+    "pixels": 162635
+   },
+   {
+    "scene": "settings_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.22,
+     "med": 49.8,
+     "p95": 58.17,
+     "max": 64.19
+    },
+    "render": {
+     "min": 2.26,
+     "med": 33.41,
+     "p95": 41.87,
+     "max": 47.85
+    },
+    "flush": {
+     "min": 15.96,
+     "med": 16.3,
+     "p95": 16.33,
+     "max": 16.4
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "rotate_90",
+    "frames": 7,
+    "ms": 2000,
+    "fps": 3.5,
+    "total": {
+     "min": 18.87,
+     "med": 19.27,
+     "p95": 24.03,
+     "max": 92.61
+    },
+    "render": {
+     "min": 2.6,
+     "med": 3.03,
+     "p95": 7.55,
+     "max": 75.97
+    },
+    "flush": {
+     "min": 16.24,
+     "med": 16.31,
+     "p95": 16.59,
+     "max": 16.64
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "main_redraw_90",
+    "frames": 20,
+    "ms": 1165,
+    "fps": 17.2,
+    "total": {
+     "min": 52.44,
+     "med": 53.1,
+     "p95": 54.16,
+     "max": 54.56
+    },
+    "render": {
+     "min": 35.81,
+     "med": 36.56,
+     "p95": 37.66,
+     "max": 38.04
+    },
+    "flush": {
+     "min": 16.5,
+     "med": 16.56,
+     "p95": 16.73,
+     "max": 16.74
+    },
+    "pixels": 153600
+   },
+   {
+    "memory": "after",
+    "internal_free": 147543,
+    "internal_largest": 98304,
+    "dma_free": 139755,
+    "psram_free": 7912992,
+    "psram_largest": 7864320,
+    "lvgl_stack_free": 3208
+   },
+   {
+    "end": true
+   }
+  ],
+  [
+   {
+    "bench": 1,
+    "lvgl": "8.4.0",
+    "width": 320,
+    "height": 480,
+    "board": "JC3248W535",
+    "variant": "",
+    "firmware": "0.1.0",
+    "idf": "v6.1",
+    "cpu_mhz": 240,
+    "data": "1"
+   },
+   {
+    "memory": "before",
+    "internal_free": 147539,
+    "internal_largest": 98304,
+    "dma_free": 139751,
+    "psram_free": 7927492,
+    "psram_largest": 7864320,
+    "lvgl_stack_free": 7788
+   },
+   {
+    "scene": "main_redraw",
+    "frames": 20,
+    "ms": 1125,
+    "fps": 17.8,
+    "total": {
+     "min": 50.66,
+     "med": 51.34,
+     "p95": 52.13,
+     "max": 52.2
+    },
+    "render": {
+     "min": 34.32,
+     "med": 35.12,
+     "p95": 35.77,
+     "max": 35.86
+    },
+    "flush": {
+     "min": 16.19,
+     "med": 16.24,
+     "p95": 16.37,
+     "max": 16.43
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_slide_in",
+    "frames": 5,
+    "ms": 1000,
+    "fps": 5.0,
+    "total": {
+     "min": 19.07,
+     "med": 71.94,
+     "p95": 82.21,
+     "max": 121.94
+    },
+    "render": {
+     "min": 3.02,
+     "med": 55.72,
+     "p95": 65.97,
+     "max": 105.61
+    },
+    "flush": {
+     "min": 16.05,
+     "med": 16.24,
+     "p95": 16.27,
+     "max": 16.32
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_redraw",
+    "frames": 20,
+    "ms": 1460,
+    "fps": 13.7,
+    "total": {
+     "min": 66.96,
+     "med": 67.93,
+     "p95": 68.44,
+     "max": 68.53
+    },
+    "render": {
+     "min": 50.63,
+     "med": 51.51,
+     "p95": 52.21,
+     "max": 52.29
+    },
+    "flush": {
+     "min": 16.21,
+     "med": 16.32,
+     "p95": 16.47,
+     "max": 16.6
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_back",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.44,
+     "med": 54.47,
+     "p95": 62.2,
+     "max": 67.42
+    },
+    "render": {
+     "min": 2.39,
+     "med": 38.15,
+     "p95": 45.74,
+     "max": 50.98
+    },
+    "flush": {
+     "min": 16.05,
+     "med": 16.33,
+     "p95": 16.46,
+     "max": 16.46
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.2,
+     "med": 40.44,
+     "p95": 68.71,
+     "max": 72.88
+    },
+    "render": {
+     "min": 1.21,
+     "med": 24.19,
+     "p95": 52.41,
+     "max": 56.58
+    },
+    "flush": {
+     "min": 15.98,
+     "med": 16.25,
+     "p95": 16.31,
+     "max": 16.45
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_redraw",
+    "frames": 20,
+    "ms": 890,
+    "fps": 22.5,
+    "total": {
+     "min": 38.96,
+     "med": 39.36,
+     "p95": 39.86,
+     "max": 39.97
+    },
+    "render": {
+     "min": 22.53,
+     "med": 22.97,
+     "p95": 23.41,
+     "max": 23.48
+    },
+    "flush": {
+     "min": 16.27,
+     "med": 16.36,
+     "p95": 16.49,
+     "max": 16.64
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_close",
+    "frames": 8,
+    "ms": 1005,
+    "fps": 8.0,
+    "total": {
+     "min": 18.25,
+     "med": 22.83,
+     "p95": 74.94,
+     "max": 75.93
+    },
+    "render": {
+     "min": 2.23,
+     "med": 6.53,
+     "p95": 58.65,
+     "max": 59.61
+    },
+    "flush": {
+     "min": 15.95,
+     "med": 16.17,
+     "p95": 16.31,
+     "max": 16.44
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "climate_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.55,
+     "med": 49.5,
+     "p95": 81.14,
+     "max": 83.86
+    },
+    "render": {
+     "min": 1.41,
+     "med": 33.25,
+     "p95": 64.77,
+     "max": 67.56
+    },
+    "flush": {
+     "min": 16.14,
+     "med": 16.26,
+     "p95": 16.38,
+     "max": 16.41
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "climate_panel_redraw",
+    "frames": 20,
+    "ms": 1055,
+    "fps": 19.0,
+    "total": {
+     "min": 46.88,
+     "med": 47.5,
+     "p95": 48.6,
+     "max": 48.95
+    },
+    "render": {
+     "min": 30.51,
+     "med": 31.18,
+     "p95": 32.33,
+     "max": 32.71
+    },
+    "flush": {
+     "min": 16.23,
+     "med": 16.29,
+     "p95": 16.38,
+     "max": 16.38
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "climate_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.24,
+     "med": 22.78,
+     "p95": 83.49,
+     "max": 83.65
+    },
+    "render": {
+     "min": 2.25,
+     "med": 6.58,
+     "p95": 66.97,
+     "max": 67.17
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.13,
+     "p95": 16.48,
+     "max": 16.52
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "sensor_panel_open",
+    "frames": 9,
+    "ms": 1000,
+    "fps": 9.0,
+    "total": {
+     "min": 18.24,
+     "med": 47.17,
+     "p95": 68.08,
+     "max": 73.57
+    },
+    "render": {
+     "min": 2.14,
+     "med": 30.66,
+     "p95": 51.81,
+     "max": 57.3
+    },
+    "flush": {
+     "min": 16.02,
+     "med": 16.27,
+     "p95": 16.45,
+     "max": 16.51
+    },
+    "pixels": 290133
+   },
+   {
+    "scene": "sensor_panel_redraw",
+    "frames": 20,
+    "ms": 950,
+    "fps": 21.1,
+    "total": {
+     "min": 41.83,
+     "med": 42.25,
+     "p95": 42.83,
+     "max": 43.21
+    },
+    "render": {
+     "min": 25.56,
+     "med": 25.99,
+     "p95": 26.49,
+     "max": 26.99
+    },
+    "flush": {
+     "min": 16.22,
+     "med": 16.3,
+     "p95": 16.41,
+     "max": 16.44
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "sensor_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.28,
+     "med": 40.91,
+     "p95": 77.39,
+     "max": 78.68
+    },
+    "render": {
+     "min": 2.25,
+     "med": 24.89,
+     "p95": 60.77,
+     "max": 62.32
+    },
+    "flush": {
+     "min": 16.02,
+     "med": 16.2,
+     "p95": 16.39,
+     "max": 16.61
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "lock_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.53,
+     "med": 52.07,
+     "p95": 67.96,
+     "max": 70.54
+    },
+    "render": {
+     "min": 1.48,
+     "med": 35.75,
+     "p95": 51.47,
+     "max": 54.19
+    },
+    "flush": {
+     "min": 16.06,
+     "med": 16.31,
+     "p95": 16.34,
+     "max": 16.5
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "lock_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.34,
+     "med": 22.96,
+     "p95": 70.96,
+     "max": 72.67
+    },
+    "render": {
+     "min": 1.17,
+     "med": 6.7,
+     "p95": 54.63,
+     "max": 56.22
+    },
+    "flush": {
+     "min": 15.98,
+     "med": 16.21,
+     "p95": 16.44,
+     "max": 16.63
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "timer_panel_open",
+    "frames": 6,
+    "ms": 1000,
+    "fps": 6.0,
+    "total": {
+     "min": 17.35,
+     "med": 49.71,
+     "p95": 82.23,
+     "max": 84.12
+    },
+    "render": {
+     "min": 1.12,
+     "med": 33.37,
+     "p95": 65.96,
+     "max": 67.83
+    },
+    "flush": {
+     "min": 16.18,
+     "med": 16.24,
+     "p95": 16.29,
+     "max": 16.35
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "timer_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.31,
+     "med": 39.31,
+     "p95": 83.4,
+     "max": 84.84
+    },
+    "render": {
+     "min": 2.25,
+     "med": 23.26,
+     "p95": 67.15,
+     "max": 68.64
+    },
+    "flush": {
+     "min": 16.05,
+     "med": 16.2,
+     "p95": 16.25,
+     "max": 16.31
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "picture_panel_open",
+    "frames": 10,
+    "ms": 1500,
+    "fps": 6.7,
+    "total": {
+     "min": 17.3,
+     "med": 21.61,
+     "p95": 136.96,
+     "max": 163.89
+    },
+    "render": {
+     "min": 1.21,
+     "med": 5.47,
+     "p95": 120.59,
+     "max": 147.63
+    },
+    "flush": {
+     "min": 16.09,
+     "med": 16.19,
+     "p95": 16.37,
+     "max": 16.59
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "picture_panel_redraw",
+    "frames": 20,
+    "ms": 920,
+    "fps": 21.7,
+    "total": {
+     "min": 40.34,
+     "med": 40.76,
+     "p95": 41.25,
+     "max": 41.89
+    },
+    "render": {
+     "min": 24.14,
+     "med": 24.52,
+     "p95": 25.09,
+     "max": 25.69
+    },
+    "flush": {
+     "min": 16.15,
+     "med": 16.26,
+     "p95": 16.4,
+     "max": 16.4
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "picture_panel_close",
+    "frames": 6,
+    "ms": 1000,
+    "fps": 6.0,
+    "total": {
+     "min": 18.24,
+     "med": 43.0,
+     "p95": 76.43,
+     "max": 76.68
+    },
+    "render": {
+     "min": 2.24,
+     "med": 26.92,
+     "p95": 60.22,
+     "max": 60.37
+    },
+    "flush": {
+     "min": 16.0,
+     "med": 16.2,
+     "p95": 16.23,
+     "max": 16.3
+    },
+    "pixels": 179200
+   },
+   {
+    "scene": "pending_runner",
+    "frames": 85,
+    "ms": 2020,
+    "fps": 42.1,
+    "total": {
+     "min": 17.64,
+     "med": 18.49,
+     "p95": 19.98,
+     "max": 23.48
+    },
+    "render": {
+     "min": 1.51,
+     "med": 2.35,
+     "p95": 4.0,
+     "max": 7.23
+    },
+    "flush": {
+     "min": 15.95,
+     "med": 16.11,
+     "p95": 16.28,
+     "max": 16.45
+    },
+    "pixels": 164442
+   },
+   {
+    "scene": "alert_strip",
+    "frames": 28,
+    "ms": 2500,
+    "fps": 11.2,
+    "total": {
+     "min": 17.33,
+     "med": 20.27,
+     "p95": 21.32,
+     "max": 25.35
+    },
+    "render": {
+     "min": 1.28,
+     "med": 4.24,
+     "p95": 5.14,
+     "max": 9.03
+    },
+    "flush": {
+     "min": 15.94,
+     "med": 16.05,
+     "p95": 16.21,
+     "max": 16.32
+    },
+    "pixels": 159085
+   },
+   {
+    "scene": "large_slide_in",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.73,
+     "med": 67.68,
+     "p95": 70.06,
+     "max": 74.64
+    },
+    "render": {
+     "min": 2.63,
+     "med": 51.41,
+     "p95": 53.87,
+     "max": 58.37
+    },
+    "flush": {
+     "min": 16.1,
+     "med": 16.23,
+     "p95": 16.27,
+     "max": 16.28
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "clocks_tick",
+    "frames": 12,
+    "ms": 4000,
+    "fps": 3.0,
+    "total": {
+     "min": 18.61,
+     "med": 18.88,
+     "p95": 48.85,
+     "max": 48.91
+    },
+    "render": {
+     "min": 2.64,
+     "med": 2.8,
+     "p95": 32.49,
+     "max": 32.56
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.1,
+     "p95": 16.28,
+     "max": 16.42
+    },
+    "pixels": 256000
+   },
+   {
+    "scene": "weather_panel_open",
+    "frames": 8,
+    "ms": 1500,
+    "fps": 5.3,
+    "total": {
+     "min": 18.25,
+     "med": 30.46,
+     "p95": 89.61,
+     "max": 91.93
+    },
+    "render": {
+     "min": 2.19,
+     "med": 13.94,
+     "p95": 73.32,
+     "max": 75.68
+    },
+    "flush": {
+     "min": 16.06,
+     "med": 16.25,
+     "p95": 16.31,
+     "max": 16.51
+    },
+    "pixels": 249600
+   },
+   {
+    "scene": "weather_panel_redraw",
+    "frames": 20,
+    "ms": 1080,
+    "fps": 18.5,
+    "total": {
+     "min": 48.34,
+     "med": 49.11,
+     "p95": 49.63,
+     "max": 52.09
+    },
+    "render": {
+     "min": 31.92,
+     "med": 32.76,
+     "p95": 33.37,
+     "max": 35.82
+    },
+    "flush": {
+     "min": 16.22,
+     "med": 16.3,
+     "p95": 16.46,
+     "max": 16.46
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "weather_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.64,
+     "med": 48.62,
+     "p95": 97.2,
+     "max": 100.63
+    },
+    "render": {
+     "min": 2.68,
+     "med": 32.11,
+     "p95": 80.9,
+     "max": 84.28
+    },
+    "flush": {
+     "min": 15.96,
+     "med": 16.3,
+     "p95": 16.42,
+     "max": 16.52
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "automation_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.42,
+     "med": 34.46,
+     "p95": 75.7,
+     "max": 82.29
+    },
+    "render": {
+     "min": 1.38,
+     "med": 18.12,
+     "p95": 59.26,
+     "max": 65.96
+    },
+    "flush": {
+     "min": 16.03,
+     "med": 16.22,
+     "p95": 16.38,
+     "max": 16.44
+    },
+    "pixels": 192000
+   },
+   {
+    "scene": "automation_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.63,
+     "med": 48.75,
+     "p95": 81.87,
+     "max": 82.33
+    },
+    "render": {
+     "min": 2.65,
+     "med": 32.28,
+     "p95": 65.62,
+     "max": 65.75
+    },
+    "flush": {
+     "min": 15.96,
+     "med": 16.25,
+     "p95": 16.47,
+     "max": 16.58
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "settings_open",
+    "frames": 5,
+    "ms": 1500,
+    "fps": 3.3,
+    "total": {
+     "min": 18.0,
+     "med": 50.06,
+     "p95": 51.8,
+     "max": 134.84
+    },
+    "render": {
+     "min": 1.92,
+     "med": 33.81,
+     "p95": 35.47,
+     "max": 118.55
+    },
+    "flush": {
+     "min": 16.02,
+     "med": 16.25,
+     "p95": 16.29,
+     "max": 16.33
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "settings_scroll",
+    "frames": 17,
+    "ms": 1500,
+    "fps": 11.3,
+    "total": {
+     "min": 18.05,
+     "med": 39.26,
+     "p95": 46.4,
+     "max": 47.28
+    },
+    "render": {
+     "min": 1.9,
+     "med": 22.95,
+     "p95": 30.08,
+     "max": 30.93
+    },
+    "flush": {
+     "min": 16.15,
+     "med": 16.32,
+     "p95": 16.42,
+     "max": 16.48
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "settings_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.22,
+     "med": 31.24,
+     "p95": 56.46,
+     "max": 63.41
+    },
+    "render": {
+     "min": 2.22,
+     "med": 14.91,
+     "p95": 40.15,
+     "max": 47.2
+    },
+    "flush": {
+     "min": 15.98,
+     "med": 16.21,
+     "p95": 16.3,
+     "max": 16.33
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "rotate_90",
+    "frames": 8,
+    "ms": 2000,
+    "fps": 4.0,
+    "total": {
+     "min": 18.98,
+     "med": 19.75,
+     "p95": 47.97,
+     "max": 92.41
+    },
+    "render": {
+     "min": 2.57,
+     "med": 3.52,
+     "p95": 31.14,
+     "max": 75.83
+    },
+    "flush": {
+     "min": 16.23,
+     "med": 16.41,
+     "p95": 16.58,
+     "max": 16.82
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "main_redraw_90",
+    "frames": 20,
+    "ms": 1175,
+    "fps": 17.0,
+    "total": {
+     "min": 52.59,
+     "med": 53.16,
+     "p95": 53.68,
+     "max": 54.16
+    },
+    "render": {
+     "min": 35.69,
+     "med": 36.51,
+     "p95": 37.16,
+     "max": 37.53
+    },
+    "flush": {
+     "min": 16.49,
+     "med": 16.6,
+     "p95": 16.88,
+     "max": 16.99
+    },
+    "pixels": 153600
+   },
+   {
+    "memory": "after",
+    "internal_free": 147543,
+    "internal_largest": 98304,
+    "dma_free": 139755,
+    "psram_free": 7912972,
+    "psram_largest": 7864320,
+    "lvgl_stack_free": 3208
+   },
+   {
+    "end": true
+   }
+  ],
+  [
+   {
+    "bench": 1,
+    "lvgl": "8.4.0",
+    "width": 320,
+    "height": 480,
+    "board": "JC3248W535",
+    "variant": "",
+    "firmware": "0.1.0",
+    "idf": "v6.1",
+    "cpu_mhz": 240,
+    "data": "1"
+   },
+   {
+    "memory": "before",
+    "internal_free": 147539,
+    "internal_largest": 98304,
+    "dma_free": 139751,
+    "psram_free": 7927492,
+    "psram_largest": 7864320,
+    "lvgl_stack_free": 7596
+   },
+   {
+    "scene": "main_redraw",
+    "frames": 20,
+    "ms": 1120,
+    "fps": 17.9,
+    "total": {
+     "min": 50.44,
+     "med": 51.2,
+     "p95": 51.99,
+     "max": 52.41
+    },
+    "render": {
+     "min": 34.12,
+     "med": 34.93,
+     "p95": 35.76,
+     "max": 36.15
+    },
+    "flush": {
+     "min": 16.18,
+     "med": 16.23,
+     "p95": 16.39,
+     "max": 16.43
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_slide_in",
+    "frames": 5,
+    "ms": 1000,
+    "fps": 5.0,
+    "total": {
+     "min": 19.26,
+     "med": 70.43,
+     "p95": 81.81,
+     "max": 123.26
+    },
+    "render": {
+     "min": 3.19,
+     "med": 54.16,
+     "p95": 65.46,
+     "max": 107.03
+    },
+    "flush": {
+     "min": 16.07,
+     "med": 16.23,
+     "p95": 16.27,
+     "max": 16.35
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_redraw",
+    "frames": 20,
+    "ms": 1450,
+    "fps": 13.8,
+    "total": {
+     "min": 66.95,
+     "med": 67.71,
+     "p95": 68.55,
+     "max": 68.56
+    },
+    "render": {
+     "min": 50.6,
+     "med": 51.37,
+     "p95": 52.27,
+     "max": 52.3
+    },
+    "flush": {
+     "min": 16.21,
+     "med": 16.32,
+     "p95": 16.49,
+     "max": 16.6
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "dense_back",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.33,
+     "med": 49.82,
+     "p95": 62.86,
+     "max": 66.21
+    },
+    "render": {
+     "min": 2.37,
+     "med": 33.5,
+     "p95": 46.61,
+     "max": 49.93
+    },
+    "flush": {
+     "min": 15.95,
+     "med": 16.28,
+     "p95": 16.32,
+     "max": 16.33
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.21,
+     "med": 40.32,
+     "p95": 69.09,
+     "max": 73.55
+    },
+    "render": {
+     "min": 1.21,
+     "med": 23.95,
+     "p95": 52.67,
+     "max": 57.28
+    },
+    "flush": {
+     "min": 15.98,
+     "med": 16.27,
+     "p95": 16.42,
+     "max": 16.48
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_redraw",
+    "frames": 20,
+    "ms": 885,
+    "fps": 22.6,
+    "total": {
+     "min": 38.92,
+     "med": 39.2,
+     "p95": 40.05,
+     "max": 40.36
+    },
+    "render": {
+     "min": 22.52,
+     "med": 22.8,
+     "p95": 23.74,
+     "max": 24.08
+    },
+    "flush": {
+     "min": 16.25,
+     "med": 16.3,
+     "p95": 16.63,
+     "max": 16.64
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "light_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 19.08,
+     "med": 42.85,
+     "p95": 74.49,
+     "max": 74.92
+    },
+    "render": {
+     "min": 3.16,
+     "med": 26.88,
+     "p95": 58.15,
+     "max": 58.56
+    },
+    "flush": {
+     "min": 15.92,
+     "med": 16.26,
+     "p95": 16.36,
+     "max": 16.4
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "climate_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.48,
+     "med": 68.02,
+     "p95": 81.26,
+     "max": 83.12
+    },
+    "render": {
+     "min": 1.4,
+     "med": 51.92,
+     "p95": 64.96,
+     "max": 66.86
+    },
+    "flush": {
+     "min": 16.08,
+     "med": 16.3,
+     "p95": 16.37,
+     "max": 16.4
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "climate_panel_redraw",
+    "frames": 20,
+    "ms": 1050,
+    "fps": 19.0,
+    "total": {
+     "min": 46.96,
+     "med": 47.59,
+     "p95": 48.39,
+     "max": 48.92
+    },
+    "render": {
+     "min": 30.58,
+     "med": 31.1,
+     "p95": 32.05,
+     "max": 32.54
+    },
+    "flush": {
+     "min": 16.24,
+     "med": 16.35,
+     "p95": 16.53,
+     "max": 16.62
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "climate_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.23,
+     "med": 41.1,
+     "p95": 83.51,
+     "max": 83.86
+    },
+    "render": {
+     "min": 2.23,
+     "med": 25.16,
+     "p95": 67.26,
+     "max": 67.57
+    },
+    "flush": {
+     "min": 15.94,
+     "med": 16.22,
+     "p95": 16.29,
+     "max": 16.36
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "sensor_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.29,
+     "med": 47.46,
+     "p95": 69.13,
+     "max": 74.18
+    },
+    "render": {
+     "min": 2.18,
+     "med": 30.91,
+     "p95": 52.75,
+     "max": 57.75
+    },
+    "flush": {
+     "min": 16.1,
+     "med": 16.26,
+     "p95": 16.44,
+     "max": 16.55
+    },
+    "pixels": 326400
+   },
+   {
+    "scene": "sensor_panel_redraw",
+    "frames": 20,
+    "ms": 945,
+    "fps": 21.2,
+    "total": {
+     "min": 41.76,
+     "med": 42.1,
+     "p95": 43.11,
+     "max": 43.12
+    },
+    "render": {
+     "min": 25.5,
+     "med": 25.77,
+     "p95": 26.87,
+     "max": 26.88
+    },
+    "flush": {
+     "min": 16.22,
+     "med": 16.27,
+     "p95": 16.46,
+     "max": 16.5
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "sensor_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.28,
+     "med": 40.83,
+     "p95": 76.79,
+     "max": 78.82
+    },
+    "render": {
+     "min": 2.23,
+     "med": 24.85,
+     "p95": 60.52,
+     "max": 62.55
+    },
+    "flush": {
+     "min": 15.98,
+     "med": 16.23,
+     "p95": 16.27,
+     "max": 16.27
+    },
+    "pixels": 175542
+   },
+   {
+    "scene": "lock_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.21,
+     "med": 51.97,
+     "p95": 67.77,
+     "max": 70.92
+    },
+    "render": {
+     "min": 1.2,
+     "med": 35.61,
+     "p95": 51.3,
+     "max": 54.68
+    },
+    "flush": {
+     "min": 16.01,
+     "med": 16.33,
+     "p95": 16.37,
+     "max": 16.47
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "lock_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 19.02,
+     "med": 25.15,
+     "p95": 72.44,
+     "max": 73.07
+    },
+    "render": {
+     "min": 2.98,
+     "med": 9.19,
+     "p95": 56.08,
+     "max": 56.64
+    },
+    "flush": {
+     "min": 15.96,
+     "med": 16.2,
+     "p95": 16.43,
+     "max": 16.43
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "timer_panel_open",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 17.26,
+     "med": 66.0,
+     "p95": 83.63,
+     "max": 83.88
+    },
+    "render": {
+     "min": 1.13,
+     "med": 49.79,
+     "p95": 67.39,
+     "max": 67.58
+    },
+    "flush": {
+     "min": 16.13,
+     "med": 16.25,
+     "p95": 16.3,
+     "max": 16.51
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "timer_panel_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.31,
+     "med": 22.81,
+     "p95": 83.02,
+     "max": 84.86
+    },
+    "render": {
+     "min": 2.34,
+     "med": 6.55,
+     "p95": 66.76,
+     "max": 68.6
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.12,
+     "p95": 16.26,
+     "max": 16.26
+    },
+    "pixels": 172800
+   },
+   {
+    "scene": "picture_panel_open",
+    "frames": 11,
+    "ms": 1500,
+    "fps": 7.3,
+    "total": {
+     "min": 17.17,
+     "med": 21.84,
+     "p95": 137.43,
+     "max": 163.64
+    },
+    "render": {
+     "min": 1.23,
+     "med": 5.54,
+     "p95": 121.18,
+     "max": 146.92
+    },
+    "flush": {
+     "min": 15.93,
+     "med": 16.18,
+     "p95": 16.3,
+     "max": 16.72
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "picture_panel_redraw",
+    "frames": 20,
+    "ms": 915,
+    "fps": 21.9,
+    "total": {
+     "min": 40.38,
+     "med": 40.64,
+     "p95": 41.53,
+     "max": 41.59
+    },
+    "render": {
+     "min": 24.13,
+     "med": 24.35,
+     "p95": 25.26,
+     "max": 25.38
+    },
+    "flush": {
+     "min": 16.16,
+     "med": 16.22,
+     "p95": 16.39,
+     "max": 16.42
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "picture_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.2,
+     "med": 41.21,
+     "p95": 76.41,
+     "max": 77.04
+    },
+    "render": {
+     "min": 2.23,
+     "med": 25.03,
+     "p95": 60.24,
+     "max": 60.85
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.18,
+     "p95": 16.27,
+     "max": 16.36
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "pending_runner",
+    "frames": 85,
+    "ms": 2015,
+    "fps": 42.2,
+    "total": {
+     "min": 17.65,
+     "med": 18.46,
+     "p95": 20.52,
+     "max": 22.9
+    },
+    "render": {
+     "min": 1.56,
+     "med": 2.34,
+     "p95": 4.54,
+     "max": 6.76
+    },
+    "flush": {
+     "min": 15.99,
+     "med": 16.12,
+     "p95": 16.27,
+     "max": 16.41
+    },
+    "pixels": 162635
+   },
+   {
+    "scene": "alert_strip",
+    "frames": 28,
+    "ms": 2520,
+    "fps": 11.1,
+    "total": {
+     "min": 16.94,
+     "med": 20.35,
+     "p95": 22.32,
+     "max": 25.96
+    },
+    "render": {
+     "min": 0.8,
+     "med": 4.29,
+     "p95": 6.07,
+     "max": 9.89
+    },
+    "flush": {
+     "min": 15.93,
+     "med": 16.05,
+     "p95": 16.19,
+     "max": 16.25
+    },
+    "pixels": 164571
+   },
+   {
+    "scene": "large_slide_in",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.6,
+     "med": 67.77,
+     "p95": 71.28,
+     "max": 75.15
+    },
+    "render": {
+     "min": 2.67,
+     "med": 51.51,
+     "p95": 55.12,
+     "max": 58.81
+    },
+    "flush": {
+     "min": 15.94,
+     "med": 16.26,
+     "p95": 16.35,
+     "max": 16.39
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "clocks_tick",
+    "frames": 12,
+    "ms": 4000,
+    "fps": 3.0,
+    "total": {
+     "min": 18.6,
+     "med": 19.03,
+     "p95": 48.81,
+     "max": 48.97
+    },
+    "render": {
+     "min": 2.66,
+     "med": 2.92,
+     "p95": 32.53,
+     "max": 32.7
+    },
+    "flush": {
+     "min": 15.92,
+     "med": 16.1,
+     "p95": 16.34,
+     "max": 16.34
+    },
+    "pixels": 256000
+   },
+   {
+    "scene": "weather_panel_open",
+    "frames": 9,
+    "ms": 1520,
+    "fps": 5.9,
+    "total": {
+     "min": 18.33,
+     "med": 28.76,
+     "p95": 85.24,
+     "max": 88.82
+    },
+    "render": {
+     "min": 2.31,
+     "med": 12.52,
+     "p95": 69.01,
+     "max": 72.56
+    },
+    "flush": {
+     "min": 16.03,
+     "med": 16.24,
+     "p95": 16.28,
+     "max": 16.43
+    },
+    "pixels": 238933
+   },
+   {
+    "scene": "weather_panel_redraw",
+    "frames": 20,
+    "ms": 1085,
+    "fps": 18.4,
+    "total": {
+     "min": 48.18,
+     "med": 49.11,
+     "p95": 50.5,
+     "max": 51.24
+    },
+    "render": {
+     "min": 31.9,
+     "med": 32.8,
+     "p95": 34.13,
+     "max": 34.85
+    },
+    "flush": {
+     "min": 16.23,
+     "med": 16.29,
+     "p95": 16.42,
+     "max": 16.5
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "weather_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.78,
+     "med": 48.94,
+     "p95": 97.16,
+     "max": 100.04
+    },
+    "render": {
+     "min": 2.65,
+     "med": 32.62,
+     "p95": 80.81,
+     "max": 83.77
+    },
+    "flush": {
+     "min": 15.97,
+     "med": 16.16,
+     "p95": 16.32,
+     "max": 16.35
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "automation_panel_open",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 17.43,
+     "med": 34.13,
+     "p95": 75.74,
+     "max": 81.83
+    },
+    "render": {
+     "min": 1.4,
+     "med": 17.91,
+     "p95": 59.45,
+     "max": 65.42
+    },
+    "flush": {
+     "min": 16.02,
+     "med": 16.29,
+     "p95": 16.41,
+     "max": 16.63
+    },
+    "pixels": 192000
+   },
+   {
+    "scene": "automation_panel_close",
+    "frames": 7,
+    "ms": 1000,
+    "fps": 7.0,
+    "total": {
+     "min": 18.62,
+     "med": 48.28,
+     "p95": 81.58,
+     "max": 82.04
+    },
+    "render": {
+     "min": 2.65,
+     "med": 32.0,
+     "p95": 65.33,
+     "max": 65.81
+    },
+    "flush": {
+     "min": 15.92,
+     "med": 16.22,
+     "p95": 16.25,
+     "max": 16.27
+    },
+    "pixels": 219428
+   },
+   {
+    "scene": "settings_open",
+    "frames": 5,
+    "ms": 1500,
+    "fps": 3.3,
+    "total": {
+     "min": 17.97,
+     "med": 50.49,
+     "p95": 51.24,
+     "max": 134.12
+    },
+    "render": {
+     "min": 1.93,
+     "med": 34.29,
+     "p95": 35.01,
+     "max": 117.76
+    },
+    "flush": {
+     "min": 16.01,
+     "med": 16.23,
+     "p95": 16.36,
+     "max": 16.37
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "settings_scroll",
+    "frames": 17,
+    "ms": 1500,
+    "fps": 11.3,
+    "total": {
+     "min": 17.94,
+     "med": 39.26,
+     "p95": 46.31,
+     "max": 47.3
+    },
+    "render": {
+     "min": 1.9,
+     "med": 23.0,
+     "p95": 29.89,
+     "max": 31.07
+    },
+    "flush": {
+     "min": 16.04,
+     "med": 16.3,
+     "p95": 16.42,
+     "max": 16.45
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "settings_close",
+    "frames": 8,
+    "ms": 1000,
+    "fps": 8.0,
+    "total": {
+     "min": 18.42,
+     "med": 31.76,
+     "p95": 57.41,
+     "max": 63.49
+    },
+    "render": {
+     "min": 2.37,
+     "med": 15.53,
+     "p95": 41.2,
+     "max": 47.15
+    },
+    "flush": {
+     "min": 16.06,
+     "med": 16.2,
+     "p95": 16.34,
+     "max": 16.4
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "rotate_90",
+    "frames": 7,
+    "ms": 2000,
+    "fps": 3.5,
+    "total": {
+     "min": 19.0,
+     "med": 19.12,
+     "p95": 24.99,
+     "max": 92.8
+    },
+    "render": {
+     "min": 2.57,
+     "med": 2.76,
+     "p95": 8.4,
+     "max": 76.22
+    },
+    "flush": {
+     "min": 16.32,
+     "med": 16.44,
+     "p95": 16.58,
+     "max": 16.59
+    },
+    "pixels": 153600
+   },
+   {
+    "scene": "main_redraw_90",
+    "frames": 20,
+    "ms": 1165,
+    "fps": 17.2,
+    "total": {
+     "min": 52.5,
+     "med": 53.13,
+     "p95": 53.72,
+     "max": 54.2
+    },
+    "render": {
+     "min": 35.67,
+     "med": 36.5,
+     "p95": 37.22,
+     "max": 37.69
+    },
+    "flush": {
+     "min": 16.51,
+     "med": 16.58,
+     "p95": 16.74,
+     "max": 17.02
+    },
+    "pixels": 153600
+   },
+   {
+    "memory": "after",
+    "internal_free": 147543,
+    "internal_largest": 98304,
+    "dma_free": 139755,
+    "psram_free": 7912980,
+    "psram_largest": 7864320,
+    "lvgl_stack_free": 3208
+   },
+   {
+    "end": true
+   }
+  ]
+ ]
+}

@@ -2,7 +2,8 @@
 
 State as of 2026-10-17: the firmware runs on the WT32-SC01 (COM9), the JC3248W535 (COM10) and
 the JC4880P443C (COM11); the TTGO T4 (COM13) is a test device only. The sections "Step 1" to
-"Step 6" are the bring-up of the port, in its order. LVGL 9 has not started. What is next is in
+"Step 6" are the bring-up of the port, in its order. LVGL 9 was measured and not adopted (LVGL
+8.4 stays). What is next is in
 "Next steps" at the end.
 The design is in [architecture.md](architecture.md) and [ui/](ui/README.md).
 
@@ -1728,11 +1729,26 @@ Dashboard ([architecture.md](architecture.md) section 5):
 State as of 2026-10-17. The firmware runs on the WT32-SC01, the JC3248W535 and the
 JC4880P443C; what is left of the bring-up is listed in the "Step" sections above.
 
-- [ ] **LVGL 9** ([architecture.md](architecture.md) section 7.1): build the dashboard's screens
-      on LVGL 9 and measure them against 8.4 on the boards; when it works well, remove LVGL 8
-      (`ui/lvgl_compat.hpp` goes with it). Not started.
-- [ ] The analog clock face is an `lv_meter`, which LVGL 9 does not have: redraw it with
-      `lv_scale` or by hand with the LVGL 9 step (found 2026-10-17).
+- [x] **LVGL 9** ([architecture.md](architecture.md) section 7.1): measured and not adopted
+      (2026-10-17). LVGL 9.6 was built side by side and run on all three boards: WT32 2 to 3 times
+      slower, JC3248W535 25 to 75 % slower on whole frames, P4 5 to 15 % slower with 150 KB less
+      internal RAM ([benchmark.md](benchmark.md) section 8). Not an option for these boards (your
+      decision): the LVGL 9 build and `ui/lvgl_compat.hpp` were removed, the firmware is LVGL 8.4 only.
+  - [x] Rendering benchmark ([benchmark.md](benchmark.md)): a fixed dashboard (`bench/dashboard`)
+        on the sample backend (moved from `host/sim` to `components/sample_backend`), benchmark
+        mode (`bench start`, `bench run`), `tools/bench.py`, 34 scenes; results of all three boards
+        in `docs/benchmarks/`.
+  - [x] The analog clock face drawn by hand instead of `lv_meter`: in the Windows version only
+        edge pixels differ (0.6 %); a tick costs 4.7 instead of 22 ms on the WT32.
+- [ ] The WT32's render times move by 20 to 30 % between builds of the same code (code placement
+      in the flash cache, [benchmark.md](benchmark.md) section 6; found 2026-10-17). Measure render
+      changes on the JC3248W535 or the P4; or find which LVGL functions to pin in IRAM so the
+      WT32 stays steady.
+- [ ] WT32-SC01: flash and PSRAM run at ESP-IDF's defaults, DIO 40 MHz and 40 MHz
+      ([benchmark.md](benchmark.md) section 6). Proposal: QIO and 80 MHz for both in
+      `boards/wt32_sc01/sdkconfig.defaults` (the WROVER-B's flash and PSRAM should take it; check
+      its chip revision and flash ID first), then compare with `wt32_sc01-lvgl8.4-same.json`.
+      The JC3248W535 stays at 80/80: 120 MHz flash does not go with its octal PSRAM (found 2026-10-17).
 - [x] Files over the 600 lines of architecture.md section 11 (found 2026-10-17). Done:
       `hass.cpp` 1,827 -> 1,625, the stored configuration and token test moved to `config.cpp`,
       the session accepted (2026-10-17). `tiles.cpp` 1,579 -> 824: gestures, clock and texts in

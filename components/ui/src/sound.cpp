@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstdlib>
 
-#include "lvgl_compat.hpp"
 
 namespace hc::ui::sound {
 
@@ -205,7 +204,10 @@ void init(const Backend &backend)
     settings_changed();
     for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
         if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            compat::set_touch_feedback(indev, on_feedback);
+            // every event of a touch, through the input driver (one that has its own keeps it)
+            if (indev->driver->feedback_cb == nullptr) {
+                indev->driver->feedback_cb = [](lv_indev_drv_t *, uint8_t code) { on_feedback(code); };
+            }
         }
     }
 }

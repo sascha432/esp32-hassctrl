@@ -23,9 +23,8 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 * **Plain LVGL.** `ui` has no ESP-IDF calls; everything else comes through `hc::ui::Backend`
   (`hc/ui/backend.hpp`, filled in `main/ui_backend.cpp`). The same sources run in the Windows
   version (`python tools/sim.py`), where screens are reviewed first.
-* **LVGL 8.4, LVGL 9 planned**: only widgets both versions have (the analog clock's `lv_meter`
-  is the one exception); the calls that differ go through
-  `lvgl_compat.hpp` ([architecture.md](../../architecture.md) section 7.1).
+* **LVGL 8.4** ([architecture.md](../../architecture.md) section 7.1; LVGL 9 was measured and not
+  adopted). The analog clock's face is drawn by hand, not an `lv_meter`.
 * **Large buffers on the large heap** (`hc::memory`, PSRAM where the board has it): images, the
   color wheel, histories. They are freed when their control goes. LVGL's own heap holds widgets.
 * **English only**, texts as in section 9.

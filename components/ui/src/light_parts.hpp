@@ -11,7 +11,6 @@
 #include "hc/memory/large.hpp"
 #include "light_panel.hpp"
 #include "lvgl.h"
-#include "lvgl_compat.hpp"
 #include "panel.hpp"
 
 namespace hc::ui::light_panel::detail {
@@ -69,7 +68,7 @@ struct State {
     // color
     lv_obj_t *wheel = nullptr;
     lv_obj_t *knob = nullptr;
-    memory::Vector<compat::Pixel> pixels;
+    memory::Vector<lv_color_t> pixels;
     lv_coord_t wheel_size = 0;
     bool wheel_dragging = false;
     float drag_hue = 0;

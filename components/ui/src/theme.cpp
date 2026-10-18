@@ -239,6 +239,16 @@ lv_obj_t *plain(lv_obj_t *parent)
     return obj;
 }
 
+void image_dsc(lv_img_dsc_t &dsc, const void *pixels, uint16_t width, uint16_t height)
+{
+    dsc = {};
+    dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+    dsc.header.w = width;
+    dsc.header.h = height;
+    dsc.data_size = static_cast<uint32_t>(width) * height * sizeof(lv_color_t);
+    dsc.data = static_cast<const uint8_t *>(pixels);
+}
+
 lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t &font, uint32_t text_color)
 {
     lv_obj_t *obj = lv_label_create(parent);

@@ -82,7 +82,10 @@ target_include_directories(hc_dashboard PUBLIC
 target_link_libraries(hc_dashboard PUBLIC cjson)
 target_compile_options(hc_dashboard PRIVATE /W4 /permissive- /utf-8 /EHsc)
 
-add_executable(hc_sim main.cpp stub_backend.cpp sample_hass.cpp png.cpp dashboard_file.cpp)
+# the sample data comes from the component the firmware's benchmark mode uses as well
+set(HC_SAMPLE "${HC_ROOT}/components/sample_backend")
+add_executable(hc_sim main.cpp png.cpp dashboard_file.cpp ${HC_SAMPLE}/src/stub_backend.cpp ${HC_SAMPLE}/src/sample_hass.cpp)
+target_include_directories(hc_sim PRIVATE ${HC_SAMPLE}/include)
 target_link_libraries(hc_sim PRIVATE hc_ui hc_dashboard win32drv winmm)
 target_compile_options(hc_sim PRIVATE /W4 /permissive- /utf-8 /EHsc)
 target_compile_definitions(hc_sim PRIVATE HC_SOURCE_ROOT="${HC_ROOT}")

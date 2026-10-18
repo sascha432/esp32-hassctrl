@@ -1,7 +1,7 @@
 # esp32-hassctrl - architecture
 
 A Home Assistant touch panel for ESP32 / ESP32-S3 / ESP32-P4, written in C++ on native ESP-IDF
-with LVGL 8.4 (LVGL 9 later, section 7.1). It runs on the WT32-SC01, the JC3248W535 and the
+with LVGL 8.4 (section 7.1). It runs on the WT32-SC01, the JC3248W535 and the
 JC4880P443C; the TTGO T4 is a test device.
 
 This file describes the firmware as it is built. Something that is not built says so where it
@@ -22,7 +22,8 @@ reference, its code was not carried over.
   tests (`host/tests`, `tools/host_test.py`).
 * Screens are designed in the Windows version of the UI (`host/sim`, `tools/sim.py`) and then
   tested on the boards. The Windows version only shows the GUI: no network and no Home
-  Assistant; the entity states come from a sample file, and a tap or drag changes them, so pages,
+  Assistant; the entity states come from a sample backend (`components/sample_backend`, also the
+  firmware's benchmark mode), and a tap or drag changes them, so pages,
   panels and controls can be clicked through. LVGL 8.4 with LVGL's Windows driver, the window
   sizes of the boards (480x320, 320x480, 480x800), a key to rotate.
 * Adding a board touches one board directory and one Kconfig choice, nothing else (section 8).
@@ -512,36 +513,22 @@ the `.cpp`, no class hierarchy. Every part runs in the UI task (section 4).
   one place (`theme.hpp`). Fonts and Material Design Icons are generated with `lv_font_conv`
   (`tools/build_icons.py`).
 
-### 7.1 LVGL 8 and 9
+### 7.1 LVGL 8.4
 
-The firmware runs on LVGL 8.4, the version of the code it was ported from. The move to LVGL 9
-is planned and not started ([TODO.md](TODO.md), "Next steps"): build and measure the
-dashboard's screens on both versions, and when LVGL 9 works well on the boards, remove LVGL 8.
-Both versions are only built side by side during that transition.
+The firmware runs on LVGL 8.4, the version of the code it was ported from, and stays on it. LVGL
+9.6 was built side by side and measured with the rendering benchmark on all three boards
+(2026-10-17, [benchmark.md](benchmark.md) section 8): 2 to 3 times slower on the ESP32, 25 to 75 %
+slower on whole frames on the ESP32-S3, 5 to 15 % slower on the ESP32-P4 with 150 KB less internal
+RAM; its fast functions did not fit the IRAM of the ESP32 and the S3, and it nearly used up the
+LVGL task's stack. It is not an option for these boards, and the code for it was removed.
 
-What is known about performance so far:
-
-| Source | Finding |
-| --- | --- |
-| [lvgl#5459](https://github.com/lvgl/lvgl/issues/5459) | about 37 % slower on an ESP32-S3 going from 8.3.9 to 9.0.0 |
-| [esp_lvgl_port performance notes](https://github.com/espressif/esp-bsp/blob/master/components/esp_lvgl_port/docs/performance.md) | ESP32-S3 RGB panel: LVGL 8 at 12 / 16 FPS (default / optimized), LVGL 9.2 at 9 / 11 FPS. The two benchmark demos measure FPS differently |
-| [LVGL 9.6 release notes](https://lvgl.io/blog/release-v9-6) | rewritten software blend and transform paths: ESP32-S3-Korvo-1 4 % less render time, ESP32-P4 rotated images 33 ms down to 11 ms. No comparison with LVGL 8 |
-
-On the WT32-SC01 the SPI transfer (30.7 ms per full screen) may hide render differences once
-render and DMA overlap.
-
-Rules that keep the switch cheap:
-
-* No widget that exists in only one version. The light panel's color wheel is a custom widget,
-  because `lv_colorwheel` exists only in LVGL 8. The same applies to `lv_meter` (8 only) and
-  `lv_scale` (9 only). One exception: the face of the analog clock tile is an `lv_meter`
-  (`tiles_clock.cpp`); it has to be redrawn with `lv_scale` or by hand for LVGL 9.
-* Byte swapping for SPI panels: with LVGL 8 it is `CONFIG_LV_COLOR_16_SWAP` in the board's
-  defaults file, with LVGL 9 `esp_lvgl_port`'s `swap_bytes` flag, which esp_lvgl_port 2.9.0 only
-  offers for LVGL 9. The board states the need (`Info::swap_bytes`) and `main` checks that the
-  configuration agrees.
-* LVGL calls that differ between the versions go through `ui/lvgl_compat.hpp`, the only file
-  allowed to test the LVGL version. It is deleted together with LVGL 8 support.
+* The analog clock's face is drawn by hand (`tiles_clock.cpp`, a draw event on a plain object),
+  not an `lv_meter`: the same look, and a tick redraws only the strips of the hands that moved.
+* Byte swapping for SPI panels is `CONFIG_LV_COLOR_16_SWAP` in the board's defaults file. The
+  board states the need (`Info::swap_bytes`) and `main` checks that the configuration agrees.
+* Changes that may cost render time are measured with `tools/bench.py` before they stay, on the
+  JC3248W535 or the P4: the WT32's times move by 20 to 30 % between builds of the same code
+  ([benchmark.md](benchmark.md) section 6).
 
 ---
 
@@ -963,7 +950,7 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
     two within 25 ms. The faster it moves, the more ticks (sim: 9 per second for a slow drag,
     33 for a fast one).
 
-  The UI hooks LVGL's input device feedback (`compat::set_touch_feedback`), which reports every
+  The UI hooks LVGL's input device feedback (the input driver's `feedback_cb`, `sound.cpp`), which reports every
   event a touch sends; the sounds are decided there, not in each widget.
 * **MP3** (`CONFIG_HC_AUDIO_MP3`): `espressif/esp_audio_codec` 2.6.2, its simple decoder with only
   the MP3 decoder registered. Chosen over `minimp3`: optimized for the ESP32-S3 and P4, and
@@ -1184,11 +1171,13 @@ esp32-hassctrl/
   CMakeLists.txt                 ESP-IDF project
   sdkconfig.defaults             shared Kconfig defaults
   sdkconfig.main, sdkconfig.recovery (+ .esp32, .esp32p4)   per application and target
+  bench/                         the benchmark dashboard and its version (docs/benchmark.md)
   partitions/                    4mb.csv, 16mb.csv
   boards/<name>/sdkconfig.defaults   target, flash, PSRAM, board choice
   boards/<name>/variants/<variant>/  private (not in git): hc_board_variant.hpp, sdkconfig.defaults
   boards/jc4880p443c/c6/         ESP-IDF project of the board's ESP32-C6 (esp_hosted coprocessor)
-  main/                          app_main and the wiring: ui_backend, ui_sound, backup, camera_preview
+  main/                          app_main and the wiring: ui_backend, ui_sound, backup, camera_preview,
+                                 bench_mode (the benchmark's boot)
   recovery/                      the recovery app (section 9.5): its own app_main, same components
   components/
     <name>/      include/hc/<name>/*.hpp  src/   one per component of sections 3 and 9.4

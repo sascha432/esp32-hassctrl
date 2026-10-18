@@ -1,6 +1,7 @@
-#include "stub_backend.hpp"
+#include "hc/sample/stub_backend.hpp"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -9,9 +10,9 @@
 
 #include "hc/ui/ui.hpp"
 #include "lvgl.h"
-#include "sample_hass.hpp"
+#include "hc/sample/sample_hass.hpp"
 
-namespace sim {
+namespace hc::sample {
 
 namespace {
 
@@ -34,6 +35,11 @@ constexpr uint32_t kHassConnectMs = 1500;
 constexpr uint32_t kHotspotMinutes = 15;
 constexpr const char *kDeviceName = "hassctrl-3f9a";
 constexpr const char *kIp = "192.168.0.206";
+
+// set_start_time(): the epoch it set and LVGL's tick at that moment; 0: the real clock
+int64_t g_start_time = 0;
+uint32_t g_start_tick = 0;
+bool g_verbose = true;
 
 // the same defaults as main/ui_backend.cpp
 constexpr DisplaySettings kDisplayDefaults{.brightness = 100,
@@ -332,7 +338,7 @@ const Scenario kScenarios[] = {
 
 void print(const char *what, const char *detail = "")
 {
-    std::printf("[stub] %s%s%s\n", what, detail[0] != 0 ? " " : "", detail);
+    say("[stub] %s%s%s\n", what, detail[0] != 0 ? " " : "", detail);
     std::fflush(stdout);
 }
 
@@ -613,26 +619,29 @@ void device_info(DeviceInfo &out)
     out.heap_psram_kb = 3012;
 }
 
+void local_time(int64_t epoch, std::tm &out)
+{
+    const auto t = static_cast<std::time_t>(epoch);
+#ifdef _WIN32
+    localtime_s(&out, &t);
+#else
+    localtime_r(&t, &out);
+#endif
+}
+
 bool time_text(char *out, size_t size)
 {
     if (!g.clock_set) {
         return false;
     }
-    const std::time_t now = std::time(nullptr);
     std::tm local{};
-    localtime_s(&local, &now);
+    local_time(now(), local);
     return std::strftime(out, size, "%H:%M", &local) != 0;
 }
 
 int64_t clock_now()
 {
-    return g.clock_set ? static_cast<int64_t>(std::time(nullptr)) : 0;
-}
-
-void local_time(int64_t epoch, std::tm &out)
-{
-    const auto t = static_cast<std::time_t>(epoch);
-    localtime_s(&out, &t);
+    return g.clock_set ? now() : 0;
 }
 
 void web_address(char *out, size_t size)
@@ -697,6 +706,7 @@ const hc::ui::Backend kBackend{
     .vibration = vibration,
     .set_vibration = [](bool on) { g.vibration = on; },
     .vibrate_click = [] { print("vibration pulse"); },
+    .touch_fingers = nullptr,
     .alarm_settings = alarm_settings,
     .set_alarm_settings = set_alarm_settings,
     .alarm_sounds = alarm_sounds,
@@ -704,18 +714,18 @@ const hc::ui::Backend kBackend{
     .stop_alarm = [] { print("alarm stops"); },
     .hass_info = hass_info,
     .hass_reconnect = hass_reconnect,
-    .dashboard = sim::dashboard,
-    .save_dashboard = sim::save_dashboard,
-    .subscribe_page = sim::subscribe_page,
-    .call_service = sim::call_service,
-    .take_event = sim::take_event,
-    .fetch_history = sim::fetch_history,
-    .subscribe_forecast = sim::subscribe_forecast,
-    .find_entities = sim::find_entities,
-    .fetch_entity = sim::fetch_entity,
-    .fetch_image = sim::fetch_image,
-    .play_stream = sim::play_stream,
-    .stop_stream = sim::stop_stream,
+    .dashboard = dashboard,
+    .save_dashboard = save_dashboard,
+    .subscribe_page = subscribe_page,
+    .call_service = call_service,
+    .take_event = take_event,
+    .fetch_history = fetch_history,
+    .subscribe_forecast = subscribe_forecast,
+    .find_entities = find_entities,
+    .fetch_entity = fetch_entity,
+    .fetch_image = fetch_image,
+    .play_stream = play_stream,
+    .stop_stream = stop_stream,
     .device_info = device_info,
     .time_text = time_text,
     .clock = clock_now,
@@ -772,7 +782,7 @@ void start_scenario(size_t index)
     g.boot_tick = lv_tick_get();
     new_password();
     kScenarios[g_scenario].apply();
-    std::printf("[stub] scenario %s: %s\n", kScenarios[g_scenario].info.name, kScenarios[g_scenario].info.description);
+    say("[stub] scenario %s: %s\n", kScenarios[g_scenario].info.name, kScenarios[g_scenario].info.description);
     std::fflush(stdout);
 }
 
@@ -812,4 +822,34 @@ const hc::ui::Backend &backend()
     return kBackend;
 }
 
-} // namespace sim
+void set_verbose(bool on)
+{
+    g_verbose = on;
+}
+
+void say(const char *format, ...)
+{
+    if (!g_verbose) {
+        return;
+    }
+    va_list args;
+    va_start(args, format);
+    std::vprintf(format, args);
+    va_end(args);
+}
+
+int64_t now()
+{
+    if (g_start_time == 0) {
+        return static_cast<int64_t>(std::time(nullptr));
+    }
+    return g_start_time + static_cast<int64_t>(lv_tick_elaps(g_start_tick) / 1000);
+}
+
+void set_start_time(int64_t epoch)
+{
+    g_start_time = epoch;
+    g_start_tick = lv_tick_get();
+}
+
+} // namespace hc::sample

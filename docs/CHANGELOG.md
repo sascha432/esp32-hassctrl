@@ -2,6 +2,12 @@
 
 ## 2026-10-17
 
+- Benchmark: `tools/bench.py` and the console's `bench` run fixed scenes on a fixed dashboard and sample
+  data, the same on every board (docs/benchmark.md); the sample backend moved to `components/sample_backend`.
+- LVGL 9.6 measured against 8.4 on all three boards and not adopted: WT32 2-3x slower, JC3248W535
+  25-75 %, P4 5-15 % (benchmark.md section 8). The LVGL 9 build was removed again, LVGL 8.4 stays.
+- Analog clock face drawn by hand instead of `lv_meter` (same look, a tick 4x cheaper on the WT32).
+
 - Code: files over 600 lines split along their seams (hass, tiles, network, media, settings, light and
   climate panel), the rest accepted (architecture.md section 11). No change in behaviour.
 - Web UI: a new password over 64 characters (password change, first login) says "8 to 64 characters"

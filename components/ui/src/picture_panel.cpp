@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "dashboard.hpp"
-#include "lvgl_compat.hpp"
 #include "overlay.hpp"
 #include "sound.hpp"
 #include "theme.hpp"
@@ -55,7 +54,7 @@ struct State {
     lv_obj_t *zoom_in = nullptr;
     lv_obj_t *zoom_out = nullptr;
     lv_timer_t *hide = nullptr;
-    compat::ImageDsc dsc{};
+    lv_img_dsc_t dsc{};
     core::Pixels pixels;
     uint16_t frame_width = 0;
     uint16_t frame_height = 0;
@@ -197,12 +196,12 @@ void show(core::Pixels pixels, uint16_t w, uint16_t h, uint16_t source_w, uint16
         }
     }
     if (g.pixels) {
-        compat::image_forget(g.dsc);
+        lv_img_cache_invalidate_src(&g.dsc);
     }
     g.pixels = std::move(pixels);
     g.frame_width = w;
     g.frame_height = h;
-    compat::image_dsc(g.dsc, g.pixels.get(), w, h);
+    t::image_dsc(g.dsc, g.pixels.get(), w, h);
     lv_img_set_src(g.image, &g.dsc);
     lv_obj_set_size(g.image, w, h);
     place();
@@ -565,7 +564,7 @@ void build(lv_obj_t *root, core::TileIndex tile, lv_coord_t width, lv_coord_t he
         show(view->pixels, view->image_width, view->image_height, view->source_width, view->source_height);
     }
     // the first frame takes a while (a stream's server may first start its encoder)
-    g.spinner = compat::spinner(root);
+    g.spinner = lv_spinner_create(root, 1000, 60);
     lv_obj_set_size(g.spinner, kSpinnerSize, kSpinnerSize);
     lv_obj_center(g.spinner);
     lv_obj_set_style_arc_color(g.spinner, t::color(t::kActive), LV_PART_INDICATOR);
@@ -648,7 +647,7 @@ void forget()
         dashboard::stop_stream();
     }
     if (g.pixels) {
-        compat::image_forget(g.dsc);
+        lv_img_cache_invalidate_src(&g.dsc);
     }
     overlay::on_strip_moved(nullptr);
     if (g.streaming && g.phase != Phase::Playing && g.phase != Phase::Opening) {
