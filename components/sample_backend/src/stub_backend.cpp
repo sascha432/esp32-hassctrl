@@ -16,7 +16,7 @@ namespace hc::sample {
 
 namespace {
 
-using hc::ui::AlarmSettings;
+using hc::ui::Alarms;
 using hc::ui::CameraInfo;
 using hc::ui::CameraPicture;
 using hc::ui::CameraStream;
@@ -117,7 +117,12 @@ struct State {
                                  .mirror = false, .flip = false, .mains_hz = 60};
     CameraStream camera_stream{.enabled = false, .half = false, .max_fps = 30, .quality = 50, .username = {},
                                .password = {}};
-    AlarmSettings alarm{.on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = "Argon"};
+    // two alarms: weekdays with the motor, a late one on the weekend without
+    Alarms alarms{.list = {{.on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = "Argon",
+                            .vibrate = true},
+                           {.on = false, .hour = 9, .minute = 30, .days = 0x41, .snooze_min = 15, .sound = {},
+                            .vibrate = false}},
+                  .count = 2};
     bool hint_seen = true;
     bool clock_set = true;
     uint32_t boot_tick = 0;
@@ -523,14 +528,14 @@ bool vibration(bool &on)
     return true;
 }
 
-void alarm_settings(AlarmSettings &out)
+void alarms(Alarms &out)
 {
-    out = g.alarm;
+    out = g.alarms;
 }
 
-void set_alarm_settings(const AlarmSettings &settings)
+void set_alarms(const Alarms &list)
 {
-    g.alarm = settings;
+    g.alarms = list;
 }
 
 // the names of sounds/alarms/*.mp3
@@ -546,9 +551,12 @@ size_t alarm_sounds(char (*names)[hc::ui::kSoundNameSize], size_t max)
     return count;
 }
 
-void play_alarm(const char *sound, bool loop)
+void play_alarm(const char *sound, bool loop, bool vibrate)
 {
     print(loop ? "alarm rings:" : "alarm preview:", sound[0] != 0 ? sound : "Beeps");
+    if (vibrate) {
+        print("alarm vibrates");
+    }
 }
 
 void set_backlight(uint8_t percent)
@@ -731,8 +739,8 @@ const hc::ui::Backend kBackend{
     .set_vibration = [](bool on) { g.vibration = on; },
     .vibrate_click = [] { print("vibration pulse"); },
     .touch_fingers = nullptr,
-    .alarm_settings = alarm_settings,
-    .set_alarm_settings = set_alarm_settings,
+    .alarms = alarms,
+    .set_alarms = set_alarms,
     .alarm_sounds = alarm_sounds,
     .play_alarm = play_alarm,
     .stop_alarm = [] { print("alarm stops"); },

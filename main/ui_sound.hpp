@@ -3,8 +3,8 @@
 // The Sound, Vibration and Alarm entries of the screens' Backend (hc/ui/backend.hpp), made of the
 // audio, vibration and platform components. Each is nullptr when its option is not built in
 // (CONFIG_HC_AUDIO, CONFIG_HC_AUDIO_TOUCH_SOUND, CONFIG_HC_VIBRATION, CONFIG_HC_AUDIO_ALARM), so
-// the UI leaves the page or switch out. The alarm vibrates along with its sound.
-// Wiring only, like the rest of main.
+// the UI leaves the page or switch out. An alarm with its Vibrate switch on vibrates along with
+// its sound. Wiring only, like the rest of main.
 
 #include <cstddef>
 
@@ -22,10 +22,10 @@ extern bool (*const vibration)(bool &on);
 extern void (*const set_vibration_setting)(bool on);
 extern void (*const vibrate_click)();
 
-extern void (*const alarm_settings)(hc::ui::AlarmSettings &out);
-extern void (*const set_alarm_settings)(const hc::ui::AlarmSettings &settings);
+extern void (*const alarms)(hc::ui::Alarms &out);
+extern void (*const set_alarms)(const hc::ui::Alarms &alarms);
 extern size_t (*const alarm_sounds)(char (*names)[hc::ui::kSoundNameSize], size_t max);
-extern void (*const play_alarm)(const char *sound, bool loop);
+extern void (*const play_alarm)(const char *sound, bool loop, bool vibrate);
 extern void (*const stop_alarm)();
 
 #if CONFIG_HC_AUDIO

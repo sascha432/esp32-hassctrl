@@ -74,6 +74,7 @@ Built display_page(lv_obj_t *content);
 // Settings, Sound and Alarm (settings_sound.cpp, settings_alarm.cpp)
 Built sound_page(lv_obj_t *content);
 Built alarm_page(lv_obj_t *content);
+Built alarm_detail_page(lv_obj_t *content, int index);
 
 // Settings, Camera, its login and its preview (settings_camera.cpp); camera_available(): the
 // backend has a camera with a sensor

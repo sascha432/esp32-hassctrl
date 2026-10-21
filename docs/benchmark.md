@@ -10,7 +10,7 @@ LVGL 9 (section 7). The result files are in [benchmarks/](benchmarks/).
 ```powershell
 . C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null
 python tools/bench.py wt32_sc01 -p COM9 --runs 3 --label lvgl8.4
-python tools/bench.py jc4880p443c.kitchen -p COM11 --runs 3 --label my-change
+python tools/bench.py jc4880p443c -p COM11 --runs 3 --label my-change
 python tools/bench.py --compare docs/benchmarks/wt32_sc01-lvgl8.4.json docs/benchmarks/wt32_sc01-my-change.json
 ```
 
@@ -87,7 +87,7 @@ frames that come.
 | `alert_strip` | a message in the strip at the top for 1.5 s | the top layer, a fade |
 | `large_slide_in`, `clocks_tick` | the large page slides in; its clocks tick for 4 s | the hand-drawn analog face, big digits |
 | `weather_panel_*`, `automation_panel_*` | the weather panel (forecast) and the automation panel | lists, icons |
-| `settings_open`, `settings_scroll`, `settings_close` | Settings, Alarm opens; a finger drags up the right margin in 300 ms and lets go; Settings closes | a long scrolling page, the fling |
+| `settings_open`, `settings_scroll`, `settings_close` | Settings, Display opens (Alarm until 2026-10-21, a list since); a finger drags up the right margin in 300 ms and lets go; Settings closes | a long scrolling page, the fling |
 | `rotate_90`, `main_redraw_90` | the screen turns by 90° (the page is built again), the main page is redrawn 20 times, then it turns back | the software rotation where the board has it |
 
 ## 5. What it measures

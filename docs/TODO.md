@@ -333,7 +333,7 @@ Open:
         apply). Not in `webserver` as decided on 2026-10-07: then the recovery app (4 % free, no
         backup) would link the YAML parser too. The sections in `main/backup.cpp`: `network`
         (policy, hotspot_on, names, `open: true`, a hand-added `password:`), `display`, `sound`
-        (volume, tap/slider sound, vibration), `alarm` (time, days `[mon, ...]`, snooze, sound),
+        (volume, tap/slider sound, vibration), `alarm` (`alarms:`, each with time, days `[mon, ...]`, snooze, sound, vibrate),
         `hass` (url, a hand-added token; `hass::check_config()` checks it before anything is
         applied), and the dashboard (one file, `import_yaml` with check). A section the device
         lacks (alarm on the WT32) is named "not on this device". The UI's settings change under
@@ -1099,6 +1099,22 @@ Your report of the first version (2026-10-09):
       has no hardware audio decoder (only JPEG and H.264); the library has optimized P4 builds.
 - [x] Alarm in Settings with time, days, snooze, sound; full volume, cannot be muted by the
       volume; six AOSP alarm sounds (Apache 2.0) with a preview on selection.
+- [x] Your request (2026-10-21): up to 5 alarms, a Vibrate switch per alarm (it alone decides for
+      the alarm; the Sound page's switch is for taps). Settings, Alarm is a list with a page per
+      alarm (add, delete); NVS `ui/alarms`, the old `ui/alarm` read once into the first one; backup
+      `alarm: alarms:` (an old single `alarm:` imports as one). Checked on the JC3248W535: the
+      stored alarm was migrated, a second one added, it rang at its minute, the snooze shows on
+      quick settings, delete works.
+- [ ] P4 (you flash it): an alarm with Vibrate off rings without the motor, one with it on
+      vibrates, the preview follows the switch.
+- [x] Screenshot bands (2026-10-21): the alarm's buttons had darker corner rows with the page below
+      showing through, in the console screenshot only. LVGL's alpha snapshot stores 254 for masked
+      pixels (`opa * mask >> 8`); `uidebug` now counts `LV_OPA_MAX` and more as opaque and rounds.
+      Checked on the JC3248W535: the buttons are exact.
+- [x] `jc4880p443c.kitchen` without the development console (your request, 2026-10-21): built,
+      the screenshot code is dropped by the linker. Not flashed (you flash the P4).
+- [ ] The alarm screen lies on `lv_layer_top`, so LVGL draws the page below it in every changed
+      area while it rings. Make it a screen of its own (`lv_scr_load`) so nothing is drawn under it.
 
 Your report of the second version (2026-10-09):
 

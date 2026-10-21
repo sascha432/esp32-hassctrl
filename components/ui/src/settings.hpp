@@ -26,6 +26,7 @@ enum class Page : uint8_t {
     CameraLogin,
     CameraPreview,
     Alarm,
+    AlarmDetail,
     System,
 };
 

@@ -299,7 +299,7 @@ const Scene kScenes[] = {
     {"automation_panel_open", [] { panel(g.automation); }, 1000},
     {"automation_panel_close", dashboard::close_panel, 1000},
     {nullptr, open_main, kSettleMs},
-    {"settings_open", [] { settings::open(settings::Page::Alarm); }, 1500},
+    {"settings_open", [] { settings::open(settings::Page::Display); }, 1500},
     {"settings_scroll", nullptr, 1500, 0, scroll_tick, true},
     {"settings_close", settings::close, 1000},
     {"rotate_90", rotation::rotate_clockwise, 2000},

@@ -770,7 +770,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   | --- | --- | --- |
   | changed by a live control or by using the device, in bursts | `platform::set_blob_later`: 10 s after the last change, at most 60 s after the first, and at a restart | `ui/display`, `ui/sounds`, `ui/vibrate`, `camera/picture`, `camview/*` |
   | saved by an explicit action (OK, Save, Apply), or a secret | at once, with commit; a failure is reported | Wi-Fi networks, policy and hotspot, web UI login, Home Assistant address, token and certificate, camera stream login |
-  | has to survive a power loss right after it was set | at once | `ui/alarm` |
+  | has to survive a power loss right after it was set | at once | `ui/alarms` |
   | device state that changes rarely | at once, when it changed | `network/last_seen` (another access point or channel), `time/zone`, `ui/hint` (once) |
   | developer and calibration | at once | `console/*`, `logbuf/debug`, `light/*` |
 
@@ -836,7 +836,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `orientation` | the MPU6050 on the board's I2C bus, the screen's rotation (section 8.1) |
 | `frame_display` | the LVGL display of a panel that takes whole frames only (the AXS15231B, section 8) |
 | `logbuf` | the log in a ring buffer for the web UI's log page |
-| `uidebug` | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Removable, not over the network |
+| `uidebug` | screenshots of the screen and `lv_layer_top` as run-length encoded RGB565 over the serial console (`tools/screenshot.py`; two `lv_snapshot`s blended, an alpha of `LV_OPA_MAX` or more counts as opaque as on the panel), and a virtual pointer as a second `lv_indev` for `tap`, `press`, `release` and `swipe` in `devconsole`. Removable, not over the network |
 | `relay` | up to four relays on GPIOs, switched by Home Assistant entities found by the device's name (section 9.7a) |
 | `motion` | a motion sensor on a GPIO, reported to a Home Assistant helper, and wake on motion (section 9.7b) |
 | `esp_driver_ppa` | replaces ESP-IDF's PPA driver with a fix for the ESP32-P4's silicon bug DIG-734 (its README: the numbers, the diff to check after an IDF update, when to drop it); the build of the P4 stops if `ppa_srm.c` lacks the patch or differs from the IDF's file by more |
@@ -990,13 +990,17 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   `/www` and `/sounds` are kept). The alarm sounds `sounds/alarms/*.mp3` are six alarm sounds of
   the Android Open Source Project (Apache License 2.0, `sounds/NOTICE`), converted by
   `tools/build_sounds.py` to mono 22.05 kHz 48 kbit/s MP3, 206 KB together.
-* **Alarm clock** (`CONFIG_HC_AUDIO_ALARM`): the time, the days (none: once, then it turns itself
-  off), the snooze time and the sound are stored in the settings NVS (`ui` / `alarm`) at once.
-  When its minute comes (`core::alarm_due`, plain C++ with host tests), the UI wakes the screen
+* **Alarm clock** (`CONFIG_HC_AUDIO_ALARM`): up to 5 alarms (`ui::Alarms`), each with its time,
+  days (none: once, then it turns itself off), snooze time, sound and Vibrate switch, stored
+  together in the settings NVS (`ui` / `alarms`) at once. The single alarm of the firmware before
+  2026-10-21 (`ui` / `alarm`) is read once into the first one, with the Vibrate switch of the
+  Sound page. When an alarm's minute comes (`core::alarm_due`, plain C++ with host tests), the UI wakes the screen
   (from off or dimmed to the user's brightness, and the first touch is not swallowed; `power::wake()`
   again on every check while it rings, so the screen neither dims nor turns off), shows the alarm screen over everything and plays the sound in a loop at full volume until Stop
   or Snooze, at most 10 minutes. It needs the clock (SNTP); the time zone comes from Home
-  Assistant. A snooze lives in RAM only: a restart while snoozed forgets it.
+  Assistant. Two alarms in the same minute ring once, as the first of the list (every one of
+  them without days turns off). One snooze at a time: it rings the snoozed alarm again, and the
+  next alarm that rings ends it. A snooze lives in RAM only: a restart while snoozed forgets it.
 
 * **Sounds from Home Assistant** (with `CONFIG_HC_AUDIO_MP3`): an automation fires
   the event `hassctrl_say` with a `message` and a text-to-speech `engine` (a tts entity;
@@ -1054,13 +1058,13 @@ JC4880P443C, GPIO 28 of the expansion header.
   ([adding-a-board.md](adding-a-board.md) step 10), never a user setting. It follows
   neither the volume nor "Click on taps"; slider ticks do not vibrate (a motor cannot tick that
   fast).
-* **Alarm**: `main` starts the pattern with the alarm sound (`play_alarm`) and stops it with the
-  sound: 500 ms on, 500 ms off. Pulses are dropped while it runs. The looping alarm runs until
+* **Alarm**: `main` starts the pattern with the alarm sound (`play_alarm`, when the alarm's own
+  Vibrate switch is on) and stops it with the sound: 500 ms on, 500 ms off. Pulses are dropped while it runs. The looping alarm runs until
   `stop_alarm()`. The preview of Settings plays once, so `start_alarm(active)` gets
   `audio::alarm_playing`: before each new pulse the motor asks it and ends when the sound has
   ended. A pulse that began is always played in full.
-* **Setting**: one switch, "Vibrate" on Settings, Sound (on by default); off means no vibration
-  at all, also none with the alarm. Stored in the settings NVS (`ui` / `vibrate`) a few seconds
+* **Setting**: "Vibrate" on Settings, Sound (on by default) for the taps; each alarm has a
+  Vibrate switch of its own (on by default), which alone decides for it. Stored in the settings NVS (`ui` / `vibrate`) a few seconds
   after the change. The Sound page is there with audio or a motor.
 
 ### 9.7a Relays

@@ -22,8 +22,10 @@ struct State {
     const Backend *backend = nullptr;
     // the minute (epoch / 60) that was checked last: an alarm rings once in its minute
     int64_t checked_minute = -1;
-    // epoch seconds when a snoozed alarm rings again, 0: none
+    // epoch seconds when a snoozed alarm rings again, 0: none; one snooze at a time
     int64_t snooze_until = 0;
+    // the alarm that rings (or was snoozed): its snooze time, sound and switch
+    AlarmSettings alarm{};
     bool ringing = false;
     uint32_t ring_started = 0;
     lv_obj_t *screen = nullptr;
@@ -33,12 +35,16 @@ struct State {
 State g;
 std::atomic<bool> g_ring_requested{false};
 
-AlarmSettings settings()
+Alarms stored()
 {
-    AlarmSettings s{};
-    g.backend->alarm_settings(s);
-    return s;
+    Alarms a{};
+    g.backend->alarms(a);
+    return a;
 }
+
+// rings when the list is empty (the console's `sound ring`): the beeps with the motor
+constexpr AlarmSettings kPlainAlarm{
+    .on = true, .hour = 0, .minute = 0, .days = 0, .snooze_min = 10, .sound = {}, .vibrate = true};
 
 void close_screen()
 {
@@ -61,7 +67,7 @@ void update_time()
 
 void on_snooze(lv_event_t *)
 {
-    g.snooze_until = g.backend->clock() + static_cast<int64_t>(settings().snooze_min) * 60;
+    g.snooze_until = g.backend->clock() + static_cast<int64_t>(g.alarm.snooze_min) * 60;
     close_screen();
 }
 
@@ -100,17 +106,19 @@ void open_screen(const AlarmSettings &s)
     lv_obj_move_foreground(g.screen);
 }
 
-void ring()
+// `s` rings; a pending snooze ends (its alarm has had its turn)
+void ring(const AlarmSettings &s)
 {
-    const AlarmSettings s = settings();
     if (g.ringing) {
         return;
     }
+    g.alarm = s;
+    g.snooze_until = 0;
     g.ringing = true;
     g.ring_started = lv_tick_get();
     power::wake();
     open_screen(s);
-    g.backend->play_alarm(s.sound, true);
+    g.backend->play_alarm(s.sound, true, s.vibrate);
 }
 
 void on_check(lv_timer_t *)
@@ -130,12 +138,12 @@ void on_check(lv_timer_t *)
         return;
     }
     if (g_ring_requested.exchange(false)) {
-        ring();
+        const Alarms a = stored();
+        ring(a.count > 0 ? a.list[0] : kPlainAlarm);
         return;
     }
     if (g.snooze_until != 0 && now >= g.snooze_until) {
-        g.snooze_until = 0;
-        ring();
+        ring(g.alarm);
         return;
     }
     const int64_t minute = now / 60;
@@ -143,18 +151,32 @@ void on_check(lv_timer_t *)
         return;
     }
     g.checked_minute = minute;
-    AlarmSettings s = settings();
+    Alarms a = stored();
     std::tm local{};
     g.backend->local_time(now, local);
-    if (!s.on || !core::alarm_due({s.hour, s.minute, s.days}, local)) {
-        return;
+    // the first one due rings; every one due without days is done (also the ones that did not get
+    // their own turn: they rang along)
+    int due = -1;
+    bool once_done = false;
+    for (size_t i = 0; i < a.count; i++) {
+        AlarmSettings &s = a.list[i];
+        if (!s.on || !core::alarm_due({s.hour, s.minute, s.days}, local)) {
+            continue;
+        }
+        if (due < 0) {
+            due = static_cast<int>(i);
+        }
+        if (s.days == 0) {
+            s.on = false;
+            once_done = true;
+        }
     }
-    if (s.days == 0) {
-        // once: done after this ring
-        s.on = false;
-        g.backend->set_alarm_settings(s);
+    if (once_done) {
+        g.backend->set_alarms(a);
     }
-    ring();
+    if (due >= 0) {
+        ring(a.list[due]);
+    }
 }
 
 } // namespace
@@ -170,7 +192,7 @@ void init(const Backend &backend)
 
 bool available()
 {
-    return g.backend != nullptr && g.backend->alarm_settings != nullptr;
+    return g.backend != nullptr && g.backend->alarms != nullptr;
 }
 
 void settings_changed()
@@ -188,19 +210,54 @@ bool ringing()
     return g.ringing;
 }
 
+int next(const Alarms &alarms, const std::tm &local, int32_t &minutes)
+{
+    int found = -1;
+    for (size_t i = 0; i < alarms.count; i++) {
+        const AlarmSettings &s = alarms.list[i];
+        if (!s.on) {
+            continue;
+        }
+        const int32_t until = core::minutes_until({s.hour, s.minute, s.days}, local);
+        if (until >= 0 && (found < 0 || until < minutes)) {
+            found = static_cast<int>(i);
+            minutes = until;
+        }
+    }
+    return found;
+}
+
 void summary(char *out, size_t size)
 {
-    const AlarmSettings s = settings();
+    const Alarms a = stored();
     if (g.snooze_until != 0) {
         std::tm local{};
         g.backend->local_time(g.snooze_until, local);
         std::snprintf(out, size, "Snoozed until %02d:%02d", local.tm_hour, local.tm_min);
         return;
     }
-    if (!s.on) {
+    if (a.count == 0) {
+        std::snprintf(out, size, "None");
+        return;
+    }
+    // the one that rings next; without the clock the first one that is on
+    int index = -1;
+    int32_t minutes = 0;
+    const int64_t now = g.backend->clock();
+    if (now != 0) {
+        std::tm local{};
+        g.backend->local_time(now, local);
+        index = next(a, local, minutes);
+    } else {
+        for (size_t i = 0; i < a.count && index < 0; i++) {
+            index = a.list[i].on ? static_cast<int>(i) : -1;
+        }
+    }
+    if (index < 0) {
         std::snprintf(out, size, "Off");
         return;
     }
+    const AlarmSettings &s = a.list[index];
     char days[40];
     core::days_text(s.days, days, sizeof(days));
     std::snprintf(out, size, "%02u:%02u, %s", s.hour, s.minute, days);

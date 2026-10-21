@@ -436,6 +436,8 @@ Built build(Page page, lv_obj_t *content, const char *text, int index)
         return camera_preview_page(content);
     case Page::Alarm:
         return alarm_page(content);
+    case Page::AlarmDetail:
+        return alarm_detail_page(content, index);
     case Page::System:
         return system(content);
     }

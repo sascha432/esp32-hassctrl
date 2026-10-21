@@ -173,7 +173,12 @@ const Page kPages[] = {
          ui::settings::open(ui::settings::Page::Camera);
          ui::settings::push(ui::settings::Page::CameraPreview);
      }},
-    {"alarm", "Settings, Alarm", [] { ui::settings::open(ui::settings::Page::Alarm); }},
+    {"alarm", "Settings, Alarm (the list)", [] { ui::settings::open(ui::settings::Page::Alarm); }},
+    {"alarm-detail", "Settings, Alarm, the first alarm",
+     [] {
+         ui::settings::open(ui::settings::Page::Alarm);
+         ui::settings::push(ui::settings::Page::AlarmDetail, nullptr, 0);
+     }},
     {"ringing", "the alarm screen (the alarm rings now)", [] { ui::ring_alarm(); }},
     {"system", "Settings, System", [] { ui::settings::open(ui::settings::Page::System); }},
 };

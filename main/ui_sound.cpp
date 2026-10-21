@@ -108,15 +108,24 @@ void set_vibration(bool on)
 #endif
 
 #if CONFIG_HC_AUDIO_ALARM
-constexpr const char *kAlarmKey = "alarm";
+// The alarms since 2026-10-21 (up to five, a Vibrate switch each). The single alarm before them
+// under "alarm" is read once when there is nothing under "alarms": it becomes the first one.
+constexpr const char *kAlarmsKey = "alarms";
+constexpr const char *kFirstAlarmKey = "alarm";
 constexpr const char *kAlarmDir = "/sounds/alarms";
 constexpr const char *kAlarmExtension = ".mp3";
 
-// off, 07:00 on weekdays, the beeps
-constexpr hc::ui::AlarmSettings kAlarmDefaults{
-    .on = false, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = {}};
-hc::ui::AlarmSettings g_alarm = kAlarmDefaults;
-bool g_alarm_loaded = false;
+struct FirstAlarmSettings {
+    bool on;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t days;
+    uint8_t snooze_min;
+    char sound[hc::ui::kSoundNameSize];
+};
+
+hc::ui::Alarms g_alarms{};
+bool g_alarms_loaded = false;
 
 bool valid(const hc::ui::AlarmSettings &s)
 {
@@ -124,28 +133,72 @@ bool valid(const hc::ui::AlarmSettings &s)
            std::memchr(s.sound, 0, sizeof(s.sound)) != nullptr;
 }
 
-void get_alarm(hc::ui::AlarmSettings &out)
+bool valid(const hc::ui::Alarms &list)
 {
-    if (!g_alarm_loaded) {
-        g_alarm_loaded = true;
-        hc::ui::AlarmSettings stored{};
-        size_t size = sizeof(stored);
-        hc::platform::Settings settings(kUiNamespace, hc::platform::Settings::Mode::Read);
-        if (settings.ok() && settings.get_blob(kAlarmKey, &stored, size) == ESP_OK && size == sizeof(stored) &&
-            valid(stored)) {
-            g_alarm = stored;
+    if (list.count > hc::ui::kMaxAlarms) {
+        return false;
+    }
+    for (size_t i = 0; i < list.count; i++) {
+        if (!valid(list.list[i])) {
+            return false;
         }
     }
-    out = g_alarm;
+    return true;
+}
+
+void load_alarms()
+{
+    hc::platform::Settings settings(kUiNamespace, hc::platform::Settings::Mode::Read);
+    if (!settings.ok()) {
+        return;
+    }
+    hc::ui::Alarms stored{};
+    size_t size = sizeof(stored);
+    if (settings.get_blob(kAlarmsKey, &stored, size) == ESP_OK) {
+        if (size == sizeof(stored) && valid(stored)) {
+            g_alarms = stored;
+        }
+        return;
+    }
+    FirstAlarmSettings first{};
+    size = sizeof(first);
+    if (settings.get_blob(kFirstAlarmKey, &first, size) != ESP_OK || size != sizeof(first)) {
+        return;
+    }
+    hc::ui::AlarmSettings alarm{.on = first.on,
+                                .hour = first.hour,
+                                .minute = first.minute,
+                                .days = first.days,
+                                .snooze_min = first.snooze_min,
+                                .sound = {},
+                                .vibrate = true};
+    std::memcpy(alarm.sound, first.sound, sizeof(alarm.sound));
+#if CONFIG_HC_VIBRATION
+    // the switch of Settings, Sound decided for the alarm then
+    alarm.vibrate = vibration_on();
+#endif
+    if (valid(alarm)) {
+        g_alarms.list[0] = alarm;
+        g_alarms.count = 1;
+    }
+}
+
+void get_alarms(hc::ui::Alarms &out)
+{
+    if (!g_alarms_loaded) {
+        g_alarms_loaded = true;
+        load_alarms();
+    }
+    out = g_alarms;
 }
 
 // at once: an alarm set right before a restart has to ring
-void set_alarm(const hc::ui::AlarmSettings &settings)
+void store_alarms(const hc::ui::Alarms &list)
 {
-    g_alarm = settings;
-    g_alarm_loaded = true;
+    g_alarms = list;
+    g_alarms_loaded = true;
     hc::platform::Settings stored(kUiNamespace, hc::platform::Settings::Mode::ReadWrite);
-    if (stored.ok() && stored.set_blob(kAlarmKey, &g_alarm, sizeof(g_alarm)) == ESP_OK) {
+    if (stored.ok() && stored.set_blob(kAlarmsKey, &g_alarms, sizeof(g_alarms)) == ESP_OK) {
         stored.commit();
     }
 }
@@ -191,7 +244,7 @@ size_t list_alarm_sounds(char (*names)[hc::ui::kSoundNameSize], size_t max)
 #endif
 }
 
-void ring(const char *sound, bool loop)
+void ring(const char *sound, bool loop, bool vibrate)
 {
     char path[hc::audio::kMaxPath] = {};
     if (sound != nullptr && sound[0] != 0) {
@@ -200,10 +253,15 @@ void ring(const char *sound, bool loop)
     }
     hc::audio::play_alarm(path, loop);
 #if CONFIG_HC_VIBRATION
-    if (vibration_on()) {
+    if (vibrate) {
         // the preview of Settings plays once: the motor follows its sound
         hc::vibration::start_alarm(loop ? nullptr : hc::audio::alarm_playing);
+    } else {
+        // a preview of an alarm with the switch off ends the pattern of the one before
+        hc::vibration::stop_alarm();
     }
+#else
+    (void)vibrate;
 #endif
 }
 
@@ -250,16 +308,16 @@ void (*const vibrate_click)() = nullptr;
 #endif
 
 #if CONFIG_HC_AUDIO_ALARM
-void (*const alarm_settings)(hc::ui::AlarmSettings &) = get_alarm;
-void (*const set_alarm_settings)(const hc::ui::AlarmSettings &) = set_alarm;
+void (*const alarms)(hc::ui::Alarms &) = get_alarms;
+void (*const set_alarms)(const hc::ui::Alarms &) = store_alarms;
 size_t (*const alarm_sounds)(char (*)[hc::ui::kSoundNameSize], size_t) = list_alarm_sounds;
-void (*const play_alarm)(const char *, bool) = ring;
+void (*const play_alarm)(const char *, bool, bool) = ring;
 void (*const stop_alarm)() = silence;
 #else
-void (*const alarm_settings)(hc::ui::AlarmSettings &) = nullptr;
-void (*const set_alarm_settings)(const hc::ui::AlarmSettings &) = nullptr;
+void (*const alarms)(hc::ui::Alarms &) = nullptr;
+void (*const set_alarms)(const hc::ui::Alarms &) = nullptr;
 size_t (*const alarm_sounds)(char (*)[hc::ui::kSoundNameSize], size_t) = nullptr;
-void (*const play_alarm)(const char *, bool) = nullptr;
+void (*const play_alarm)(const char *, bool, bool) = nullptr;
 void (*const stop_alarm)() = nullptr;
 #endif
 

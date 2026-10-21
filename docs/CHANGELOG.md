@@ -2,6 +2,11 @@
 
 ## 2026-10-21
 
+- Alarm: up to 5 alarms, each with its own snooze, sound and Vibrate switch (Settings, Alarm is a
+  list now; backup `alarm: alarms: [...]`). The old single alarm becomes the first one.
+- Console screenshots: rounded corners on `lv_layer_top` (the alarm's buttons) came out a shade darker
+  with the page below showing through; only the screenshot, not the panel. Fixed in `uidebug`.
+- `jc4880p443c.kitchen` is built without the development console.
 - Camera tiles with `stream:` take their image from Home Assistant's camera proxy, no longer the
   stream's first frame: the stream is only opened full screen (a report: one connection per tile
   image crashed a stream server's encoder driver).

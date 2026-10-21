@@ -125,12 +125,19 @@
 #  slider_sound: true
 #  vibration: true
 
-# The alarm clock, on boards with a speaker.
+# The alarm clock, on boards with a speaker: up to 5 alarms. An import replaces the list; a
+# file with one alarm directly under `alarm:` (time, days ... before 2026-10-21) gives one alarm.
 #alarm:
-#  on: true
-#  time: "07:00"
-#  days: [mon, tue, wed, thu, fri]   # [] for once, then it turns itself off
-#  snooze_min: 9            # 1 to 60
+#  alarms:
+#    - time: "07:00"
+#      on: true
+#      days: [mon, tue, wed, thu, fri]   # [] for once, then it turns itself off
+#      snooze_min: 9            # 1 to 60
+#      sound: Argon             # an MP3 of /fs/sounds/alarms, "" for the beeps
+#      vibrate: true            # with a vibration motor
+#    - time: "09:30"
+#      on: false
+#      days: [sat, sun]
 
 # A camera tile's `stream:` URL (below) carries its login in the address:
 # `http://user:password@host/...`, sent as Basic auth. The device keeps it; the backup export

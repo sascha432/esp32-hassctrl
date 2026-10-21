@@ -287,6 +287,29 @@ TEST(backup_writes_lists_on_one_line)
     CHECK(alarm->find("none")->kind == hc::formats::yaml::Kind::List && alarm->find("none")->list.empty());
 }
 
+TEST(backup_writes_lists_in_list_items)
+{
+    // the alarms: a flow list as a field of a list item
+    String out;
+    backup::Writer writer(out);
+    writer.section("alarm");
+    writer.open("alarms");
+    constexpr std::string_view days[] = {"sat", "sun"};
+    writer.item("time", "09:30");
+    writer.flow("days", days, 3);
+    writer.item("time", "07:00");
+    writer.flow("days", {}, 3);
+    CHECK_STR(out.c_str(), "alarm:\n  alarms:\n    - time: 09:30\n      days: [sat, sun]\n"
+                           "    - time: 07:00\n      days: []\n");
+    const auto parsed = hc::formats::yaml::parse(out);
+    REQUIRE(parsed.has_value());
+    const auto *alarms = parsed->find("alarm")->find("alarms");
+    REQUIRE(alarms != nullptr && alarms->list.size() == 2);
+    CHECK_STR(alarms->list[0].find("time")->text.c_str(), "09:30");
+    CHECK(alarms->list[0].find("days")->list.size() == 2);
+    CHECK(alarms->list[1].find("days")->list.empty());
+}
+
 TEST(backup_list_items_are_read_with_their_path)
 {
     g = {};

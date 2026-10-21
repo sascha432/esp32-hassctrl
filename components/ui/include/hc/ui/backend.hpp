@@ -118,6 +118,17 @@ struct AlarmSettings {
     uint8_t snooze_min;
     // a name of alarm_sounds(), empty: the built-in beeps
     char sound[kSoundNameSize];
+    // the motor's pattern while it rings (with a motor); the Vibrate switch of Settings, Sound
+    // does not count here
+    bool vibrate;
+};
+
+constexpr size_t kMaxAlarms = 5;
+
+// the alarms in the order they were added
+struct Alarms {
+    AlarmSettings list[kMaxAlarms];
+    uint8_t count;
 };
 
 // Settings, Camera (docs/ui/lvgl/lvgl-settings.md section 3): the camera's picture, applied at once.
@@ -201,7 +212,7 @@ struct Backend {
     void (*play_slider_tick)();
     // Vibration: nullptr when the firmware has no motor (CONFIG_HC_VIBRATION); false when it did
     // not start. Settings show the switch on the Sound page then, and the page also without audio.
-    // Off means no vibration at all, also none while the alarm rings.
+    // The switch is for taps; each alarm has its own (AlarmSettings::vibrate).
     bool (*vibration)(bool &on);
     // stores the switch a few seconds after the last change
     void (*set_vibration)(bool on);
@@ -212,13 +223,14 @@ struct Backend {
     uint8_t (*touch_fingers)(Finger out[2]);
 
     // The alarm: nullptr without it (CONFIG_HC_AUDIO_ALARM), and then Settings have no Alarm page.
-    void (*alarm_settings)(AlarmSettings &out);
-    // stores at once: the alarm has to survive a restart right after it was set
-    void (*set_alarm_settings)(const AlarmSettings &settings);
+    void (*alarms)(Alarms &out);
+    // stores at once: an alarm has to survive a restart right after it was set
+    void (*set_alarms)(const Alarms &alarms);
     // the names of the alarm sounds besides the built-in beeps (the MP3 files), sorted
     size_t (*alarm_sounds)(char (*names)[kSoundNameSize], size_t max);
-    // `sound` at full volume ("" = the beeps); `loop` until stop_alarm(), else once (the preview)
-    void (*play_alarm)(const char *sound, bool loop);
+    // `sound` at full volume ("" = the beeps); `loop` until stop_alarm(), else once (the preview);
+    // the motor's pattern with it when `vibrate` (and a motor)
+    void (*play_alarm)(const char *sound, bool loop, bool vibrate);
     void (*stop_alarm)();
 
     void (*hass_info)(HassInfo &out);

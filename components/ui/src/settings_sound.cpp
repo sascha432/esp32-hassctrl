@@ -45,7 +45,7 @@ void vibration_section(lv_obj_t *col)
         backend().set_vibration(lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED));
         sound::settings_changed();
     });
-    text_block(col, "A short pulse with every tap, and pulses while the alarm rings.");
+    text_block(col, "A short pulse with every tap. Each alarm has a Vibrate switch of its own.");
 }
 
 } // namespace

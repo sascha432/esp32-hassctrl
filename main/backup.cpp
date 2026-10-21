@@ -295,35 +295,44 @@ void read_sound(const Node &value, bool apply, backup::Report &report)
 constexpr std::string_view kDays[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 constexpr uint8_t kDayOrder[] = {1, 2, 3, 4, 5, 6, 0};
 
+// a field of an item that the file leaves out: the alarm "Add alarm" makes
+constexpr hc::ui::AlarmSettings kImportedAlarm{
+    .on = true, .hour = 7, .minute = 0, .days = 0x3e, .snooze_min = 10, .sound = {}, .vibrate = true};
+
 bool has_alarm()
 {
-    return ui_backend().alarm_settings != nullptr;
+    return ui_backend().alarms != nullptr;
 }
 
 void write_alarm(backup::Writer &out)
 {
     const hc::ui::Backend &be = ui_backend();
-    hc::ui::AlarmSettings s{};
+    hc::ui::Alarms alarms{};
     {
         UiLock lock;
-        be.alarm_settings(s);
-    }
-    char time[8];
-    std::snprintf(time, sizeof(time), "%02u:%02u", s.hour, s.minute);
-    std::string_view days[7];
-    size_t count = 0;
-    for (const uint8_t day : kDayOrder) {
-        if (s.days & (1u << day)) {
-            days[count++] = kDays[day];
-        }
+        be.alarms(alarms);
     }
     out.section("alarm");
-    out.boolean("on", s.on);
-    out.text("time", time);
-    out.comment("no days: once, then the alarm turns itself off");
-    out.flow("days", std::span(days, count));
-    out.number("snooze_min", s.snooze_min);
-    out.text("sound", s.sound);
+    out.comment("up to 5; no days: once, then the alarm turns itself off");
+    out.open("alarms");
+    for (size_t i = 0; i < alarms.count; i++) {
+        const hc::ui::AlarmSettings &s = alarms.list[i];
+        char time[8];
+        std::snprintf(time, sizeof(time), "%02u:%02u", s.hour, s.minute);
+        std::string_view days[7];
+        size_t count = 0;
+        for (const uint8_t day : kDayOrder) {
+            if (s.days & (1u << day)) {
+                days[count++] = kDays[day];
+            }
+        }
+        out.item("time", time);
+        out.boolean("on", s.on, 3);
+        out.flow("days", std::span(days, count), 3);
+        out.number("snooze_min", s.snooze_min, 3);
+        out.text("sound", s.sound, 3);
+        out.boolean("vibrate", s.vibrate, 3);
+    }
 }
 
 // "07:30"
@@ -340,13 +349,10 @@ bool parse_time(const String &text, uint8_t &hour, uint8_t &minute)
     return true;
 }
 
-void read_alarm(const Node &value, bool apply, backup::Report &report)
+// the fields of one alarm into `s` (a field that is not there keeps its value)
+void read_alarm_fields(backup::Fields &fields, const char *where, hc::ui::AlarmSettings &s, backup::Report &report)
 {
     const hc::ui::Backend &be = ui_backend();
-    UiLock lock;
-    hc::ui::AlarmSettings s{};
-    be.alarm_settings(s);
-    backup::Fields fields(value, "alarm", report);
     fields.boolean("on", s.on);
     String time;
     if (fields.text("time", 5, time) && !parse_time(time, s.hour, s.minute)) {
@@ -376,14 +382,54 @@ void read_alarm(const Node &value, bool apply, backup::Report &report)
                                return sound == name;
                            });
         if (!known) {
-            report.note("alarm", text_of("the sound %s is not on this device, the alarm beeps", sound.c_str()));
+            report.note(where, text_of("the sound %s is not on this device, the alarm beeps", sound.c_str()));
             sound.clear();
         }
         std::snprintf(s.sound, sizeof(s.sound), "%s", sound.c_str());
     }
+    fields.boolean("vibrate", s.vibrate);
     fields.finish();
-    if (apply) {
-        be.set_alarm_settings(s);
+}
+
+void read_alarm(const Node &value, bool apply, backup::Report &report)
+{
+    const hc::ui::Backend &be = ui_backend();
+    UiLock lock;
+    hc::ui::Alarms alarms{};
+    be.alarms(alarms);
+    bool changed = false;
+    if (value.kind == Kind::Map && value.find("alarms") == nullptr && value.find("time") != nullptr) {
+        // a file from before 2026-10-21 with the single alarm: it becomes the only one
+        hc::ui::AlarmSettings s = alarms.count > 0 ? alarms.list[0] : kImportedAlarm;
+        backup::Fields fields(value, "alarm", report);
+        read_alarm_fields(fields, "alarm", s, report);
+        alarms.list[0] = s;
+        alarms.count = 1;
+        changed = true;
+    } else {
+        backup::Fields fields(value, "alarm", report);
+        const Node *list = fields.node("alarms");
+        if (list != nullptr && list->kind != Kind::List) {
+            fields.problem("alarms", "a list of alarms expected (- time: ...)");
+        } else if (list != nullptr && list->list.size() > hc::ui::kMaxAlarms) {
+            char message[24];
+            std::snprintf(message, sizeof(message), "at most %u alarms", static_cast<unsigned>(hc::ui::kMaxAlarms));
+            fields.problem("alarms", message);
+        } else if (list != nullptr) {
+            alarms.count = static_cast<uint8_t>(list->list.size());
+            for (size_t i = 0; i < list->list.size(); i++) {
+                char path[24];
+                std::snprintf(path, sizeof(path), "alarm.alarms[%u]", static_cast<unsigned>(i + 1));
+                alarms.list[i] = kImportedAlarm;
+                backup::Fields item(list->list[i], path, report);
+                read_alarm_fields(item, path, alarms.list[i], report);
+            }
+            changed = true;
+        }
+        fields.finish();
+    }
+    if (apply && changed) {
+        be.set_alarms(alarms);
     }
 }
 

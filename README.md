@@ -47,8 +47,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   display, sound, camera, alarm, system.
 - Brightness, dimming and screen off after a time, automatic brightness from a light sensor,
   rotation from an orientation sensor or by hand, wake on motion with a motion sensor.
-- Touch feedback (click, slider ticks, vibration) and an alarm clock with beeps or MP3 files, on
-  boards with a speaker or a motor. Home Assistant makes the device speak a text (tts) or play an
+- Touch feedback (click, slider ticks, vibration) on boards with a speaker or a motor.
+- Up to 5 alarms, each with its time, days, snooze, sound (beeps or MP3) and Vibrate switch. Home Assistant makes the device speak a text (tts) or play an
   MP3 with the event `hassctrl_say` ([guide](docs/home-assistant/say.md)).
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.

@@ -61,8 +61,13 @@ Rgb rgb_of(const uint8_t *pixel)
 
 uint16_t blend(Rgb base, Rgb top, uint8_t alpha)
 {
+    // LVGL's snapshot stores 254 for a masked pixel at full opacity (opa * mask >> 8, the rows of a
+    // rounded corner) and treats it as opaque when it draws to the panel; so does the screenshot
+    if (alpha >= LV_OPA_MAX) {
+        alpha = LV_OPA_COVER;
+    }
     const auto mix = [alpha](uint8_t a, uint8_t b) {
-        return static_cast<uint16_t>((b * alpha + a * (255 - alpha)) / 255);
+        return static_cast<uint16_t>((b * alpha + a * (255 - alpha) + 127) / 255);
     };
     return static_cast<uint16_t>((mix(base.r, top.r) << 11) | (mix(base.g, top.g) << 5) | mix(base.b, top.b));
 }
