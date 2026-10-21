@@ -131,6 +131,8 @@ bool g_has_sensor = false;
 float g_lux = 100.0f;
 bool g_has_motion = false;
 uint8_t g_backlight = 100;
+// the cameras' views, kept while the program runs (the device stores them)
+std::vector<std::pair<std::string, hc::ui::CameraView>> g_camera_views;
 
 template <size_t N> void copy(char (&out)[N], const std::string &in)
 {
@@ -683,6 +685,28 @@ void set_hint_seen()
     g.hint_seen = true;
 }
 
+bool camera_view(const char *key, hc::ui::CameraView &out)
+{
+    for (const auto &[k, view] : g_camera_views) {
+        if (k == key) {
+            out = view;
+            return true;
+        }
+    }
+    return false;
+}
+
+void set_camera_view(const char *key, const hc::ui::CameraView &view)
+{
+    for (auto &[k, kept] : g_camera_views) {
+        if (k == key) {
+            kept = view;
+            return;
+        }
+    }
+    g_camera_views.emplace_back(key, view);
+}
+
 const hc::ui::Backend kBackend{
     .wifi_info = wifi_info,
     .saved_networks = saved_networks,
@@ -726,6 +750,8 @@ const hc::ui::Backend kBackend{
     .fetch_image = fetch_image,
     .play_stream = play_stream,
     .stop_stream = stop_stream,
+    .camera_view = camera_view,
+    .set_camera_view = set_camera_view,
     .device_info = device_info,
     .time_text = time_text,
     .clock = clock_now,

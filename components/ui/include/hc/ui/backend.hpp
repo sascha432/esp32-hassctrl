@@ -149,6 +149,14 @@ struct CameraInfo {
     uint16_t max_exposure_us;
 };
 
+// A camera's full screen view as it was left (docs/ui/lvgl/lvgl-camera.md): the zoom in percent
+// and the pan as parts of the shown picture.
+struct CameraView {
+    float zoom;
+    float pan_x;
+    float pan_y;
+};
+
 // a finger on the screen, in the display's coordinates
 struct Finger {
     int16_t x;
@@ -249,11 +257,10 @@ struct Backend {
     void (*fetch_entity)(std::string_view entity_id, uint32_t generation);
     // The camera image of `entity_id` as a `width` x `height` frame in the display's pixel format
     // (lv_color_t); it comes back through take_event as a core::Image stamped with `generation`.
-    // `stream`: the tile's MJPEG stream, whose first frame is the image; empty: Home Assistant's.
     // `whole`: the whole picture instead, about as large as covers the box (the frame says its
     // size), not cut to it.
-    void (*fetch_image)(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
-                        uint16_t height, bool whole, uint32_t generation);
+    void (*fetch_image)(std::string_view entity_id, core::EntityIndex entity, uint16_t width, uint16_t height, bool whole,
+                        uint32_t generation);
     // Plays the MJPEG `stream` as frames of the whole picture, about as large as covers `width` x
     // `height` (core::Image with `live`, stamped with `generation`) until stop_stream() or the next
     // play_stream(); one plays at a time, the same one in another size goes on without a new
@@ -261,6 +268,10 @@ struct Backend {
     void (*play_stream)(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
                         uint16_t height, uint32_t generation);
     void (*stop_stream)();
+    // The view of the camera `key` (its entity and stream) as it was left; false when none is
+    // stored. set_camera_view stores it a few seconds later and keeps it across a restart.
+    bool (*camera_view)(const char *key, CameraView &out);
+    void (*set_camera_view)(const char *key, const CameraView &view);
 
     void (*device_info)(DeviceInfo &out);
     // "HH:MM", false while the clock is not set

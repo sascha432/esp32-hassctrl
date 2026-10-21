@@ -228,8 +228,8 @@ tiles:
   # A camera: the image fills the tile, whatever its size. `refresh` is the seconds between two
   # images, 1 to 3600 (default 60); images are only fetched while the page is visible. A tap
   # shows the image full screen. `stream` (optional) is an MJPEG stream of the camera (http://,
-  # for example of go2rtc): the tile takes its image from the stream instead of Home Assistant,
-  # and full screen plays it live. `stream: hass` plays Home Assistant's own MJPEG stream of the
+  # for example of go2rtc) that full screen plays live; the tile keeps Home Assistant's images,
+  # the stream is only opened full screen. `stream: hass` plays Home Assistant's own MJPEG stream of the
   # camera full screen. One stream plays at a time.
   - entity: camera.owl_cam
     name: Owl

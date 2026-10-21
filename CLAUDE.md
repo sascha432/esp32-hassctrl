@@ -16,6 +16,9 @@
 - **Docs with every change.** Update the affected `docs/*.md` (architecture, adding-a-board, CHANGELOG, the
   pages under `docs/ui` and `docs/devices`) in the same commit as the code. Check `docs/TODO.md`: mark items
   done or changed, add new open points, update the state lines.
+- **NVS writes follow the policy** in docs/architecture.md section 9.3: values changed by live
+  controls or by using the device go through `platform::set_blob_later` (10 s delay), explicit
+  saves and secrets are written at once, nothing writes per frame or per touch.
 - **Skip `docs/.retracted/`.** Don't read, search, update or cite anything in it; leave it out of
   searches over `docs/`.
 - **Sample config with every change.** `docs/dashboard-sample/` documents the file format and where

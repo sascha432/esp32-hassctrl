@@ -764,8 +764,21 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 * The Wi-Fi driver's own NVS copy of the station config is turned off
   (`esp_wifi_set_storage(WIFI_STORAGE_RAM)`), so the `network` component is the only owner of
   the stored networks.
-* **Settings live in NVS**. Live controls such as sliders are written with a delay,
-  forms with an OK or Save button are written on save.
+* **Settings live in NVS**, written by this policy (`hc/platform/settings.hpp`):
+
+  | Kind of value | Written | Examples |
+  | --- | --- | --- |
+  | changed by a live control or by using the device, in bursts | `platform::set_blob_later`: 10 s after the last change, at most 60 s after the first, and at a restart | `ui/display`, `ui/sounds`, `ui/vibrate`, `camera/picture`, `camview/*` |
+  | saved by an explicit action (OK, Save, Apply), or a secret | at once, with commit; a failure is reported | Wi-Fi networks, policy and hotspot, web UI login, Home Assistant address, token and certificate, camera stream login |
+  | has to survive a power loss right after it was set | at once | `ui/alarm` |
+  | device state that changes rarely | at once, when it changed | `network/last_seen` (another access point or channel), `time/zone`, `ui/hint` (once) |
+  | developer and calibration | at once | `console/*`, `logbuf/debug`, `light/*` |
+
+  Nothing writes per frame or per touch: a value that can change more often than about once a
+  minute takes the delayed write. Its owner reads it from its RAM copy, not back from NVS. NVS
+  skips a value that did not change, so writing the same one again costs no flash. The delayed
+  table has 8 keys; a ninth writes the waiting ones at once. A factory reset drops the waiting
+  values, so none of them comes back with the restart.
 * **Files on LittleFS** hold the web UI files and the dashboard configuration
   (`dashboard.json`, section 5). The dashboard is edited in the web UI or imported
   as YAML. There is no file manager.

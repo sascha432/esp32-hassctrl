@@ -3,10 +3,10 @@
 // up the values of the page. The task is created with the first request: a dashboard without a
 // camera does not pay for its stack.
 //
-// An image comes from Home Assistant's camera proxy, or from an MJPEG stream (a tile's `stream`):
-// a still image is the first frame of the stream, and one stream at a time can play, frame after
-// frame, until it is stopped. A frame is only decoded once the UI took the one before; the frames
-// in between are read and dropped. A stream that sends more than the device reads falls behind
+// A still image comes from Home Assistant's camera proxy, also for a tile with a `stream` (a
+// connection per image would start and stop the encoder of some stream servers). One MJPEG stream
+// at a time can play, frame after frame, until it is stopped. A frame is only decoded once the UI
+// took the one before; the frames in between are read and dropped. A stream that sends more than the device reads falls behind
 // (the sender queues the rest): it is opened again (play). On the P4 up to kMaxWorkers
 // tasks fetch at the same time, as the browser does: Home Assistant needs seconds for some
 // cameras. They decode one at a time (one JPEG engine and PPA).
@@ -125,8 +125,7 @@ bool hass_url(Context &ctx, const Request &request, const char *path, char *erro
     return true;
 }
 
-// one still image: of the camera proxy, or the first frame of the stream (Home Assistant's own
-// stream is not asked for a still image: the camera proxy scales it to the tile)
+// one still image of the camera proxy, scaled by Home Assistant to the box
 void snapshot(Context &ctx, const Request &request)
 {
     core::Image image;
@@ -140,22 +139,7 @@ void snapshot(Context &ctx, const Request &request)
     {
         Connection c;
         int64_t length = 0;
-        if (own_stream(request)) {
-            size_t part = 0;
-            if (open(ctx, c, request.stream.c_str(), false, kTimeoutMs, length, error, sizeof(error))) {
-                StreamReader reader(c);
-                if (reader.next_part(part, error, sizeof(error))) {
-                    if (part > kMaxJpeg || !jpeg.reserve(part)) {
-                        std::snprintf(error, sizeof(error), "the frame is too large (%u KB)", static_cast<unsigned>(part / 1024));
-                    } else if (!reader.bytes(jpeg.data, part)) {
-                        std::snprintf(error, sizeof(error), "the stream broke off");
-                    } else {
-                        jpeg.size = part;
-                        fetched = true;
-                    }
-                }
-            }
-        } else if (hass_url(ctx, request, "/api/camera_proxy/", error, sizeof(error))) {
+        if (hass_url(ctx, request, "/api/camera_proxy/", error, sizeof(error))) {
             const size_t used = std::strlen(ctx.request_url);
             std::snprintf(ctx.request_url + used, sizeof(ctx.request_url) - used, "?width=%u&height=%u", request.width,
                           request.height);
@@ -169,8 +153,8 @@ void snapshot(Context &ctx, const Request &request)
         decoded = decode(request, jpeg.data, jpeg.size, false, -1, image, times, error, sizeof(error));
     }
     if (decoded) {
-        ESP_LOGI(kTag, "%s%s: %u bytes, %ux%u 1:%u into %ux%u, %lld ms (decode %lld %s, copy %lld), %u bytes of stack left",
-                 request.entity_id.c_str(), own_stream(request) ? " (stream)" : "", static_cast<unsigned>(jpeg.size),
+        ESP_LOGI(kTag, "%s: %u bytes, %ux%u 1:%u into %ux%u, %lld ms (decode %lld %s, copy %lld), %u bytes of stack left",
+                 request.entity_id.c_str(), static_cast<unsigned>(jpeg.size),
                  times.source_width, times.source_height, 1u << times.shift, request.width, request.height,
                  static_cast<long long>((esp_timer_get_time() - started) / 1000),
                  static_cast<long long>(times.decode_us / 1000), decoder_name(times),
@@ -508,22 +492,20 @@ void frame_taken()
 
 } // namespace detail
 
-void fetch_image(std::string_view entity_id, std::string_view stream, core::EntityIndex entity, uint16_t width,
-                 uint16_t height, bool whole, bool swap_bytes, uint32_t generation)
+void fetch_image(std::string_view entity_id, core::EntityIndex entity, uint16_t width, uint16_t height, bool whole,
+                 bool swap_bytes, uint32_t generation)
 {
     if (width == 0 || height == 0) {
         return;
     }
-    Request request{.entity_id = memory::String(entity_id), .stream = memory::String(stream), .entity = entity,
-                    .width = width, .height = height, .swap_bytes = swap_bytes, .whole = whole,
-                    .generation = generation};
+    Request request{.entity_id = memory::String(entity_id), .stream = {}, .entity = entity, .width = width,
+                    .height = height, .swap_bytes = swap_bytes, .whole = whole, .generation = generation};
     {
         std::lock_guard lock(g_mutex);
-        // one request per source waits: the newest one (tiles of one camera with different
-        // streams or sizes are different sources)
+        // one request per camera and size waits: the newest one
         auto same = std::find_if(g_queue.begin(), g_queue.end(), [&](const Request &r) {
-            return r.entity == request.entity && r.stream == request.stream && r.width == request.width &&
-                   r.height == request.height && r.whole == request.whole;
+            return r.entity == request.entity && r.width == request.width && r.height == request.height &&
+                   r.whole == request.whole;
         });
         if (same != g_queue.end()) {
             *same = std::move(request);

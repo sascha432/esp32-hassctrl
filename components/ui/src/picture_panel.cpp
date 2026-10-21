@@ -92,31 +92,17 @@ struct State {
     uint32_t try_started = 0; // lv_tick_get() of the last play()
     lv_timer_t *refresh = nullptr; // a still image: asked for again
     lv_timer_t *retry = nullptr;   // a stream that stopped: played again
-    memory::String key; // the camera's entity and stream (Kept)
+    // The zoom and the position of a camera's view are stored by the backend under its entity
+    // and stream: the view opens as it was left (also after a turn of the display or a restart).
+    // `stored` is what it had, so an unchanged view is not stored again.
+    memory::String key;
+    CameraView stored{.zoom = kDefaultZoom, .pan_x = 0, .pan_y = 0};
+    // the tile's frame is shown until the first one of the view: its picture may have another
+    // shape than the stream's, so the pan is not cut to it
+    bool thumbnail = false;
 };
 
 State g;
-
-// The zoom and the position of a camera's view, kept while the device runs: the view opens as it
-// was left (also after a turn of the display).
-struct Kept {
-    memory::String key;
-    float zoom = kDefaultZoom;
-    float pan_x = 0;
-    float pan_y = 0;
-};
-
-memory::Vector<Kept> g_kept;
-
-Kept *kept(const memory::String &key)
-{
-    for (Kept &k : g_kept) {
-        if (k.key == key) {
-            return &k;
-        }
-    }
-    return nullptr;
-}
 
 // the size the frames are asked for: the screen at the zoom (100 % covers it)
 uint16_t box_width()
@@ -169,8 +155,10 @@ void place()
     const float max_y = std::max(0.0f, (shown_height - g.height) / 2);
     const float x = std::clamp(g.pan_x * shown_width, -max_x, max_x);
     const float y = std::clamp(g.pan_y * shown_height, -max_y, max_y);
-    g.pan_x = x / shown_width;
-    g.pan_y = y / shown_height;
+    if (!g.thumbnail) {
+        g.pan_x = x / shown_width;
+        g.pan_y = y / shown_height;
+    }
     lv_img_set_zoom(g.image, zoom);
     // LVGL zooms around the image's center
     lv_obj_set_pos(g.image, static_cast<lv_coord_t>(std::lround(g.width / 2.0f + x - g.frame_width / 2.0f)),
@@ -544,10 +532,11 @@ void build(lv_obj_t *root, core::TileIndex tile, lv_coord_t width, lv_coord_t he
     g.key = memory::String(dashboard::layout().entity_id(config));
     g.key += ' ';
     g.key += config.stream;
-    if (const Kept *k = kept(g.key); k != nullptr) {
-        g.zoom = k->zoom;
-        g.pan_x = k->pan_x;
-        g.pan_y = k->pan_y;
+    if (CameraView view; dashboard::backend().camera_view(g.key.c_str(), view)) {
+        g.stored = view;
+        g.zoom = view.zoom;
+        g.pan_x = view.pan_x;
+        g.pan_y = view.pan_y;
     }
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
     lv_obj_add_event_cb(root, on_touch, LV_EVENT_PRESSED, nullptr);
@@ -561,6 +550,7 @@ void build(lv_obj_t *root, core::TileIndex tile, lv_coord_t width, lv_coord_t he
     lv_obj_clear_flag(g.image, LV_OBJ_FLAG_CLICKABLE);
     // the tile's frame meanwhile, enlarged (blocky for a moment, but not an empty screen)
     if (const tiles::View *view = dashboard::view_of(tile); view != nullptr && view->pixels) {
+        g.thumbnail = true;
         show(view->pixels, view->image_width, view->image_height, view->source_width, view->source_height);
     }
     // the first frame takes a while (a stream's server may first start its encoder)
@@ -613,6 +603,7 @@ void on_image(const core::Image &image)
         }
         g.phase = Phase::Playing;
     }
+    g.thumbnail = false;
     show(image.pixels, image.width, image.height, image.source_width, image.source_height);
     // the first frame tells the picture's shape: a kept zoom below the smallest goes up to it
     if (!g.pinching && g.zoom < min_zoom() - 1) {
@@ -624,15 +615,9 @@ void on_image(const core::Image &image)
 
 void forget()
 {
-    if (!g.key.empty()) {
-        Kept *k = kept(g.key);
-        if (k == nullptr) {
-            k = &g_kept.emplace_back();
-            k->key = g.key;
-        }
-        k->zoom = g.zoom;
-        k->pan_x = g.pan_x;
-        k->pan_y = g.pan_y;
+    if (!g.key.empty() &&
+        (g.zoom != g.stored.zoom || g.pan_x != g.stored.pan_x || g.pan_y != g.stored.pan_y)) {
+        dashboard::backend().set_camera_view(g.key.c_str(), {.zoom = g.zoom, .pan_x = g.pan_x, .pan_y = g.pan_y});
     }
     if (g.refresh != nullptr) {
         lv_timer_del(g.refresh);

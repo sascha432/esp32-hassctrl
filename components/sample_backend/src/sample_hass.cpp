@@ -697,21 +697,15 @@ hc::core::Pixels landscape(hc::core::EntityIndex entity, uint16_t width, uint16_
     return pixels;
 }
 
-void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
-                 uint16_t height, bool whole, uint32_t generation)
+void fetch_image(std::string_view entity_id, hc::core::EntityIndex entity, uint16_t width, uint16_t height, bool whole,
+                 uint32_t generation)
 {
     (void)whole; // the landscape is drawn in any shape: the whole picture is the box
-    say("[sim] image of %.*s%s, %ux%u\n", static_cast<int>(entity_id.size()), entity_id.data(),
-                stream.empty() ? "" : " (first frame of its stream)", width, height);
+    say("[sim] image of %.*s, %ux%u\n", static_cast<int>(entity_id.size()), entity_id.data(), width, height);
     hc::core::Image image;
     image.generation = generation;
     image.entity = entity;
-    if (!stream.empty() && g.stream_login) {
-        image.error = "login needed";
-        g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
-        return;
-    }
-    if (!hass_connected() && stream.empty()) {
+    if (!hass_connected()) {
         image.error = "not connected to Home Assistant";
         g.queue.push_back({lv_tick_get() + kImageMs, std::move(image)});
         return;

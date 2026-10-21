@@ -28,7 +28,7 @@ constexpr size_t kBehindBytes = 512;
 
 struct Request {
     memory::String entity_id;
-    memory::String stream; // empty or core::kHassStream: the camera proxy of Home Assistant
+    memory::String stream; // the stream that plays: http://... or core::kHassStream; a still image has none
     core::EntityIndex entity = core::kNone;
     uint16_t width = 0;
     uint16_t height = 0;

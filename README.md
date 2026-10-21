@@ -30,9 +30,10 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   hourly forecast). A double tap on a switch opens its timeline, on a light that dims the light
   panel; a double tap on a lock locks or unlocks it, on a timer starts or cancels it, on an
   automation or a script runs it.
-- Camera tiles from Home Assistant's images or an MJPEG stream (go2rtc, Home Assistant; a login in
-  its address, left out of the export), a full screen live view that comes back by itself after a
-  dropped stream.
+- Camera tiles from Home Assistant's images; full screen plays an MJPEG stream live (go2rtc, Home
+  Assistant; a login in its address, left out of the export) and comes back by itself after a
+  dropped stream, which is only opened while it plays; zoom and position are kept per camera, also
+  across a restart.
 - Edit mode on the screen: long press, drag tiles around, remove them, per orientation; a "+" on
   every free cell adds a tile (entity found by a search in Home Assistant), an area or a clock;
   a tap on a tile changes its title, entity and options.
@@ -77,6 +78,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   into it and a text screen; 4 MB boards update through it.
 - Settings in NVS, secrets never in a file that can be downloaded (a camera stream's login
   sits in the dashboard file, the export leaves it out); the dashboard and the web files on LittleFS.
+  Live changes are written 10 s after the last one, saves at once.
 
 **Development**
 

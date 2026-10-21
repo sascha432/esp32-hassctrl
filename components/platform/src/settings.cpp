@@ -79,6 +79,8 @@ esp_err_t Settings::commit()
 
 esp_err_t erase_all_settings()
 {
+    // a pending value would be written back at the restart that follows
+    discard_pending_settings();
     nvs_flash_deinit_partition(kPartition);
     const esp_err_t err = nvs_flash_erase_partition(kPartition);
     if (err != ESP_OK) {

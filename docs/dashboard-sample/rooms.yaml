@@ -23,8 +23,8 @@
         size: 2x1
       portrait:
         size: 2x1
-      # an MJPEG stream of its own (here of go2rtc): the tile's image comes from it, full screen
-      # plays it live. In quotes, it has a `:` in it.
+      # an MJPEG stream of its own (here of go2rtc): full screen plays it live, the tile keeps
+      # Home Assistant's image of the entity. In quotes, it has a `:` in it.
       stream: "http://go2rtc.local:1984/api/stream.mjpeg?src=owl_closeup"
     # A weather entity (OpenWeatherMap, Met.no, ...): its icon follows the condition. In one
     # cell: the temperature with the icon, the condition and the humidity in a line; a tall tile

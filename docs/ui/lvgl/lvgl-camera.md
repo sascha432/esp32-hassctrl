@@ -32,8 +32,10 @@ pinch to zoom" below them ("swipe to move" in the Windows version, which has no 
 they hide 5 s after the last touch, and the view opens with them shown. They sit below the pull-down zone of Settings
 (`overlay::kZoneHeight`), which lies above the panel and takes the taps there. A new zoom zooms the
 frame on screen with LVGL at once and asks for the frames in the new size: still images anew, a
-stream goes on in it without a new connection. Zoom and position are kept per camera (entity and
-stream) while the device runs: the view opens as it was left. Each change of size, zoom or place
+stream goes on in it without a new connection. Zoom and position are stored per camera (entity and
+stream, NVS `camview/*`, 10 s after the view closed, architecture.md section 9.3): the view opens as
+it was left, also after a restart. The tile's frame shown until the first frame of the view does
+not cut the stored position. Each change of size, zoom or place
 redraws the whole screen (LVGL's own invalidation of the zoomed image left parts of the larger
 picture on the black after a zoom out).
 
@@ -62,8 +64,10 @@ freed, the DMA may still use them.
 
 ## 2. MJPEG stream
 
-A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) takes its image
-from the first frame of the stream instead of Home Assistant; full screen plays the stream.
+A picture tile with `stream: http://...` (an MJPEG stream, for example of go2rtc) plays the stream
+full screen. The tile keeps the camera proxy's images: the stream is only opened while the full
+screen view is open (a connection per tile image started and stopped the hardware encoder of a
+stream server each time until its driver crashed).
 
 A stream with a login has it in its address, `http://user:password@host/...`: the
 media task sends it as Basic auth (`CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH` in `sdkconfig.main`).
@@ -96,7 +100,7 @@ stream for the new size and changes nothing in the strip. The Windows version pl
 `--do "stream down"` / `"stream up"` (a down server fails a try after 5 s, an up one sends the
 first frame 4 s after the connection). Full screen waits 30 s for the stream's answer (go2rtc
 answers once its first frame is there, which took longer than 10 s when it first had to start its
-source), a tile's first frame 10 s; a missing answer says "no answer within ... s" instead of
+source); a missing answer says "no answer within ... s" instead of
 "HTTP -1". `stream: hass` plays Home Assistant's own MJPEG stream of the
 camera (`/api/camera_proxy_stream/<entity>` with the token) full screen, and the tile keeps the
 scaled snapshots of the camera proxy (that stream has the camera's full size). One stream plays

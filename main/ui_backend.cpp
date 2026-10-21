@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <iterator>
 
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -179,6 +182,18 @@ bool g_display_loaded = false;
 // -1: not read yet
 int g_hint_seen = -1;
 
+// A camera's view: one key per camera, "v" and the hash of its entity and stream (NVS keys have
+// up to 15 characters), stored with a delay.
+constexpr const char *kCameraViewNamespace = "camview";
+// The views stored lately, newest last: they answer before the delayed write lands. One that
+// leaves the list is written by then (set_blob_later writes when more keys wait than it has slots).
+struct RecentView {
+    uint32_t hash;
+    hc::ui::CameraView view;
+};
+RecentView g_recent_views[hc::platform::kMaxPendingWrites];
+size_t g_recent_views_count = 0;
+
 // copies and cuts to the field, which snprintf cannot do without a truncation warning
 template <size_t N> void copy(char (&out)[N], const char *in)
 {
@@ -267,10 +282,10 @@ bool time_text(char *out, size_t size)
 }
 
 // the frames in lv_color_t's byte order
-void fetch_image(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
-                 uint16_t height, bool whole, uint32_t generation)
+void fetch_image(std::string_view entity_id, hc::core::EntityIndex entity, uint16_t width, uint16_t height, bool whole,
+                 uint32_t generation)
 {
-    hc::hass::fetch_image(entity_id, stream, entity, width, height, whole, LV_COLOR_16_SWAP != 0, generation);
+    hc::hass::fetch_image(entity_id, entity, width, height, whole, LV_COLOR_16_SWAP != 0, generation);
 }
 
 void play_stream(std::string_view entity_id, std::string_view stream, hc::core::EntityIndex entity, uint16_t width,
@@ -387,6 +402,60 @@ void set_hint_seen()
     if (settings.ok() && settings.set_u8(kHintKey, 1) == ESP_OK) {
         settings.commit();
     }
+}
+
+// FNV-1a
+uint32_t camera_view_hash(const char *key)
+{
+    uint32_t hash = 2166136261u;
+    for (const char *c = key; *c != 0; c++) {
+        hash = (hash ^ static_cast<uint8_t>(*c)) * 16777619u;
+    }
+    return hash;
+}
+
+bool camera_view(const char *key, hc::ui::CameraView &out)
+{
+    const uint32_t hash = camera_view_hash(key);
+    for (size_t i = g_recent_views_count; i-- > 0;) {
+        if (g_recent_views[i].hash == hash) {
+            out = g_recent_views[i].view;
+            return true;
+        }
+    }
+    char name[10];
+    std::snprintf(name, sizeof(name), "v%08" PRIx32, hash);
+    hc::ui::CameraView stored{};
+    size_t size = sizeof(stored);
+    hc::platform::Settings settings(kCameraViewNamespace, hc::platform::Settings::Mode::Read);
+    // the UI keeps the zoom in its range; this only keeps out what is no view at all
+    if (!settings.ok() || settings.get_blob(name, &stored, size) != ESP_OK || size != sizeof(stored) ||
+        !(stored.zoom >= 1.0f && stored.zoom <= 400.0f) || !std::isfinite(stored.pan_x) ||
+        !std::isfinite(stored.pan_y)) {
+        return false;
+    }
+    out = stored;
+    return true;
+}
+
+void set_camera_view(const char *key, const hc::ui::CameraView &view)
+{
+    const uint32_t hash = camera_view_hash(key);
+    size_t i = 0;
+    while (i < g_recent_views_count && g_recent_views[i].hash != hash) {
+        i++;
+    }
+    if (i == g_recent_views_count && g_recent_views_count == std::size(g_recent_views)) {
+        i = 0; // the oldest leaves
+    }
+    if (i < g_recent_views_count) {
+        std::move(g_recent_views + i + 1, g_recent_views + g_recent_views_count, g_recent_views + i);
+        g_recent_views_count--;
+    }
+    g_recent_views[g_recent_views_count++] = {.hash = hash, .view = view};
+    char name[10];
+    std::snprintf(name, sizeof(name), "v%08" PRIx32, hash);
+    hc::platform::set_blob_later(kCameraViewNamespace, name, &view, sizeof(view));
 }
 
 void hass_info(hc::ui::HassInfo &out)
@@ -529,6 +598,8 @@ const hc::ui::Backend g_backend{
     .fetch_image = fetch_image,
     .play_stream = play_stream,
     .stop_stream = hc::hass::stop_stream,
+    .camera_view = camera_view,
+    .set_camera_view = set_camera_view,
     .device_info = device_info,
     .time_text = time_text,
     .clock = clock_now,

@@ -272,8 +272,8 @@ Open:
       on a page with input asks "Discard your input?" first. OK in the network name field goes
       on to the password.
 - [x] **Display settings** (your request): dim after an idle time to a dimmed brightness of its
-      own, screen off after an idle time. Stored in NVS (`ui/display`) 5 s after the last
-      change (`platform::set_blob_later`, written at a restart too). Defaults: dim after 5 min to
+      own, screen off after an idle time. Stored in NVS (`ui/display`) 10 s after the last
+      change (`platform::set_blob_later`, written at a restart too; 5 s until 2026-10-21). Defaults: dim after 5 min to
       20 %, off after 1 h (were 1 min and never off until 2026-10-11). Tested on the WT32: dims
       at 30 s, off at 60 s, the waking touch does not reach the screen, a touch on the dimmed
       screen does.
@@ -1455,6 +1455,11 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
 
 ## Known issues
 
+- [x] **JC3248W535 boot loop with a camera tile on the main page** (your report 2026-10-21): it
+      reset about 12 s into every boot, right after "hass: connected" (the first picture of the
+      tile is fetched and decoded), with no panic or watchdog output and `reset reason: power on`.
+      It ran fine once past that (177 s on the main page with the tile). The supply: gone after
+      you plugged the USB cable in again (2026-10-21), no code change.
 - [x] **Recovery app nearly fills `factory`** on the 4 MB layout (measured 2026-10-17, WT32-SC01): recovery
       1067 KB of 1088 KB (21 KB free since Enterprise and SAE-PK are off; it still joins WPA3-SAE), main 2155 KB of
       2432 KB in ota_0, LittleFS 77 KB of 448 KB. IDF's "1/2 app partitions are too small" for the main image is the
@@ -1531,6 +1536,7 @@ names only, YAML like the dashboard, an import may carry passwords added by hand
   | `hass/url` | yes | |
   | `hass/token` | no, an import may carry it | decided 2026-10-09 |
   | `ui/sounds`, `ui/sound`, `ui/vibrate`, `ui/alarm` | yes, own sections | decided 2026-10-09 |
+  | `camview/*` | no | state of this device's camera views (2026-10-21) |
 
 - [x] **Format** (decided 2026-10-07): YAML, the same as the dashboard, readable and editable by
       hand, one section per owner, only named fields (never NVS blobs, whose layout changes
@@ -1667,6 +1673,13 @@ Dashboard ([architecture.md](architecture.md) section 5):
       `stream: hass`, Home Assistant's `/api/camera_proxy_stream/<entity>`) and asks for frames in
       display size; the P4 decodes them in hardware. See [ui/lvgl/lvgl-camera.md](ui/lvgl/lvgl-camera.md)
       section 2. H.264 is not planned (the P4 only encodes it in hardware; go2rtc serves MJPEG).
+- [x] **Tile image of a camera with `stream:`** (2026-10-21, a report: a connection per tile image
+      every refresh started and stopped a stream server's hardware encoder until its driver
+      crashed): the tile now takes Home Assistant's camera proxy, the stream is only opened full
+      screen. A tile whose stream shows another picture than its entity (sample: Owl Closeup)
+      shows the entity's image. Checked by me on the WT32 (2026-10-21): the Cameras page's tiles
+      come from the proxy (no "(stream)" in the log), full screen opens the stream, closing stops
+      it and the tiles go on from the proxy.
 
 ## Review
 
@@ -1802,6 +1815,20 @@ JC4880P443C; what is left of the bring-up is listed in the "Step" sections above
       error shows. Without an answer it stores as before. Confirmed by you on the WT32 (401
       refused, 200 stored and connected).
       [ui/web/web-app.md](ui/web/web-app.md) section 4.
+- [x] **NVS write policy and stored camera views** (your request 2026-10-21: the camera zoom reset
+      regularly; it was kept in RAM only). Policy in [architecture.md](architecture.md) section
+      9.3: `set_blob_later` 10 s after the last change (was 5 s), at most 60 s after the first, 8
+      keys (a ninth writes the waiting ones instead of dropping its value); a factory reset drops
+      waiting values (before, one changed less than 5 s earlier was written back at the restart).
+      Every NVS writer checked against it; only the delayed group changed. Camera views in
+      `camview/*`; the tile's frame shown first no longer cuts the stored position. Checked by me
+      on the WT32 (2026-10-21): a camera zoomed to 200 % and moved to a corner opens the same
+      after a restart; in the Windows version the same after closing and reopening. Confirmed by
+      you on the JC3248W535 (2026-10-21): position and zoom survive a restart. Factory reset
+      checked by me on the WT32 (2026-10-21): a camera view changed and `factory-reset yes` at
+      once; the settings partition read back afterwards (`nvs_tool.py`) holds only the network
+      keys of the boot, no `camview`. Restored from the backup YAML (Wi-Fi over the console,
+      login and import over HTTP).
 
 Done, in order:
 

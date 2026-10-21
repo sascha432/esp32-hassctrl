@@ -46,20 +46,32 @@ private:
     nvs_handle_t _handle = 0;
 };
 
-// Erases every setting of the firmware (factory reset). The system NVS is left alone.
+// Erases every setting of the firmware (factory reset), pending delayed writes included. The
+// system NVS is left alone.
 esp_err_t erase_all_settings();
 
-// Delayed writes for values that change often, like a slider: the value is kept in RAM and all
-// pending values are written together kWriteLaterMs after the last call, so dragging a slider
-// writes the flash once. Pending values are also written when the firmware restarts
-// (esp_restart). Up to kMaxPendingWrites keys, values up to kMaxPendingSize bytes. Any task.
-constexpr uint32_t kWriteLaterMs = 5000;
-constexpr size_t kMaxPendingWrites = 4;
+// The write policy (docs/architecture.md section 9.3): a value changed by a live control or by
+// using the device (slider, zoom, a choice that comes in bursts) goes through set_blob_later; an
+// explicit save, a secret, the alarm and rare device state are written and committed at once.
+// Nothing writes per frame or per touch. NVS skips a value that did not change.
+//
+// Delayed writes: the value is kept in RAM and all pending values are written together
+// kWriteLaterMs after the last call, but no later than kWriteLaterMaxMs after the first, so
+// dragging a slider writes the flash once. Pending values are also written when the firmware
+// restarts (esp_restart). Up to kMaxPendingWrites keys (a further one writes the pending ones at
+// once), values up to kMaxPendingSize bytes. The owner reads its value from its RAM copy, not back
+// from NVS. Any task.
+constexpr uint32_t kWriteLaterMs = 10000;
+constexpr uint32_t kWriteLaterMaxMs = 60000;
+constexpr size_t kMaxPendingWrites = 8;
 constexpr size_t kMaxPendingSize = 32;
 
 esp_err_t set_blob_later(const char *name_space, const char *key, const void *data, size_t size);
 
 // writes the pending values now
 void write_pending_settings();
+
+// drops the pending values unwritten (before the settings are erased)
+void discard_pending_settings();
 
 } // namespace hc::platform

@@ -667,8 +667,8 @@ void show_image(View &view, const core::Image &image)
     }
     view.image_asked = 0;
     if (!image.error.empty() || !image.pixels) {
-        // the last image stays; without one the camera icon is struck through (a stream that
-        // wants a login, a camera that is not reached), until an image comes
+        // the last image stays; without one the camera icon is struck through (a camera that is
+        // not reached, Home Assistant not connected), until an image comes
         LV_LOG_WARN("camera: %s", image.error.c_str());
         if (!view.pixels && !view.image_failed) {
             view.image_failed = true;

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-21
+
+- Camera tiles with `stream:` take their image from Home Assistant's camera proxy, no longer the
+  stream's first frame: the stream is only opened full screen (a report: one connection per tile
+  image crashed a stream server's encoder driver).
+- NVS write policy (architecture.md 9.3): delayed writes after 10 s (was 5 s), at most 60 s; a factory
+  reset no longer writes pending values back. Camera views keep zoom and position across a restart.
+
 ## 2026-10-18
 
 - Board variants are in git now (`wt32_sc01.bench`, `jc4880p443c.kitchen`), no longer ignored.

@@ -464,7 +464,7 @@ uint32_t fetch_image(core::TileIndex tile, uint16_t width, uint16_t height, bool
     }
     const core::Tile &t = g.layout->tiles[tile];
     const uint32_t generation = g_image_generation++;
-    g.backend->fetch_image(g.layout->entity_id(t), t.stream, t.entity, width, height, whole, generation);
+    g.backend->fetch_image(g.layout->entity_id(t), t.entity, width, height, whole, generation);
     return generation;
 }
 
