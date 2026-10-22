@@ -2,6 +2,9 @@
 
 ## 2026-10-22
 
+- Variant `jc4880p443c.mic`: the test P4, wired as the kitchen one, for the microphone test.
+- Microphone (JC4880P443C): Settings, Sound has a level meter, Gain, Auto gain (the ES8311's ALC)
+  and Record (5 s, played back right after, without the click of its button); console `mic`, backup `mic_gain_db`, `mic_auto_gain`.
 - Time page: "Custom rule (POSIX TZ)" fixes a rule the zone list does not have yet (API and backup `zone` take it too).
 
 ## 2026-10-21

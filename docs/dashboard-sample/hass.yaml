@@ -130,6 +130,8 @@
 #  volume: 50               # 0 to 100
 #  tap_sound: true
 #  slider_sound: true
+#  mic_gain_db: 42          # 0 to 60, on boards with a microphone (JC4880P443C); counts without auto gain
+#  mic_auto_gain: true      # the codec holds a voice at about -18 dBFS
 #  vibration: true
 
 # The alarm clock, on boards with a speaker: up to 5 alarms. An import replaces the list; a

@@ -26,6 +26,7 @@ menu "hassctrl board"
             select HC_BOARD_HAS_AUDIO
             select HC_BOARD_HAS_VIBRATION
             select HC_BOARD_HAS_CAMERA
+            select HC_BOARD_HAS_MIC
     endchoice
 
     config HC_BOARD_HAS_AUDIO
@@ -33,6 +34,12 @@ menu "hassctrl board"
         help
             The board has an I2S amplifier for a speaker (hc::board::Info::audio_*); it makes
             the audio component's options available (CONFIG_HC_AUDIO).
+
+    config HC_BOARD_HAS_MIC
+        bool
+        help
+            The board has a microphone behind its audio codec (hc::board::Info::audio_din_gpio);
+            it makes the microphone option available (CONFIG_HC_MIC).
 
     config HC_BOARD_HAS_VIBRATION
         bool

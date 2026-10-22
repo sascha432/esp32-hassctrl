@@ -247,9 +247,11 @@ void write_sound(backup::Writer &out)
 {
     const hc::ui::Backend &be = ui_backend();
     hc::ui::SoundSettings s{};
+    hc::ui::MicSettings mic{};
     bool vibration = false;
     UiLock lock;
     const bool has_sound = be.sound_settings != nullptr && be.sound_settings(s);
+    const bool has_mic = be.mic_settings != nullptr && be.mic_settings(mic);
     const bool has_vibration = be.vibration != nullptr && be.vibration(vibration);
     if (!has_sound && !has_vibration) {
         return;
@@ -260,19 +262,25 @@ void write_sound(backup::Writer &out)
         out.boolean("tap_sound", s.tap_sound);
         out.boolean("slider_sound", s.slider_sound);
     }
+    if (has_mic) {
+        out.number("mic_gain_db", mic.gain_db);
+        out.boolean("mic_auto_gain", mic.auto_gain);
+    }
     if (has_vibration) {
         out.boolean("vibration", vibration);
     }
 }
 
-// fields of a device without audio or motor are named as ignored
+// fields of a device without audio, microphone or motor are named as ignored
 void read_sound(const Node &value, bool apply, backup::Report &report)
 {
     const hc::ui::Backend &be = ui_backend();
     UiLock lock;
     hc::ui::SoundSettings s{};
+    hc::ui::MicSettings mic{};
     bool vibration = false;
     const bool has_sound = be.sound_settings != nullptr && be.sound_settings(s);
+    const bool has_mic = be.mic_settings != nullptr && be.mic_settings(mic);
     const bool has_vibration = be.vibration != nullptr && be.vibration(vibration);
     backup::Fields fields(value, "sound", report);
     if (has_sound) {
@@ -280,10 +288,17 @@ void read_sound(const Node &value, bool apply, backup::Report &report)
         fields.boolean("tap_sound", s.tap_sound);
         fields.boolean("slider_sound", s.slider_sound);
     }
+    if (has_mic) {
+        fields.number("mic_gain_db", 0, hc::ui::kMicMaxGainDb, mic.gain_db);
+        fields.boolean("mic_auto_gain", mic.auto_gain);
+    }
     const bool has_switch = has_vibration && fields.boolean("vibration", vibration);
     fields.finish();
     if (apply && has_sound) {
         be.set_sound_settings(s);
+    }
+    if (apply && has_mic) {
+        be.set_mic_settings(mic);
     }
     if (apply && has_switch) {
         be.set_vibration(vibration);

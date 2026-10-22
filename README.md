@@ -104,6 +104,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - Light sensor: BH1750 or LDR
 - Vibration motor
 - Speaker: I2S amplifier (NS4168) or codec (ES8311)
+- Microphone: the ES8311's analog input, gain or auto gain, a level meter and a test recording that plays back, in Settings, Sound
 - Camera: MIPI-CSI (OV02C10, ESP32-P4)
 
 ## Build

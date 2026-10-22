@@ -1113,6 +1113,20 @@ Your report of the first version (2026-10-09):
       Checked on the JC3248W535: the buttons are exact.
 - [x] `jc4880p443c.kitchen` without the development console (your request, 2026-10-21): built,
       the screenshot code is dropped by the linker. Not flashed (you flash the P4).
+- [x] Microphone (2026-10-22): variant `jc4880p443c.mic` for the test P4 (COM11), a copy of kitchen
+      with the development console. Settings built (Settings, Sound: level meter, gain, auto gain;
+      ES8311 ADC, ALC, I2S RX on GPIO 48, console `mic`, backup keys), and Record: up to 5 s that
+      play back right after (console `mic record`). Sim checked at 480x800 and 480x320. Flashed
+      to COM11 (2026-10-22): quiet room -66 dBFS at 30 dB; fixed gain exact (0 to 54 dB: -56 to
+      -2 dBFS on the speaker's tone); the ALC only turns down, so it starts from 54 dB (holds the
+      tone at -15, a quiet room -46); a recording plays back (heard by the microphone at -23 dBFS).
+      Record no longer catches the tap's click (first 200 ms skipped, last 150 ms on Stop).
+      Working and tested by you on the test P4 (2026-10-22).
+- [ ] Microphone hiss: a quiet room comes up to about -46 dBFS under Auto gain (54 dB ceiling),
+      audible in pauses; normal for this MEMS class. Try the ES8311's noise gate (automute,
+      REG18 bit 6, REG1A) with its threshold just above the room, or a lower ALC ceiling (48 dB).
+- [ ] Microphone use: Home Assistant Assist (voice pipeline, wake word or push to talk, AEC with
+      the DAC's signal in the right slot) and an intercom stream.
 - [ ] The alarm screen lies on `lv_layer_top`, so LVGL draws the page below it in every changed
       area while it rings. Make it a screen of its own (`lv_scr_load`) so nothing is drawn under it.
 

@@ -10,6 +10,10 @@
 //
 // The built-in sounds are 16 bit mono PCM at kSampleRate; an MP3 file (CONFIG_HC_AUDIO_MP3) plays
 // at its own sample rate, mixed to mono.
+//
+// The microphone (CONFIG_HC_MIC) is the codec's ADC on the same I2S port, a receive channel next
+// to the speaker's at the speaker's rate. It needs Config::keep_running (the clock runs all the
+// time). For now only its level is read, while someone listens (mic_listen()).
 
 #include <cstddef>
 #include <cstdint>
@@ -35,6 +39,11 @@ struct Config {
     // codec_stop() before the channel stops.
     esp_err_t (*codec_start)(uint32_t sample_rate) = nullptr;
     void (*codec_stop)() = nullptr;
+    // The microphone's samples from the codec (CONFIG_HC_MIC), -1 without; its gain
+    // (hc::board::AudioCodec::set_mic) and its registers to the log
+    int din = -1;
+    esp_err_t (*codec_set_mic)(float gain_db, bool auto_gain) = nullptr;
+    void (*codec_log_mic)() = nullptr;
     // The channel (and a codec and the amplifier) run from start() on and do not stop between
     // sounds (hc::board::Info::audio_always_on): an amplifier's wake-up swallowed or softened a
     // click (2026-10-09). Only a file at another rate restarts it.
@@ -83,5 +92,46 @@ bool alarm_playing();
 
 // the stack of the audio task that was never used, bytes (console `sound`)
 size_t stack_unused();
+
+#if CONFIG_HC_MIC
+// the highest gain of set_mic()
+constexpr float kMicMaxGainDb = 60.0f;
+// the level mic_peak_dbfs() gives for silence
+constexpr float kMicSilenceDbfs = -96.0f;
+
+// the microphone's channel was created (start() with Config::din)
+bool mic_running();
+
+// A fixed gain of 0 to kMicMaxGainDb, or the codec's automatic level control (then `gain_db`
+// does not count). Kept until the next call.
+void set_mic(float gain_db, bool auto_gain);
+
+// The samples are read while at least one listener is on: on(true) and on(false) in pairs.
+void mic_listen(bool on);
+
+// The loudest sample since the last call, dBFS (kMicSilenceDbfs for silence); false while nobody
+// listens or no samples came. One reader at a time: a second one sees the rest.
+bool mic_peak_dbfs(float &dbfs);
+
+// the codec's microphone registers to the log (console `mic regs`)
+void log_mic();
+
+// A test recording that plays right after it (Settings, Sound; console `mic record`): up to
+// kMicRecordMaxS at kSampleRate into PSRAM, then played at the volume as an announcement (a tap's
+// click does not cut it off). It ends early when the speaker's channel changes the rate.
+constexpr uint32_t kMicRecordMaxS = 5;
+enum class RecordState : uint8_t { Idle, Recording, Playing };
+
+// false while one records or plays, at volume 0, or without PSRAM for it
+bool mic_record_start();
+// ends the recording and plays what it has
+void mic_record_stop();
+// ends the recording without playing it
+void mic_record_cancel();
+// what the recording does; the time left while it records
+RecordState mic_record_state(uint32_t &remaining_ms);
+// the samples of the last recording at kSampleRate (console `mic record`), nullptr before one
+const int16_t *mic_recording(size_t &count);
+#endif
 
 } // namespace hc::audio

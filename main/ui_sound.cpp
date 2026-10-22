@@ -72,6 +72,44 @@ void set_sound(const hc::ui::SoundSettings &settings)
 }
 #endif
 
+#if CONFIG_HC_MIC
+// The microphone's gain or automatic level control. Speech near the panel came out at about
+// -20 dBFS with 42 dB (to be checked on the JC4880P443C).
+constexpr const char *kMicKey = "mic";
+constexpr hc::ui::MicSettings kMicDefaults{.gain_db = 42, .auto_gain = true};
+hc::ui::MicSettings g_mic = kMicDefaults;
+bool g_mic_loaded = false;
+
+const hc::ui::MicSettings &stored_mic()
+{
+    if (!g_mic_loaded) {
+        g_mic_loaded = true;
+        hc::platform::Settings settings(kUiNamespace, hc::platform::Settings::Mode::Read);
+        hc::ui::MicSettings stored{};
+        size_t size = sizeof(stored);
+        if (settings.ok() && settings.get_blob(kMicKey, &stored, size) == ESP_OK && size == sizeof(stored) &&
+            stored.gain_db <= hc::ui::kMicMaxGainDb) {
+            g_mic = stored;
+        }
+    }
+    return g_mic;
+}
+
+bool get_mic(hc::ui::MicSettings &out)
+{
+    out = stored_mic();
+    return hc::audio::mic_running();
+}
+
+void set_mic(const hc::ui::MicSettings &settings)
+{
+    g_mic = settings;
+    g_mic_loaded = true;
+    hc::audio::set_mic(g_mic.gain_db, g_mic.auto_gain);
+    hc::platform::set_blob_later(kUiNamespace, kMicKey, &g_mic, sizeof(g_mic));
+}
+#endif
+
 #if CONFIG_HC_VIBRATION
 // the Vibration switch, on until it is turned off
 constexpr const char *kVibrationKey = "vibrate";
@@ -287,6 +325,45 @@ void apply_stored_volume()
 #else
 bool (*const sound_settings)(hc::ui::SoundSettings &) = nullptr;
 void (*const set_sound_settings)(const hc::ui::SoundSettings &) = nullptr;
+#endif
+
+#if CONFIG_HC_MIC
+bool (*const mic_settings)(hc::ui::MicSettings &) = get_mic;
+void (*const set_mic_settings)(const hc::ui::MicSettings &) = set_mic;
+void (*const mic_listen)(bool) = hc::audio::mic_listen;
+bool (*const mic_level)(float &) = hc::audio::mic_peak_dbfs;
+bool (*const mic_record)(bool) = [](bool start) {
+    if (start) {
+        return hc::audio::mic_record_start();
+    }
+    hc::audio::mic_record_stop();
+    return true;
+};
+void (*const mic_record_cancel)() = hc::audio::mic_record_cancel;
+hc::ui::MicRecording (*const mic_recording)(uint32_t &) = [](uint32_t &remaining_ms) {
+    switch (hc::audio::mic_record_state(remaining_ms)) {
+    case hc::audio::RecordState::Recording:
+        return hc::ui::MicRecording::Recording;
+    case hc::audio::RecordState::Playing:
+        return hc::ui::MicRecording::Playing;
+    case hc::audio::RecordState::Idle:
+        break;
+    }
+    return hc::ui::MicRecording::Idle;
+};
+
+void apply_stored_mic()
+{
+    hc::audio::set_mic(stored_mic().gain_db, stored_mic().auto_gain);
+}
+#else
+bool (*const mic_settings)(hc::ui::MicSettings &) = nullptr;
+void (*const set_mic_settings)(const hc::ui::MicSettings &) = nullptr;
+void (*const mic_listen)(bool) = nullptr;
+bool (*const mic_level)(float &) = nullptr;
+bool (*const mic_record)(bool) = nullptr;
+void (*const mic_record_cancel)() = nullptr;
+hc::ui::MicRecording (*const mic_recording)(uint32_t &) = nullptr;
 #endif
 
 #if CONFIG_HC_AUDIO_TOUCH_SOUND

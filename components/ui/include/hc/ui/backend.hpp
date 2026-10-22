@@ -106,6 +106,18 @@ struct SoundSettings {
     bool slider_sound; // ticks while a slider moves, more of them the faster it moves
 };
 
+// Settings, Sound, Microphone: a fixed gain, or the codec's automatic level control (then the
+// gain does not count).
+struct MicSettings {
+    uint8_t gain_db; // 0 to kMicMaxGainDb
+    bool auto_gain;
+};
+
+constexpr uint8_t kMicMaxGainDb = 60;
+
+// the test recording of Settings, Sound: it records, then plays once
+enum class MicRecording : uint8_t { Idle, Recording, Playing };
+
 constexpr size_t kSoundNameSize = 32;
 
 // Settings, Alarm (docs/ui/lvgl/lvgl-settings.md section 3): rings at full volume until Stop or Snooze.
@@ -210,6 +222,21 @@ struct Backend {
     // (CONFIG_HC_AUDIO_TOUCH_SOUND)
     void (*play_touch_sound)();
     void (*play_slider_tick)();
+    // Microphone: nullptr when the firmware has none (CONFIG_HC_MIC); false when it did not start.
+    // Settings leave its section out then.
+    bool (*mic_settings)(MicSettings &out);
+    // applies at once, stores the settings a few seconds after the last change
+    void (*set_mic_settings)(const MicSettings &settings);
+    // The level meter: listen(true) while it shows, listen(false) after; the loudest sample since
+    // the last call in dBFS, false while there is none.
+    void (*mic_listen)(bool on);
+    bool (*mic_level)(float &dbfs);
+    // A few seconds recorded and played right after: start (false when it cannot: volume 0,
+    // already busy), or stop and play what it has. Cancel ends it without playing (leaving the
+    // page). The state, and the time left while it records.
+    bool (*mic_record)(bool start);
+    void (*mic_record_cancel)();
+    MicRecording (*mic_recording)(uint32_t &remaining_ms);
     // Vibration: nullptr when the firmware has no motor (CONFIG_HC_VIBRATION); false when it did
     // not start. Settings show the switch on the Sound page then, and the page also without audio.
     // The switch is for taps; each alarm has its own (AlarmSettings::vibrate).

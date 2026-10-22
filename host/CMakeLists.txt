@@ -34,6 +34,7 @@ add_executable(hc_tests
     tests/check.cpp
     tests/config_test.cpp
     tests/layout_test.cpp
+    tests/mic_gain_test.cpp
     tests/multipart_test.cpp
     tests/network_test.cpp
     tests/protocol_test.cpp
@@ -71,6 +72,8 @@ add_executable(hc_tests
 )
 target_include_directories(hc_tests PRIVATE
     tests
+    # the ES8311's gain mapping, header only
+    ${HC_ROOT}/components/board/boards/jc4880p443c
     ${HC_ROOT}/components/config/include
     ${HC_ROOT}/components/core/include
     ${HC_ROOT}/components/formats/include

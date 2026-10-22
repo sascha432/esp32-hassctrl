@@ -1,0 +1,3 @@
+# the microphone test variant of the JC4880P443C: no FPS / CPU overlay in the corner, as the
+# kitchen variant; the development console stays on (screenshot, tap, the test commands)
+# CONFIG_LV_USE_PERF_MONITOR is not set

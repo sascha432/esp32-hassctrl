@@ -60,6 +60,8 @@ constexpr Info kInfo = variant::apply(Info{
     .audio_bclk_gpio = 12,
     .audio_ws_gpio = 10,
     .audio_dout_gpio = 9,
+    // the ES8311's ADC: the analog MEMS microphone MSM381A3729H9CP on MIC1P/N
+    .audio_din_gpio = 48,
     .audio_mclk_gpio = 13,
     .audio_codec = true,
     // the amplifier wakes too slowly for a click: the first one after a pause was not heard

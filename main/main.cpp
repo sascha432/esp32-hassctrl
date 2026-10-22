@@ -182,12 +182,20 @@ void start_audio(const hc::board::Info &board)
                                    .mclk = board.audio_mclk_gpio,
                                    .codec_start = codec != nullptr ? codec->start : nullptr,
                                    .codec_stop = codec != nullptr ? codec->stop : nullptr,
+#if CONFIG_HC_MIC
+                                   .din = board.audio_din_gpio,
+                                   .codec_set_mic = codec != nullptr ? codec->set_mic : nullptr,
+                                   .codec_log_mic = codec != nullptr ? codec->log_mic : nullptr,
+#endif
                                    .keep_running = board.audio_always_on};
     if (hc::audio::start(config) != ESP_OK) {
         ESP_LOGW(kTag, "audio output did not start");
         return;
     }
     ui_sound::apply_stored_volume();
+#if CONFIG_HC_MIC
+    ui_sound::apply_stored_mic();
+#endif
 #if CONFIG_HC_AUDIO_MP3
     // the sounds of Home Assistant's hassctrl_say event (before hass::start)
     hc::hass::set_sound_player(hc::audio::play_mp3);

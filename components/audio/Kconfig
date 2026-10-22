@@ -33,4 +33,14 @@ menu "hassctrl audio"
             An alarm in Settings that rings at a time and on chosen days, at full volume, with
             snooze. The sounds are the built-in beeps and, with HC_AUDIO_MP3, the MP3 files.
 
+    config HC_MIC
+        bool "Microphone"
+        depends on HC_AUDIO && HC_BOARD_HAS_MIC
+        default y
+        help
+            The microphone of the board's audio codec on the same I2S port as the speaker: its
+            gain or automatic level control and a level meter in Settings, Sound, console `mic`.
+            Without it the codec's input stays off and none of the microphone code is in the
+            firmware.
+
 endmenu

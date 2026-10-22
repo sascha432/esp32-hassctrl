@@ -191,6 +191,10 @@ Steps:
 - [ ] A codec in front of the amplifier (ES8311 and the like) is set up by the board in `init()`
       on its I2C bus: `Info::audio_codec = true` and `audio_codec()` returning its start/stop
       (the JC4880P443C's `es8311.cpp` with `esp_codec_dev`). Boards without one return nullptr.
+- [ ] A microphone behind the codec: its I2S data pin in `Info::audio_din_gpio`, `select
+      HC_BOARD_HAS_MIC`, and the codec's `set_mic`/`log_mic` (the JC4880P443C's ES8311). It needs
+      `audio_always_on`. The boot log shows `audio: I2S microphone DIN ..`; console `mic` prints
+      the level (a clap well above the room).
 - [ ] The boot log shows `audio: I2S out BCLK .., WS .., DOUT ..`.
 - [ ] Console `sound tone 1000 800`: a clean tone, no crackle; `sound volume 100` and
       `sound volume 5`: loud and quiet but audible; `sound click`: a short tick.
@@ -262,7 +266,7 @@ OV02C10 of the JC4880P443C (docs/devices/JC4880P443C, "Camera", and architecture
 The board file in the repository holds the board type and, as an example, the add-ons of the
 developer's unit: the WT32-SC01's LDR on GPIO 34, motor on 27 and the calibration of its MPU6050,
 the JC4880P443C's relay 1 on GPIO 32. A unit wired differently is a **variant**: a directory
-of its own in git (`wt32_sc01.bench`, `jc4880p443c.kitchen`).
+of its own in git (`wt32_sc01.bench`, `jc4880p443c.kitchen`, `jc4880p443c.mic`).
 
 1. Create `boards/<board>/variants/<name>/` (`<name>`: letters, digits, underscore) and copy
    `components/board/src/variant/hc_board_variant.hpp` into it.

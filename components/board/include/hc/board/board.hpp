@@ -74,6 +74,9 @@ struct Info {
     int8_t audio_bclk_gpio = -1;
     int8_t audio_ws_gpio = -1;
     int8_t audio_dout_gpio = -1;
+    // The I2S output of a microphone's ADC (the ES8311 of the JC4880P443C), -1 without one. The
+    // board's Kconfig option selects HC_BOARD_HAS_MIC when it has one (hc::audio, CONFIG_HC_MIC).
+    int8_t audio_din_gpio = -1;
     // the master clock of a codec, 256 x the sample rate; -1 when nothing needs it
     int8_t audio_mclk_gpio = -1;
     // The I2S data goes through a codec that has to be set up (the ES8311 of the JC4880P443C):
@@ -136,6 +139,11 @@ struct AudioCodec {
     esp_err_t (*start)(uint32_t sample_rate);
     // output and amplifier off
     void (*stop)();
+    // The microphone, nullptr without one: a fixed gain in dB (0 to hc::audio::kMicMaxGainDb), or
+    // the codec's automatic level control. Kept over stop() and start().
+    esp_err_t (*set_mic)(float gain_db, bool auto_gain);
+    // the microphone's registers to the log (console `mic regs`), nullptr without one
+    void (*log_mic)();
 };
 
 struct Handles {

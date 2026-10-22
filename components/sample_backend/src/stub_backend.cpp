@@ -1,6 +1,7 @@
 #include "hc/sample/stub_backend.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -25,6 +26,8 @@ using hc::ui::DisplaySettings;
 using hc::ui::HassInfo;
 using hc::ui::kMaxSavedNetworks;
 using hc::ui::kSsidSize;
+using hc::ui::MicRecording;
+using hc::ui::MicSettings;
 using hc::ui::ScanItem;
 using hc::ui::SoundSettings;
 using hc::ui::WifiInfo;
@@ -110,6 +113,11 @@ struct State {
     DisplaySettings display = kDisplayDefaults;
     // the Sound and Alarm pages as on a board with a speaker; the sounds are printed
     SoundSettings sound{.volume = 50, .tap_sound = true, .slider_sound = true};
+    MicSettings mic{.gain_db = 42, .auto_gain = true};
+    // the fake test recording: when it started, how long it recorded (0: still recording)
+    uint32_t record_start = 0;
+    uint32_t record_ms = 0;
+    bool recording = false;
     // and a vibration motor
     bool vibration = true;
     // the camera of the JC4880P443C, without a picture here
@@ -505,6 +513,66 @@ void set_sound_settings(const SoundSettings &settings)
     g.sound = settings;
 }
 
+bool mic_settings(MicSettings &out)
+{
+    out = g.mic;
+    return true;
+}
+
+// The test recording of Settings, Sound: 5 s at most, then it plays as long as it recorded
+constexpr uint32_t kRecordMaxMs = 5000;
+
+MicRecording mic_recording(uint32_t &remaining_ms)
+{
+    remaining_ms = 0;
+    if (!g.recording) {
+        return MicRecording::Idle;
+    }
+    const uint32_t elapsed = lv_tick_elaps(g.record_start);
+    if (g.record_ms == 0 && elapsed < kRecordMaxMs) {
+        remaining_ms = kRecordMaxMs - elapsed;
+        return MicRecording::Recording;
+    }
+    if (g.record_ms == 0) {
+        g.record_ms = kRecordMaxMs;
+        print("recording plays");
+    }
+    if (elapsed < 2 * g.record_ms) {
+        return MicRecording::Playing;
+    }
+    g.recording = false;
+    return MicRecording::Idle;
+}
+
+bool mic_record(bool start)
+{
+    uint32_t remaining = 0;
+    const MicRecording state = mic_recording(remaining);
+    if (start && state == MicRecording::Idle && g.sound.volume > 0) {
+        g.recording = true;
+        g.record_start = lv_tick_get();
+        g.record_ms = 0;
+        print("recording");
+        return true;
+    }
+    if (!start && state == MicRecording::Recording) {
+        g.record_ms = std::max<uint32_t>(1, lv_tick_elaps(g.record_start));
+        // it plays from now on as long as it recorded
+        g.record_start = lv_tick_get() - g.record_ms;
+        print("recording plays");
+        return true;
+    }
+    return false;
+}
+
+// a voice that comes and goes, for the meter of Settings, Sound
+bool mic_level(float &dbfs)
+{
+    const float t = static_cast<float>(lv_tick_get()) / 1000.0f;
+    dbfs = -38.0f + 18.0f * std::sin(t * 2.1f) * std::sin(t * 0.7f);
+    return true;
+}
+
 bool camera_info(CameraInfo &out)
 {
     out = {.width = 1288, .height = 728, .max_exposure_us = 33161};
@@ -735,6 +803,13 @@ const hc::ui::Backend kBackend{
     .set_sound_settings = set_sound_settings,
     .play_touch_sound = [] { print("touch sound"); },
     .play_slider_tick = [] { print("slider tick"); },
+    .mic_settings = mic_settings,
+    .set_mic_settings = [](const MicSettings &settings) { g.mic = settings; },
+    .mic_listen = [](bool on) { print(on ? "microphone on" : "microphone off"); },
+    .mic_level = mic_level,
+    .mic_record = mic_record,
+    .mic_record_cancel = [] { g.recording = false; },
+    .mic_recording = mic_recording,
     .vibration = vibration,
     .set_vibration = [](bool on) { g.vibration = on; },
     .vibrate_click = [] { print("vibration pulse"); },

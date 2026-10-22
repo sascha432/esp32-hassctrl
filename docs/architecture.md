@@ -915,6 +915,7 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   * `CONFIG_HC_AUDIO_TOUCH_SOUND`: the click and the slider tick.
   * `CONFIG_HC_AUDIO_MP3`: MP3 files (the alarm sounds), with the decoder below.
   * `CONFIG_HC_AUDIO_ALARM`: the alarm clock of Settings.
+  * `CONFIG_HC_MIC`: the microphone (below), only where the board has one.
 
   The UI, which is shared with the Windows version, has no `#if`: the Backend entries of a
   missing feature are nullptr (`main/ui_sound.cpp`), and Settings leave its page or switch out.
@@ -1027,7 +1028,42 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
     sounds are dropped while it plays; it plays at the volume (0: silent).
   * Console: `sound say <tts entity> <text>` and `sound url <url>` do what the event does.
 
-The ES8311's microphone input is not used.
+**Microphone** (`CONFIG_HC_MIC`, menu "hassctrl audio", on by default where the board selects
+`HC_BOARD_HAS_MIC`; the JC4880P443C): the ES8311's ADC with the analog MEMS microphone
+MSM381A3729H9CP on MIC1P/N. For now only its settings and level, for Home Assistant Assist and an
+intercom later.
+
+* **Codec**: `esp_codec_dev` in ADC + DAC mode; `AudioCodec::set_mic(gain_db, auto_gain)`. A gain
+  of 0 to 60 dB goes into the PGA first (REG14, 0 to 30 dB in 3 dB steps, the least noise), then
+  the digital ADC scale (REG16, 6 dB steps), the half steps into the ADC volume (REG17)
+  (`es8311_gain.hpp`, host test `mic_gain_*`; the steps are those of Linux's es8311 driver).
+  Auto gain is the codec's ALC (REG18/19): it holds the output between -18.1 and -14.5 dBFS,
+  0.25 dB per 64 LRCK (about 60 dB/s; at 256 LRCK the first second of a sound clipped), but it only turns the gain down from the one set (measured 2026-10-22: over
+  30 dB a tone at -26 dBFS stayed there, over 54 dB one at -2 dBFS came down to -15). So it starts
+  from 54 dB, which lifts a quiet room to about -46 dBFS; board constants in `es8311.cpp`. Fixed
+  gain measured with the same tone: 0 / 15 / 30 / 42 / 54 dB gave -56 / -40 / -26 / -14 / -2 dBFS. The driver's start writes
+  REG14 and REG17, so `start()` writes the microphone's registers again; a mutex keeps the audio
+  task's start/stop and the UI's `set_mic` apart.
+* **I2S**: a receive channel next to the speaker's on the same port (`i2s_new_channel` with both,
+  `Config::din`), the left slot (REG44 puts the DAC's signal in the right one, for echo
+  cancellation later). It runs with the speaker's clock and rate, so it needs
+  `Config::keep_running` (the P4's `audio_always_on`); an MP3 at another rate restarts both.
+* **Level**: a task `mic` (priority 5 like the audio task: the receive DMA holds only 24 ms, the
+  speaker's buffers; 2.5 KB) reads 512 samples at a time only while someone
+  listens (`mic_listen`), and keeps the largest one; `mic_peak_dbfs` hands it out and starts over.
+  The meter of Settings, Sound listens while the page is open; console `mic [<s>|record|gain
+  <db>|auto on|off|regs]`.
+* **Test recording** (`mic_record_start/stop/cancel/state`): up to 5 s at 16 kHz into a 160 KB
+  PSRAM buffer, allocated with the first recording and kept (the audio task plays from it). The
+  mic task copies what it reads (not the first 200 ms, nor the last 150 ms after Stop: the tap's
+  click was in the recording), and at the end posts the samples as an announcement, so a tap's
+  click does not cut them off; it plays at the volume (none at 0, so the start is refused). A
+  rate change of the speaker's channel (an MP3) ends the recording there. The state is Playing
+  until the audio task has taken the samples and played them (`g_record_posted`,
+  `g_record_plays`).
+* **Settings**: `MicSettings {gain_db, auto_gain}` under `ui/mic` (default 42 dB, auto gain on),
+  stored 10 s after the last change (section 9.3), applied at boot after the volume; backup
+  `sound: mic_gain_db, mic_auto_gain`.
 
 ### 9.7 Vibration
 

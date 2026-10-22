@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "driver/i2s_std.h"
 #include "esp_check.h"
@@ -74,6 +77,8 @@ struct Request {
 };
 
 i2s_chan_handle_t g_channel = nullptr;
+// the microphone's receive channel (CONFIG_HC_MIC), nullptr without
+i2s_chan_handle_t g_rx = nullptr;
 Config g_config{};
 QueueHandle_t g_queue = nullptr;
 TaskHandle_t g_task = nullptr;
@@ -81,6 +86,16 @@ std::atomic<uint8_t> g_volume{50};
 // the volume as a factor in Q15 (32768 = full scale)
 std::atomic<int32_t> g_gain{0};
 std::atomic<bool> g_alarm{false};
+
+#if CONFIG_HC_MIC
+// The test recording (mic_record_start), PSRAM, kept once allocated: it plays from there. Posted:
+// on its way to the task; plays: the task plays it now.
+int16_t *g_record = nullptr;
+std::atomic<bool> g_record_posted{false};
+std::atomic<bool> g_record_plays{false};
+// the channel's rate (Player::prepare): a recording is at kSampleRate
+std::atomic<uint32_t> g_rate{kSampleRate};
+#endif
 
 int32_t gain_of(uint8_t percent)
 {
@@ -112,6 +127,12 @@ public:
             }
             return;
         }
+#if CONFIG_HC_MIC
+        const bool recording = request.kind == Kind::Samples && g_record != nullptr && request.samples == g_record;
+        if (recording) {
+            g_record_posted.store(false);
+        }
+#endif
         if ((alarm_ && !request.alarm) || (announcement_ && !request.alarm && !request.announcement)) {
             drop(request);
             return;
@@ -123,6 +144,9 @@ public:
             announcement_ = request.announcement;
             loop_ = request.loop;
             g_alarm.store(alarm_);
+#if CONFIG_HC_MIC
+            g_record_plays.store(recording);
+#endif
         }
     }
 
@@ -166,6 +190,9 @@ public:
         if (enabled_) {
             if (g_config.codec_stop != nullptr) {
                 g_config.codec_stop();
+            }
+            if (g_rx != nullptr) {
+                i2s_channel_disable(g_rx);
             }
             i2s_channel_disable(g_channel);
             enabled_ = false;
@@ -236,6 +263,9 @@ private:
         alarm_ = false;
         announcement_ = false;
         g_alarm.store(false);
+#if CONFIG_HC_MIC
+        g_record_plays.store(false);
+#endif
     }
 
     void write(const int16_t *samples, size_t count)
@@ -271,11 +301,15 @@ private:
         if (rate != rate_) {
             stop_channel();
             const i2s_std_clk_config_t clock = I2S_STD_CLK_DEFAULT_CONFIG(rate);
-            if (i2s_channel_reconfig_std_clock(g_channel, &clock) != ESP_OK) {
+            if (i2s_channel_reconfig_std_clock(g_channel, &clock) != ESP_OK ||
+                (g_rx != nullptr && i2s_channel_reconfig_std_clock(g_rx, &clock) != ESP_OK)) {
                 ESP_LOGW(kTag, "no I2S clock for %lu Hz", static_cast<unsigned long>(rate));
                 return false;
             }
             rate_ = rate;
+#if CONFIG_HC_MIC
+            g_rate.store(rate);
+#endif
         }
         if (!enabled_) {
             // the DMA sends zeros between sounds (auto_clear), so the channel can keep running
@@ -286,6 +320,10 @@ private:
                 i2s_channel_disable(g_channel);
                 enabled_ = false;
             } else {
+                // the microphone's samples come with the speaker's clock
+                if (g_rx != nullptr && i2s_channel_enable(g_rx) != ESP_OK) {
+                    ESP_LOGW(kTag, "I2S microphone channel did not start");
+                }
                 // whole buffers, so the sounds start at the beginning of one
                 const uint32_t wake = rate * kWakeMs / 1000;
                 write_silence((wake + kDmaFrames - 1) / kDmaFrames * kDmaFrames);
@@ -339,19 +377,22 @@ void audio_task(void *)
     }
 }
 
-void post(const Request &request)
+// false when it was dropped
+bool post(const Request &request)
 {
     if (g_queue == nullptr) {
-        return;
+        return false;
     }
     if (!request.alarm && request.kind != Kind::StopAlarm && g_volume.load(std::memory_order_relaxed) == 0) {
         drop(request);
-        return;
+        return false;
     }
     // a full queue (four sounds within one chunk) drops this one
     if (xQueueSend(g_queue, &request, 0) != pdTRUE) {
         drop(request);
+        return false;
     }
+    return true;
 }
 
 Request make(Kind kind)
@@ -360,6 +401,116 @@ Request make(Kind kind)
     request.kind = kind;
     return request;
 }
+
+#if CONFIG_HC_MIC
+// 512 samples a read: 32 ms at 16 kHz
+constexpr size_t kMicChunk = 512;
+constexpr uint32_t kMicStackSize = 2560;
+// The audio task's, above LVGL: the receive DMA holds only kDmaBuffers x kDmaFrames (24 ms at
+// 16 kHz, the speaker's settings), and a recording must not miss a read while the screen draws.
+constexpr UBaseType_t kMicPriority = 5;
+constexpr TickType_t kMicReadTimeout = pdMS_TO_TICKS(200);
+
+constexpr size_t kRecordSamples = kSampleRate * kMicRecordMaxS;
+// The tap that starts or stops a recording clicks (touch sound) and it reached the recording:
+// the first 200 ms are not kept, and on Stop the last 150 ms go (the click comes within about
+// 30 ms of the tap, the stop up to one read later).
+constexpr size_t kRecordLeadSamples = kSampleRate * 200 / 1000;
+constexpr size_t kRecordTailSamples = kSampleRate * 150 / 1000;
+
+TaskHandle_t g_mic_task = nullptr;
+std::atomic<int> g_mic_listeners{0};
+// the largest sample since the last mic_peak_dbfs(), -1: none read
+std::atomic<int32_t> g_mic_peak{-1};
+
+enum class RecordCommand : uint8_t { None, Stop, Cancel };
+std::atomic<RecordState> g_record_state{RecordState::Idle};
+std::atomic<RecordCommand> g_record_command{RecordCommand::None};
+std::atomic<size_t> g_record_count{0};
+// samples still to skip at the start of a recording (kRecordLeadSamples)
+std::atomic<size_t> g_record_skip{0};
+
+// on the mic task: the recording plays (unless `play` is false or it is empty), or is gone;
+// `stopped`: ended by a tap, whose click is in its last samples
+void end_recording(bool play, bool stopped)
+{
+    size_t count = g_record_count.load();
+    count -= stopped ? std::min(count, kRecordTailSamples) : 0;
+    if (play && count > 0) {
+        Request request = make(Kind::Samples);
+        request.announcement = true;
+        request.samples = g_record;
+        request.count = static_cast<uint32_t>(count);
+        g_record_posted.store(true);
+        if (post(request)) {
+            g_record_state.store(RecordState::Playing);
+            return;
+        }
+        g_record_posted.store(false);
+    }
+    g_record_state.store(RecordState::Idle);
+}
+
+// Reads while someone listens or records and keeps the largest sample, and the samples of a
+// recording; waits otherwise. The channel is off while the speaker's changes the rate: the read
+// fails then and waits a little (a recording ends there, its rate is gone).
+void mic_task(void *)
+{
+    static int16_t samples[kMicChunk];
+    for (;;) {
+        bool recording = g_record_state.load() == RecordState::Recording;
+        if (recording) {
+            const RecordCommand command = g_record_command.exchange(RecordCommand::None);
+            if (command != RecordCommand::None || g_rate.load() != kSampleRate) {
+                end_recording(command != RecordCommand::Cancel, command == RecordCommand::Stop);
+                continue;
+            }
+        }
+        if (g_mic_listeners.load() == 0 && !recording) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            continue;
+        }
+        size_t bytes = 0;
+        if (i2s_channel_read(g_rx, samples, sizeof(samples), &bytes, kMicReadTimeout) != ESP_OK || bytes == 0) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
+        const size_t count = bytes / sizeof(int16_t);
+        int32_t peak = 0;
+        for (size_t i = 0; i < count; i++) {
+            peak = std::max<int32_t>(peak, std::abs(static_cast<int32_t>(samples[i])));
+        }
+        int32_t seen = g_mic_peak.load();
+        while (peak > seen && !g_mic_peak.compare_exchange_weak(seen, peak)) {
+        }
+        if (recording) {
+            const size_t skip = std::min(count, g_record_skip.load());
+            g_record_skip.fetch_sub(skip);
+            const size_t done = g_record_count.load();
+            const size_t take = std::min(count - skip, kRecordSamples - done);
+            std::memcpy(g_record + done, samples + skip, take * sizeof(int16_t));
+            g_record_count.store(done + take);
+            if (done + take == kRecordSamples) {
+                end_recording(true, false);
+            }
+        }
+    }
+}
+
+// The receive channel next to the speaker's (created with it), the left slot: the codec sends its
+// ADC there, the DAC's signal in the right one
+esp_err_t start_mic(const i2s_std_config_t &speaker)
+{
+    i2s_std_config_t config = speaker;
+    config.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+    config.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
+    config.gpio_cfg.din = static_cast<gpio_num_t>(g_config.din);
+    ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(g_rx, &config), kTag, "I2S microphone channel");
+    ESP_RETURN_ON_FALSE(xTaskCreate(mic_task, "mic", kMicStackSize, nullptr, kMicPriority, &g_mic_task) == pdPASS,
+                        ESP_ERR_NO_MEM, kTag, "mic task");
+    return ESP_OK;
+}
+#endif
 
 } // namespace
 
@@ -374,7 +525,16 @@ esp_err_t start(const Config &config)
     channel_config.dma_frame_num = kDmaFrames;
     // silence when no sound is written, instead of the last buffer over and over
     channel_config.auto_clear = true;
+#if CONFIG_HC_MIC
+    // the microphone needs the clock all the time; without it the codec's ADC stays unread
+    const bool mic = config.din >= 0 && config.keep_running;
+    if (config.din >= 0 && !config.keep_running) {
+        ESP_LOGW(kTag, "microphone left out: it needs keep_running");
+    }
+    ESP_RETURN_ON_ERROR(i2s_new_channel(&channel_config, &g_channel, mic ? &g_rx : nullptr), kTag, "I2S channel");
+#else
     ESP_RETURN_ON_ERROR(i2s_new_channel(&channel_config, &g_channel, nullptr), kTag, "I2S channel");
+#endif
 
     i2s_std_config_t std_config{};
     std_config.clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(kSampleRate);
@@ -388,6 +548,13 @@ esp_err_t start(const Config &config)
     std_config.gpio_cfg.dout = static_cast<gpio_num_t>(config.dout);
     std_config.gpio_cfg.din = I2S_GPIO_UNUSED;
     esp_err_t err = i2s_channel_init_std_mode(g_channel, &std_config);
+#if CONFIG_HC_MIC
+    if (err == ESP_OK && g_rx != nullptr && start_mic(std_config) != ESP_OK) {
+        // the speaker without it
+        i2s_del_channel(g_rx);
+        g_rx = nullptr;
+    }
+#endif
 #if CONFIG_HC_AUDIO_MP3
     detail::Mp3Source::init();
 #endif
@@ -410,6 +577,11 @@ esp_err_t start(const Config &config)
     set_volume(g_volume.load());
     ESP_LOGI(kTag, "I2S out BCLK %d, WS %d, DOUT %d, MCLK %d%s", config.bclk, config.ws, config.dout, config.mclk,
              config.codec_start != nullptr ? ", codec" : "");
+#if CONFIG_HC_MIC
+    if (g_rx != nullptr) {
+        ESP_LOGI(kTag, "I2S microphone DIN %d", config.din);
+    }
+#endif
     return ESP_OK;
 }
 
@@ -498,5 +670,108 @@ size_t stack_unused()
 {
     return g_task != nullptr ? uxTaskGetStackHighWaterMark(g_task) : 0;
 }
+
+#if CONFIG_HC_MIC
+bool mic_running()
+{
+    return g_rx != nullptr;
+}
+
+void set_mic(float gain_db, bool auto_gain)
+{
+    if (g_rx != nullptr && g_config.codec_set_mic != nullptr) {
+        g_config.codec_set_mic(std::clamp(gain_db, 0.0f, kMicMaxGainDb), auto_gain);
+    }
+}
+
+void mic_listen(bool on)
+{
+    if (g_rx == nullptr) {
+        return;
+    }
+    if (!on) {
+        g_mic_listeners.fetch_sub(1);
+        return;
+    }
+    if (g_mic_listeners.fetch_add(1) == 0) {
+        g_mic_peak.store(-1);
+        xTaskNotifyGive(g_mic_task);
+    }
+}
+
+bool mic_peak_dbfs(float &dbfs)
+{
+    const int32_t peak = g_mic_peak.exchange(-1);
+    if (g_mic_listeners.load() == 0 || peak < 0) {
+        return false;
+    }
+    dbfs = peak > 0 ? std::max(kMicSilenceDbfs, 20.0f * std::log10(static_cast<float>(peak) / 32768.0f))
+                    : kMicSilenceDbfs;
+    return true;
+}
+
+void log_mic()
+{
+    if (g_rx != nullptr && g_config.codec_log_mic != nullptr) {
+        g_config.codec_log_mic();
+    }
+}
+
+bool mic_record_start()
+{
+    uint32_t remaining = 0;
+    if (g_rx == nullptr || volume() == 0 || mic_record_state(remaining) != RecordState::Idle) {
+        return false;
+    }
+    if (g_record == nullptr) {
+        g_record = static_cast<int16_t *>(heap_caps_malloc(kRecordSamples * sizeof(int16_t), MALLOC_CAP_SPIRAM));
+        if (g_record == nullptr) {
+            ESP_LOGW(kTag, "no PSRAM for a recording");
+            return false;
+        }
+    }
+    g_record_count.store(0);
+    g_record_skip.store(kRecordLeadSamples);
+    g_record_command.store(RecordCommand::None);
+    g_record_state.store(RecordState::Recording);
+    xTaskNotifyGive(g_mic_task);
+    return true;
+}
+
+void mic_record_stop()
+{
+    if (g_record_state.load() == RecordState::Recording) {
+        g_record_command.store(RecordCommand::Stop);
+    }
+}
+
+void mic_record_cancel()
+{
+    if (g_record_state.load() == RecordState::Recording) {
+        g_record_command.store(RecordCommand::Cancel);
+    }
+}
+
+const int16_t *mic_recording(size_t &count)
+{
+    count = g_record_state.load() == RecordState::Recording ? 0 : g_record_count.load();
+    return g_record;
+}
+
+RecordState mic_record_state(uint32_t &remaining_ms)
+{
+    remaining_ms = 0;
+    RecordState state = g_record_state.load();
+    // played to the end, or replaced by an alarm or an announcement
+    if (state == RecordState::Playing && !g_record_posted.load() && !g_record_plays.load()) {
+        g_record_state.compare_exchange_strong(state, RecordState::Idle);
+        return RecordState::Idle;
+    }
+    if (state == RecordState::Recording) {
+        remaining_ms = static_cast<uint32_t>((kRecordSamples - g_record_count.load()) * 1000 / kSampleRate);
+    }
+    return state;
+}
+#endif
 
 } // namespace hc::audio

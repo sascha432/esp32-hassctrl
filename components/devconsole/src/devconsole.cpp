@@ -1,5 +1,6 @@
 #include "hc/devconsole/devconsole.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -882,6 +883,79 @@ int cmd_sound(int argc, char **argv)
 }
 #endif
 
+#if CONFIG_HC_MIC
+// The microphone without the screen: its level for a few seconds, a gain or the ALC for tuning the
+// constants of es8311.cpp (the stored setting comes back with the next change in Settings, Sound)
+int cmd_mic(int argc, char **argv)
+{
+    if (!hc::audio::mic_running()) {
+        std::printf("no microphone\n");
+        return 1;
+    }
+    if (argc == 3 && std::strcmp(argv[1], "gain") == 0) {
+        hc::audio::set_mic(static_cast<float>(std::atof(argv[2])), false);
+        return 0;
+    }
+    if (argc == 3 && std::strcmp(argv[1], "auto") == 0) {
+        hc::audio::set_mic(0.0f, std::strcmp(argv[2], "on") == 0);
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "regs") == 0) {
+        hc::audio::log_mic();
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "record") == 0) {
+        // the test recording of Settings, Sound: the peak of every second while it records
+        if (!hc::audio::mic_record_start()) {
+            std::printf("cannot record (volume 0, or it records or plays already)\n");
+            return 1;
+        }
+        hc::audio::mic_listen(true);
+        float dbfs = 0.0f;
+        hc::audio::mic_peak_dbfs(dbfs);
+        uint32_t remaining_ms = 0;
+        while (hc::audio::mic_record_state(remaining_ms) == hc::audio::RecordState::Recording) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            if (hc::audio::mic_peak_dbfs(dbfs)) {
+                std::printf("recording %6.1f dBFS\n", static_cast<double>(dbfs));
+            }
+        }
+        hc::audio::mic_listen(false);
+        // the start of what was kept: the tap's click must not be in it
+        size_t count = 0;
+        const int16_t *samples = hc::audio::mic_recording(count);
+        const size_t start = std::min<size_t>(count, hc::audio::kSampleRate / 10);
+        int32_t peak = 0;
+        for (size_t i = 0; i < start; i++) {
+            peak = std::max<int32_t>(peak, std::abs(static_cast<int32_t>(samples[i])));
+        }
+        std::printf("playing %u ms, the first 100 ms peak at %.1f dBFS\n",
+                    static_cast<unsigned>(count * 1000 / hc::audio::kSampleRate),
+                    peak > 0 ? 20.0 * std::log10(peak / 32768.0) : -96.0);
+        return 0;
+    }
+    if (argc > 2 || (argc == 2 && std::atoi(argv[1]) <= 0)) {
+        return usage("mic [<seconds>|record|gain <db>|auto on|off|regs]");
+    }
+    // the loudest sample of every 250 ms
+    const int seconds = argc == 2 ? std::min(std::atoi(argv[1]), 60) : 5;
+    hc::audio::mic_listen(true);
+    // what came before the first period
+    float dbfs = 0.0f;
+    hc::audio::mic_peak_dbfs(dbfs);
+    for (int i = 0; i < seconds * 4; i++) {
+        vTaskDelay(pdMS_TO_TICKS(250));
+        if (hc::audio::mic_peak_dbfs(dbfs)) {
+            std::printf("mic %6.1f dBFS\n", static_cast<double>(dbfs));
+        } else {
+            std::printf("mic no samples\n");
+        }
+    }
+    hc::audio::mic_listen(false);
+    return 0;
+}
+#endif
+
 #if CONFIG_HC_VIBRATION
 // The motor without the screen: a pulse of a length (for tuning the click), the alarm pattern
 int cmd_vibrate(int argc, char **argv)
@@ -1169,6 +1243,10 @@ void register_commands()
         cmd_light);
 #if CONFIG_HC_AUDIO
     add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
+#endif
+#if CONFIG_HC_MIC
+    add("mic", "microphone: its level for some seconds, a test recording, a gain or the ALC",
+        "[<seconds>|record|gain <db>|auto on|off|regs]", cmd_mic);
 #endif
     add("relay", "GPIO relays: the state, or one switched", "[status|<n> on|off]", cmd_relay);
     add("motion", "motion sensor: the state, or one sent to Home Assistant", "[status|detected|clear]", cmd_motion);
