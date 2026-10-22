@@ -1764,6 +1764,10 @@ JC4880P443C; what is left of the bring-up is listed in the "Step" sections above
       `time`. API tried on the WT32 (2026-10-21): fixed zone kept over a Home Assistant
       reconnect, back to Home Assistant's, bad zone and server refused, servers changed and back
       (SNTP answered again at once), backup export. Page tried in a browser (2026-10-22).
+- [x] Time page, custom POSIX rule (built 2026-10-22): "Custom rule (POSIX TZ)" fixes a rule the
+      zone list does not have; `fixed_zone` and the backup's `zone` take a name or a rule. API tried
+      on the WT32 (2026-10-22): two rules (local time right), bad ones refused, backup export and
+      import, the rule kept over a restart. Page tried in a browser (2026-10-22).
 - [x] **LVGL 9** ([architecture.md](architecture.md) section 7.1): measured and not adopted
       (2026-10-17). LVGL 9.6 was built side by side and run on all three boards: WT32 2 to 3 times
       slower, JC3248W535 25 to 75 % slower on whole frames, P4 5 to 15 % slower with 150 KB less

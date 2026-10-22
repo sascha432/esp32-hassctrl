@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-22
+
+- Time page: "Custom rule (POSIX TZ)" fixes a rule the zone list does not have yet (API and backup `zone` take it too).
+
 ## 2026-10-21
 
 - Web UI page "Time" (from pixeled): two SNTP servers (a change restarts SNTP) and the time zone, Home

@@ -175,21 +175,23 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 ```
 
 **Time.** The card "Clock" (the local time or "not set", the time zone in use with "fixed" or
-"Home Assistant's", how long ago a server last answered; refreshed every second) and the form
+"Home Assistant's", the POSIX rule in use, how long ago a server last answered; refreshed every second) and the form
 "Settings": the time zone ("From Home Assistant" first, with Home Assistant's zone, the default;
-then the IANA names of the firmware grouped by region; "This browser's" when the browser's zone
-is in the list) and time server 1 and 2 (a host name or an address of up to 63 characters, the
+then the IANA names of the firmware grouped by region; last "Custom rule (POSIX TZ)", a text
+field for a rule such as `CET-1CEST,M3.5.0,M10.5.0/3`, for a zone or a change the list does not
+have yet, filled with the rule in use and checked with `core::parse_tz_rule`; "This browser's"
+when the browser's zone is in the list) and time server 1 and 2 (a host name or an address of up to 63 characters, the
 defaults `pool.ntp.org` and `time.cloudflare.com` as placeholders: both empty uses them, one empty
 is not asked); Save. A fixed zone stays when Home Assistant sends its own; "From Home Assistant"
 takes Home Assistant's again (UTC until it first answered). New servers restart SNTP, which asks
 at once when the Wi-Fi is up; the clock keeps its time until one answers. Written at once and kept
 in NVS (`time/fixed`, `time/server1`, `time/server2`; Home Assistant's zone in `time/zone`).
 Code: `components/platform` (`time_sync.cpp`), `api_time.cpp` (`Config::time`, set by main).
-API: `GET /api/time` (`synced`, `now`, `local`, `zone` in use, `fixed_zone`, `hass_zone`,
-`last_sync`, `servers`, `defaults`), `POST /api/time` (any of `fixed_zone`, empty for Home
-Assistant's, `server1`, `server2`; a zone the firmware does not know or a bad name is a 400 and
+API: `GET /api/time` (`synced`, `now`, `local`, `zone` in use, `rule`, `fixed_zone`, `hass_zone`,
+`last_sync`, `servers`, `defaults`), `POST /api/time` (any of `fixed_zone`, a name or a rule, empty for
+Home Assistant's, `server1`, `server2`; a zone the firmware does not know or a bad name is a 400 and
 nothing changes), `GET /api/time/zones` (the names, sorted). Backup section `time` (`zone`, the
-fixed one or empty, `server_1`, `server_2`). Not in the recovery app (404); its Time page says so.
+fixed name or rule or empty, `server_1`, `server_2`). Not in the recovery app (404); its Time page says so.
 
 **Logs.** Viewable over the web with a filter and a debug mode. No live view: the page shows the
 log as of loading, `Refresh` loads it again.

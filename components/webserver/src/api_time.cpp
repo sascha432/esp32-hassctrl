@@ -1,9 +1,11 @@
 // The clock (docs/ui/web/web-app.md section 4), login required after the setup:
 //
-//   GET  /api/time        {"synced", "now", "local", "zone", "fixed_zone", "hass_zone",
+//   GET  /api/time        {"synced", "now", "local", "zone", "rule", "fixed_zone", "hass_zone",
 //                         "last_sync", "servers", "defaults"}: now and last_sync in Unix time (0:
-//                         never), local as "2026-10-21 14:03:07", zone the one in use
-//   POST /api/time        any of fixed_zone (an IANA name, empty: Home Assistant's), server1,
+//                         never), local as "2026-10-21 14:03:07", zone the one in use, rule its
+//                         POSIX rule
+//   POST /api/time        any of fixed_zone (an IANA name or a POSIX rule, empty: Home
+//                         Assistant's), server1,
 //                         server2 (empty: none, both empty: the defaults); answers like GET, 400
 //                         with the problem and nothing changed
 //   GET  /api/time/zones  the IANA names the firmware knows, sorted: ["Africa/Abidjan", ...]
@@ -33,21 +35,24 @@ esp_err_t send_settings(httpd_req_t *req)
         localtime_r(&now, &tm);
         std::strftime(local, sizeof(local), "%Y-%m-%d %H:%M:%S", &tm);
     }
-    char zone[core::kMaxZoneLength] = {};
-    char fixed[core::kMaxZoneLength] = {};
-    char hass[core::kMaxZoneLength] = {};
+    char zone[platform::kTimeZoneSize] = {};
+    char rule[platform::kTimeZoneSize] = {};
+    char fixed[platform::kTimeZoneSize] = {};
+    char hass[platform::kTimeZoneSize] = {};
     platform::time_zone(zone, sizeof(zone));
+    platform::time_zone_rule(rule, sizeof(rule));
     platform::fixed_time_zone(fixed, sizeof(fixed));
     platform::hass_time_zone(hass, sizeof(hass));
     const platform::TimeServers servers = platform::time_servers();
 
-    char buffer[640];
+    char buffer[768];
     JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .boolean("synced", synced)
         .number("now", static_cast<int64_t>(synced ? now : 0))
         .string("local", local)
         .string("zone", zone)
+        .string("rule", rule)
         .string("fixed_zone", fixed)
         .string("hass_zone", hass)
         .number("last_sync", static_cast<int64_t>(platform::last_time_sync()))
@@ -76,16 +81,18 @@ esp_err_t post_time(httpd_req_t *req)
     if (!require_login(req)) {
         return ESP_OK;
     }
-    char body[320];
+    // URL encoded, a value can take three times its length: a 63-byte rule up to 189 bytes
+    char body[640];
     if (!read_body(req, body, sizeof(body))) {
         return send_error(req, "400 Bad Request", "the request is too large");
     }
     // all checked before anything changes
-    char zone[core::kMaxZoneLength] = {};
+    char zone[platform::kTimeZoneSize] = {};
     const bool has_zone = form_has(body, "fixed_zone");
     if (has_zone && (!form_value(body, "fixed_zone", zone, sizeof(zone)) ||
-                     (zone[0] != 0 && core::time_zone_rule(zone) == nullptr))) {
-        return send_error(req, "400 Bad Request", "fixed_zone: not a time zone this firmware knows");
+                     (zone[0] != 0 && !platform::valid_time_zone(zone)))) {
+        return send_error(req, "400 Bad Request",
+                          "fixed_zone: neither a time zone this firmware knows nor a POSIX rule");
     }
     platform::TimeServers servers = platform::time_servers();
     bool has_servers = false;

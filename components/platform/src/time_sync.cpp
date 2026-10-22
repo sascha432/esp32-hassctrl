@@ -26,20 +26,31 @@ constexpr const char *kKeyFixed = "fixed";
 constexpr const char *kKeyServers[kTimeServers] = {"server1", "server2"};
 // any time before this means the clock was never set (2025-01-01)
 constexpr time_t kValidAfter = 1735689600;
-constexpr size_t kZoneSize = core::kMaxZoneLength;
+constexpr size_t kZoneSize = kTimeZoneSize;
 
 // g_mutex guards the zones, the servers and the start and restart of SNTP
 std::mutex g_mutex;
 char g_hass_zone[kZoneSize] = {};
 char g_fixed_zone[kZoneSize] = {};
-// the zone in use: the fixed one, else Home Assistant's
+// the zone in use: the fixed one, else Home Assistant's; g_rule its POSIX rule
 char g_zone[kZoneSize] = {};
+char g_rule[kZoneSize] = "UTC0";
 // lwIP keeps pointers to the names: they stay here while SNTP runs
 TimeServers g_servers;
 bool g_sntp_ready = false;
 std::atomic<time_t> g_last_sync{0};
 
-// The zone in use after a change of either, with g_mutex held. Every name here is in the table.
+// the rule of a valid zone: the table's for a name, else the zone is a rule itself
+const char *rule_of(const char *zone)
+{
+    if (zone[0] == 0) {
+        return "UTC0";
+    }
+    const char *rule = core::time_zone_rule(zone);
+    return rule != nullptr ? rule : zone;
+}
+
+// The zone in use after a change of either, with g_mutex held. Every zone here is valid.
 void apply_zone()
 {
     const char *name = g_fixed_zone[0] != 0 ? g_fixed_zone : g_hass_zone;
@@ -47,16 +58,18 @@ void apply_zone()
         return;
     }
     std::snprintf(g_zone, sizeof(g_zone), "%s", name);
-    const char *rule = name[0] != 0 ? core::time_zone_rule(name) : "UTC0";
+    const char *rule = rule_of(name);
+    std::snprintf(g_rule, sizeof(g_rule), "%s", rule);
     setenv("TZ", rule, 1);
     tzset();
     ESP_LOGI(kTag, "time zone %s (%s)%s", name[0] != 0 ? name : "UTC", rule, g_fixed_zone[0] != 0 ? ", fixed" : "");
 }
 
-// a name of the table, else empty
-void load_zone(Settings &settings, const char *key, char *out)
+// a name of the table (or with `rules` a POSIX rule as well), else empty
+void load_zone(Settings &settings, const char *key, bool rules, char *out)
 {
-    if (settings.get_string(key, out, kZoneSize) != ESP_OK || core::time_zone_rule(out) == nullptr) {
+    if (settings.get_string(key, out, kZoneSize) != ESP_OK ||
+        !(rules ? valid_time_zone(out) : core::time_zone_rule(out) != nullptr)) {
         out[0] = 0;
     }
 }
@@ -151,8 +164,8 @@ esp_err_t start_time_sync()
     {
         Settings settings(kNamespace, Settings::Mode::Read);
         if (settings.ok()) {
-            load_zone(settings, kKeyZone, g_hass_zone);
-            load_zone(settings, kKeyFixed, g_fixed_zone);
+            load_zone(settings, kKeyZone, false, g_hass_zone);
+            load_zone(settings, kKeyFixed, true, g_fixed_zone);
             for (size_t i = 0; i < kTimeServers; ++i) {
                 if (settings.get_string(kKeyServers[i], g_servers.names[i], kTimeServerSize) != ESP_OK ||
                     !valid_server(g_servers.names[i])) {
@@ -197,19 +210,26 @@ bool set_hass_time_zone(const char *iana_name)
     return true;
 }
 
-bool set_fixed_time_zone(const char *iana_name)
+bool valid_time_zone(const char *zone)
 {
-    if (iana_name[0] != 0 && core::time_zone_rule(iana_name) == nullptr) {
-        ESP_LOGW(kTag, "unknown time zone '%s', the clock stays as it is", iana_name);
+    core::TzRule rule;
+    return strnlen(zone, kZoneSize) < kZoneSize &&
+           (core::time_zone_rule(zone) != nullptr || core::parse_tz_rule(zone, rule));
+}
+
+bool set_fixed_time_zone(const char *zone)
+{
+    if (zone[0] != 0 && !valid_time_zone(zone)) {
+        ESP_LOGW(kTag, "unknown time zone '%s', the clock stays as it is", zone);
         return false;
     }
     std::lock_guard lock(g_mutex);
-    if (std::strcmp(g_fixed_zone, iana_name) == 0) {
+    if (std::strcmp(g_fixed_zone, zone) == 0) {
         return true;
     }
-    std::snprintf(g_fixed_zone, sizeof(g_fixed_zone), "%s", iana_name);
+    std::snprintf(g_fixed_zone, sizeof(g_fixed_zone), "%s", zone);
     apply_zone();
-    if (store(kKeyFixed, iana_name) != ESP_OK) {
+    if (store(kKeyFixed, zone) != ESP_OK) {
         ESP_LOGW(kTag, "the fixed time zone could not be stored");
     }
     return true;
@@ -219,6 +239,12 @@ void time_zone(char *out, size_t size)
 {
     std::lock_guard lock(g_mutex);
     std::snprintf(out, size, "%s", g_zone);
+}
+
+void time_zone_rule(char *out, size_t size)
+{
+    std::lock_guard lock(g_mutex);
+    std::snprintf(out, size, "%s", g_rule);
 }
 
 void fixed_time_zone(char *out, size_t size)

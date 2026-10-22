@@ -45,7 +45,8 @@
 
 # The clock (the web UI's Time page sets it as well).
 #time:
-#  zone: ""                 # an IANA name ("Europe/Berlin") fixes the time zone; "": Home Assistant's
+#  zone: ""                 # an IANA name ("Europe/Berlin") or a POSIX rule ("CET-1CEST,M3.5.0,M10.5.0/3")
+#                           # fixes the time zone; "": Home Assistant's
 #  server_1: ""             # SNTP servers, host names or addresses of up to 63 characters;
 #  server_2: ""             # both "": pool.ntp.org and time.cloudflare.com
 

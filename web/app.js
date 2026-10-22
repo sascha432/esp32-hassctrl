@@ -700,6 +700,7 @@ const views = {
       $("#time-status").innerHTML = card("Clock", facts([
         ["Time", t.synced ? esc(t.local) : '<span class="badge text-bg-warning">not set</span>'],
         ["Time zone", esc(t.zone || "UTC") + (t.fixed_zone ? " (fixed)" : t.zone ? " (Home Assistant's)" : "")],
+        ...(t.rule !== t.zone ? [["Rule", `<code>${esc(t.rule)}</code>`]] : []),
         ["Last answer", t.synced ? ago : "-"],
       ]));
     };
@@ -709,6 +710,8 @@ const views = {
     for (const z of zones) (groups[z.includes("/") ? z.split("/")[0] : "Other"] ||= []).push(z);
     const option = (z) => `<option value="${esc(z)}" ${z === t.fixed_zone ? "selected" : ""}>${esc(z.replace(/_/g, " "))}</option>`;
     const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // a fixed zone that is not a name of the list is a POSIX rule
+    const custom = t.fixed_zone !== "" && !zones.includes(t.fixed_zone);
     $("#time-form").innerHTML = card("Settings", `
       <form id="time" autocomplete="off">
         <label class="form-label" for="time-zone">Time zone</label>
@@ -717,9 +720,16 @@ const views = {
             <option value="" ${t.fixed_zone ? "" : "selected"}>From Home Assistant (${esc(t.hass_zone || "none yet, UTC")})</option>
             ${Object.keys(groups).sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b))
               .map((g) => `<optgroup label="${esc(g)}">${groups[g].map(option).join("")}</optgroup>`).join("")}
+            <option value="custom" ${custom ? "selected" : ""}>Custom rule (POSIX TZ)</option>
           </select>
           ${zones.includes(browserZone) ? `<button id="time-browser" class="btn btn-outline-secondary text-nowrap" type="button"
             title="${esc(browserZone)}">This browser's</button>` : ""}
+        </div>
+        <div id="time-custom" ${custom ? "" : "hidden"}>
+          <input id="time-rule" class="form-control font-monospace mt-2" value="${esc(custom ? t.fixed_zone : t.rule)}"
+            maxlength="63" spellcheck="false" autocapitalize="off" placeholder="CET-1CEST,M3.5.0,M10.5.0/3">
+          <div class="form-text">For a zone or a change the firmware's list does not have yet: the rule as in TZ,
+            such as <code>CET-1CEST,M3.5.0,M10.5.0/3</code> (offsets west of UTC, so CET is -1).</div>
         </div>
         <div class="form-text mb-3">A zone chosen here stays, whatever Home Assistant's is.</div>
         <div class="row g-3">
@@ -731,11 +741,16 @@ const views = {
         <div class="d-flex justify-content-end mt-3"><button class="btn btn-primary" type="submit">Save</button></div>
       </form>`);
     const browser = $("#time-browser");
-    if (browser) browser.onclick = () => { $("#time-zone").value = browserZone; };
+    const showCustom = () => ($("#time-custom").hidden = $("#time-zone").value !== "custom");
+    $("#time-zone").onchange = showCustom;
+    if (browser) browser.onclick = () => { $("#time-zone").value = browserZone; showCustom(); };
     $("#time").onsubmit = (e) => {
       e.preventDefault();
       busy(e.submitter || $("#time button[type=submit]"), async () => {
-        const form = { fixed_zone: $("#time-zone").value };
+        const zone = $("#time-zone").value;
+        const rule = $("#time-rule").value.trim();
+        if (zone === "custom" && !rule) throw new Error("enter a rule, or pick a zone");
+        const form = { fixed_zone: zone === "custom" ? rule : zone };
         t.servers.forEach((_, i) => (form[`server${i + 1}`] = $(`#time-server${i + 1}`).value.trim()));
         t = await api("/api/time", form);
         drawStatus();

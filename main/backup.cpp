@@ -9,7 +9,6 @@
 #include "esp_lvgl_port.h"
 #include "hc/board/board.hpp"
 #include "hc/config/backup.hpp"
-#include "hc/core/timezone.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/hass/hass.hpp"
 #include "hc/motion/motion.hpp"
@@ -507,11 +506,11 @@ constexpr std::string_view kServerKeys[hc::platform::kTimeServers] = {"server_1"
 // and the SNTP servers, empty for none (both empty: the defaults)
 void write_time(backup::Writer &out)
 {
-    char zone[hc::core::kMaxZoneLength] = {};
+    char zone[hc::platform::kTimeZoneSize] = {};
     hc::platform::fixed_time_zone(zone, sizeof(zone));
     const hc::platform::TimeServers servers = hc::platform::time_servers();
     out.section("time");
-    out.comment("an IANA name, \"\": the time zone of Home Assistant");
+    out.comment("an IANA name or a POSIX rule, \"\": the time zone of Home Assistant");
     out.text("zone", zone);
     for (size_t i = 0; i < hc::platform::kTimeServers; ++i) {
         out.text(kServerKeys[i], servers.names[i]);
@@ -521,14 +520,14 @@ void write_time(backup::Writer &out)
 void read_time(const Node &value, bool apply, backup::Report &report)
 {
     const size_t problems = report.problems.size();
-    char current[hc::core::kMaxZoneLength] = {};
+    char current[hc::platform::kTimeZoneSize] = {};
     hc::platform::fixed_time_zone(current, sizeof(current));
     hc::platform::TimeServers servers = hc::platform::time_servers();
     backup::Fields fields(value, "time", report);
     String zone(current);
-    if (fields.text("zone", hc::core::kMaxZoneLength - 1, zone) && !zone.empty() &&
-        hc::core::time_zone_rule(zone.c_str()) == nullptr) {
-        fields.problem("zone", "not a time zone this firmware knows");
+    if (fields.text("zone", hc::platform::kTimeZoneSize - 1, zone) && !zone.empty() &&
+        !hc::platform::valid_time_zone(zone.c_str())) {
+        fields.problem("zone", "neither a time zone this firmware knows nor a POSIX rule");
     }
     for (size_t i = 0; i < hc::platform::kTimeServers; ++i) {
         String name(servers.names[i]);

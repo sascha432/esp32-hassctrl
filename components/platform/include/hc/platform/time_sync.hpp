@@ -24,6 +24,9 @@ constexpr size_t kTimeServerSize = 64;
 // the servers while none is set
 constexpr const char *kDefaultTimeServers[kTimeServers] = {"pool.ntp.org", "time.cloudflare.com"};
 
+// a time zone: an IANA name or a POSIX rule of up to 63 bytes
+constexpr size_t kTimeZoneSize = 64;
+
 // the stored servers, an empty name is none; all empty means the defaults
 struct TimeServers {
     char names[kTimeServers][kTimeServerSize] = {};
@@ -43,12 +46,18 @@ std::time_t last_time_sync();
 // not know the name.
 bool set_hass_time_zone(const char *iana_name);
 
-// Fixes the time zone (written at once); an empty name follows Home Assistant's again. False when
-// the firmware does not know the name.
-bool set_fixed_time_zone(const char *iana_name);
+// true for an IANA name of the firmware's table or a POSIX rule ("CET-1CEST,M3.5.0,M10.5.0/3")
+// that core::parse_tz_rule takes: a rule for a zone the table does not know yet
+bool valid_time_zone(const char *zone);
 
-// the IANA name of the time zone in use, empty while there is none (UTC)
+// Fixes the time zone (written at once): an IANA name or a POSIX rule, used as it is; an empty
+// one follows Home Assistant's again. False when valid_time_zone() is not.
+bool set_fixed_time_zone(const char *zone);
+
+// the time zone in use (an IANA name or a fixed rule), empty while there is none (UTC)
 void time_zone(char *out, size_t size);
+// the POSIX rule in use ("UTC0" while there is no zone)
+void time_zone_rule(char *out, size_t size);
 // the fixed zone, empty when Home Assistant's is followed
 void fixed_time_zone(char *out, size_t size);
 // Home Assistant's zone, empty before it first answered
