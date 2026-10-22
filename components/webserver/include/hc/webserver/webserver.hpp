@@ -182,6 +182,8 @@ struct Config {
     const HassAccess *hass = nullptr;
     const DashboardAccess *dashboard = nullptr;
     const BackupAccess *backup = nullptr;
+    // the Time page's API (/api/time, platform/time_sync.hpp); the recovery app keeps no time
+    bool time = false;
     const CameraAccess *camera = nullptr;
     // registers more routes on the server (an httpd_handle_t), before the files take the rest:
     // the camera's routes (components/camera); up to 2

@@ -64,5 +64,7 @@ void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *das
 void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, const char *device_name);
 // nullptr: no routes
 void register_camera_routes(httpd_handle_t server, const CameraAccess *camera);
+// nothing without the clock (the recovery app)
+void register_time_routes(httpd_handle_t server, bool time);
 
 } // namespace hc::webserver::detail

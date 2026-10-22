@@ -60,11 +60,12 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - First setup from the screen or from a phone over the device's hotspot with a captive portal;
   QR codes to join the hotspot and to open the web UI.
 - Up to 5 saved Wi-Fi networks in a chosen order or by signal, fast reconnect, mDNS
-  (`hassctrl-xxxx.local`), time from SNTP with the time zone of Home Assistant.
+  (`hassctrl-xxxx.local`), time from SNTP (two servers, pool.ntp.org and time.cloudflare.com as
+  built) with the time zone of Home Assistant or a fixed one.
 
 **Web UI**
 
-- Status, Home Assistant (URL, token checked before it is stored, connection test), Wi-Fi, hotspot, camera, the dashboard
+- Status, Home Assistant (URL, token checked before it is stored, connection test), Wi-Fi, hotspot, camera, time (zone and SNTP servers), the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
   a debug mode and a width to drag, system (backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.

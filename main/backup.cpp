@@ -9,10 +9,12 @@
 #include "esp_lvgl_port.h"
 #include "hc/board/board.hpp"
 #include "hc/config/backup.hpp"
+#include "hc/core/timezone.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/hass/hass.hpp"
 #include "hc/motion/motion.hpp"
 #include "hc/network/network.hpp"
+#include "hc/platform/time_sync.hpp"
 #include "hc/ui/ui.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "ui_backend.hpp"
@@ -497,6 +499,57 @@ void read_hass(const Node &value, bool apply, backup::Report &report)
     }
 }
 
+// ------------------------------------------------------------------------------------- time
+
+constexpr std::string_view kServerKeys[hc::platform::kTimeServers] = {"server_1", "server_2"};
+
+// The Time page (docs/ui/web/web-app.md section 4): the fixed time zone (empty: Home Assistant's)
+// and the SNTP servers, empty for none (both empty: the defaults)
+void write_time(backup::Writer &out)
+{
+    char zone[hc::core::kMaxZoneLength] = {};
+    hc::platform::fixed_time_zone(zone, sizeof(zone));
+    const hc::platform::TimeServers servers = hc::platform::time_servers();
+    out.section("time");
+    out.comment("an IANA name, \"\": the time zone of Home Assistant");
+    out.text("zone", zone);
+    for (size_t i = 0; i < hc::platform::kTimeServers; ++i) {
+        out.text(kServerKeys[i], servers.names[i]);
+    }
+}
+
+void read_time(const Node &value, bool apply, backup::Report &report)
+{
+    const size_t problems = report.problems.size();
+    char current[hc::core::kMaxZoneLength] = {};
+    hc::platform::fixed_time_zone(current, sizeof(current));
+    hc::platform::TimeServers servers = hc::platform::time_servers();
+    backup::Fields fields(value, "time", report);
+    String zone(current);
+    if (fields.text("zone", hc::core::kMaxZoneLength - 1, zone) && !zone.empty() &&
+        hc::core::time_zone_rule(zone.c_str()) == nullptr) {
+        fields.problem("zone", "not a time zone this firmware knows");
+    }
+    for (size_t i = 0; i < hc::platform::kTimeServers; ++i) {
+        String name(servers.names[i]);
+        if (fields.text(kServerKeys[i], hc::platform::kTimeServerSize - 1, name)) {
+            std::snprintf(servers.names[i], sizeof(servers.names[i]), "%s", name.c_str());
+        }
+    }
+    fields.finish();
+    char error[96] = {};
+    if (report.problems.size() == problems && !hc::platform::check_time_servers(servers, error, sizeof(error))) {
+        report.problem("time", error);
+    }
+    if (report.problems.size() != problems || !apply) {
+        return;
+    }
+    hc::platform::set_fixed_time_zone(zone.c_str());
+    if (!hc::platform::set_time_servers(servers, error, sizeof(error))) {
+        report.problem("time", error);
+    }
+}
+
 // ------------------------------------------------------------------------------------ webui
 
 // The web UI login (docs/ui/web/web-app.md section 3): import only. The export writes a hint in
@@ -662,7 +715,7 @@ const backup::Section kSections[] = {
     {"network", write_network, read_network}, {"display", write_display, read_display},
     {"sound", write_sound, read_sound},       {"alarm", write_alarm, read_alarm, has_alarm},
     {"camera", write_camera, read_camera, has_camera}, {"hass", write_hass, read_hass},
-    {"webui", write_webui, read_webui},
+    {"time", write_time, read_time},          {"webui", write_webui, read_webui},
 };
 
 const backup::Dashboard kDashboard{write_dashboard, read_dashboard};

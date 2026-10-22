@@ -23,7 +23,7 @@
 # ---------------------------------------------------------------------------------- settings
 # Besides the dashboard (`defaults`, `tiles`), this file may carry the settings sections of the
 # backup file (System page, Backup): `hass`, `network`, `display`, `sound`, `alarm`, `camera`,
-# `webui`.
+# `time`, `webui`.
 # They are checked together with the dashboard, a problem in either refuses the whole import,
 # and applied after it. A section that is not here stays as it is, and so does a field that is
 # not in its section. The tokens and passwords below work in both files; an export never writes
@@ -42,6 +42,12 @@
 #  token: paste-a-long-lived-access-token-here
 #  # only for https with a self-signed certificate: its SHA-256, trusted on the device
 #  certificate: "AB:CD:..."
+
+# The clock (the web UI's Time page sets it as well).
+#time:
+#  zone: ""                 # an IANA name ("Europe/Berlin") fixes the time zone; "": Home Assistant's
+#  server_1: ""             # SNTP servers, host names or addresses of up to 63 characters;
+#  server_2: ""             # both "": pool.ntp.org and time.cloudflare.com
 
 # The web UI login (import only: no export writes it). Replaces the login there is and ends every
 # session, so the browser that imports the file has to sign in again. Without the section the

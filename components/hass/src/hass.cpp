@@ -775,8 +775,8 @@ void send_auth()
     }
 }
 
-// Home Assistant's configuration: its time zone becomes the device's (docs/architecture.md
-// section 9)
+// Home Assistant's configuration: its time zone becomes the device's unless one is fixed on the
+// web UI's Time page (docs/architecture.md section 9)
 void send_get_config()
 {
     s.config_id = s.next_id++;
@@ -792,7 +792,7 @@ void on_config(const cJSON *root)
 {
     const cJSON *result = cJSON_GetObjectItemCaseSensitive(root, "result");
     if (const char *zone = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(result, "time_zone"))) {
-        platform::set_time_zone(zone);
+        platform::set_hass_time_zone(zone);
     }
 }
 

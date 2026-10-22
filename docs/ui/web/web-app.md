@@ -20,6 +20,7 @@ Main pages                after login
                           login) and its addresses
   Dashboard               areas and tiles editor, YAML import (with includes) and export,
                           validation errors
+  Time                    the clock, time zone (Home Assistant's or fixed), two SNTP servers
   Logs                    view and filter, debug mode
   System                  backup (export and import), firmware and file system update,
                           restart, factory reset
@@ -173,6 +174,23 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 +--------------------------------------------+
 ```
 
+**Time.** The card "Clock" (the local time or "not set", the time zone in use with "fixed" or
+"Home Assistant's", how long ago a server last answered; refreshed every second) and the form
+"Settings": the time zone ("From Home Assistant" first, with Home Assistant's zone, the default;
+then the IANA names of the firmware grouped by region; "This browser's" when the browser's zone
+is in the list) and time server 1 and 2 (a host name or an address of up to 63 characters, the
+defaults `pool.ntp.org` and `time.cloudflare.com` as placeholders: both empty uses them, one empty
+is not asked); Save. A fixed zone stays when Home Assistant sends its own; "From Home Assistant"
+takes Home Assistant's again (UTC until it first answered). New servers restart SNTP, which asks
+at once when the Wi-Fi is up; the clock keeps its time until one answers. Written at once and kept
+in NVS (`time/fixed`, `time/server1`, `time/server2`; Home Assistant's zone in `time/zone`).
+Code: `components/platform` (`time_sync.cpp`), `api_time.cpp` (`Config::time`, set by main).
+API: `GET /api/time` (`synced`, `now`, `local`, `zone` in use, `fixed_zone`, `hass_zone`,
+`last_sync`, `servers`, `defaults`), `POST /api/time` (any of `fixed_zone`, empty for Home
+Assistant's, `server1`, `server2`; a zone the firmware does not know or a bad name is a 400 and
+nothing changes), `GET /api/time/zones` (the names, sorted). Backup section `time` (`zone`, the
+fixed one or empty, `server_1`, `server_2`). Not in the recovery app (404); its Time page says so.
+
 **Logs.** Viewable over the web with a filter and a debug mode. No live view: the page shows the
 log as of loading, `Refresh` loads it again.
 
@@ -203,7 +221,7 @@ kept in the browser, a double-click goes back to the default. API: `GET /api/log
 backup card sits above the update card, so the backup is seen before an update.
 
 Backup: one YAML file with the sections `network`, `display`, `sound`, `alarm`,
-`camera`, `hass`, `webui` (import only, section 3) and the dashboard (`defaults`, `tiles`); Export all, Settings only,
+`camera`, `hass`, `time`, `webui` (import only, section 3) and the dashboard (`defaults`, `tiles`); Export all, Settings only,
 Dashboard only (`GET /api/backup.yaml[?parts=settings|dashboard]`). A section of something the
 device does not have (`sound`, `alarm`, `camera`) is not written, and in a file from another
 device it is ignored ("camera (not on this device)"). No password and no token is written; a

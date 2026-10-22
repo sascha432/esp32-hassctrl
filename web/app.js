@@ -91,7 +91,7 @@ const wifiIcon = '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentC
 
 const menuPages = [
   ["status", "Status"], ["ha", "Home Assistant"], ["wifi", "Wi-Fi"], ["hotspot", "Hotspot"],
-  ["camera", "Camera"], ["dashboard", "Dashboard"], ["logs", "Logs"], ["system", "System"],
+  ["camera", "Camera"], ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"], ["system", "System"],
 ];
 
 function frame(loggedIn, step) {
@@ -682,6 +682,67 @@ const views = {
       };
     };
     draw();
+  },
+
+  // the clock: time zone and SNTP servers (docs/ui/web/web-app.md section 4)
+  async time() {
+    render(`<h1>Time</h1><div id="time-status">Loading ...</div><div id="time-form"></div>`);
+    let t, zones;
+    try {
+      [t, zones] = await Promise.all([api("/api/time"), api("/api/time/zones")]);
+    } catch (e) {
+      if (e.status !== 404) throw e;
+      render(`<h1>Time</h1>${card("Time", '<p class="text-body-secondary mb-0">Not in the recovery app. Start the firmware (System).</p>')}`);
+      return;
+    }
+    const drawStatus = () => {
+      const ago = t.last_sync ? duration(Math.max(0, t.now - t.last_sync)) + " ago" : "not yet";
+      $("#time-status").innerHTML = card("Clock", facts([
+        ["Time", t.synced ? esc(t.local) : '<span class="badge text-bg-warning">not set</span>'],
+        ["Time zone", esc(t.zone || "UTC") + (t.fixed_zone ? " (fixed)" : t.zone ? " (Home Assistant's)" : "")],
+        ["Last answer", t.synced ? ago : "-"],
+      ]));
+    };
+    drawStatus();
+    // the zones grouped by their region ("Europe/Berlin": Europe), names without one last
+    const groups = {};
+    for (const z of zones) (groups[z.includes("/") ? z.split("/")[0] : "Other"] ||= []).push(z);
+    const option = (z) => `<option value="${esc(z)}" ${z === t.fixed_zone ? "selected" : ""}>${esc(z.replace(/_/g, " "))}</option>`;
+    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    $("#time-form").innerHTML = card("Settings", `
+      <form id="time" autocomplete="off">
+        <label class="form-label" for="time-zone">Time zone</label>
+        <div class="d-flex gap-2 mb-1">
+          <select id="time-zone" class="form-select">
+            <option value="" ${t.fixed_zone ? "" : "selected"}>From Home Assistant (${esc(t.hass_zone || "none yet, UTC")})</option>
+            ${Object.keys(groups).sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b))
+              .map((g) => `<optgroup label="${esc(g)}">${groups[g].map(option).join("")}</optgroup>`).join("")}
+          </select>
+          ${zones.includes(browserZone) ? `<button id="time-browser" class="btn btn-outline-secondary text-nowrap" type="button"
+            title="${esc(browserZone)}">This browser's</button>` : ""}
+        </div>
+        <div class="form-text mb-3">A zone chosen here stays, whatever Home Assistant's is.</div>
+        <div class="row g-3">
+          ${t.servers.map((s, i) => `<div class="col-sm-6"><label class="form-label" for="time-server${i + 1}">Time server ${i + 1}</label>
+            <input id="time-server${i + 1}" class="form-control" value="${esc(s)}" placeholder="${esc(t.defaults[i] || "")}"
+              maxlength="63" spellcheck="false" autocapitalize="off"></div>`).join("")}
+        </div>
+        <div class="form-text">Host names or addresses of NTP servers, such as the router. Both empty: ${t.defaults.map(esc).join(" and ")}.</div>
+        <div class="d-flex justify-content-end mt-3"><button class="btn btn-primary" type="submit">Save</button></div>
+      </form>`);
+    const browser = $("#time-browser");
+    if (browser) browser.onclick = () => { $("#time-zone").value = browserZone; };
+    $("#time").onsubmit = (e) => {
+      e.preventDefault();
+      busy(e.submitter || $("#time button[type=submit]"), async () => {
+        const form = { fixed_zone: $("#time-zone").value };
+        t.servers.forEach((_, i) => (form[`server${i + 1}`] = $(`#time-server${i + 1}`).value.trim()));
+        t = await api("/api/time", form);
+        drawStatus();
+        toast("saved", "success");
+      });
+    };
+    refresh(async () => { t = await api("/api/time"); drawStatus(); }, 1000);
   },
 
   async ha() {

@@ -2,6 +2,8 @@
 
 ## 2026-10-21
 
+- Web UI page "Time" (from pixeled): two SNTP servers (a change restarts SNTP) and the time zone, Home
+  Assistant's or a fixed one; `/api/time`, backup section `time`.
 - Alarm: up to 5 alarms, each with its own snooze, sound and Vibrate switch (Settings, Alarm is a
   list now; backup `alarm: alarms: [...]`). The old single alarm becomes the first one.
 - Console screenshots: rounded corners on `lv_layer_top` (the alarm's buttons) came out a shade darker

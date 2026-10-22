@@ -617,6 +617,7 @@ extern "C" void app_main()
                                   .hass = &kHassAccess,
                                   .dashboard = &kDashboardAccess,
                                   .backup = &backup_access(),
+                                  .time = true,
 #if CONFIG_HC_BOARD_HAS_CAMERA
                                   .camera = hc::camera::available() ? &kCameraAccess : nullptr,
                                   .add_routes = hc::camera::register_routes,

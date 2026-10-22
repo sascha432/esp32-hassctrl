@@ -343,7 +343,7 @@ YAML import and export:
   variables.
 * The parser accepts any consistent indentation and any key order.
 * The main file may carry the settings sections of the backup file (`hass`, `network`,
-  `display`, `sound`, `alarm`, `camera`, `webui`), with the tokens and passwords added by hand
+  `display`, `sound`, `alarm`, `camera`, `time`, `webui`), with the tokens and passwords added by hand
   (`hass:` `token:`, a network's `password:`, `camera:` `stream_password:`, `webui:` `user:` and
   `password:`, the web UI login, which no export writes). The dashboard import does not
   read them itself: `main` hands the main file to the backup's readers
@@ -769,9 +769,9 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   | Kind of value | Written | Examples |
   | --- | --- | --- |
   | changed by a live control or by using the device, in bursts | `platform::set_blob_later`: 10 s after the last change, at most 60 s after the first, and at a restart | `ui/display`, `ui/sounds`, `ui/vibrate`, `camera/picture`, `camview/*` |
-  | saved by an explicit action (OK, Save, Apply), or a secret | at once, with commit; a failure is reported | Wi-Fi networks, policy and hotspot, web UI login, Home Assistant address, token and certificate, camera stream login |
+  | saved by an explicit action (OK, Save, Apply), or a secret | at once, with commit; a failure is reported | Wi-Fi networks, policy and hotspot, web UI login, Home Assistant address, token and certificate, camera stream login, fixed time zone and SNTP servers (`time/fixed`, `time/server1`, `time/server2`) |
   | has to survive a power loss right after it was set | at once | `ui/alarms` |
-  | device state that changes rarely | at once, when it changed | `network/last_seen` (another access point or channel), `time/zone`, `ui/hint` (once) |
+  | device state that changes rarely | at once, when it changed | `network/last_seen` (another access point or channel), `time/zone` (Home Assistant's), `ui/hint` (once) |
   | developer and calibration | at once | `console/*`, `logbuf/debug`, `light/*` |
 
   Nothing writes per frame or per touch: a value that can change more often than about once a
@@ -821,9 +821,9 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 
 | Component | Responsibility |
 | --- | --- |
-| `platform` | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP and the time zone (`time_sync.cpp`; the zone's name from Home Assistant, its POSIX rule from the zone table of `core`) |
+| `platform` | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP with two servers (the web UI's Time page, else pool.ntp.org and time.cloudflare.com; a change restarts SNTP) and the time zone (`time_sync.cpp`; the zone's name from Home Assistant unless one is fixed on the Time page, its POSIX rule from the zone table of `core`) |
 | `network` | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. Files: `network.cpp` (the state, the task, start), `station.cpp` (scan, connect, retry, roam), `commands.cpp` (the saved networks), `api.cpp` (the calls of other tasks), shared through `task.hpp`. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
-| `webserver` | captive portal DNS and redirect, the status API and the built-in page, the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component |
+| `webserver` | captive portal DNS and redirect, the status API and the built-in page, the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the time zone and SNTP servers (`api_time.cpp`, main firmware only: `Config::time`), the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component |
 | `ui` | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, sound, camera, alarm, system), the pull-down zone and the alert strip on `lv_layer_top`, the dashboard with its tiles, panels and edit mode. Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
 | `light_sensor` | ambient light for the automatic brightness of `ui`, optional per device: a BH1750 on the board's I2C bus (looked for at 0x23 and 0x5C), averaged over a second, or an LDR on an ADC pin (`ldr.hpp`, the WT32-SC01's variant) |
 | `hass` | the Home Assistant connection of section 6: URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. The stored URL, token and certificate, their checks and the token test are in `config.cpp` (runs in the caller's task); the session stays in one file, `hass.cpp`, because pages, history, forecast and queries share its state and task. URL parsing (`url.cpp`) is plain C++ for host tests |
@@ -998,7 +998,7 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   (from off or dimmed to the user's brightness, and the first touch is not swallowed; `power::wake()`
   again on every check while it rings, so the screen neither dims nor turns off), shows the alarm screen over everything and plays the sound in a loop at full volume until Stop
   or Snooze, at most 10 minutes. It needs the clock (SNTP); the time zone comes from Home
-  Assistant. Two alarms in the same minute ring once, as the first of the list (every one of
+  Assistant or is fixed on the web UI's Time page. Two alarms in the same minute ring once, as the first of the list (every one of
   them without days turns off). One snooze at a time: it rings the snoozed alarm again, and the
   next alarm that rings ends it. A snooze lives in RAM only: a restart while snoozed forgets it.
 

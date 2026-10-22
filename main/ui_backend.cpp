@@ -269,7 +269,7 @@ void device_info(hc::ui::DeviceInfo &out)
     out.heap_psram_kb = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);
 }
 
-// local time is UTC until the time zone comes from Home Assistant
+// local time is UTC until the time zone comes from Home Assistant or is fixed on the Time page
 bool time_text(char *out, size_t size)
 {
     if (!hc::platform::time_synced()) {
