@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "esp_heap_caps.h"
@@ -73,6 +74,8 @@ bool Mp3Source::open(const char *path)
         ESP_LOGW(kTag, "%s: cannot open", path);
         return false;
     }
+    struct stat info {};
+    file_size_ = fstat(file_, &info) == 0 ? static_cast<uint32_t>(info.st_size) : 0;
     in_ = static_cast<uint8_t *>(allocate(kInSize));
     if (in_ == nullptr || !open_decoder()) {
         ESP_LOGW(kTag, "%s: no memory for the decoder", path);
@@ -122,6 +125,7 @@ void Mp3Source::close()
     in_start_ = in_end_ = 0;
     end_of_file_ = false;
     pcm_count_ = pcm_position_ = 0;
+    bitrate_ = file_size_ = 0;
 }
 
 bool Mp3Source::restart()
@@ -200,6 +204,11 @@ bool Mp3Source::decode()
             return false;
         }
         sample_rate_ = info.sample_rate;
+        if (bitrate_ == 0) {
+            // the MP3 decoder says kbit/s (256 for 256 kbit/s, 2026-10-23), against its header's
+            // "bits per second"; an MP3's bitrates are 8 to 320 kbit/s
+            bitrate_ = info.bitrate < 1000 ? info.bitrate * 1000 : info.bitrate;
+        }
         // mono: the channels of a sample averaged, in place
         auto *pcm = reinterpret_cast<int16_t *>(frame_);
         const size_t frames = out.decoded_size / sizeof(int16_t) / info.channel;
@@ -214,6 +223,27 @@ bool Mp3Source::decode()
         pcm_position_ = 0;
         return true;
     }
+}
+
+uint32_t Mp3Source::duration_ms() const
+{
+    return bitrate_ > 0 ? static_cast<uint32_t>(uint64_t{file_size_} * 8000 / bitrate_) : 0;
+}
+
+bool Mp3Source::seek(uint32_t ms)
+{
+    if (decoder_ == nullptr || file_ < 0 || bitrate_ == 0) {
+        return false;
+    }
+    const uint64_t offset = std::min<uint64_t>(uint64_t{ms} * bitrate_ / 8000, file_size_);
+    if (::lseek(file_, static_cast<off_t>(offset), SEEK_SET) < 0) {
+        return false;
+    }
+    esp_audio_simple_dec_reset(decoder_);
+    in_start_ = in_end_ = 0;
+    end_of_file_ = false;
+    pcm_count_ = pcm_position_ = 0;
+    return true;
 }
 
 size_t Mp3Source::read(int16_t *out, size_t max)

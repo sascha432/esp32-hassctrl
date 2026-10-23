@@ -764,6 +764,256 @@ void set_hint_seen()
     g.hint_seen = true;
 }
 
+#if CONFIG_HC_SDCARD
+// --------------------------------------------------------------------- the SD card's files
+
+using hc::ui::FileResult;
+
+// a file or folder of the card, by its path relative to it
+struct FakeFile {
+    std::string path;
+    uint64_t size;
+    bool dir;
+};
+
+std::vector<FakeFile> g_files = {
+    {"music", 0, true},
+    {"music/Morning.mp3", 4'318'204, false},
+    {"music/Rain on the roof.wav", 21'168'044, false},
+    {"recordings", 0, true},
+    {"recordings/rec-2026-10-23-0812.wav", 160'044, false},
+    {"recordings/rec-2026-10-23-0915.wav", 98'124, false},
+    {"sounds", 0, true},
+    {"sounds/alarms", 0, true},
+    {"sounds/alarms/Carbon.mp3", 182'420, false},
+    {"dashboard-backup.json", 6'412, false},
+    {"notes.txt", 312, false},
+};
+
+std::string parent_of(const std::string &path)
+{
+    const size_t slash = path.rfind('/');
+    return slash == std::string::npos ? std::string() : path.substr(0, slash);
+}
+
+FakeFile *find_file(const std::string &path)
+{
+    for (auto &f : g_files) {
+        if (f.path == path) {
+            return &f;
+        }
+    }
+    return nullptr;
+}
+
+// the card's root, or a folder that exists
+bool folder_exists(const std::string &path)
+{
+    const FakeFile *f = find_file(path);
+    return path.empty() || (f != nullptr && f->dir);
+}
+
+bool good_name(const std::string &path)
+{
+    return !path.empty() && path.find("..") == std::string::npos && path.find('\\') == std::string::npos &&
+           path.find("//") == std::string::npos && path.back() != '/';
+}
+
+std::string trimmed(const char *path)
+{
+    while (*path == '/') {
+        path++;
+    }
+    return path;
+}
+
+FileResult sd_list(const char *dir, hc::ui::FileEntry *out, size_t max, size_t &count)
+{
+    const std::string folder = trimmed(dir);
+    count = 0;
+    if (!folder_exists(folder)) {
+        return FileResult::NotFound;
+    }
+    for (const auto &f : g_files) {
+        if (parent_of(f.path) != folder) {
+            continue;
+        }
+        if (count < max) {
+            hc::ui::FileEntry &e = out[count];
+            std::snprintf(e.name, sizeof(e.name), "%s", f.path.substr(folder.empty() ? 0 : folder.size() + 1).c_str());
+            e.size = f.size;
+            e.dir = f.dir;
+        }
+        count++;
+    }
+    return FileResult::Ok;
+}
+
+FileResult sd_delete(const char *path)
+{
+    const std::string name = trimmed(path);
+    const FakeFile *f = find_file(name);
+    if (f == nullptr) {
+        return FileResult::NotFound;
+    }
+    for (const auto &other : g_files) {
+        if (parent_of(other.path) == name) {
+            return FileResult::NotEmpty;
+        }
+    }
+    g_files.erase(g_files.begin() + (f - g_files.data()));
+    print("sd delete", name.c_str());
+    return FileResult::Ok;
+}
+
+FileResult sd_mkdir(const char *path)
+{
+    const std::string name = trimmed(path);
+    if (!good_name(name)) {
+        return FileResult::BadName;
+    }
+    if (find_file(name) != nullptr) {
+        return FileResult::Exists;
+    }
+    if (!folder_exists(parent_of(name))) {
+        return FileResult::NotFound;
+    }
+    g_files.push_back({name, 0, true});
+    print("sd mkdir", name.c_str());
+    return FileResult::Ok;
+}
+
+// as hc::sdcard::rename: never over a name, a folder not into itself
+FileResult sd_rename(const char *from, const char *to)
+{
+    const std::string source = trimmed(from);
+    const std::string target = trimmed(to);
+    if (!good_name(target)) {
+        return FileResult::BadName;
+    }
+    if (find_file(source) == nullptr) {
+        return FileResult::NotFound;
+    }
+    if (source == target) {
+        return FileResult::Ok;
+    }
+    if (target.compare(0, source.size() + 1, source + "/") == 0) {
+        return FileResult::BadName;
+    }
+    if (find_file(target) != nullptr) {
+        return FileResult::Exists;
+    }
+    if (!folder_exists(parent_of(target))) {
+        return FileResult::NotFound;
+    }
+    for (auto &f : g_files) {
+        if (f.path == source) {
+            f.path = target;
+        } else if (f.path.compare(0, source.size() + 1, source + "/") == 0) {
+            f.path = target + f.path.substr(source.size());
+        }
+    }
+    print("sd rename", (source + " -> " + target).c_str());
+    return FileResult::Ok;
+}
+#endif
+
+#if CONFIG_HC_UI_PLAYER
+// ------------------------------------------------------------------------------ the player
+
+using hc::ui::PlayerState;
+
+struct FakePlayer {
+    PlayerState state = PlayerState::Idle;
+    // the position at `since`, the tick it plays from
+    uint32_t position_ms = 0;
+    uint32_t since = 0;
+    uint32_t duration_ms = 0;
+};
+FakePlayer g_player;
+
+void player_update()
+{
+    if (g_player.state != PlayerState::Playing) {
+        return;
+    }
+    const uint32_t now_ms = lv_tick_get();
+    g_player.position_ms += now_ms - g_player.since;
+    g_player.since = now_ms;
+    if (g_player.position_ms >= g_player.duration_ms) {
+        g_player = FakePlayer{};
+    }
+}
+
+bool player_open(const char *path)
+{
+    if (g.sound.volume == 0) {
+        return false;
+    }
+    const FakeFile *f = find_file(trimmed(path));
+    if (f == nullptr) {
+        g_player = FakePlayer{};
+        g_player.state = PlayerState::Failed;
+        return true;
+    }
+    // about 128 kbit/s for an MP3, 16 bit mono 16 kHz for a WAV
+    const bool wav = f->path.size() > 4 && f->path.compare(f->path.size() - 4, 4, ".wav") == 0;
+    g_player.duration_ms = static_cast<uint32_t>(wav ? f->size * 1000 / 32000 : f->size * 8 / 128);
+    g_player.position_ms = 0;
+    g_player.since = lv_tick_get();
+    g_player.state = PlayerState::Playing;
+    print("player plays", path);
+    return true;
+}
+
+void player_pause(bool pause)
+{
+    player_update();
+    if (g_player.state == PlayerState::Playing && pause) {
+        g_player.state = PlayerState::Paused;
+    } else if (g_player.state == PlayerState::Paused && !pause) {
+        g_player.state = PlayerState::Playing;
+        g_player.since = lv_tick_get();
+    }
+}
+
+void player_seek(uint32_t ms)
+{
+    player_update();
+    g_player.position_ms = std::min(ms, g_player.duration_ms);
+    g_player.since = lv_tick_get();
+}
+
+void player_info(hc::ui::PlayerInfo &out)
+{
+    player_update();
+    out = {g_player.state, g_player.position_ms, g_player.duration_ms};
+}
+
+// a rough music shape: more in the bass, a beat, the bands wobbling
+bool player_spectrum(float *bands, size_t count)
+{
+    if (g_player.state != PlayerState::Playing) {
+        return false;
+    }
+    const float t = static_cast<float>(lv_tick_get()) / 1000.0f;
+    const float beat = std::pow(std::max(0.0f, std::sin(t * 2.0f * 3.14159f * 2.0f)), 8.0f);
+    for (size_t i = 0; i < count; i++) {
+        const float x = static_cast<float>(i) / static_cast<float>(count);
+        const float shape = 0.85f - 0.55f * x;
+        const float wobble = 0.15f * std::sin(t * (3.0f + 1.7f * static_cast<float>(i)) + static_cast<float>(i));
+        bands[i] = std::clamp(shape + wobble + (x < 0.25f ? 0.2f * beat : 0.0f) - 0.1f, 0.0f, 1.0f);
+    }
+    return true;
+}
+
+bool player_supports(const char *name)
+{
+    const size_t length = std::strlen(name);
+    return length > 4 && (std::strcmp(name + length - 4, ".mp3") == 0 || std::strcmp(name + length - 4, ".wav") == 0);
+}
+#endif
+
 bool camera_view(const char *key, hc::ui::CameraView &out)
 {
     for (const auto &[k, view] : g_camera_views) {
@@ -845,6 +1095,27 @@ const hc::ui::Backend kBackend{
     .stop_stream = stop_stream,
     .camera_view = camera_view,
     .set_camera_view = set_camera_view,
+#if CONFIG_HC_SDCARD
+    .sd_list = sd_list,
+    .sd_delete = sd_delete,
+    .sd_mkdir = sd_mkdir,
+    .sd_rename = sd_rename,
+#endif
+#if CONFIG_HC_UI_PLAYER
+    .player_open = player_open,
+    .player_pause = player_pause,
+    .player_seek = player_seek,
+    .player_stop =
+        [] {
+            if (g_player.state != PlayerState::Idle) {
+                print("player stops");
+            }
+            g_player = FakePlayer{};
+        },
+    .player_info = player_info,
+    .player_spectrum = player_spectrum,
+    .player_supports = player_supports,
+#endif
     .device_info = device_info,
     .time_text = time_text,
     .clock = clock_now,

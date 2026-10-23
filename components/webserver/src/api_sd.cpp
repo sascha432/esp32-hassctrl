@@ -7,13 +7,14 @@
 //   POST /api/sd/file?path=      the body is the file (not multipart); <path>.part, then renamed
 //   POST /api/sd/delete          path: a file or an empty directory
 //   POST /api/sd/mkdir           path
+//   POST /api/sd/rename          from, to: renames or moves a file or a folder
 //   POST /api/sd/fetch           url, path: downloads in the background (202), progress in /api/sd
 //   POST /api/sd/mount           action=mount|unmount
 //   POST /api/sd/format          confirm=yes and password (the login's, again): erases the card
 //
-// Paths are relative to the card and go through sdcard::make_path (no "..").
+// Paths are relative to the card and go through sdcard::make_path (no ".."); list, delete, mkdir
+// and rename are sdcard's (the screen's file manager uses them too).
 
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -120,6 +121,35 @@ esp_err_t get_sd(httpd_req_t *req)
     return send_json(req, json);
 }
 
+// the HTTP answer to what sdcard's file functions said
+esp_err_t send_result(httpd_req_t *req, sdcard::Result result, const char *key)
+{
+    switch (result) {
+    case sdcard::Result::Ok:
+        return send_done(req, key);
+    case sdcard::Result::NoCard:
+        return send_error(req, "409 Conflict", "no SD card mounted");
+    case sdcard::Result::BadPath:
+        return send_error(req, "400 Bad Request", "not a path on the card");
+    case sdcard::Result::NotFound:
+        return send_error(req, "404 Not Found", "no such file or folder");
+    case sdcard::Result::Exists:
+        return send_error(req, "409 Conflict", "it exists already");
+    case sdcard::Result::NotEmpty:
+        return send_error(req, "409 Conflict", "the directory is not empty");
+    case sdcard::Result::Failed:
+        break;
+    }
+    return send_error(req, "500 Internal Server Error", "the card did not do it");
+}
+
+// the response and its state while get_list sends the entries
+struct ListSend {
+    httpd_req_t *req;
+    esp_err_t err;
+    bool first;
+};
+
 // The entries one by one in chunks: a directory can be long, nothing larger than one entry is held.
 esp_err_t get_list(httpd_req_t *req)
 {
@@ -137,38 +167,35 @@ esp_err_t get_list(httpd_req_t *req)
     if (dir == nullptr) {
         return send_error(req, "404 Not Found", "no such directory");
     }
+    closedir(dir);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    esp_err_t err = httpd_resp_send_chunk(req, "{\"entries\":[", HTTPD_RESP_USE_STRLEN);
-    char entry_path[sdcard::kMaxPath + 256];
-    char buffer[384];
-    bool first = true;
-    while (err == ESP_OK) {
-        const dirent *entry = readdir(dir);
-        if (entry == nullptr) {
-            break;
-        }
-        std::snprintf(entry_path, sizeof(entry_path), "%s/%s", path, entry->d_name);
-        struct stat info {};
-        stat(entry_path, &info);
-        const bool is_dir = S_ISDIR(info.st_mode);
-        buffer[0] = ',';
-        JsonWriter json(buffer + 1, sizeof(buffer) - 1);
-        json.begin_object()
-            .string("name", entry->d_name)
-            .number("size", is_dir ? 0 : static_cast<int64_t>(info.st_size))
-            .boolean("dir", is_dir)
-            .end_object();
-        if (json.ok()) {
-            err = httpd_resp_send_chunk(req, first ? buffer + 1 : buffer, HTTPD_RESP_USE_STRLEN);
-            first = false;
-        }
+    ListSend send{req, httpd_resp_send_chunk(req, "{\"entries\":[", HTTPD_RESP_USE_STRLEN), true};
+    if (send.err == ESP_OK) {
+        sdcard::list(
+            relative,
+            [](const sdcard::Entry &entry, void *context) {
+                auto &s = *static_cast<ListSend *>(context);
+                char buffer[384];
+                buffer[0] = ',';
+                JsonWriter json(buffer + 1, sizeof(buffer) - 1);
+                json.begin_object()
+                    .string("name", entry.name)
+                    .number("size", static_cast<int64_t>(entry.size))
+                    .boolean("dir", entry.dir)
+                    .end_object();
+                if (json.ok()) {
+                    s.err = httpd_resp_send_chunk(s.req, s.first ? buffer + 1 : buffer, HTTPD_RESP_USE_STRLEN);
+                    s.first = false;
+                }
+                return s.err == ESP_OK;
+            },
+            &send);
     }
-    closedir(dir);
-    if (err == ESP_OK) {
-        err = httpd_resp_send_chunk(req, "]}", HTTPD_RESP_USE_STRLEN);
+    if (send.err == ESP_OK) {
+        send.err = httpd_resp_send_chunk(req, "]}", HTTPD_RESP_USE_STRLEN);
     }
-    if (err == ESP_OK) {
+    if (send.err == ESP_OK) {
         httpd_resp_send_chunk(req, nullptr, 0);
     }
     return ESP_OK;
@@ -280,42 +307,50 @@ esp_err_t post_file(httpd_req_t *req)
     return send_json(req, json);
 }
 
+// the form value `key` of the body, relative to the card
+bool body_text(const char *body, const char *key, char *out)
+{
+    return form_value(body, key, out, sdcard::kMaxPath);
+}
+
 esp_err_t post_delete(httpd_req_t *req)
 {
-    if (!require_login(req) || !mounted(req)) {
+    if (!require_login(req)) {
         return ESP_OK;
     }
     char body[kQuerySize];
     char path[sdcard::kMaxPath];
-    if (!read_body(req, body, sizeof(body)) || !request_path(req, body, "path", path) ||
-        std::strcmp(path, sdcard::kMountPoint) == 0) {
-        return send_error(req, "400 Bad Request", "not a path on the card");
+    if (!read_body(req, body, sizeof(body)) || !body_text(body, "path", path)) {
+        return send_error(req, "400 Bad Request", "path required");
     }
-    struct stat info {};
-    if (stat(path, &info) != 0) {
-        return send_error(req, "404 Not Found", "no such file");
-    }
-    if (S_ISDIR(info.st_mode) ? rmdir(path) != 0 : unlink(path) != 0) {
-        return send_error(req, "409 Conflict", S_ISDIR(info.st_mode) ? "the directory is not empty" : "cannot delete");
-    }
-    return send_done(req, "deleted");
+    return send_result(req, sdcard::remove(path), "deleted");
 }
 
 esp_err_t post_mkdir(httpd_req_t *req)
 {
-    if (!require_login(req) || !mounted(req)) {
+    if (!require_login(req)) {
         return ESP_OK;
     }
     char body[kQuerySize];
     char path[sdcard::kMaxPath];
-    if (!read_body(req, body, sizeof(body)) || !request_path(req, body, "path", path) ||
-        std::strcmp(path, sdcard::kMountPoint) == 0) {
-        return send_error(req, "400 Bad Request", "not a path on the card");
+    if (!read_body(req, body, sizeof(body)) || !body_text(body, "path", path)) {
+        return send_error(req, "400 Bad Request", "path required");
     }
-    if (mkdir(path, 0755) != 0) {
-        return send_error(req, "409 Conflict", errno == EEXIST ? "it exists already" : "cannot create it");
+    return send_result(req, sdcard::make_dir(path), "created");
+}
+
+esp_err_t post_rename(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
     }
-    return send_done(req, "created");
+    char body[2 * kQuerySize];
+    char from[sdcard::kMaxPath];
+    char to[sdcard::kMaxPath];
+    if (!read_body(req, body, sizeof(body)) || !body_text(body, "from", from) || !body_text(body, "to", to)) {
+        return send_error(req, "400 Bad Request", "from and to required");
+    }
+    return send_result(req, sdcard::rename(from, to), "renamed");
 }
 
 esp_err_t post_fetch(httpd_req_t *req)
@@ -431,6 +466,7 @@ void register_sd_routes(httpd_handle_t server)
         {.uri = "/api/sd/file", .method = HTTP_POST, .handler = post_file, .user_ctx = nullptr},
         {.uri = "/api/sd/delete", .method = HTTP_POST, .handler = post_delete, .user_ctx = nullptr},
         {.uri = "/api/sd/mkdir", .method = HTTP_POST, .handler = post_mkdir, .user_ctx = nullptr},
+        {.uri = "/api/sd/rename", .method = HTTP_POST, .handler = post_rename, .user_ctx = nullptr},
         {.uri = "/api/sd/fetch", .method = HTTP_POST, .handler = post_fetch, .user_ctx = nullptr},
         {.uri = "/api/sd/mount", .method = HTTP_POST, .handler = post_mount, .user_ctx = nullptr},
         {.uri = "/api/sd/format", .method = HTTP_POST, .handler = post_format, .user_ctx = nullptr},

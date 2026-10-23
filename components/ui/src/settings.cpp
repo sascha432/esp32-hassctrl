@@ -42,6 +42,8 @@ struct State {
     Entry stack[kMaxDepth];
     int depth = 0;
     bool form_dirty = false;
+    // the page plays something (the player): no timeout
+    bool keep_open = false;
 };
 
 State g;
@@ -67,7 +69,7 @@ void update_bar()
 
 void on_tick(lv_timer_t *)
 {
-    if (!g.form_dirty && lv_disp_get_inactive_time(g.disp) > kTimeoutMs) {
+    if (!g.form_dirty && !g.keep_open && lv_disp_get_inactive_time(g.disp) > kTimeoutMs) {
         close();
         return;
     }
@@ -98,6 +100,7 @@ void show_top()
     lv_obj_clean(g.content);
     lv_obj_scroll_to_y(g.content, 0, LV_ANIM_OFF);
     g.form_dirty = false;
+    g.keep_open = false;
     const pages::Built built = pages::build(top.page, g.content, top.text, top.index);
     g.refresh = built.refresh;
     t::line_text(g.title, built.title);
@@ -353,6 +356,11 @@ void reload()
 void set_form_dirty(bool dirty)
 {
     g.form_dirty = dirty;
+}
+
+void keep_open(bool on)
+{
+    g.keep_open = on;
 }
 
 const Backend &backend()

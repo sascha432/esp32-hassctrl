@@ -28,6 +28,11 @@ enum class Page : uint8_t {
     Alarm,
     AlarmDetail,
     System,
+    // the file manager (CONFIG_HC_SDCARD): a folder, a file or folder, a new name, the player
+    Files,
+    FileDetail,
+    FileName,
+    Player,
 };
 
 void init(lv_disp_t *disp, const Backend &backend, lv_obj_t *dashboard);
@@ -52,6 +57,8 @@ void reload();
 
 // a form with unsaved input stops the timeout
 void set_form_dirty(bool dirty);
+// so does a page that plays something (the player); the next page starts without it
+void keep_open(bool on);
 
 const Backend &backend();
 

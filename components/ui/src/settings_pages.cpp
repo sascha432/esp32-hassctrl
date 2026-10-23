@@ -1,5 +1,6 @@
 // The pages of Settings (docs/ui/lvgl/lvgl-settings.md section 3): quick settings, Home Assistant,
-// System and what the page files share. Only one page exists at a time, so each page keeps the
+// System and what the page files share. The file manager is in settings_files.cpp, its player in
+// settings_player.cpp. Only one page exists at a time, so each page keeps the
 // objects its refresh needs in file-local pointers, set by its builder. Wi-Fi and Hotspot are in
 // settings_wifi.cpp, Display in settings_display.cpp.
 
@@ -251,7 +252,8 @@ Built system(lv_obj_t *content)
     g_system_uptime = t::row(col, "Uptime", "", false, nullptr);
     g_system_memory = t::row(col, "Free memory", "", false, nullptr);
 #if CONFIG_HC_SDCARD
-    g_system_sd = t::row(col, "SD card", "", false, nullptr);
+    // the file manager
+    g_system_sd = t::row(col, "SD card", "", true, [](lv_event_t *) { push(Page::Files); });
 #endif
     system_refresh();
 
@@ -449,6 +451,25 @@ Built build(Page page, lv_obj_t *content, const char *text, int index)
         return alarm_detail_page(content, index);
     case Page::System:
         return system(content);
+#if CONFIG_HC_SDCARD
+    case Page::Files:
+        return files_page(content);
+    case Page::FileDetail:
+        return file_detail_page(content);
+    case Page::FileName:
+        return file_name_page(content, index);
+#else
+    case Page::Files:
+    case Page::FileDetail:
+    case Page::FileName:
+        break;
+#endif
+    case Page::Player:
+#if CONFIG_HC_UI_PLAYER
+        return player_page(content);
+#else
+        break;
+#endif
     }
     return {"Settings", nullptr};
 }

@@ -25,6 +25,11 @@ public:
         return sample_rate_;
     }
     bool restart() override;
+    // from the file's size and the first frame's bitrate: exact for a constant bitrate, about
+    // right for a variable one
+    uint32_t duration_ms() const override;
+    // to the byte the bitrate gives; the decoder finds the next frame from there
+    bool seek(uint32_t ms) override;
 
 private:
     // decodes the next frame into pcm_; false at the end or after an error
@@ -47,6 +52,9 @@ private:
     size_t pcm_count_ = 0;
     size_t pcm_position_ = 0;
     uint32_t sample_rate_ = kSampleRate;
+    // bits per second of the first frame, 0 before it; the file's size (0 for a buffer)
+    uint32_t bitrate_ = 0;
+    uint32_t file_size_ = 0;
 };
 
 } // namespace hc::audio::detail

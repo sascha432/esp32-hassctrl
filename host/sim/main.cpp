@@ -27,6 +27,7 @@
 #include "png.hpp"
 #include "rotation.hpp"
 #include "settings.hpp"
+#include "settings_pages.hpp"
 #include "win32drv/win32drv.h"
 
 namespace {
@@ -181,6 +182,32 @@ const Page kPages[] = {
      }},
     {"ringing", "the alarm screen (the alarm rings now)", [] { ui::ring_alarm(); }},
     {"system", "Settings, System", [] { ui::settings::open(ui::settings::Page::System); }},
+    {"files", "Settings, System, SD card: the folder music",
+     [] {
+         ui::settings::pages::select_file("music/Morning.mp3", 4'318'204, false);
+         open_chain({ui::settings::Page::System, ui::settings::Page::Files});
+     }},
+    {"files-root", "Settings, System, SD card: the card's root",
+     [] {
+         ui::settings::pages::select_file("notes.txt", 312, false);
+         open_chain({ui::settings::Page::System, ui::settings::Page::Files});
+     }},
+    {"file", "Settings, System, SD card, a recording (its page)",
+     [] {
+         ui::settings::pages::select_file("recordings/rec-2026-10-23-0812.wav", 160'044, false);
+         open_chain({ui::settings::Page::System, ui::settings::Page::Files, ui::settings::Page::FileDetail});
+     }},
+    {"file-rename", "Settings, System, SD card, a recording, Rename / move",
+     [] {
+         ui::settings::pages::select_file("recordings/rec-2026-10-23-0812.wav", 160'044, false);
+         open_chain({ui::settings::Page::System, ui::settings::Page::Files, ui::settings::Page::FileDetail});
+         ui::settings::push(ui::settings::Page::FileName, nullptr, 1);
+     }},
+    {"player", "Settings, System, SD card, the player of an MP3",
+     [] {
+         ui::settings::pages::select_file("music/Morning.mp3", 4'318'204, false);
+         open_chain({ui::settings::Page::System, ui::settings::Page::Files, ui::settings::Page::Player});
+     }},
 };
 
 const Page *find_page(const char *name)

@@ -28,6 +28,7 @@
 #include "hc/touch_input/touch_input.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "lvgl.h"
+#include "ui_files.hpp"
 #include "ui_sound.hpp"
 #if CONFIG_HC_BOARD_HAS_CAMERA
 #include "camera_preview.hpp"
@@ -616,6 +617,21 @@ const hc::ui::Backend g_backend{
     .stop_stream = hc::hass::stop_stream,
     .camera_view = camera_view,
     .set_camera_view = set_camera_view,
+#if CONFIG_HC_SDCARD
+    .sd_list = ui_files::list,
+    .sd_delete = ui_files::remove,
+    .sd_mkdir = ui_files::make_dir,
+    .sd_rename = ui_files::rename,
+#endif
+#if CONFIG_HC_UI_PLAYER
+    .player_open = ui_files::player_open,
+    .player_pause = ui_files::player_pause,
+    .player_seek = ui_files::player_seek,
+    .player_stop = ui_files::player_stop,
+    .player_info = ui_files::player_info,
+    .player_spectrum = ui_files::player_spectrum,
+    .player_supports = ui_files::player_supports,
+#endif
     .device_info = device_info,
     .time_text = time_text,
     .clock = clock_now,

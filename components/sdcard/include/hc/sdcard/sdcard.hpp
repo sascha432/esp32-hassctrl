@@ -70,6 +70,35 @@ esp_err_t format();
 // away; "" is the card's root. False when the path is not allowed or too long.
 bool make_path(const char *relative, char *out, size_t size);
 
+// ------------------------------------------------------------------------------ the files
+// For the web UI, the screen's file manager and the console; the paths are relative (make_path).
+
+enum class Result : uint8_t {
+    Ok,
+    NoCard,   // no card mounted
+    BadPath,  // make_path refused it, or the card's root
+    NotFound, // the file, or the folder it goes into
+    Exists,   // the new name is taken
+    NotEmpty, // a folder with something in it
+    Failed,
+};
+
+struct Entry {
+    const char *name;
+    uint64_t size; // 0 for a folder
+    bool dir;
+};
+
+// Every entry of the folder `dir` ("" is the root), in the order of the FAT; `add` returns false
+// to stop.
+Result list(const char *dir, bool (*add)(const Entry &entry, void *context), void *context);
+// a file, or an empty folder
+Result remove(const char *path);
+Result make_dir(const char *path);
+// Renames or moves `from` to `to` (another folder in `to` moves it); never over an existing name,
+// a folder not into itself.
+Result rename(const char *from, const char *to);
+
 // ----------------------------------------------------------------------- download from a URL
 
 enum class FetchState : uint8_t { Idle, Running, Done, Failed };
@@ -97,7 +126,8 @@ esp_err_t save_wav(const char *path, const int16_t *samples, size_t count, uint3
 // without a mounted card.
 esp_err_t save_recording(const int16_t *samples, size_t count, uint32_t sample_rate, char *path, size_t size);
 
-// The console command `sd` (CONFIG_HC_DEV_CONSOLE): status, ls, mount, unmount, format.
+// The console command `sd` (CONFIG_HC_DEV_CONSOLE): status, ls, rm, mkdir, mv, mount, unmount,
+// format.
 void register_console();
 
 } // namespace hc::sdcard

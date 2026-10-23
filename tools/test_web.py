@@ -61,6 +61,31 @@ class Client:
         return response.status, data, dict(response.getheaders())
 
 
+def sd_rename_test(c: Client) -> None:
+    """Rename and move on the card: a test folder with a file, removed at the end."""
+    base = "hc-test-rename"
+    names = lambda d: {e["name"] for e in c.request("GET", "/api/sd/list?dir=" + urllib.parse.quote(d))[1]["entries"]}
+    c.request("POST", "/api/sd/mkdir", form={"path": base})
+    c.request("POST", "/api/sd/mkdir", form={"path": base + "/sub"})
+    status, _, _ = c.request("POST", "/api/sd/file?path=" + urllib.parse.quote(base + "/a.txt"), body=b"hello",
+                             headers={"Content-Type": "application/octet-stream"})
+    check(status == 200, "SD test file uploaded", str(status))
+    status, _, _ = c.request("POST", "/api/sd/rename", form={"from": base + "/a.txt", "to": base + "/b.txt"})
+    check(status == 200 and "b.txt" in names(base) and "a.txt" not in names(base), "SD rename", str(status))
+    status, _, _ = c.request("POST", "/api/sd/rename", form={"from": base + "/b.txt", "to": base + "/sub/b.txt"})
+    check(status == 200 and "b.txt" in names(base + "/sub"), "SD move into a folder", str(status))
+    status, _, _ = c.request("POST", "/api/sd/rename", form={"from": base + "/sub", "to": base + "/sub/x"})
+    check(status == 400, "SD move of a folder into itself is refused", str(status))
+    c.request("POST", "/api/sd/mkdir", form={"path": base + "/other"})
+    status, _, _ = c.request("POST", "/api/sd/rename", form={"from": base + "/sub", "to": base + "/other"})
+    check(status == 409, "SD rename onto a name that exists is refused", str(status))
+    status, _, _ = c.request("POST", "/api/sd/rename", form={"from": base + "/none", "to": base + "/y"})
+    check(status == 404, "SD rename of a missing file is 404", str(status))
+    for path in [base + "/sub/b.txt", base + "/sub", base + "/other", base]:
+        c.request("POST", "/api/sd/delete", form={"path": path})
+    check(base not in names(""), "SD test folder removed")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("device")
@@ -150,7 +175,8 @@ def main() -> None:
     status, answer, _ = c.request("POST", "/api/update/url", form={"target": "firmware", "url": "ftp://x"})
     check(status in (400, 409), "a URL that is not http(s) is refused", f"{status} {answer}")
 
-    # the SD card (a firmware with CONFIG_HC_SDCARD reports it in /api/status); nothing is written
+    # the SD card (a firmware with CONFIG_HC_SDCARD reports it in /api/status); only a test folder
+    # is written, and removed again
     if "sd" in s:
         status, sd, _ = c.request("GET", "/api/sd")
         check(status == 200 and "state" in sd and "fetch" in sd, "GET /api/sd", str(sd.get("state")))
@@ -164,6 +190,8 @@ def main() -> None:
             check(status in (400, 409), f"GET /api/sd/file {path!r} is refused", str(status))
         status, _, _ = c.request("POST", "/api/sd/fetch", form={"url": "ftp://x/y", "path": "y"})
         check(status in (400, 409), "an SD download from a URL that is not http(s) is refused", str(status))
+        if sd.get("state") == "mounted":
+            sd_rename_test(c)
 
     # a new password over 64 characters is named as too long (the current one is wrong: nothing changes)
     status, answer, _ = c.request("POST", "/api/password", form={"current": "wrong-password", "password": "x" * 65})

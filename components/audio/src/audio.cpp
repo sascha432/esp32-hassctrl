@@ -18,6 +18,11 @@
 #if CONFIG_HC_AUDIO_MP3
 #include "mp3_source.hpp"
 #endif
+#if CONFIG_HC_UI_PLAYER
+#include <strings.h>
+
+#include "spectrum.hpp"
+#endif
 
 namespace hc::audio {
 
@@ -59,14 +64,25 @@ constexpr uint32_t kStackSize = 3072;
 // above the LVGL task (4), so a busy screen does not starve the DMA buffers
 constexpr UBaseType_t kPriority = 5;
 
-enum class Kind : uint8_t { Samples, Tone, Beeps, File, Buffer, StopAlarm };
+enum class Kind : uint8_t { Samples, Tone, Beeps, File, Buffer, StopAlarm, Media, MediaPause, MediaSeek, MediaStop };
+
+// a request that changes what plays, not a sound: it is not dropped at volume 0
+bool is_control(Kind kind)
+{
+    return kind == Kind::StopAlarm || kind == Kind::MediaPause || kind == Kind::MediaSeek || kind == Kind::MediaStop;
+}
 
 struct Request {
     Kind kind;
     bool alarm; // full volume, only another alarm or StopAlarm replaces it
     // a sound from Home Assistant: only an alarm or another announcement replaces it
     bool announcement;
+    // a file of the player (play_media), ranked as an announcement
+    bool media;
     bool loop;
+    // MediaPause: pause or go on; MediaSeek: where to
+    bool pause;
+    uint32_t ms;
     const int16_t *samples;
     uint32_t count;
     // Buffer: an MP3 the request owns (play_mp3)
@@ -86,6 +102,10 @@ std::atomic<uint8_t> g_volume{50};
 // the volume as a factor in Q15 (32768 = full scale)
 std::atomic<int32_t> g_gain{0};
 std::atomic<bool> g_alarm{false};
+// the player, written by the task (and by play_media before it posts)
+std::atomic<MediaState> g_media_state{MediaState::Idle};
+std::atomic<uint32_t> g_media_position_ms{0};
+std::atomic<uint32_t> g_media_duration_ms{0};
 
 #if CONFIG_HC_MIC
 // The test recording (mic_record_start), PSRAM, kept once allocated: it plays from there. Posted:
@@ -121,9 +141,30 @@ public:
     {
         if (request.kind == Kind::StopAlarm) {
             if (alarm_) {
-                write_silence((kDmaFrames - fill_) % kDmaFrames);
+                end();
+            }
+            return;
+        }
+        if (request.kind == Kind::MediaStop) {
+            if (media_) {
+                end();
+            }
+            return;
+        }
+        if (request.kind == Kind::MediaPause) {
+            if (media_ && paused_ != request.pause) {
+                paused_ = request.pause;
+                // the DMA sent zeros meanwhile: going on needs a lead-in (see lead_in())
                 idle_ = true;
-                finish();
+                g_media_state.store(paused_ ? MediaState::Paused : MediaState::Playing);
+            }
+            return;
+        }
+        if (request.kind == Kind::MediaSeek) {
+            if (media_ && active_->seek(request.ms)) {
+                media_start_ms_ = request.ms;
+                media_samples_ = 0;
+                g_media_position_ms.store(request.ms);
             }
             return;
         }
@@ -133,16 +174,31 @@ public:
             g_record_posted.store(false);
         }
 #endif
-        if ((alarm_ && !request.alarm) || (announcement_ && !request.alarm && !request.announcement)) {
+        if ((alarm_ && !request.alarm) ||
+            ((announcement_ || media_) && !request.alarm && !request.announcement && !request.media)) {
             drop(request);
+            if (request.media) {
+                g_media_state.store(MediaState::Idle);
+            }
             return;
         }
-        finish();
+        // a file of the player after another: the state stays Playing in between
+        finish(!request.media);
         active_ = open(request);
+        if (request.media) {
+            g_media_state.store(active_ != nullptr ? MediaState::Playing : MediaState::Failed);
+        }
         if (active_ != nullptr) {
             alarm_ = request.alarm;
             announcement_ = request.announcement;
+            media_ = request.media;
             loop_ = request.loop;
+            if (media_) {
+                media_start_ms_ = 0;
+                media_samples_ = 0;
+                g_media_position_ms.store(0);
+                g_media_duration_ms.store(active_->duration_ms());
+            }
             g_alarm.store(alarm_);
 #if CONFIG_HC_MIC
             g_record_plays.store(recording);
@@ -150,9 +206,10 @@ public:
         }
     }
 
+    // a paused file of the player does not count
     bool playing() const
     {
-        return active_ != nullptr;
+        return active_ != nullptr && !paused_;
     }
 
     // the next samples to the channel; at the end the sound loops or stops
@@ -163,11 +220,7 @@ public:
             count = active_->read(buffer, kChunk);
         }
         if (count == 0) {
-            // the end: the rest of its DMA buffer silent, the next sound starts in a buffer of
-            // its own (see lead_in())
-            write_silence((kDmaFrames - fill_) % kDmaFrames);
-            idle_ = true;
-            finish();
+            end();
             return;
         }
         if (!prepare(active_->sample_rate())) {
@@ -178,6 +231,18 @@ public:
             lead_in();
             idle_ = false;
         }
+#if CONFIG_HC_UI_PLAYER
+        if (media_) {
+            const uint32_t rate = active_->sample_rate();
+            detail::spectrum_feed(buffer, count, rate);
+            media_samples_ += count;
+            g_media_position_ms.store(media_start_ms_ + static_cast<uint32_t>(media_samples_ * 1000 / rate));
+            if (g_media_duration_ms.load() == 0) {
+                // an MP3 knows it after its first frame
+                g_media_duration_ms.store(active_->duration_ms());
+            }
+        }
+#endif
         const int32_t gain = alarm_ ? 32768 : g_gain.load(std::memory_order_relaxed);
         for (size_t i = 0; i < count; i++) {
             buffer[i] = static_cast<int16_t>(std::clamp<int32_t>((buffer[i] * gain) >> 15, INT16_MIN, INT16_MAX));
@@ -246,22 +311,73 @@ private:
             }
 #endif
             return nullptr;
+        case Kind::Media:
+            return open_media(request.path);
         case Kind::StopAlarm:
+        case Kind::MediaPause:
+        case Kind::MediaSeek:
+        case Kind::MediaStop:
             break;
         }
         return nullptr;
     }
 
-    void finish()
+    // a WAV file by its name, else an MP3 (CONFIG_HC_UI_PLAYER; never asked for without)
+    Source *open_media(const char *path)
+    {
+#if CONFIG_HC_UI_PLAYER
+        const size_t length = std::strlen(path);
+        if (length > 4 && strcasecmp(path + length - 4, ".wav") == 0) {
+            return wav_.open(path) ? &wav_ : nullptr;
+        }
+#if CONFIG_HC_AUDIO_MP3
+        if (file_.open(path)) {
+            return &file_;
+        }
+#endif
+#else
+        (void)path;
+#endif
+        return nullptr;
+    }
+
+    // the sound ends (or is stopped): the rest of its DMA buffer silent, the next sound starts in
+    // a buffer of its own (see lead_in())
+    void end()
+    {
+        if (enabled_) {
+            write_silence((kDmaFrames - fill_) % kDmaFrames);
+        }
+        idle_ = true;
+        finish();
+    }
+
+    // `ended`: a file of the player that goes is reported as ended (not when another follows)
+    void finish(bool ended = true)
     {
 #if CONFIG_HC_AUDIO_MP3
         if (active_ == &file_) {
             file_.close();
         }
 #endif
+#if CONFIG_HC_UI_PLAYER
+        if (active_ == &wav_) {
+            wav_.close();
+        }
+#endif
+        if (media_) {
+#if CONFIG_HC_UI_PLAYER
+            detail::spectrum_clear();
+#endif
+            if (ended) {
+                g_media_state.store(MediaState::Idle);
+            }
+        }
         active_ = nullptr;
         alarm_ = false;
         announcement_ = false;
+        media_ = false;
+        paused_ = false;
         g_alarm.store(false);
 #if CONFIG_HC_MIC
         g_record_plays.store(false);
@@ -335,12 +451,20 @@ private:
     detail::MemorySource memory_;
     detail::ToneSource tone_;
     detail::BeepsSource beeps_;
+#if CONFIG_HC_UI_PLAYER
+    detail::WavSource wav_;
+#endif
 #if CONFIG_HC_AUDIO_MP3
     detail::Mp3Source file_;
 #endif
     Source *active_ = nullptr;
     bool alarm_ = false;
     bool announcement_ = false;
+    bool media_ = false;
+    bool paused_ = false;
+    // the player's position: where it started (or was sought to) and the samples since
+    uint32_t media_start_ms_ = 0;
+    uint64_t media_samples_ = 0;
     bool loop_ = false;
     // samples in the DMA buffer being filled
     uint32_t fill_ = 0;
@@ -383,7 +507,7 @@ bool post(const Request &request)
     if (g_queue == nullptr) {
         return false;
     }
-    if (!request.alarm && request.kind != Kind::StopAlarm && g_volume.load(std::memory_order_relaxed) == 0) {
+    if (!request.alarm && !is_control(request.kind) && g_volume.load(std::memory_order_relaxed) == 0) {
         drop(request);
         return false;
     }
@@ -665,6 +789,53 @@ bool alarm_playing()
 {
     return g_alarm.load();
 }
+
+#if CONFIG_HC_UI_PLAYER
+bool play_media(const char *path)
+{
+    if (g_queue == nullptr || path == nullptr || path[0] == 0) {
+        return false;
+    }
+    // without it the file plays all the same, only the spectrum stays empty
+    detail::spectrum_prepare();
+    Request request = make(Kind::Media);
+    request.media = true;
+    std::snprintf(request.path, sizeof(request.path), "%s", path);
+    // Playing from now on, so the screen does not see the old state before the task takes it
+    g_media_state.store(MediaState::Playing);
+    g_media_position_ms.store(0);
+    g_media_duration_ms.store(0);
+    if (!post(request)) {
+        g_media_state.store(MediaState::Idle);
+        return false;
+    }
+    return true;
+}
+
+void pause_media(bool pause)
+{
+    Request request = make(Kind::MediaPause);
+    request.pause = pause;
+    post(request);
+}
+
+void seek_media(uint32_t ms)
+{
+    Request request = make(Kind::MediaSeek);
+    request.ms = ms;
+    post(request);
+}
+
+void stop_media()
+{
+    post(make(Kind::MediaStop));
+}
+
+MediaStatus media_status()
+{
+    return {g_media_state.load(), g_media_position_ms.load(), g_media_duration_ms.load()};
+}
+#endif
 
 size_t stack_unused()
 {

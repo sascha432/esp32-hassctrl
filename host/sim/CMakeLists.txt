@@ -42,8 +42,9 @@ target_include_directories(hc_ui PUBLIC "${HC_ROOT}/components/ui/include" "${HC
 target_link_libraries(hc_ui PUBLIC lvgl hc_dashboard)
 # /utf-8: the sources are UTF-8; /permissive-: standard C++, like the firmware's compiler
 target_compile_options(hc_ui PRIVATE /W4 /permissive- /utf-8 /EHsc)
-# the SD card's rows and buttons (CONFIG_HC_SDCARD in the firmware), so their layout can be seen
-target_compile_definitions(hc_ui PUBLIC CONFIG_HC_SDCARD=1)
+# the SD card's rows, buttons and file manager (CONFIG_HC_SDCARD in the firmware) and the player
+# (CONFIG_HC_UI_PLAYER), so their layout can be seen
+target_compile_definitions(hc_ui PUBLIC CONFIG_HC_SDCARD=1 CONFIG_HC_UI_PLAYER=1)
 
 # ------------------------------------------------------------------------------------- the sim
 add_library(win32drv STATIC win32drv/win32drv.c)

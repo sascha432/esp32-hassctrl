@@ -1079,6 +1079,7 @@ const views = {
           ${e.dir ? `<a href="#" class="flex-grow-1 text-truncate" data-dir="${esc(join(e.name))}">${esc(e.name)}/</a>`
                   : `<a class="flex-grow-1 text-truncate" href="${fileUrl(join(e.name))}" download="${esc(e.name)}">${esc(e.name)}</a>
                      <span class="small text-body-secondary">${kib(e.size)}</span>`}
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-rename="${esc(join(e.name))}">Rename</button>
           <button class="btn btn-sm btn-outline-danger" type="button" data-delete="${esc(join(e.name))}">Delete</button>
         </div>`).join("") || '<div class="list-group-item text-body-secondary">empty</div>';
     };
@@ -1088,6 +1089,7 @@ const views = {
       $(id).onclick = async (e) => {
         const link = e.target.closest("[data-dir]");
         const del = e.target.closest("[data-delete]");
+        const ren = e.target.closest("[data-rename]");
         if (link) {
           e.preventDefault();
           dir = link.dataset.dir;
@@ -1098,6 +1100,14 @@ const views = {
             await api("/api/sd/delete", { path: del.dataset.delete });
             await list();
             await load();
+          });
+        } else if (ren) {
+          // the whole path: another folder in it moves the file
+          const to = prompt("New name (a folder path in front moves it)", ren.dataset.rename);
+          if (!to || to === ren.dataset.rename) return;
+          await busy(ren, async () => {
+            await api("/api/sd/rename", { from: ren.dataset.rename, to: to.replace(/^\/+/, "") });
+            await list();
           });
         }
       };

@@ -25,6 +25,15 @@ menu "hassctrl audio"
             Plays MP3 files from the file system (/fs/sounds), such as the alarm sounds, with
             Espressif's esp_audio_codec. Without it only the built-in sounds play.
 
+    config HC_UI_PLAYER
+        bool "Audio player"
+        depends on HC_AUDIO && HC_SDCARD
+        default y
+        help
+            Plays WAV files (16 bit PCM) and, with HC_AUDIO_MP3, MP3 files from the SD card: a tap
+            on one in the file manager of Settings opens the player, with pause, seek and a
+            spectrum analyser. Without it the file manager only lists, renames and deletes.
+
     config HC_AUDIO_ALARM
         bool "Alarm clock"
         depends on HC_AUDIO

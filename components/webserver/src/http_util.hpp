@@ -69,7 +69,7 @@ void register_camera_routes(httpd_handle_t server, const CameraAccess *camera);
 void register_time_routes(httpd_handle_t server, bool time);
 #if CONFIG_HC_SDCARD
 // the SD card page (api_sd.cpp); the server makes room for kSdRoutes more handlers
-constexpr size_t kSdRoutes = 9;
+constexpr size_t kSdRoutes = 10;
 void register_sd_routes(httpd_handle_t server);
 #endif
 

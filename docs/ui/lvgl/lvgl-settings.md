@@ -5,7 +5,8 @@ the first setup. Reference resolution 480 x 320, landscape (WT32-SC01). Colors, 
 the building blocks of a page: [lvgl-design.md](lvgl-design.md). Code: `components/ui/src/settings.cpp`
 (frame, stack, dialogs), `settings_pages.cpp` (quick settings, Home Assistant, System, the shared
 parts), `settings_wifi.cpp` (Wi-Fi, Hotspot), `settings_display.cpp`, `settings_sound.cpp`, `settings_alarm.cpp`,
-`settings_camera.cpp`, `setup.cpp`, `keyboard.cpp`, `alarm.cpp`.
+`settings_camera.cpp`, `settings_files.cpp` (the file manager), `settings_player.cpp`, `setup.cpp`,
+`keyboard.cpp`, `alarm.cpp`.
 
 ## 1. Frame and status bar
 
@@ -47,7 +48,8 @@ on the error opens the matching page.
   bar goes one level back. From quick settings it closes Settings. There is no swipe up to
   close: it fired while scrolling.
 * Settings closes after 5 minutes without a touch. Every touch, including typing,
-  restarts the timer. While a form has unsaved changes, the timeout is off.
+  restarts the timer. While a form has unsaved changes, or the player plays or is paused, the
+  timeout is off.
 * Two kinds of controls:
   * **live controls** such as sliders and switches apply immediately and are saved with a delayed
     write;
@@ -108,7 +110,11 @@ they scroll the page (the switch alone was hard to hit).
 | Camera preview | the camera's picture in the frame's shape: the whole picture at the top in portrait, beside a column of 300 px in landscape. The controls: "Auto exposure" on or off; on: "Brightness" -50 to +50 (moves the brightness the exposure aims at); off: "Exposure" 0.1 ms to the frame's longest (33 ms) and "Gain" 1x to 15.5x; "Mirror" and "Flip" (upside down), lit while on. Every change shows at once; stored a few seconds after the last one. The picture is drawn past LVGL (docs/architecture.md section 9.8): 30 fps without tearing |
 | Alarm | only with the alarm: "Next" (the alarm that rings next: in 7 h 12 min, or the day and time when it is more than a day away; "Waiting for the clock" without SNTP; "Off"); "Alarms (2 of 5)" with a row per alarm (the time, the days, its on/off switch; a tap opens its page); "Add alarm" (up to 5) adds 07:00 Mon-Fri, on, the beeps, Vibrate on, and opens its page; a line: an alarm rings at full volume until Stop or Snooze, at most 10 minutes |
 | Alarm (one) | "Alarm" on or off; "Next" of this alarm; the time on two rollers (hour, minute; setting it turns the alarm on; a quick drag moves them up to 4x the finger, a fling further); the days as seven buttons Mon to Sun (none: once, then it turns itself off); "Snooze" 5, 10, 15, 20 or 30 min (a tap steps); "Vibrate" on or off (only with a vibration motor; the motor's pattern while this alarm rings); the sound: "Beeps" (built in) and the MP3 files of `/fs/sounds/alarms`, a tap selects it and plays it once at full volume (with the motor when Vibrate is on), leaving the page stops it; "Delete alarm" (red) after a question. Every change is stored at once |
-| System | device name, firmware version, address, MAC, uptime, memory, "SD card" (only with `CONFIG_HC_SDCARD`: "7.4 of 29.0 GB free", MB below 1 GB, or no card, not formatted, unmounted); reset web UI login; restart; factory reset |
+| System | device name, firmware version, address, MAC, uptime, memory, "SD card" (only with `CONFIG_HC_SDCARD`: "7.4 of 29.0 GB free", MB below 1 GB, or no card, not formatted, unmounted; a tap opens the file manager); reset web UI login; restart; factory reset |
+| SD card (file manager) | only with `CONFIG_HC_SDCARD`. One folder at a time (the title is its name, "SD card" at the root, its path above the list): ".." goes up, then the folders (folder icon, `>`), then the files (a note for a WAV or MP3 the player takes, else a file icon) with their size, each sorted by name without case; up to 200 entries, "N more not shown" past them; "Empty"; "New folder". A tap on a folder opens it, on a WAV or MP3 the player (only with `CONFIG_HC_UI_PLAYER`), on another file its page; a long press on any entry opens its page. Without a card the page says the card's state. The folder is kept while the device runs (the page stack's text is too short for a path); a folder that is gone shows the root. Problems ("The name is taken", "The folder is not empty", ...) go to the alert strip |
+| File or folder | name, folder, size (a file); "Play" (a WAV or MP3 with the player), "Rename / move", "Delete" (red; after a question; a folder only when it is empty) |
+| Rename / move, New folder | a text field with the keyboard: Rename holds the path relative to the card, so a folder in front moves it there (the folder must exist; never over a name that exists, a folder not into itself); New folder takes a name in the shown folder. "Rename" / "Create" and OK act; afterwards the list shows the folder it went to |
+| Player | only with `CONFIG_HC_UI_PLAYER` (WAV 16 bit PCM, MP3 with `CONFIG_HC_AUDIO_MP3`). Plays from the moment it opens, at the volume; the title is the file name. A spectrum analyser in the look of an LED meter on black: 16 bands from 40 Hz to half the sample rate, each a column of segments in the colors of the rainbow from red (bass) to violet, the lowest segment always lit, the peak a white segment that falls slowly (about 30 frames a second). A card with the time "1:23 / 4:56" and the position slider, which seeks when it is let go (an MP3's length comes from its first frame's bitrate: about right for a variable one). "Play"/"Pause", "Stop", the volume card. Touch clicks do not interrupt it; an alarm or a sound from Home Assistant ends it. Leaving the page stops it. "It does not play: the volume is 0", or a line that the file does not play |
 
 **Wi-Fi:**
 
@@ -170,6 +176,25 @@ snooze time, the sound and the motor are the ringing alarm's.
 |      |                     Stop                     |      |
 |      +----------------------------------------------+      |
 +------------------------------------------------------------+
+```
+
+**SD card** (a folder) and **Player:**
+
+```
++------------------------------------------------------------+      +--------------------------------------+
+| < recordings                                  [wifi] 12:41 |      | < Morning.mp3           [wifi] 12:41 |
++------------------------------------------------------------+      +--------------------------------------+
+|  /recordings                                               |      |  +--------------------------------+  |
+|  ^  ..                                                     |      |  | #                              |  |
+|  ♪  rec-2026-10-23-0812.wav                     156.3 KB   |      |  | #  #  =     =                  |  |
+|  ♪  rec-2026-10-23-0915.wav                      95.8 KB   |      |  | #  #  #  #  #  =  #  =         |  |
+|  [  New folder  ]                                          |      |  | #  #  #  #  #  #  #  #  #  #   |  |
++------------------------------------------------------------+      |  +--------------------------------+  |
+                                                                    |  0:30 / 4:29                         |
+                                                                    |  [====o---------------------------]  |
+                                                                    |  [ Pause ]  [ Stop ]                 |
+                                                                    |  Volume  [==========o------]  50 %   |
+                                                                    +--------------------------------------+
 ```
 
 **Confirmation dialog:**

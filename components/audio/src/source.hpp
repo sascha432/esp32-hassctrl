@@ -22,6 +22,17 @@ public:
     }
     // back to the start for a loop; false when it cannot
     virtual bool restart() = 0;
+    // a file of the player (play_media): its length, 0 while it is not known; to `ms` from the
+    // start, false when it cannot
+    virtual uint32_t duration_ms() const
+    {
+        return 0;
+    }
+    virtual bool seek(uint32_t ms)
+    {
+        (void)ms;
+        return false;
+    }
 };
 
 // samples in memory (the click)
@@ -61,6 +72,37 @@ public:
 private:
     uint32_t position_ = 0;
     float phase_ = 0.0f;
+};
+
+// A WAV file of the player: 16 bit PCM, mono or stereo (mixed to mono), at its own rate. Read 4 KB
+// at a time into a buffer in PSRAM where there is some.
+class WavSource final : public Source {
+public:
+    ~WavSource() override;
+    bool open(const char *path);
+    void close();
+    size_t read(int16_t *out, size_t max) override;
+    uint32_t sample_rate() const override
+    {
+        return sample_rate_;
+    }
+    bool restart() override;
+    uint32_t duration_ms() const override;
+    bool seek(uint32_t ms) override;
+
+private:
+    // a file descriptor, as Mp3Source: no stdio buffer in internal RAM
+    int file_ = -1;
+    int16_t *in_ = nullptr;
+    // samples (all channels) in in_, and the next one
+    size_t in_count_ = 0;
+    size_t in_position_ = 0;
+    uint32_t data_start_ = 0;
+    uint32_t data_size_ = 0;
+    // bytes of the data read so far
+    uint32_t data_read_ = 0;
+    uint32_t sample_rate_ = kSampleRate;
+    uint8_t channels_ = 1;
 };
 
 } // namespace hc::audio::detail

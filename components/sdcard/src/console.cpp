@@ -2,8 +2,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <dirent.h>
-#include <sys/stat.h>
 
 #include "esp_console.h"
 #include "hc/sdcard/sdcard.hpp"
@@ -31,31 +29,47 @@ int print_status()
     return 0;
 }
 
-int list(const char *relative)
+const char *result_name(Result result)
 {
-    char path[kMaxPath];
-    if (!make_path(relative, path, sizeof(path))) {
-        std::printf("not a path on the card: %s\n", relative);
-        return 1;
+    switch (result) {
+    case Result::Ok:
+        return "done";
+    case Result::NoCard:
+        return "no SD card mounted";
+    case Result::BadPath:
+        return "not a path on the card";
+    case Result::NotFound:
+        return "not found";
+    case Result::Exists:
+        return "the name is taken";
+    case Result::NotEmpty:
+        return "the folder is not empty";
+    case Result::Failed:
+        break;
     }
-    DIR *dir = opendir(path);
-    if (dir == nullptr) {
-        std::printf("cannot open %s\n", path);
-        return 1;
-    }
-    char entry_path[kMaxPath + 256];
-    while (const dirent *entry = readdir(dir)) {
-        std::snprintf(entry_path, sizeof(entry_path), "%s/%s", path, entry->d_name);
-        struct stat info {};
-        stat(entry_path, &info);
-        if (S_ISDIR(info.st_mode)) {
-            std::printf("       <dir> %s/\n", entry->d_name);
-        } else {
-            std::printf("%12ld %s\n", static_cast<long>(info.st_size), entry->d_name);
-        }
-    }
-    closedir(dir);
-    return 0;
+    return "failed";
+}
+
+int done(Result result)
+{
+    std::printf("%s\n", result_name(result));
+    return result == Result::Ok ? 0 : 1;
+}
+
+int print_entries(const char *relative)
+{
+    const Result r = list(
+        relative,
+        [](const Entry &entry, void *) {
+            if (entry.dir) {
+                std::printf("       <dir> %s/\n", entry.name);
+            } else {
+                std::printf("%12llu %s\n", static_cast<unsigned long long>(entry.size), entry.name);
+            }
+            return true;
+        },
+        nullptr);
+    return r == Result::Ok ? 0 : done(r);
 }
 
 int result(esp_err_t err)
@@ -73,7 +87,16 @@ int cmd_sd(int argc, char **argv)
         return print_status();
     }
     if (std::strcmp(argv[1], "ls") == 0 && argc <= 3) {
-        return list(argc == 3 ? argv[2] : "");
+        return print_entries(argc == 3 ? argv[2] : "");
+    }
+    if (std::strcmp(argv[1], "rm") == 0 && argc == 3) {
+        return done(remove(argv[2]));
+    }
+    if (std::strcmp(argv[1], "mkdir") == 0 && argc == 3) {
+        return done(make_dir(argv[2]));
+    }
+    if (std::strcmp(argv[1], "mv") == 0 && argc == 4) {
+        return done(rename(argv[2], argv[3]));
     }
     if (std::strcmp(argv[1], "mount") == 0 && argc == 2) {
         return result(mount());
@@ -93,7 +116,7 @@ int cmd_sd(int argc, char **argv)
         std::printf("downloading, `sd` shows the progress\n");
         return 0;
     }
-    std::printf("usage: sd [ls [<dir>]|mount|unmount|format yes|get <url> <path>]\n");
+    std::printf("usage: sd [ls [<dir>]|rm <path>|mkdir <path>|mv <from> <to>|mount|unmount|format yes|get <url> <path>]\n");
     return 1;
 }
 
@@ -103,8 +126,8 @@ void register_console()
 {
     esp_console_cmd_t command{};
     command.command = "sd";
-    command.help = "SD card: status, list a directory, mount, unmount, format (erases it), download a URL";
-    command.hint = "[ls [<dir>]|mount|unmount|format yes|get <url> <path>]";
+    command.help = "SD card: status, list a directory, delete, make a folder, rename or move, mount, unmount, format (erases it), download a URL";
+    command.hint = "[ls [<dir>]|rm <path>|mkdir <path>|mv <from> <to>|mount|unmount|format yes|get <url> <path>]";
     command.func = cmd_sd;
     esp_console_cmd_register(&command);
 }

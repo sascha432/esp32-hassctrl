@@ -781,7 +781,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   values, so none of them comes back with the restart.
 * **Files on LittleFS** hold the web UI files and the dashboard configuration
   (`dashboard.json`, section 5). The dashboard is edited in the web UI or imported
-  as YAML. There is no file manager for them; the SD card's page is one for the card.
+  as YAML. There is no file manager for them; the card has one in the web UI and on the screen.
 * **Export and import** of the settings are actions in the web UI, as YAML like the dashboard,
   without secrets; an import may carry passwords added by hand. The password of a camera
   stream's address (`http://user:password@host/`) stays in `dashboard.json`; the export leaves
@@ -814,8 +814,15 @@ console `c6 update <url>`); a different major version on the two chips is a mism
     file system's file first, then the card's, the beeps when neither opens), the microphone's
     recording (`sdcard::save_recording`: `/sd/recordings/rec-<date>-<time>.wav`, from the LVGL
     task in 45 ms or from the console), the web UI page (ui/web/web-app.md section 4, SD card:
-    list, streamed upload and download, delete, folders, a download from a URL in a task of its
-    own like the OTA download, format), console `sd`.
+    list, streamed upload and download, delete, folders, rename/move, a download from a URL in a
+    task of its own like the OTA download, format), the screen's file manager (Settings, System,
+    SD card; ui/lvgl/lvgl-settings.md section 3) and its player (section 9.6), console `sd`.
+  * **One set of file operations** (`sdcard::list`, `remove`, `make_dir`, `rename`, `files.cpp`)
+    for the web UI, the screen (through `ui::Backend::sd_*`, `main/ui_files.cpp`) and the
+    console: paths relative to the card through `make_path`, the root never removed or renamed,
+    a rename never over a name that exists (FatFs would refuse it too) nor a folder into itself.
+    The screen lists on the LVGL task (a folder of a few hundred entries in a few ms), up to 200
+    entries into a buffer that lives as long as the page.
   * Free space: FAT counts it once after mounting (a full FAT scan on a card without FSInfo),
     then keeps it. `status()` waits at most 20 ms for the lock, so the screen and the web server
     do not wait for a format.
@@ -845,9 +852,9 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `hass` | the Home Assistant connection of section 6: URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. The stored URL, token and certificate, their checks and the token test are in `config.cpp` (runs in the caller's task); the session stays in one file, `hass.cpp`, because pages, history, forecast and queries share its state and task. URL parsing (`url.cpp`) is plain C++ for host tests |
 | `ota` | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web/web-app.md](ui/web/web-app.md) section 5), restart into the recovery app and back, partition layout of section 9.5 |
 | `devconsole` | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
-| `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
+| `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files, the alarm sound and the player with its spectrum (section 9.6, `CONFIG_HC_AUDIO`) |
 | `vibration` | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
-| `sdcard` | the microSD card: FAT at `/sd` on SDMMC slot 0, mount, unmount, format, a download from a URL onto it, WAV files, console `sd` (section 9.3, `CONFIG_HC_SDCARD`) |
+| `sdcard` | the microSD card: FAT at `/sd` on SDMMC slot 0, mount, unmount, format, list, delete, rename/move, a download from a URL onto it, WAV files, console `sd` (section 9.3, `CONFIG_HC_SDCARD`) |
 | `camera` | the MIPI-CSI camera of the JC4880P443C: capture, its settings, the web stream (section 9.8, `CONFIG_HC_BOARD_HAS_CAMERA`) |
 | `touch_input` | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
 | `orientation` | the MPU6050 on the board's I2C bus, the screen's rotation (section 8.1) |
@@ -933,9 +940,14 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   * `CONFIG_HC_AUDIO_MP3`: MP3 files (the alarm sounds), with the decoder below.
   * `CONFIG_HC_AUDIO_ALARM`: the alarm clock of Settings.
   * `CONFIG_HC_MIC`: the microphone (below), only where the board has one.
+  * `CONFIG_HC_UI_PLAYER`: the player of WAV and MP3 files on the SD card (below; needs
+    `CONFIG_HC_SDCARD`).
 
-  The UI, which is shared with the Windows version, has no `#if`: the Backend entries of a
-  missing feature are nullptr (`main/ui_sound.cpp`), and Settings leave its page or switch out.
+  The UI, which is shared with the Windows version, has no `#if` for the audio options: the
+  Backend entries of a missing feature are nullptr (`main/ui_sound.cpp`), and Settings leave its
+  page or switch out. The SD card's parts and the player are the exception: their Backend entries
+  and pages exist only with `CONFIG_HC_SDCARD` and `CONFIG_HC_UI_PLAYER` (the simulator defines
+  both).
 * **A codec belongs to the board**, like the panel and touch drivers: `board::Info::audio_codec`
   says the sound goes through one, `board::audio_codec()` hands out `start(sample_rate)` and
   `stop()` (nullptr when it did not answer: then main starts no audio). `main` passes them with
@@ -1003,6 +1015,19 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
     esp32p4]`), not by the option: the component manager fails on a `$CONFIG{...}` that a board
     without audio does not have. Without the option nothing of it is linked. It needs an ESP32-P4
     of revision 3.0 or later (the JC4880P443C is 3.01).
+* **Player** (`CONFIG_HC_UI_PLAYER`, `play_media`): a WAV file (16 bit PCM, mono or stereo, 8
+  to 48 kHz; `wav_source.cpp`, read 4 KB at a time into PSRAM) or an MP3 from the card, at the
+  volume. It ranks like an announcement: touch clicks are dropped while it plays, an alarm or a
+  sound from Home Assistant replaces it. Pause keeps the file open and writes nothing (the DMA
+  sends zeros), seek jumps to the byte the bitrate gives (the MP3 decoder finds the next frame;
+  a WAV exactly). The length of an MP3 is its size over the first frame's bitrate (exact for a
+  constant bitrate); esp_audio_codec reports that bitrate in kbit/s, not bit/s as its header
+  says (2026-10-23). The state and the position are atomics the screen reads (`media_status`).
+  * **Spectrum** (`spectrum.cpp`): the task copies every chunk of the player's file, before the
+    volume, into a ring of 1024 samples in PSRAM; `media_spectrum()` takes the last 512 on the
+    caller's task (the screen, about 30 times a second), a Hann window, a radix-2 float FFT of
+    its own (no esp-dsp), and the peaks of 16 bands spaced in octaves from 40 Hz to half the
+    rate, -60 to 0 dB as 0 to 1. Tables and work arrays (6 KB) in PSRAM, made on first use.
 * **Sounds in the file system image**: `sounds/` of the repository goes to `/fs/sounds/` of
   boards built with `CONFIG_HC_AUDIO_MP3` (`tools/build_fs.py`; a device's own files outside
   `/www` and `/sounds` are kept). The alarm sounds `sounds/alarms/*.mp3` are six alarm sounds of

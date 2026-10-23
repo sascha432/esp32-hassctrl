@@ -1133,11 +1133,27 @@ Your report of the first version (2026-10-09):
       download (same checksum), folders, delete, `..` refused, https download with a redirect,
       a recording saved (`mic record save`, a valid 16 kHz WAV, 45 ms), an MP3 on the card in
       the alarm's list and played; `tools/test_web.py` 67 of 67. Recovery app without it.
+- [x] File manager and player on the screen (2026-10-23, your request): Settings, System, SD card
+      lists folders, New folder, Rename / move, Delete (`sdcard::list/remove/make_dir/rename`,
+      shared with the web UI and console `sd rm|mkdir|mv`); a tap on a WAV or MP3 opens the player
+      (`CONFIG_HC_UI_PLAYER`, your request): pause, seek, volume, LED-style spectrum in rainbow
+      colors with white peaks (your example). Web UI: Rename on the SD page, `POST /api/sd/rename`.
+      Tested on the test P4 (COM11): folders, long press, rename through the keyboard, MP3 (4:08
+      length right, seek to the middle, pause) and a WAV recording play with the spectrum;
+      `tools/test_web.py` 76 of 76 (rename, move, folder into itself 400, taken name 409);
+      JC3248W535 builds without card and player.
+- [x] Player tested by you on the test P4: plays smoothly, the spectrum at enough frames per
+      second (2026-10-23).
+- [ ] Player: seek in a long MP3 with a variable bitrate (the length is estimated from the first
+      frame there).
+- [ ] Seen once on the test P4 while testing (2026-10-23): the web server stopped accepting
+      (`httpd_accept_conn: error in accept (128)`) as the Home Assistant WebSocket dropped; ping
+      still answered, a restart fixed it. Not reproduced yet; watch for it.
 - [ ] SD card downloads: 480 KB/s, the TCP send buffer (5760 bytes) limits them; 64 KB gave
       0.7 to 1 MB/s (measured, not set: it applies to every connection of the board, your call).
-- [ ] The board restarted when the alarm preview of a sound on the card started at full volume
-      (2026-10-23); the same file at 62 % played. Probably the supply (as the speaker before),
-      not the card: check on a 2 A supply.
+- [x] The board restarted when the alarm preview of a sound on the card started at full volume
+      (2026-10-23); the same file at 62 % played. The supply: a cheap USB cable (your answer,
+      2026-10-23), not the card.
 - [ ] Alarm sound names with letters outside ASCII ("Krypton Ä" on the card) show a box: the
       Montserrat fonts have ASCII only.
 - [ ] SD card on other boards: the TTGO T4's SPI slot (SPI host, not built), the JC3248W535's

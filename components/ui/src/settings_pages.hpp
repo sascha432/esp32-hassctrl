@@ -83,4 +83,22 @@ Built camera_page(lv_obj_t *content);
 Built camera_login_page(lv_obj_t *content);
 Built camera_preview_page(lv_obj_t *content);
 
+#if CONFIG_HC_SDCARD
+// Settings, System, SD card: the file manager, a file or folder, its new name (settings_files.cpp).
+// The folder and the file shown are kept there, the page stack's text is too short for a path.
+Built files_page(lv_obj_t *content);
+Built file_detail_page(lv_obj_t *content);
+// index 0: a new folder, 1: a new name for the file or folder of the detail page
+Built file_name_page(lv_obj_t *content, int index);
+// the path relative to the card of the file the detail page shows (the player's file)
+const char *selected_file();
+// shows the folder of `path` and selects it as a tap would (the simulator's pages)
+void select_file(const char *path, uint64_t size, bool dir);
+#endif
+
+#if CONFIG_HC_UI_PLAYER
+// the player of the selected file (settings_player.cpp)
+Built player_page(lv_obj_t *content);
+#endif
+
 } // namespace hc::ui::settings::pages

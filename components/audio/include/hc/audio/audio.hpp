@@ -5,8 +5,9 @@
 // replaces the one that plays, so quick taps do not queue up clicks. An alarm sound is the
 // exception: it plays at full volume whatever the volume is, and only stop_alarm() or another
 // alarm sound replaces it. An announcement (play_mp3) is one in between: only an alarm or another
-// announcement replaces it, the touch sounds are dropped while it plays. The channel runs only while a sound plays and stops a second after the
-// last one, unless Config::keep_running.
+// announcement replaces it, the touch sounds are dropped while it plays. A file of the player
+// (play_media) ranks like an announcement, and an announcement replaces it too. The channel runs
+// only while a sound plays and stops a second after the last one, unless Config::keep_running.
 //
 // The built-in sounds are 16 bit mono PCM at kSampleRate; an MP3 file (CONFIG_HC_AUDIO_MP3) plays
 // at its own sample rate, mixed to mono.
@@ -24,8 +25,8 @@
 namespace hc::audio {
 
 constexpr uint32_t kSampleRate = 16000;
-// the longest path play_file() and play_alarm() take
-constexpr size_t kMaxPath = 64;
+// the longest path play_file(), play_alarm() and play_media() take (an SD card's)
+constexpr size_t kMaxPath = 128;
 
 // The I2S output (hc::board::Info::audio_*, wired in main)
 struct Config {
@@ -89,6 +90,31 @@ void play_mp3(uint8_t *data, size_t size);
 void play_alarm(const char *path, bool loop);
 void stop_alarm();
 bool alarm_playing();
+
+// The player (the file manager of Settings, CONFIG_HC_UI_PLAYER): a WAV file (16 bit PCM) or an
+// MP3 (CONFIG_HC_AUDIO_MP3) at the volume, with pause, seek and a spectrum of what plays. false
+// when it cannot start (volume 0, no audio); a file that cannot be read ends as MediaState::Failed.
+enum class MediaState : uint8_t { Idle, Playing, Paused, Failed };
+
+struct MediaStatus {
+    MediaState state;
+    uint32_t position_ms;
+    // 0 while it is not known (an MP3 before its first frame)
+    uint32_t duration_ms;
+};
+
+#if CONFIG_HC_UI_PLAYER
+bool play_media(const char *path);
+void pause_media(bool pause);
+void seek_media(uint32_t ms);
+void stop_media();
+MediaStatus media_status();
+
+// The levels of what the player plays now in `count` bands spaced evenly in octaves from 40 Hz
+// to half the rate, 0 (-60 dB and below) to 1 (full scale), before the volume. A 512 point FFT
+// on the caller's task (the screen's, about 30 times a second); false while nothing plays.
+bool media_spectrum(float *bands, size_t count);
+#endif
 
 // the stack of the audio task that was never used, bytes (console `sound`)
 size_t stack_unused();

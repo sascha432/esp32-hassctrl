@@ -4,7 +4,7 @@
 # linked.
 set(srcs "")
 if(CONFIG_HC_SDCARD)
-    list(APPEND srcs "src/sdcard.cpp" "src/console.cpp" "src/fetch.cpp" "src/wav.cpp")
+    list(APPEND srcs "src/sdcard.cpp" "src/console.cpp" "src/fetch.cpp" "src/files.cpp" "src/wav.cpp")
 endif()
 
 idf_component_register(SRCS ${srcs}

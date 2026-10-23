@@ -2,6 +2,8 @@
 
 ## 2026-10-23
 
+- File manager on the screen (Settings, System, SD card) and rename/move on the web UI's SD page (`POST /api/sd/rename`);
+  WAV/MP3 player with seek and a spectrum analyser (`CONFIG_HC_UI_PLAYER`); console `sd rm|mkdir|mv`.
 - SD card (JC4880P443C, `CONFIG_HC_SDCARD`): FAT at `/sd`, alarm sounds from it, the mic recording saved as WAV,
   a web UI page (files, upload, URL download, format with the password), console `sd`; off, the firmware is unchanged.
 - Host test of the sample's settings sections expects `time` (in the sample since the Time page).

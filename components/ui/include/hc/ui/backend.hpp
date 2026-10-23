@@ -4,11 +4,11 @@
 // never talks to the network itself). `main` fills this table with the functions of the network,
 // board and web server components. Every function is called from the LVGL task and returns at
 // once; actions that take time (scans, connecting) report their progress through wifi_info().
-// The exceptions are save_dashboard, which writes a file of a few KB, and mic_save (a recording of
-// up to 160 KB onto the SD card).
+// The exceptions are save_dashboard, which writes a file of a few KB, mic_save (a recording of
+// up to 160 KB onto the SD card) and the file manager's sd_* (a folder listed, a file renamed).
 //
-// The SD card's parts are only in a firmware with CONFIG_HC_SDCARD (the simulator defines it):
-// without it they are not built at all.
+// The SD card's parts are only in a firmware with CONFIG_HC_SDCARD, the player's only with
+// CONFIG_HC_UI_PLAYER (the simulator defines both): without them they are not built at all.
 
 #include <cstddef>
 #include <cstdint>
@@ -131,6 +131,31 @@ enum class MicRecording : uint8_t { Idle, Recording, Playing };
 #if CONFIG_HC_SDCARD
 // what saving the test recording onto the SD card did
 enum class MicSaved : uint8_t { Saved, NoRecording, NoCard, Failed };
+#endif
+
+#if CONFIG_HC_SDCARD
+// The file manager of Settings (docs/ui/lvgl/lvgl-settings.md section 3). Paths are relative to
+// the card ("" is its root, '/' between names), as in the web UI.
+constexpr size_t kFilePathSize = 128;
+
+struct FileEntry {
+    char name[kFilePathSize];
+    uint64_t size; // 0 for a folder
+    bool dir;
+};
+
+enum class FileResult : uint8_t { Ok, NoCard, BadName, NotFound, Exists, NotEmpty, Failed };
+#endif
+
+#if CONFIG_HC_UI_PLAYER
+// the player of a WAV or MP3 file on the card
+enum class PlayerState : uint8_t { Idle, Playing, Paused, Failed };
+
+struct PlayerInfo {
+    PlayerState state;
+    uint32_t position_ms;
+    uint32_t duration_ms; // 0 while it is not known
+};
 #endif
 
 constexpr size_t kSoundNameSize = 32;
@@ -330,6 +355,32 @@ struct Backend {
     // stored. set_camera_view stores it a few seconds later and keeps it across a restart.
     bool (*camera_view)(const char *key, CameraView &out);
     void (*set_camera_view)(const char *key, const CameraView &view);
+
+#if CONFIG_HC_SDCARD
+    // The entries of the folder `dir`, at most `max` into `out` in the order of the card; `count`
+    // says how many there are, also past `max`.
+    FileResult (*sd_list)(const char *dir, FileEntry *out, size_t max, size_t &count);
+    // a file, or an empty folder
+    FileResult (*sd_delete)(const char *path);
+    FileResult (*sd_mkdir)(const char *path);
+    // renames or moves (another folder in `to`); never over a name that exists
+    FileResult (*sd_rename)(const char *from, const char *to);
+#endif
+#if CONFIG_HC_UI_PLAYER
+    // Plays `path` (a WAV or, with MP3 support, an MP3 file) at the volume; false when it cannot
+    // start (volume 0). A file it cannot read ends as PlayerState::Failed. Nothing of it is
+    // stored.
+    bool (*player_open)(const char *path);
+    void (*player_pause)(bool pause);
+    void (*player_seek)(uint32_t ms);
+    void (*player_stop)();
+    void (*player_info)(PlayerInfo &out);
+    // The levels of what plays in `count` bands, low to high, 0 to 1; false while nothing plays.
+    // About 30 calls a second while the player shows.
+    bool (*player_spectrum)(float *bands, size_t count);
+    // whether the player takes the file (by its name): WAV always, MP3 with MP3 support
+    bool (*player_supports)(const char *name);
+#endif
 
     void (*device_info)(DeviceInfo &out);
     // "HH:MM", false while the clock is not set

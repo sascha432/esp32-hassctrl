@@ -1,6 +1,6 @@
 # The panel firmware: composition root only (docs/architecture.md section 3).
 # esp_lvgl_port and LVGL come from idf_component.yml.
-set(srcs "backup.cpp" "bench_mode.cpp" "main.cpp" "ui_backend.cpp" "ui_sound.cpp")
+set(srcs "backup.cpp" "bench_mode.cpp" "main.cpp" "ui_backend.cpp" "ui_files.cpp" "ui_sound.cpp")
 if(CONFIG_HC_BOARD_HAS_CAMERA)
     # the preview of Settings, Camera (components/camera)
     list(APPEND srcs "camera_preview.cpp")

@@ -54,6 +54,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   and JPEG snapshots on the web, behind a login.
 - SD card (JC4880P443C): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
   `sounds/alarms` on it, the microphone's recording saved as WAV; not in the firmware without `CONFIG_HC_SDCARD`.
+- File manager in Settings, System, SD card: folders, new folder, rename/move, delete; rename/move in the web UI too.
+- Player for WAV and MP3 files on the card: pause, seek, LED-style spectrum analyser (`CONFIG_HC_UI_PLAYER`).
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
   reported to Home Assistant, held on for 1 to 60 min after the last motion; the web UI shows a missing helper. Both found by the device's name, no setup (see "Supported hardware").
 
