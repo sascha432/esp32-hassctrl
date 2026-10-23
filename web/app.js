@@ -1,6 +1,7 @@
 // The web UI of hassctrl (docs/ui/web/web-app.md): one page, the views follow the hash (#/wifi). Plain
-// JavaScript, no framework and no build step; Bootstrap 5.3 only as CSS. Everything comes from the
-// device API (components/webserver). Texts from outside (network names) are escaped.
+// JavaScript, no framework; Bootstrap 5.3 only as CSS. tools/build_web.py drops the `// #if CONFIG_*`
+// blocks of options the firmware lacks and minifies the file. Everything comes from the device API
+// (components/webserver). Texts from outside (network names) are escaped.
 "use strict";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -89,9 +90,16 @@ const wifiIcon = '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentC
 
 // -------------------------------------------------------------------------------------- frame
 
+// the pages of a board option sit between `// #if CONFIG_*` markers (tools/build_web.py)
 const menuPages = [
   ["status", "Status"], ["ha", "Home Assistant"], ["wifi", "Wi-Fi"], ["hotspot", "Hotspot"],
-  ["camera", "Camera"], ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"], ["sd", "SD card"],
+  // #if CONFIG_HC_BOARD_HAS_CAMERA
+  ["camera", "Camera"],
+  // #endif
+  ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"],
+  // #if CONFIG_HC_SDCARD
+  ["sd", "SD card"],
+  // #endif
   ["system", "System"],
 ];
 
@@ -112,10 +120,12 @@ function closeMenuOnPhone() {
 async function updateHeader() {
   const s = await api("/api/status");
   $("#device-name").textContent = s.device.name;
-  // only a board with a camera has the page
-  $('#menu-pages a[data-page="camera"]').hidden = !s.camera;
+  // only a board with a camera has the page (and the recovery app's status says no camera)
+  const camera = $('#menu-pages a[data-page="camera"]');
+  if (camera) camera.hidden = !s.camera;
   // only a firmware with the SD card (CONFIG_HC_SDCARD) reports it
-  $('#menu-pages a[data-page="sd"]').hidden = !s.sd;
+  const sd = $('#menu-pages a[data-page="sd"]');
+  if (sd) sd.hidden = !s.sd;
   document.title = s.device.name;
   const icon = $("#icon-wifi");
   icon.innerHTML = wifiIcon;
@@ -476,7 +486,9 @@ const views = {
           ["Firmware", esc(d.firmware)], ["Uptime", duration(d.uptime_s)],
           ["Free memory", `${d.heap_internal_kb} KB internal, ${d.heap_psram_kb} KB PSRAM`],
           ["File system", esc(s.fs.state) + (s.fs.state === "mounted" ? `, ${s.fs.used_kb} of ${s.fs.total_kb} KB used` : "")],
+          // #if CONFIG_HC_SDCARD
           ...(s.sd ? [["SD card", esc(sdSpace(s.sd))]] : []),
+          // #endif
         ]));
     };
     await draw();
@@ -609,6 +621,7 @@ const views = {
     refresh(draw, 5000);
   },
 
+  // #if CONFIG_HC_BOARD_HAS_CAMERA
   // The camera's web stream (docs/ui/web/web-app.md section 4). The picture itself (exposure, mirror, flip,
   // mains frequency) is set on the device, next to its preview.
   async camera() {
@@ -687,6 +700,7 @@ const views = {
     };
     draw();
   },
+  // #endif
 
   // the clock: time zone and SNTP servers (docs/ui/web/web-app.md section 4)
   async time() {
@@ -997,6 +1011,7 @@ const views = {
     await load();
   },
 
+  // #if CONFIG_HC_SDCARD
   // The SD card (docs/ui/web/web-app.md section 4, SD card): its files, upload, a download from a
   // URL, mount and format. Only with a card slot (/api/status has "sd").
   async sd() {
@@ -1142,6 +1157,7 @@ const views = {
     else $("#sd-list").innerHTML = '<div class="list-group-item text-body-secondary">no card mounted</div>';
     refresh(load, 3000);
   },
+  // #endif
 
   async system() {
     const [s, u] = await Promise.all([api("/api/status"), api("/api/update")]);
@@ -1274,6 +1290,7 @@ async function importBackup(checkOnly) {
 
 // --------------------------------------------------------------------------------- SD card
 
+// #if CONFIG_HC_SDCARD
 const kib = (bytes) => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
 
 // "7.4 of 29.7 GB free", or the state ("no card", "not formatted") of /api/status or /api/sd
@@ -1284,6 +1301,7 @@ function sdSpace(c) {
   const size = (kb) => ((kb * 1024) / unit).toFixed(1);
   return `${size(c.free_kb)} of ${size(c.total_kb)} ${name} free`;
 }
+// #endif
 
 // --------------------------------------------------------------------------------- update
 

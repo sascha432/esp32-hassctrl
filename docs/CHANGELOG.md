@@ -5,6 +5,9 @@
 - SD card (JC4880P443C, `CONFIG_HC_SDCARD`): FAT at `/sd`, alarm sounds from it, the mic recording saved as WAV,
   a web UI page (files, upload, URL download, format with the password), console `sd`; off, the firmware is unchanged.
 - Host test of the sample's settings sections expects `time` (in the sample since the Time page).
+- Web image: `tools/build_web.py` leaves out the pages of options the firmware lacks (SD card, Camera),
+  keeps only the Bootstrap rules in use and minifies JS and CSS; 83 → 51 KB gzipped on the WT32.
+- Web files carry the image's ETag: a browser that has them gets 304 instead of the files.
 
 ## 2026-10-22
 

@@ -13,10 +13,13 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
   Only the dashboard editor uses the whole width (`app-wide`).
 * **Works without internet.** Everything is served by the device: no CDN, no web fonts. In the
   captive portal there is no internet.
-* **Bootstrap look with light and dark mode**, the full Bootstrap CSS file,
-  section 2. No JavaScript framework, no build step: the files in `web/` are what the browser gets
-  (gzipped by `tools/build_fs.py`). The device keeps only the gzipped files: a client without
-  `Accept-Encoding: gzip` gets 406 (`curl` needs `--compressed`).
+* **Bootstrap look with light and dark mode**, Bootstrap's CSS purged to the rules in use,
+  section 2. No JavaScript framework; the files in `web/` are the readable sources, the browser
+  gets what `tools/build_web.py` makes of them (pages of options the firmware lacks left out,
+  minified, gzipped by `tools/build_fs.py`). The device keeps only the gzipped files: a client
+  without `Accept-Encoding: gzip` gets 406 (`curl` needs `--compressed`). Every file carries the
+  image's `ETag` (`/www/etag`, written by `build_fs.py`; `Cache-Control: no-cache`), so a browser
+  asks each time and gets 304 while the image is the same.
 * **Secrets are write-only.** The web UI can set Wi-Fi passwords, the Home Assistant token and the
   camera stream's password, but never reads them back. It shows whether a secret is stored, and an
   empty field keeps it.
@@ -29,9 +32,16 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
 
 ## 2. Look
 
-* **Bootstrap 5.3**, `web/vendor/bootstrap.min.css`, the full minified file (about
-  30 KB gzipped). Only the CSS: Bootstrap's script bundle is not shipped; tabs, the menu and the
-  editor's dialogs are a few lines of the site's own JavaScript with Bootstrap's markup.
+* **Bootstrap 5.3**, `web/vendor/bootstrap.min.css`, the full file in the sources; the image
+  holds only the rules whose classes the pages name (about 140 of 2000 classes, 9 KB gzipped
+  instead of 30), purged by `tools/build_web.py`. A class the page assembles from a variable
+  (`alert-${kind}`, `text-bg-${kind}`) is in the tool's `SAFELIST`; a new one of that kind goes
+  there too, or the page writes the class out in full. Only the CSS: Bootstrap's script bundle is
+  not shipped; tabs, the menu and the editor's dialogs are a few lines of the site's own
+  JavaScript with Bootstrap's markup.
+* **Pages of a board option** (Camera, SD card) sit between `// #if CONFIG_*` and `// #endif`
+  lines in `app.js` (the view, its menu entry, its helpers) and are left out of the image of a
+  firmware without the option; the hash of a missing page lands on Status.
 * **Light and dark mode**: it follows the browser, with Automatic, Light and Dark in the
   menu, stored in the browser (`localStorage` `theme`) and set before the first paint
   (`index.html`).
@@ -153,7 +163,9 @@ Patterns:
 
 1. Wireframe or description in [web-app.md](web-app.md) (README "How to read the wireframes"),
    with the API it uses.
-2. Built with the helpers of section 4 and Bootstrap classes; no colors of its own.
+2. Built with the helpers of section 4 and Bootstrap classes; no colors of its own. A class built
+   from a variable is in the `SAFELIST` of `tools/build_web.py`; a page of a board option between
+   `// #if CONFIG_*` markers (section 2).
 3. Checked at 360 px and above 800 px, in light and dark mode (headless Edge for screenshots).
 4. Every outside text escaped; secrets write-only.
 5. `python tools/test_web.py` against a board; the API's tests extended for a new endpoint.

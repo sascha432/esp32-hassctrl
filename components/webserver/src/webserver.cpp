@@ -117,8 +117,30 @@ bool accepts_gzip(httpd_req_t *req)
     return (err == ESP_OK || err == ESP_ERR_HTTPD_RESULT_TRUNC) && strcasestr(value, "gzip") != nullptr;
 }
 
+// The tag of the web files: tools/build_fs.py writes the id of the image to /www/etag, so every
+// file of one image carries the same ETag and a browser's If-None-Match gets 304 instead of the
+// file (the files go with the firmware, one id is enough). Read per request, so a file system
+// update changes it without a restart. 0 when the image has none.
+size_t web_etag(char *out, size_t size)
+{
+    char path[64];
+    std::snprintf(path, sizeof(path), "%s%s/etag", hc::platform::kFsMountPoint, kWebRoot);
+    FILE *file = std::fopen(path, "rb");
+    if (file == nullptr) {
+        return 0;
+    }
+    size_t n = std::fread(out, 1, size - 1, file);
+    std::fclose(file);
+    while (n > 0 && (out[n - 1] == '\n' || out[n - 1] == '\r')) {
+        n--;
+    }
+    out[n] = '\0';
+    return n;
+}
+
 // Sends /fs/www/<path>, preferring <path>.gz; 406 when only the .gz is there and the client does
-// not take gzip (the web image keeps no uncompressed copies). False when there is no such file.
+// not take gzip (the web image keeps no uncompressed copies); 304 when the client's If-None-Match
+// is the image's ETag (web_etag). False when there is no such file.
 bool send_file(httpd_req_t *req, const char *uri)
 {
     if (hc::platform::storage_status().fs != hc::platform::FsState::Mounted) {
@@ -147,6 +169,22 @@ bool send_file(httpd_req_t *req, const char *uri)
         }
     } else if (!gzip && stat(path, &info) != 0) {
         return false;
+    }
+
+    // no-cache: the browser asks every time, with the ETag it has; the same image answers 304
+    char etag[32] = "\"";
+    if (web_etag(etag + 1, sizeof(etag) - 2) > 0) {
+        std::strcat(etag, "\"");
+        char match[sizeof(etag)];
+        if (httpd_req_get_hdr_value_str(req, "If-None-Match", match, sizeof(match)) == ESP_OK &&
+            std::strcmp(match, etag) == 0) {
+            httpd_resp_set_status(req, "304 Not Modified");
+            httpd_resp_set_hdr(req, "ETag", etag);
+            httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+            httpd_resp_send(req, nullptr, 0);
+            return true;
+        }
+        httpd_resp_set_hdr(req, "ETag", etag);
     }
     FILE *file = std::fopen(gzip ? gz_path : path, "rb");
     if (file == nullptr) {

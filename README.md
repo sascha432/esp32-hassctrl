@@ -233,11 +233,13 @@ over the serial console, `python tools/bench.py wt32_sc01 -p COM9` runs the rend
 ## Web UI
 
 The web pages are in `web/` (plain HTML, CSS and JavaScript, Bootstrap 5.3 CSS in
-`web/vendor/`, no build step). Every main firmware build also builds the file system image
-`build/<board>/fs/storage.bin` from them (`tools/build_fs.py`: gzipped into `/www`, sized for
-the board's "storage" partition). Upload it on the System page, with `tools/update.py`, or over
-serial with `python tools/build_fs.py <board> -p COM9`. Without the image the device serves its
-built-in page; `/recovery` always serves that page.
+`web/vendor/`), the readable sources. Every main firmware build also builds the file system image
+`build/<board>/fs/storage.bin` from them: `tools/build_web.py` leaves out the pages of options the
+firmware lacks (`// #if CONFIG_HC_SDCARD` blocks in `app.js`), keeps only the Bootstrap rules the
+pages use and minifies JS and CSS into `build/<board>/fs/web/`; `tools/build_fs.py` gzips that into
+`/www`, sized for the board's "storage" partition (about 50 KB in all). Upload it on the System
+page, with `tools/update.py`, or over serial with `python tools/build_fs.py <board> -p COM9`.
+Without the image the device serves its built-in page; `/recovery` always serves that page.
 
 The image replaces the whole partition, where the dashboard (`/fs/dashboard.json`) lives too.
 Over serial, `build_fs.py` reads the board's partition first and keeps every file outside `/www`

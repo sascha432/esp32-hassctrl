@@ -223,8 +223,9 @@ kept in the browser, a double-click goes back to the default. API: `GET /api/log
 ```
 
 **SD card** (in the menu only when `/api/status` has `"sd"`, a firmware with `CONFIG_HC_SDCARD`;
-the Status page has a line "SD card" then). Code: `components/sdcard`, `api_sd.cpp`, the `sd`
-view of `web/app.js`. Cards:
+the Status page has a line "SD card" then; the web image of a firmware without the option has no
+such page, `tools/build_web.py`). Code: `components/sdcard`, `api_sd.cpp`, the `sd` view of
+`web/app.js`. Cards:
 
 * **Card**: the space ("31.1 of 31.1 GB free", MB below 1 GB) or the state (no card, not
   formatted, unmounted), the card's name and clock. Mount and Unmount: the slot has no card
@@ -302,7 +303,8 @@ Only on a board with a camera (docs/architecture.md section 9.8). The stream is 
 (Settings, Camera, docs/ui/lvgl/lvgl-settings.md section 3) or on the web UI's Camera page; the
 picture (exposure, gain, mirror, flip, mains frequency) only on the screen, next to its preview.
 
-**Camera page** (in the menu only when `/api/status` says `"camera": true`): one form with "Stream
+**Camera page** (in the menu only when `/api/status` says `"camera": true`; not in the web image of
+a board without `CONFIG_HC_BOARD_HAS_CAMERA`, `tools/build_web.py`): one form with "Stream
 on", "Size" (1288 x 728 or 644 x 364), "Frames per second (at most)" 5, 10, 15 or 30, "Quality" 30 to
 95 (a slider, default 50), "Username" and "Password" (the stream's own login; the password is never shown, an
 empty field keeps it), Save; then the two addresses with the browser's host name. Saving with the

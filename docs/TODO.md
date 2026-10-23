@@ -521,6 +521,9 @@ Open:
 - [x] Build the web UI (Bootstrap) and its LittleFS image in `tools/build.py` (done: `tools/build_fs.py`); the littlefs
       component's `littlefs_create_partition_image` (littlefs-python 0.15) creates images that
       mount on the device (tested with a test image).
+- [x] Web image built, not copied (2026-10-23, your request): `tools/build_web.py` drops the
+      `// #if CONFIG_*` blocks of `app.js` (SD card, Camera) for a firmware without the option, keeps
+      the 140 Bootstrap classes in use of 2000 and minifies; WT32 image 83 → 51 KB gzipped.
 - **Logs page** (2026-10-10, [ui/web/web-app.md](ui/web/web-app.md) section 4): new component `logbuf`, a 16 KB
   ring buffer in PSRAM fed by an `esp_log` output hook, started first in `app_main` of both
   apps (the recovery app has it as well, 16 KB of its partition left). Errors and warnings are
@@ -1521,6 +1524,8 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
 - [x] The web files are served gzip-compressed even to a client that does not ask for it
       (`curl` without `--compressed` gets binary data). Browsers always accept gzip. Now 406
       without `Accept-Encoding: gzip` (your choice, 2026-10-14; `send_file` in webserver.cpp).
+- [x] ETag (2026-10-23, your request): one id per web image (`/www/etag` from `build_fs.py`), an
+      `If-None-Match` with it gets 304, so a page load no longer downloads every file again.
 
 - [x] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
       argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Cause:

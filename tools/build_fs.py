@@ -7,12 +7,14 @@ board built with CONFIG_HC_AUDIO_MP3, the sounds of sounds/ (docs/architecture.m
                                                      the board's own files (the dashboard)
     python tools/build_fs.py <board> -p COM9 --fresh the same without keeping anything
 
-<board> is the name given to tools/build.py, a variant included (wt32_sc01.kitchen). Every file
-of web/ goes gzipped to /www (the web server sends file.gz with gzip encoding), the MP3 files of
-sounds/ as they are to /sounds. The image has the size of the "storage" partition of the
-partition table; both come from the firmware's build/<board>/main/sdkconfig, so the firmware is
-built first. Upload it on the System page of the web UI, or with tools/update.py <device>
-filesystem <image>.
+<board> is the name given to tools/build.py, a variant included (wt32_sc01.kitchen). The web files
+are built by tools/build_web.py first (build/<board>/fs/web: the pages of options the firmware
+lacks left out, Bootstrap purged to the rules in use, JS and CSS minified) and go gzipped to /www
+(the web server sends file.gz with gzip encoding), the MP3 files of sounds/ as they are to /sounds.
+The image has the size of the "storage" partition of the partition table; the partition table, the
+options and the audio options come from the firmware's build/<board>/main/sdkconfig, so the
+firmware is built first. Upload it on the System page of the web UI, or with tools/update.py
+<device> filesystem <image>.
 
 The image replaces the whole partition. With -p the partition of the board is read first and
 every file outside /www and /sounds (dashboard.json) goes into the new image, so a web UI update keeps the
@@ -20,13 +22,15 @@ dashboard. An upload through the web UI or update.py does not: export the dashbo
 The web UI belongs to the firmware: the dashboard editor copies rules of the firmware, so a
 firmware with a change to the dashboard goes onto a device together with its web image.
 
-littlefs-python is installed into build/littlefs_venv on the first run (the version the littlefs
-component uses for its images). Writing over serial needs the ESP-IDF environment.
+littlefs-python (the version the littlefs component uses for its images), rjsmin and rcssmin are
+installed into build/littlefs_venv on the first run. Writing over serial needs the ESP-IDF
+environment.
 """
 
 import argparse
 import csv
 import gzip
+import hashlib
 import io
 import os
 import re
@@ -37,11 +41,11 @@ import venv
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "web"
 SOUNDS = ROOT / "sounds"
 # the directories of the image that come from the firmware's sources, not from the device
 FIRMWARE_DIRS = ("www", "sounds")
-LITTLEFS_PYTHON = "littlefs-python==0.15.0"
+# the littlefs component's image tool, the minifiers of tools/build_web.py
+PACKAGES = ("littlefs-python==0.15.0", "rjsmin==1.3.0", "rcssmin==1.3.0")
 # CONFIG_LITTLEFS_OBJ_NAME_LEN and the flash sector size
 NAME_MAX = 64
 BLOCK_SIZE = 4096
@@ -51,12 +55,12 @@ def fail(message: str) -> None:
     sys.exit(f"build_fs.py: {message}")
 
 
-def firmware_sdkconfig(board: str) -> str:
-    """The generated sdkconfig of the main firmware: the partition table and the audio options."""
+def firmware_sdkconfig(board: str) -> Path:
+    """The generated sdkconfig of the main firmware: the partition table, the options, the audio options."""
     sdkconfig = ROOT / "build" / board / "main" / "sdkconfig"
     if not sdkconfig.is_file():
         fail(f"{sdkconfig.relative_to(ROOT)} is missing: build the firmware first (python tools/build.py {board})")
-    return sdkconfig.read_text(encoding="utf-8")
+    return sdkconfig
 
 
 def partition_table(sdkconfig: str) -> Path:
@@ -76,24 +80,42 @@ def storage_size(table: Path) -> int:
     return 0
 
 
-def littlefs_tool() -> Path:
+def tools_venv() -> Path:
+    """The venv with PACKAGES, made on the first run; packages.txt says what is in it."""
     env = ROOT / "build" / "littlefs_venv"
-    tool = env / ("Scripts/littlefs-python.exe" if os.name == "nt" else "bin/littlefs-python")
-    if not tool.is_file():
-        print("build_fs.py: installing littlefs-python into build/littlefs_venv", flush=True)
+    marker = env / "packages.txt"
+    wanted = "\n".join(PACKAGES) + "\n"
+    if not marker.is_file() or marker.read_text(encoding="utf-8") != wanted:
+        print(f"build_fs.py: installing {', '.join(PACKAGES)} into build/littlefs_venv", flush=True)
         venv.create(env, with_pip=True)
         pip = env / ("Scripts/pip.exe" if os.name == "nt" else "bin/pip")
-        subprocess.run([str(pip), "install", "-q", LITTLEFS_PYTHON], check=True)
-    return tool
+        subprocess.run([str(pip), "install", "-q", *PACKAGES], check=True)
+        marker.write_text(wanted, encoding="utf-8")
+    return env
 
 
-def stage(root: Path) -> list[tuple[str, int, int]]:
-    """Copies web/ gzipped to root/www; returns (name, size, gzipped size)."""
+def venv_program(name: str) -> Path:
+    env = tools_venv()
+    return env / (f"Scripts/{name}.exe" if os.name == "nt" else f"bin/{name}")
+
+
+def littlefs_tool() -> Path:
+    return venv_program("littlefs-python")
+
+
+def stage(root: Path, sdkconfig: Path) -> list[tuple[str, int, int]]:
+    """Builds the web files (tools/build_web.py) and copies them gzipped to root/www; returns
+    (name, built size, gzipped size)."""
     if root.exists():
         shutil.rmtree(root)
+    web = root.parent / "web"
+    print("build_fs.py: building the web files", flush=True)
+    subprocess.run([str(venv_program("python")), str(ROOT / "tools" / "build_web.py"), str(sdkconfig), str(web)], check=True)
     files = []
-    for source in sorted(p for p in WEB.rglob("*") if p.is_file()):
-        relative = source.relative_to(WEB)
+    # one ETag for the image: the web server answers 304 to a browser that has these files
+    digest = hashlib.sha256()
+    for source in sorted(p for p in web.rglob("*") if p.is_file()):
+        relative = source.relative_to(web)
         target = root / "www" / relative.parent / (relative.name + ".gz")
         target.parent.mkdir(parents=True, exist_ok=True)
         data = source.read_bytes()
@@ -102,7 +124,10 @@ def stage(root: Path) -> list[tuple[str, int, int]]:
         with gzip.GzipFile(fileobj=buffer, mode="wb", compresslevel=9, mtime=0) as zipped:
             zipped.write(data)
         target.write_bytes(buffer.getvalue())
+        digest.update(relative.as_posix().encode())
+        digest.update(buffer.getvalue())
         files.append((relative.as_posix(), len(data), len(buffer.getvalue())))
+    (root / "www" / "etag").write_text(digest.hexdigest()[:16], encoding="ascii")
     return files
 
 
@@ -165,13 +190,14 @@ def main() -> None:
     parser.add_argument("--fresh", action="store_true", help="with -p: do not keep the board's own files")
     args = parser.parse_args()
 
-    sdkconfig = firmware_sdkconfig(args.board)
+    sdkconfig_path = firmware_sdkconfig(args.board)
+    sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
     size = storage_size(partition_table(sdkconfig))
     out_dir = ROOT / "build" / args.board / "fs"
     root = out_dir / "root"
     image = out_dir / "storage.bin"
     out_dir.mkdir(parents=True, exist_ok=True)
-    files = stage(root)
+    files = stage(root, sdkconfig_path)
     if has_mp3(sdkconfig):
         files += stage_sounds(root)
     if args.port and not args.fresh:

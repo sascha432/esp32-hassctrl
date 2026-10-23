@@ -1264,6 +1264,7 @@ esp32-hassctrl/
   sounds/                        the alarm sounds (MP3, AOSP, Apache 2.0, NOTICE)
   tools/
     build.py, build_fs.py, update.py   firmware, file system image, update over the network
+    build_web.py                       the web files for one firmware (board-only pages left out, Bootstrap purged, minified)
     host_test.py, sim.py, msvc.py      host tests, Windows version (msvc.py finds MSVC, cmake, ninja)
     test_dashboard.py, test_web.py     tests against a device
     screenshot.py                      the screen over the serial console (uidebug)
