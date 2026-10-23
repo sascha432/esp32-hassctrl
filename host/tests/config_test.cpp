@@ -133,7 +133,7 @@ TEST(config_sample_settings_sections_are_valid_yaml)
     for (const auto &key : imported->other_keys) {
         keys += std::string(key.c_str()) + " ";
     }
-    CHECK_STR(keys, "hass webui network camera display sound alarm ");
+    CHECK_STR(keys, "hass time webui network camera display sound alarm ");
 }
 
 TEST(config_imports_the_documented_sample)

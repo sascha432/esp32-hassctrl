@@ -85,6 +85,12 @@ def main() -> None:
     status, _, _ = c.request("POST", "/api/update/firmware", body=b"x" * 100,
                              headers={"Content-Type": "application/octet-stream"})
     check(status == 401, "an upload without login is 401", str(status))
+    # the SD card's routes (CONFIG_HC_SDCARD; unknown paths without it)
+    for path in ["/api/sd", "/api/sd/list", "/api/sd/file?path=x"]:
+        status, _, _ = c.request("GET", path)
+        check(status in (401, 404), f"GET {path} without login is refused", str(status))
+    status, _, _ = c.request("POST", "/api/sd/format", form={"confirm": "yes"})
+    check(status in (401, 404, 405), "POST /api/sd/format without login is refused", str(status))
     # the recovery app has no Home Assistant connection: there the path is unknown
     status, _, _ = c.request("GET", "/api/hass")
     check(status in (401, 404), "GET /api/hass without login is 401", str(status))
@@ -138,6 +144,21 @@ def main() -> None:
         check(status == 400, f"POST {path} {form} is refused", str(status))
     status, answer, _ = c.request("POST", "/api/update/url", form={"target": "firmware", "url": "ftp://x"})
     check(status in (400, 409), "a URL that is not http(s) is refused", f"{status} {answer}")
+
+    # the SD card (a firmware with CONFIG_HC_SDCARD reports it in /api/status); nothing is written
+    if "sd" in s:
+        status, sd, _ = c.request("GET", "/api/sd")
+        check(status == 200 and "state" in sd and "fetch" in sd, "GET /api/sd", str(sd.get("state")))
+        for form, what in [({"confirm": "no", "password": password}, "without confirm=yes"),
+                           ({"confirm": "yes", "password": "wrong-password"}, "with a wrong password"),
+                           ({"confirm": "yes"}, "without a password")]:
+            status, _, _ = c.request("POST", "/api/sd/format", form=form)
+            check(status == 400, f"formatting the SD card {what} is refused", str(status))
+        for path in ["../fs/dashboard.json", "a/../../x", "a\\b"]:
+            status, _, _ = c.request("GET", "/api/sd/file?path=" + urllib.parse.quote(path))
+            check(status in (400, 409), f"GET /api/sd/file {path!r} is refused", str(status))
+        status, _, _ = c.request("POST", "/api/sd/fetch", form={"url": "ftp://x/y", "path": "y"})
+        check(status in (400, 409), "an SD download from a URL that is not http(s) is refused", str(status))
 
     # a new password over 64 characters is named as too long (the current one is wrong: nothing changes)
     status, answer, _ = c.request("POST", "/api/password", form={"current": "wrong-password", "password": "x" * 65})

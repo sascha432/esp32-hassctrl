@@ -695,6 +695,9 @@ void device_info(DeviceInfo &out)
     out.uptime_s = (lv_tick_get() - g.boot_tick) / 1000;
     out.heap_internal_kb = 142;
     out.heap_psram_kb = 3012;
+#if CONFIG_HC_SDCARD
+    copy(out.sd_card, std::string("7.4 of 29.7 GB free"));
+#endif
 }
 
 void local_time(int64_t epoch, std::tm &out)
@@ -810,6 +813,13 @@ const hc::ui::Backend kBackend{
     .mic_record = mic_record,
     .mic_record_cancel = [] { g.recording = false; },
     .mic_recording = mic_recording,
+#if CONFIG_HC_SDCARD
+    .mic_save =
+        [] {
+            print("recording saved");
+            return hc::ui::MicSaved::Saved;
+        },
+#endif
     .vibration = vibration,
     .set_vibration = [](bool on) { g.vibration = on; },
     .vibrate_click = [] { print("vibration pulse"); },

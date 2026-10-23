@@ -221,6 +221,9 @@ Built home_assistant(lv_obj_t *content)
 
 lv_obj_t *g_system_uptime = nullptr;
 lv_obj_t *g_system_memory = nullptr;
+#if CONFIG_HC_SDCARD
+lv_obj_t *g_system_sd = nullptr;
+#endif
 
 void system_refresh()
 {
@@ -232,6 +235,9 @@ void system_refresh()
     std::snprintf(text, sizeof(text), "%lu KB + %lu KB PSRAM", static_cast<unsigned long>(device.heap_internal_kb),
                   static_cast<unsigned long>(device.heap_psram_kb));
     t::line_text(t::row_value(g_system_memory), text);
+#if CONFIG_HC_SDCARD
+    t::line_text(t::row_value(g_system_sd), device.sd_card);
+#endif
 }
 
 Built system(lv_obj_t *content)
@@ -244,6 +250,9 @@ Built system(lv_obj_t *content)
     t::row(col, "Firmware", device.firmware, false, nullptr);
     g_system_uptime = t::row(col, "Uptime", "", false, nullptr);
     g_system_memory = t::row(col, "Free memory", "", false, nullptr);
+#if CONFIG_HC_SDCARD
+    g_system_sd = t::row(col, "SD card", "", false, nullptr);
+#endif
     system_refresh();
 
     lv_obj_t *buttons = button_row(col);

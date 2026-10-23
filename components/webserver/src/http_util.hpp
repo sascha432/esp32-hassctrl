@@ -7,6 +7,7 @@
 
 #include "esp_http_server.h"
 #include "hc/formats/json_writer.hpp"
+#include "sdkconfig.h"
 
 namespace hc::webserver {
 struct HassAccess;
@@ -66,5 +67,10 @@ void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, c
 void register_camera_routes(httpd_handle_t server, const CameraAccess *camera);
 // nothing without the clock (the recovery app)
 void register_time_routes(httpd_handle_t server, bool time);
+#if CONFIG_HC_SDCARD
+// the SD card page (api_sd.cpp); the server makes room for kSdRoutes more handlers
+constexpr size_t kSdRoutes = 9;
+void register_sd_routes(httpd_handle_t server);
+#endif
 
 } // namespace hc::webserver::detail

@@ -15,3 +15,7 @@ CONFIG_MBEDTLS_TLS_CLIENT_ONLY=y
 # password. Plain WPA2 and WPA3 (SAE) stay.
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
 # CONFIG_ESP_WIFI_ENABLE_SAE_PK is not set
+
+# No SD card in the recovery app (the main firmware's CONFIG_HC_SDCARD): the webserver requires the
+# sdcard component, which would offer it here as well.
+# CONFIG_HC_SDCARD is not set

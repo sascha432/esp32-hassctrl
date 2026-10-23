@@ -24,6 +24,9 @@
 #include "camera_preview.hpp"
 #include "hc/camera/camera.hpp"
 #endif
+#if CONFIG_HC_SDCARD
+#include "hc/sdcard/sdcard.hpp"
+#endif
 #include "hc/config/dashboard.hpp"
 #include "hc/core/icons.hpp"
 #include "hc/core/timezone.hpp"
@@ -542,6 +545,13 @@ extern "C" void app_main()
         if (!bh1750 && (board.light_ldr_gpio < 0 || hc::light_sensor::ldr::start(board.light_ldr_gpio) != ESP_OK)) {
             ESP_LOGI(kTag, "no light sensor");
         }
+#if CONFIG_HC_SDCARD
+        // before the audio and the UI, which list the alarm sounds on it; the SDMMC controller is
+        // created here or by the C6's link (network), whichever comes first
+        if (hc::sdcard::start(board) != ESP_OK) {
+            ESP_LOGW(kTag, "SD card slot did not start");
+        }
+#endif
 #if CONFIG_HC_AUDIO
         start_audio(board);
 #endif
@@ -651,6 +661,9 @@ extern "C" void app_main()
 #if CONFIG_HC_DEV_CONSOLE
 #if CONFIG_HC_BOARD_HAS_CAMERA
     hc::camera::register_console();
+#endif
+#if CONFIG_HC_SDCARD
+    hc::sdcard::register_console();
 #endif
     bench_mode::register_console(disp);
     hc::devconsole::ready();

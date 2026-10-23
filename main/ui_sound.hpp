@@ -25,6 +25,9 @@ extern bool (*const mic_level)(float &dbfs);
 extern bool (*const mic_record)(bool start);
 extern void (*const mic_record_cancel)();
 extern hc::ui::MicRecording (*const mic_recording)(uint32_t &remaining_ms);
+#if CONFIG_HC_SDCARD
+extern hc::ui::MicSaved (*const mic_save)();
+#endif
 
 extern bool (*const vibration)(bool &on);
 extern void (*const set_vibration_setting)(bool on);

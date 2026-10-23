@@ -53,3 +53,7 @@ CONFIG_LV_DISP_ROT_MAX_BUF=49152
 # comes with components/camera (esp_cam_sensor has none): no sensor of esp_cam_sensor is probed.
 CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=n
 CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y
+
+# The microSD card (components/sdcard, CONFIG_HC_SDCARD): file names as UTF-8 (uploads from the
+# web UI), long names on the heap (the IDF default). Nothing of FAT is linked without the option.
+CONFIG_FATFS_API_ENCODING_UTF_8=y

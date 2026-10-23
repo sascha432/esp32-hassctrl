@@ -40,6 +40,9 @@
 #include "hc/uidebug/uidebug.hpp"
 #include "hc/motion/motion.hpp"
 #include "hc/relay/relay.hpp"
+#if CONFIG_HC_SDCARD
+#include "hc/sdcard/sdcard.hpp"
+#endif
 #include "hc/vibration/vibration.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -904,6 +907,23 @@ int cmd_mic(int argc, char **argv)
         hc::audio::log_mic();
         return 0;
     }
+#if CONFIG_HC_SDCARD
+    if (argc == 3 && std::strcmp(argv[1], "record") == 0 && std::strcmp(argv[2], "save") == 0) {
+        // the last recording onto the SD card, as the Save button of Settings, Sound
+        size_t count = 0;
+        const int16_t *samples = hc::audio::mic_recording(count);
+        char path[hc::sdcard::kMaxPath];
+        if (samples == nullptr || count == 0) {
+            std::printf("no recording (mic record first)\n");
+            return 1;
+        }
+        if (check(hc::sdcard::save_recording(samples, count, hc::audio::kSampleRate, path, sizeof(path))) != 0) {
+            return 1;
+        }
+        std::printf("saved %s, %u ms\n", path, static_cast<unsigned>(count * 1000 / hc::audio::kSampleRate));
+        return 0;
+    }
+#endif
     if (argc == 2 && std::strcmp(argv[1], "record") == 0) {
         // the test recording of Settings, Sound: the peak of every second while it records
         if (!hc::audio::mic_record_start()) {
@@ -935,7 +955,11 @@ int cmd_mic(int argc, char **argv)
         return 0;
     }
     if (argc > 2 || (argc == 2 && std::atoi(argv[1]) <= 0)) {
+#if CONFIG_HC_SDCARD
+        return usage("mic [<seconds>|record [save]|gain <db>|auto on|off|regs]");
+#else
         return usage("mic [<seconds>|record|gain <db>|auto on|off|regs]");
+#endif
     }
     // the loudest sample of every 250 ms
     const int seconds = argc == 2 ? std::min(std::atoi(argv[1]), 60) : 5;
@@ -1246,7 +1270,12 @@ void register_commands()
 #endif
 #if CONFIG_HC_MIC
     add("mic", "microphone: its level for some seconds, a test recording, a gain or the ALC",
-        "[<seconds>|record|gain <db>|auto on|off|regs]", cmd_mic);
+#if CONFIG_HC_SDCARD
+        "[<seconds>|record [save]|gain <db>|auto on|off|regs]",
+#else
+        "[<seconds>|record|gain <db>|auto on|off|regs]",
+#endif
+        cmd_mic);
 #endif
     add("relay", "GPIO relays: the state, or one switched", "[status|<n> on|off]", cmd_relay);
     add("motion", "motion sensor: the state, or one sent to Home Assistant", "[status|detected|clear]", cmd_motion);

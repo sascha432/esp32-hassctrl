@@ -46,7 +46,8 @@ constexpr uint32_t kMeterMs = 100;
 // a peak falls back this much per update, so a short sound stays readable
 constexpr float kMeterFallDb = 3.0f;
 
-// "Volume is 0" stays on the record button this long after a tap that could not record
+// "Volume is 0" stays on the record button this long after a tap that could not record, and what
+// saving did on the save button
 constexpr uint32_t kRecordRefusedMs = 2000;
 
 struct Mic {
@@ -59,6 +60,12 @@ struct Mic {
     float shown = kMeterFloorDbfs;
     // when a tap on Record was refused, 0: not
     uint32_t refused_at = 0;
+#if CONFIG_HC_SDCARD
+    lv_obj_t *save = nullptr;
+    // when the recording was saved (or could not be), 0: not yet
+    uint32_t saved_at = 0;
+    MicSaved saved = MicSaved::Saved;
+#endif
 };
 
 Mic g_mic;
@@ -107,7 +114,38 @@ void record_update()
     } else {
         lv_obj_clear_state(g_mic.record, LV_STATE_DISABLED);
     }
+#if CONFIG_HC_SDCARD
+    if (g_mic.save == nullptr) {
+        return;
+    }
+    const char *save_text = "Save";
+    if (g_mic.saved_at != 0 && lv_tick_elaps(g_mic.saved_at) < kRecordRefusedMs) {
+        save_text = g_mic.saved == MicSaved::Saved         ? "Saved"
+                    : g_mic.saved == MicSaved::NoRecording ? "Record first"
+                    : g_mic.saved == MicSaved::NoCard      ? "No SD card"
+                                                           : "Save failed";
+    } else {
+        g_mic.saved_at = 0;
+    }
+    lv_label_set_text(lv_obj_get_child(g_mic.save, 0), save_text);
+    if (state != MicRecording::Idle) {
+        lv_obj_add_state(g_mic.save, LV_STATE_DISABLED);
+    } else {
+        lv_obj_clear_state(g_mic.save, LV_STATE_DISABLED);
+    }
+#endif
 }
+
+#if CONFIG_HC_SDCARD
+// writes up to 160 KB in the LVGL task: a few hundred milliseconds at most on a card (measured in
+// docs/architecture.md section 9.3)
+void on_save(lv_event_t *)
+{
+    g_mic.saved = backend().mic_save();
+    g_mic.saved_at = std::max<uint32_t>(1, lv_tick_get());
+    record_update();
+}
+#endif
 
 void on_record(lv_event_t *)
 {
@@ -186,7 +224,13 @@ void mic_section(lv_obj_t *col)
     section(col, "Microphone");
     meter_card(col);
     if (backend().mic_record != nullptr) {
-        g_mic.record = t::button(button_row(col), "Record", on_record);
+        lv_obj_t *buttons = button_row(col);
+        g_mic.record = t::button(buttons, "Record", on_record);
+#if CONFIG_HC_SDCARD
+        if (backend().mic_save != nullptr) {
+            g_mic.save = t::button(buttons, "Save", on_save);
+        }
+#endif
     }
     g_mic.gain_slider = slider_card(
         col, "Gain", 0, kMicMaxGainDb, m.gain_db,
@@ -207,7 +251,11 @@ void mic_section(lv_obj_t *col)
     });
     text_block(col, "Auto gain keeps a voice at the mark whatever its distance. Without it the gain stays "
                     "where it is set, and the level follows the room. Record takes up to 5 s and plays them "
-                    "right after, at this volume.");
+                    "right after, at this volume."
+#if CONFIG_HC_SDCARD
+                    " Save keeps the last one as a WAV file on the SD card, in recordings."
+#endif
+    );
 
     // the samples are read only while the meter shows
     g_mic.shown = kMeterFloorDbfs;

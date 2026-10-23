@@ -91,7 +91,8 @@ const wifiIcon = '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentC
 
 const menuPages = [
   ["status", "Status"], ["ha", "Home Assistant"], ["wifi", "Wi-Fi"], ["hotspot", "Hotspot"],
-  ["camera", "Camera"], ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"], ["system", "System"],
+  ["camera", "Camera"], ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"], ["sd", "SD card"],
+  ["system", "System"],
 ];
 
 function frame(loggedIn, step) {
@@ -113,6 +114,8 @@ async function updateHeader() {
   $("#device-name").textContent = s.device.name;
   // only a board with a camera has the page
   $('#menu-pages a[data-page="camera"]').hidden = !s.camera;
+  // only a firmware with the SD card (CONFIG_HC_SDCARD) reports it
+  $('#menu-pages a[data-page="sd"]').hidden = !s.sd;
   document.title = s.device.name;
   const icon = $("#icon-wifi");
   icon.innerHTML = wifiIcon;
@@ -473,6 +476,7 @@ const views = {
           ["Firmware", esc(d.firmware)], ["Uptime", duration(d.uptime_s)],
           ["Free memory", `${d.heap_internal_kb} KB internal, ${d.heap_psram_kb} KB PSRAM`],
           ["File system", esc(s.fs.state) + (s.fs.state === "mounted" ? `, ${s.fs.used_kb} of ${s.fs.total_kb} KB used` : "")],
+          ...(s.sd ? [["SD card", esc(sdSpace(s.sd))]] : []),
         ]));
     };
     await draw();
@@ -993,6 +997,152 @@ const views = {
     await load();
   },
 
+  // The SD card (docs/ui/web/web-app.md section 4, SD card): its files, upload, a download from a
+  // URL, mount and format. Only with a card slot (/api/status has "sd").
+  async sd() {
+    let dir = sessionStorage.getItem("sd-dir") || "";
+    const join = (name) => (dir ? dir + "/" : "") + name;
+    const fileUrl = (path) => "/api/sd/file?path=" + encodeURIComponent(path);
+    render(`<h1>SD card</h1>` +
+      card("Card", `<p class="mb-2" id="sd-state">...</p>
+        <div class="d-flex gap-2 flex-wrap">
+          <button id="sd-mount" class="btn btn-outline-secondary" type="button">Mount</button>
+          <button id="sd-unmount" class="btn btn-outline-secondary" type="button">Unmount</button>
+        </div>
+        <p class="small text-body-secondary mt-2 mb-0">The slot has no card detection: mount a card put in
+          while the device runs, unmount one before taking it out.</p>`) +
+      card("Files", `<nav class="mb-2" id="sd-path"></nav>
+        <div class="list-group mb-3" id="sd-list"></div>
+        <label class="form-label" for="sd-file">Upload into this folder</label>
+        <input id="sd-file" type="file" class="form-control mb-2" multiple>
+        <div class="d-flex gap-2 flex-wrap mb-2">
+          <button id="sd-upload" class="btn btn-primary" type="button">Upload</button>
+          <button id="sd-mkdir" class="btn btn-outline-secondary ms-auto" type="button">New folder</button>
+        </div>
+        <div class="progress" id="progress" hidden><div class="progress-bar" style="width:0%"></div></div>
+        <p class="small text-body-secondary mt-2 mb-0">Alarm sounds: MP3 files in <code>sounds/alarms</code>.
+          Saved recordings: <code>recordings</code>.</p>`) +
+      card("Download from a URL", `
+        <input id="sd-url" class="form-control mb-2" placeholder="http(s)://.../file" autocomplete="off">
+        <input id="sd-name" class="form-control mb-2" placeholder="file name (in this folder)" autocomplete="off">
+        <div class="d-flex justify-content-end"><button id="sd-fetch" class="btn btn-primary" type="button">Download</button></div>
+        <p class="mt-2 mb-0" id="sd-fetch-message"></p>`) +
+      card("Format", `
+        <p class="mb-2">Erases the card and writes an empty FAT. Enter your password to confirm.</p>
+        <input id="sd-password" type="password" class="form-control mb-2" autocomplete="current-password"
+          placeholder="password">
+        <div class="d-flex justify-content-end"><button id="sd-format" class="btn btn-outline-danger" type="button">Format the card</button></div>`));
+
+    const showState = (c) => {
+      $("#sd-state").textContent = sdSpace(c) + (c.state === "mounted" ? `, ${c.name}, ${c.clock_khz / 1000} MHz` : "");
+      $("#sd-mount").hidden = c.state === "mounted";
+      $("#sd-unmount").hidden = c.state !== "mounted";
+      const f = c.fetch;
+      $("#sd-fetch-message").textContent = f.state === "running" ? `downloading ${f.path}: ${kib(f.done)}${f.total ? " of " + kib(f.total) : ""}`
+        : f.state === "failed" ? `download failed: ${f.error}` : f.state === "done" ? `downloaded ${f.path}` : "";
+      return c;
+    };
+    const list = async () => {
+      sessionStorage.setItem("sd-dir", dir);
+      const parts = dir ? dir.split("/") : [];
+      $("#sd-path").innerHTML = [`<a href="#" data-dir="">card</a>`, ...parts.map((p, i) =>
+        `<a href="#" data-dir="${esc(parts.slice(0, i + 1).join("/"))}">${esc(p)}</a>`)].join(" / ");
+      let entries = [];
+      try {
+        entries = (await api("/api/sd/list?dir=" + encodeURIComponent(dir))).entries;
+      } catch (e) {
+        if (e.status === 404 && dir) {
+          dir = "";
+          return list();
+        }
+        $("#sd-list").innerHTML = `<div class="list-group-item text-body-secondary">${esc(e.message)}</div>`;
+        return;
+      }
+      entries.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
+      $("#sd-list").innerHTML = entries.map((e) => `
+        <div class="list-group-item d-flex align-items-center gap-2">
+          ${e.dir ? `<a href="#" class="flex-grow-1 text-truncate" data-dir="${esc(join(e.name))}">${esc(e.name)}/</a>`
+                  : `<a class="flex-grow-1 text-truncate" href="${fileUrl(join(e.name))}" download="${esc(e.name)}">${esc(e.name)}</a>
+                     <span class="small text-body-secondary">${kib(e.size)}</span>`}
+          <button class="btn btn-sm btn-outline-danger" type="button" data-delete="${esc(join(e.name))}">Delete</button>
+        </div>`).join("") || '<div class="list-group-item text-body-secondary">empty</div>';
+    };
+    const load = async () => showState(await api("/api/sd"));
+
+    for (const id of ["#sd-path", "#sd-list"]) {
+      $(id).onclick = async (e) => {
+        const link = e.target.closest("[data-dir]");
+        const del = e.target.closest("[data-delete]");
+        if (link) {
+          e.preventDefault();
+          dir = link.dataset.dir;
+          await list();
+        } else if (del) {
+          if (!confirm(`Delete ${del.dataset.delete}?`)) return;
+          await busy(del, async () => {
+            await api("/api/sd/delete", { path: del.dataset.delete });
+            await list();
+            await load();
+          });
+        }
+      };
+    }
+    $("#sd-mount").onclick = (e) => busy(e.target, async () => {
+      showState(await api("/api/sd/mount", { action: "mount" }));
+      await list();
+    });
+    $("#sd-unmount").onclick = (e) => busy(e.target, async () => {
+      showState(await api("/api/sd/mount", { action: "unmount" }));
+      $("#sd-list").innerHTML = '<div class="list-group-item text-body-secondary">no card mounted</div>';
+    });
+    $("#sd-upload").onclick = (e) => busy(e.target, async () => {
+      const files = [...$("#sd-file").files];
+      if (!files.length) throw new Error("choose a file");
+      for (const file of files) {
+        await upload("/api/sd/file?path=" + encodeURIComponent(join(file.name)), file);
+      }
+      progress(0, 0);
+      $("#sd-file").value = "";
+      toast(files.length === 1 ? `${files[0].name} uploaded` : `${files.length} files uploaded`, "success");
+      await list();
+      await load();
+    });
+    $("#sd-mkdir").onclick = (e) => busy(e.target, async () => {
+      const name = prompt("Name of the new folder");
+      if (!name) return;
+      await api("/api/sd/mkdir", { path: join(name) });
+      await list();
+    });
+    $("#sd-fetch").onclick = (e) => busy(e.target, async () => {
+      const url = $("#sd-url").value.trim();
+      const name = $("#sd-name").value.trim() || decodeURIComponent(url.split("?")[0].split("/").pop() || "");
+      if (!url || !name) throw new Error("enter a URL and a file name");
+      await api("/api/sd/fetch", { url, path: join(name) });
+      for (;;) {
+        await sleep(1000);
+        const c = showState(await api("/api/sd"));
+        if (c.fetch.state === "failed") throw new Error(c.fetch.error);
+        if (c.fetch.state !== "running") break;
+      }
+      toast(`${name} downloaded`, "success");
+      await list();
+    });
+    $("#sd-format").onclick = (e) => busy(e.target, async () => {
+      if (!confirm("Format the SD card? Every file on it is deleted.")) return;
+      const password = $("#sd-password").value;
+      $("#sd-password").value = "";
+      showState(await api("/api/sd/format", { confirm: "yes", password }));
+      dir = "";
+      toast("SD card formatted", "warning");
+      await list();
+    });
+
+    const c = await load();
+    if (c.state === "mounted") await list();
+    else $("#sd-list").innerHTML = '<div class="list-group-item text-body-secondary">no card mounted</div>';
+    refresh(load, 3000);
+  },
+
   async system() {
     const [s, u] = await Promise.all([api("/api/status"), api("/api/update")]);
     // the recovery app has no backup (its /api/backup answers 404)
@@ -1120,6 +1270,19 @@ async function importBackup(checkOnly) {
   $("#backup-report").innerHTML = head + list("Problems", r.problems, "text-danger") +
     list("Please note", r.notes, "") + list("Ignored", r.ignored, "text-body-secondary");
   if (r.imported) toast("backup imported", "success");
+}
+
+// --------------------------------------------------------------------------------- SD card
+
+const kib = (bytes) => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+
+// "7.4 of 29.7 GB free", or the state ("no card", "not formatted") of /api/status or /api/sd
+function sdSpace(c) {
+  if (c.state !== "mounted") return c.state;
+  // the device's units (1000s), as Settings, System shows them
+  const [unit, name] = c.total_kb * 1024 >= 1e9 ? [1e9, "GB"] : [1e6, "MB"];
+  const size = (kb) => ((kb * 1024) / unit).toFixed(1);
+  return `${size(c.free_kb)} of ${size(c.total_kb)} ${name} free`;
 }
 
 // --------------------------------------------------------------------------------- update

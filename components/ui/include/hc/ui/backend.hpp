@@ -4,7 +4,11 @@
 // never talks to the network itself). `main` fills this table with the functions of the network,
 // board and web server components. Every function is called from the LVGL task and returns at
 // once; actions that take time (scans, connecting) report their progress through wifi_info().
-// The one exception is save_dashboard, which writes a file of a few KB.
+// The exceptions are save_dashboard, which writes a file of a few KB, and mic_save (a recording of
+// up to 160 KB onto the SD card).
+//
+// The SD card's parts are only in a firmware with CONFIG_HC_SDCARD (the simulator defines it):
+// without it they are not built at all.
 
 #include <cstddef>
 #include <cstdint>
@@ -14,6 +18,9 @@
 
 #include "hc/core/entity.hpp"
 #include "hc/core/layout.hpp"
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 
 namespace hc::ui {
 
@@ -56,6 +63,10 @@ struct DeviceInfo {
     uint32_t uptime_s;
     uint32_t heap_internal_kb;
     uint32_t heap_psram_kb;
+#if CONFIG_HC_SDCARD
+    // "7.4 of 29.7 GB free", "no card", "not formatted" (Settings, System)
+    char sd_card[32];
+#endif
 };
 
 // The Home Assistant connection. Address and token are set in the web UI only.
@@ -117,6 +128,10 @@ constexpr uint8_t kMicMaxGainDb = 60;
 
 // the test recording of Settings, Sound: it records, then plays once
 enum class MicRecording : uint8_t { Idle, Recording, Playing };
+#if CONFIG_HC_SDCARD
+// what saving the test recording onto the SD card did
+enum class MicSaved : uint8_t { Saved, NoRecording, NoCard, Failed };
+#endif
 
 constexpr size_t kSoundNameSize = 32;
 
@@ -237,6 +252,10 @@ struct Backend {
     bool (*mic_record)(bool start);
     void (*mic_record_cancel)();
     MicRecording (*mic_recording)(uint32_t &remaining_ms);
+#if CONFIG_HC_SDCARD
+    // the last recording as a WAV file in /sd/recordings; nullptr without a microphone
+    MicSaved (*mic_save)();
+#endif
     // Vibration: nullptr when the firmware has no motor (CONFIG_HC_VIBRATION); false when it did
     // not start. Settings show the switch on the Sound page then, and the page also without audio.
     // The switch is for taps; each alarm has its own (AlarmSettings::vibrate).

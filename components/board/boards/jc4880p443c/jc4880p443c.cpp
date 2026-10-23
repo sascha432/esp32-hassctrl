@@ -75,6 +75,14 @@ constexpr Info kInfo = variant::apply(Info{
     // a PIR on the expansion header, its output low while it sees motion (user, 2026-10-15)
     .motion_gpio = 34,
     .motion_active_high = false,
+#if CONFIG_HC_SDCARD
+    // the TF slot (schematic): the IO MUX pins of SDMMC slot 0, external pullups; TF_VCC is
+    // ESP_LDO_VO4 through an AO3401 that is always on (GPIO 45 not fitted), no card detect
+    .sd_clk_gpio = 43,
+    .sd_cmd_gpio = 44,
+    .sd_data_gpios = {39, 40, 41, 42},
+    .sd_ldo_channel = 4,
+#endif
     // the large screen: panels are dialogs, larger fonts (user, 2026-10-08); the pages slide on
     // every board since 2026-10-14
     .ui_panel_dialogs = true,

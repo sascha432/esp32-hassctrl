@@ -19,6 +19,7 @@ constexpr Info apply(Info info)
     // info.relay_pullup = {true, false, false, false}; // relay 1 on the internal pullup, closed at boot
     // info.motion_gpio = 34;                      // a motion sensor, -1: none
     // info.motion_active_high = false;            // its output low while it sees motion
+    // info.sd_clk_gpio = -1;                      // no SD slot on this unit (CONFIG_HC_SDCARD only)
     // info.imu_axes = {0, 1, 0, 1, 0, 0};         // console `orient capture`, both lines
     // info.imu_offset = {0, 0, 0};
     // info.light_sensor_scale = 1.0f;             // console `light calibrate`

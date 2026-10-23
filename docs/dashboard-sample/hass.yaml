@@ -142,7 +142,7 @@
 #      on: true
 #      days: [mon, tue, wed, thu, fri]   # [] for once, then it turns itself off
 #      snooze_min: 9            # 1 to 60
-#      sound: Argon             # an MP3 of /fs/sounds/alarms, "" for the beeps
+#      sound: Argon             # an MP3 of /fs/sounds/alarms or the SD card's sounds/alarms, "" for the beeps
 #      vibrate: true            # with a vibration motor
 #    - time: "09:30"
 #      on: false

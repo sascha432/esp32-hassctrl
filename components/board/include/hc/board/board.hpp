@@ -11,6 +11,7 @@
 #include "esp_err.h"
 #include "esp_lcd_touch.h"
 #include "esp_lcd_types.h"
+#include "sdkconfig.h"
 
 namespace hc::board {
 
@@ -104,6 +105,15 @@ struct Info {
     int8_t motion_gpio = -1;
     // the level of the sensor's output while it sees motion
     bool motion_active_high = true;
+#if CONFIG_HC_SDCARD
+    // A microSD slot on SDMMC slot 0, 4 bit (hc::sdcard). The board's Kconfig option selects
+    // HC_BOARD_HAS_SDCARD when it has one; without CONFIG_HC_SDCARD these fields are not built.
+    int8_t sd_clk_gpio = -1;
+    int8_t sd_cmd_gpio = -1;
+    std::array<int8_t, 4> sd_data_gpios = {-1, -1, -1, -1};
+    // the chip's LDO channel that powers the slot's pins and the card (ESP32-P4), -1: none
+    int8_t sd_ldo_channel = -1;
+#endif
     // How the MPU6050 sits on this board type, measured by the developer when the board is added
     // (docs/adding-a-board.md, console `orient`): gravity in the module's axes with the panel upright
     // in the base orientation (3 floats), then turned 90 degrees clockwise (3 floats). All zero = the

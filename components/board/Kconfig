@@ -27,6 +27,7 @@ menu "hassctrl board"
             select HC_BOARD_HAS_VIBRATION
             select HC_BOARD_HAS_CAMERA
             select HC_BOARD_HAS_MIC
+            select HC_BOARD_HAS_SDCARD
     endchoice
 
     config HC_BOARD_HAS_AUDIO
@@ -52,6 +53,12 @@ menu "hassctrl board"
         help
             The board has a MIPI-CSI camera connector: the camera component, Settings, Camera with
             its preview, and the stream at /api/camera.jpg and /api/camera.mjpg.
+
+    config HC_BOARD_HAS_SDCARD
+        bool
+        help
+            The board has a microSD slot on the SDMMC host (hc::board::Info::sd_*); it makes the
+            SD card option available (CONFIG_HC_SDCARD).
 
     config HC_BOARD_BRING_UP
         bool "Board bring-up: start with the test screen"

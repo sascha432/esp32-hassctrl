@@ -1122,6 +1122,24 @@ Your report of the first version (2026-10-09):
       tone at -15, a quiet room -46); a recording plays back (heard by the microphone at -23 dBFS).
       Record no longer catches the tap's click (first 200 ms skipped, last 150 ms on Stop).
       Working and tested by you on the test P4 (2026-10-22).
+- [x] SD card (2026-10-23, your request): `components/sdcard`, `CONFIG_HC_SDCARD` (default on, only
+      boards that `select HC_BOARD_HAS_SDCARD`, the JC4880P443C). Off, `jc4880p443c.mic` is the
+      same as before in every section of `idf.py size` (3,062,597 bytes); on, +54 KB. Tested on
+      the test P4 (COM11): 32 GB card at 40 MHz, mounted at boot in 45 ms, unmount and mount keep
+      Wi-Fi; its Linux boot partition (2.3 MB FAT) formatted to one FAT32 (2.5 s, your OK); upload,
+      download (same checksum), folders, delete, `..` refused, https download with a redirect,
+      a recording saved (`mic record save`, a valid 16 kHz WAV, 45 ms), an MP3 on the card in
+      the alarm's list and played; `tools/test_web.py` 67 of 67. Recovery app without it.
+- [ ] SD card downloads: 480 KB/s, the TCP send buffer (5760 bytes) limits them; 64 KB gave
+      0.7 to 1 MB/s (measured, not set: it applies to every connection of the board, your call).
+- [ ] The board restarted when the alarm preview of a sound on the card started at full volume
+      (2026-10-23); the same file at 62 % played. Probably the supply (as the speaker before),
+      not the card: check on a 2 A supply.
+- [ ] Alarm sound names with letters outside ASCII ("Krypton Ä" on the card) show a box: the
+      Montserrat fonts have ASCII only.
+- [ ] SD card on other boards: the TTGO T4's SPI slot (SPI host, not built), the JC3248W535's
+      (pins unknown). A card put in while the device runs needs `sd mount` or the web UI (no
+      card detect on the JC4880P443C).
 - [ ] Microphone hiss: a quiet room comes up to about -46 dBFS under Auto gain (54 dB ceiling),
       audible in pauses; normal for this MEMS class. Try the ES8311's noise gate (automute,
       REG18 bit 6, REG1A) with its threshold just above the room, or a lower ALC ceiling (48 dB).

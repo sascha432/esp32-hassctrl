@@ -2,11 +2,16 @@
 
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <dirent.h>
+#include <sys/stat.h>
 
 #include "hc/audio/audio.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/storage.hpp"
+#if CONFIG_HC_SDCARD
+#include "hc/sdcard/sdcard.hpp"
+#endif
 #include "hc/vibration/vibration.hpp"
 
 namespace ui_sound {
@@ -241,6 +246,66 @@ void store_alarms(const hc::ui::Alarms &list)
     }
 }
 
+#if CONFIG_HC_SDCARD
+#if CONFIG_HC_AUDIO_MP3
+// the names of the MP3 files in `root`/sounds/alarms after the `count` already in `names`, a name
+// that is there already only once
+size_t add_alarm_sounds(const char *root, char (*names)[hc::ui::kSoundNameSize], size_t count, size_t max)
+{
+    char path[64];
+    std::snprintf(path, sizeof(path), "%s%s", root, kAlarmDir);
+    DIR *dir = opendir(path);
+    if (dir == nullptr) {
+        return count;
+    }
+    const size_t first = count;
+    const size_t extension = std::strlen(kAlarmExtension);
+    while (const dirent *entry = readdir(dir)) {
+        const size_t length = std::strlen(entry->d_name);
+        if (count == max || length <= extension || length - extension >= hc::ui::kSoundNameSize ||
+            std::strcmp(entry->d_name + length - extension, kAlarmExtension) != 0) {
+            continue;
+        }
+        std::snprintf(names[count], hc::ui::kSoundNameSize, "%.*s", static_cast<int>(length - extension),
+                      entry->d_name);
+        bool known = false;
+        for (size_t i = 0; i < first && !known; i++) {
+            known = std::strcmp(names[i], names[count]) == 0;
+        }
+        if (!known) {
+            count++;
+        }
+    }
+    closedir(dir);
+    return count;
+}
+#endif
+
+// the MP3 files of /fs/sounds/alarms and /sd/sounds/alarms by name, sorted (none without
+// CONFIG_HC_AUDIO_MP3)
+size_t list_alarm_sounds(char (*names)[hc::ui::kSoundNameSize], size_t max)
+{
+#if CONFIG_HC_AUDIO_MP3
+    size_t count = add_alarm_sounds(hc::platform::kFsMountPoint, names, 0, max);
+    count = add_alarm_sounds(hc::sdcard::kMountPoint, names, count, max);
+    // a handful of names: insertion sort (std::sort cannot swap arrays)
+    for (size_t i = 1; i < count; i++) {
+        char name[hc::ui::kSoundNameSize];
+        std::memcpy(name, names[i], sizeof(name));
+        size_t j = i;
+        for (; j > 0 && std::strcmp(names[j - 1], name) > 0; j--) {
+            std::memcpy(names[j], names[j - 1], sizeof(name));
+        }
+        std::memcpy(names[j], name, sizeof(name));
+    }
+    return count;
+#else
+    (void)names;
+    (void)max;
+    return 0;
+#endif
+}
+#else
 // the MP3 files of /fs/sounds/alarms by name, sorted (none without CONFIG_HC_AUDIO_MP3)
 size_t list_alarm_sounds(char (*names)[hc::ui::kSoundNameSize], size_t max)
 {
@@ -281,6 +346,7 @@ size_t list_alarm_sounds(char (*names)[hc::ui::kSoundNameSize], size_t max)
     return 0;
 #endif
 }
+#endif
 
 void ring(const char *sound, bool loop, bool vibrate)
 {
@@ -288,6 +354,14 @@ void ring(const char *sound, bool loop, bool vibrate)
     if (sound != nullptr && sound[0] != 0) {
         std::snprintf(path, sizeof(path), "%s%s/%s%s", hc::platform::kFsMountPoint, kAlarmDir, sound,
                       kAlarmExtension);
+#if CONFIG_HC_SDCARD
+        // the file system's sound first, as in the list; a card that is not there: the beeps
+        struct stat info {};
+        if (stat(path, &info) != 0) {
+            std::snprintf(path, sizeof(path), "%s%s/%s%s", hc::sdcard::kMountPoint, kAlarmDir, sound,
+                          kAlarmExtension);
+        }
+#endif
     }
     hc::audio::play_alarm(path, loop);
 #if CONFIG_HC_VIBRATION
@@ -352,6 +426,22 @@ hc::ui::MicRecording (*const mic_recording)(uint32_t &) = [](uint32_t &remaining
     return hc::ui::MicRecording::Idle;
 };
 
+#if CONFIG_HC_SDCARD
+// the last recording onto the card (hc::sdcard::save_recording names it)
+hc::ui::MicSaved (*const mic_save)() = [] {
+    size_t count = 0;
+    const int16_t *samples = hc::audio::mic_recording(count);
+    if (samples == nullptr || count == 0) {
+        return hc::ui::MicSaved::NoRecording;
+    }
+    char path[hc::sdcard::kMaxPath];
+    const esp_err_t err = hc::sdcard::save_recording(samples, count, hc::audio::kSampleRate, path, sizeof(path));
+    return err == ESP_OK                  ? hc::ui::MicSaved::Saved
+           : err == ESP_ERR_INVALID_STATE ? hc::ui::MicSaved::NoCard
+                                          : hc::ui::MicSaved::Failed;
+};
+#endif
+
 void apply_stored_mic()
 {
     hc::audio::set_mic(stored_mic().gain_db, stored_mic().auto_gain);
@@ -364,6 +454,9 @@ bool (*const mic_level)(float &) = nullptr;
 bool (*const mic_record)(bool) = nullptr;
 void (*const mic_record_cancel)() = nullptr;
 hc::ui::MicRecording (*const mic_recording)(uint32_t &) = nullptr;
+#if CONFIG_HC_SDCARD
+hc::ui::MicSaved (*const mic_save)() = nullptr;
+#endif
 #endif
 
 #if CONFIG_HC_AUDIO_TOUCH_SOUND

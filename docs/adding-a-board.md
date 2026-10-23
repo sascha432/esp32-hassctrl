@@ -5,7 +5,7 @@ TTGO T4 and the WT32-SC01. Work through it in order: each step relies on the one
 screen of the main firmware (`components/ui`, tabs "Display" and "Backlight") is the tool for
 steps 4 to 7. It is only in the firmware while the board is in bring-up:
 `CONFIG_HC_BOARD_BRING_UP=y` in `boards/<name>/sdkconfig.defaults` (step 2) shows it over the
-start screen until a dashboard is drawn; step 12 removes the line again.
+start screen until a dashboard is drawn; step 13 removes the line again.
 
 ## 1. Collect the facts
 
@@ -27,13 +27,14 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 | vibration motor and its GPIO | `Info::vibration_gpio`, `select HC_BOARD_HAS_VIBRATION` (step 10) |
 | relays for Home Assistant | `Info::relay_gpios` (up to 4, all four named: `{32, -1, -1, -1}`; -1 = none), `Info::relay_pullup` for a module that needs a pullup, see architecture.md 9.7a |
 | motion sensor (PIR or radar) and the level of its output while it sees motion | `Info::motion_gpio` (-1 = none), `Info::motion_active_high`, see architecture.md 9.7b |
+| microSD slot: SDMMC slot and its pins, 1 or 4 bit, who powers the card (an LDO channel of the chip, a switch), card detect | `Info::sd_*`, `select HC_BOARD_HAS_SDCARD` (step 12) |
 | camera connector (MIPI-CSI): lanes, SCCB bus and address, power enable and reset pins, a clock from the chip or on the module, the MIPI PHY supply; the sensor on the module (chip ID) | device page, `select HC_BOARD_HAS_CAMERA` (step 11) |
 
 ## 2. Create the files
 
 | File | Content |
 | --- | --- |
-| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 12), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
+| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 13), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
 | `components/board/Kconfig` | a `HC_BOARD_<NAME>` entry in the board choice, `depends on IDF_TARGET_...` |
 | `components/board/CMakeLists.txt` | `if(CONFIG_HC_BOARD_<NAME>)` adds `boards/<name>/<name>.cpp` |
 | `components/board/boards/<name>/<name>.cpp` | `Info`, `init()` and the backlight functions, like the existing boards |
@@ -252,7 +253,24 @@ OV02C10 of the JC4880P443C (docs/devices/JC4880P443C, "Camera", and architecture
       `/api/camera.mjpg` in a browser (frame rate, both sizes). Watch the boot log for a
       brownout while the camera and the Wi-Fi run (section Power below).
 
-## 12. Record the results
+## 12. SD card (if the board has a slot)
+
+The `sdcard` component (architecture.md section 9.3) knows the SDMMC host; an SPI slot (the
+TTGO T4) is not built.
+
+- [ ] From the schematic, on the device page: the pins (on the ESP32-P4 slot 0 has fixed IO MUX
+      pins: CLK 43, CMD 44, D0..D3 39..42), the pullups, the card's supply and whether a pin
+      switches it, a card-detect pin. The JC4880P443C: the card and its pins on LDO channel 4
+      through a switch that is always on, no card detect.
+- [ ] `Info::sd_clk_gpio`, `sd_cmd_gpio`, `sd_data_gpios` (four, or D0 alone and -1 for 1 bit),
+      `sd_ldo_channel` (-1 for a card on the 3.3 V rail), all inside `#if CONFIG_HC_SDCARD`; the
+      board's Kconfig choice entry gets `select HC_BOARD_HAS_SDCARD`.
+- [ ] The boot log shows `sdcard: <name> at /sd: .. free, .. kHz, .. ms`; console `sd`, `sd ls`,
+      `sd unmount`, `sd mount`. On a board whose Wi-Fi uses the other SDMMC slot (the P4's C6),
+      Wi-Fi stays up through both.
+- [ ] Web UI, SD card: upload a few MB, download it again and compare; `tools/test_web.py`.
+
+## 13. Record the results
 
 - [ ] Every constant found above is in the board's `Info`; remove `CONFIG_HC_BOARD_BRING_UP=y`
       from `boards/<name>/sdkconfig.defaults`, rebuild: the firmware starts with the start screen

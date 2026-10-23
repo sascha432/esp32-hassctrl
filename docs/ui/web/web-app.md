@@ -22,13 +22,16 @@ Main pages                after login
                           validation errors
   Time                    the clock, time zone (Home Assistant's or fixed), two SNTP servers
   Logs                    view and filter, debug mode
+  SD card                 only with a card slot: files, upload, download from a URL, mount,
+                          format
   System                  backup (export and import), firmware and file system update,
                           restart, factory reset
 Recovery                  compiled into the firmware: login, update, format
 ```
 
 The dashboard is edited here. YAML import and export are for advanced users, also
-with a tool. There is no file manager.
+with a tool. The SD card page is the only file manager, for the card; the device's own file
+system has none.
 Settings are exported and imported on the System page as YAML, without secrets; an import may
 carry passwords added by hand.
 
@@ -218,6 +221,34 @@ kept in the browser, a double-click goes back to the default. API: `GET /api/log
 | [ Refresh ]  [ Download ]   Debug  [  o]   |
 +--------------------------------------------+
 ```
+
+**SD card** (in the menu only when `/api/status` has `"sd"`, a firmware with `CONFIG_HC_SDCARD`;
+the Status page has a line "SD card" then). Code: `components/sdcard`, `api_sd.cpp`, the `sd`
+view of `web/app.js`. Cards:
+
+* **Card**: the space ("31.1 of 31.1 GB free", MB below 1 GB) or the state (no card, not
+  formatted, unmounted), the card's name and clock. Mount and Unmount: the slot has no card
+  detection, a card put in while the device runs is mounted here (or with `sd mount`).
+* **Files**: the folders of the card with a path to click back, a file is a download link, a
+  folder opens; Delete for a file or an empty folder (a question first), New folder, Upload into
+  the folder shown (several files, a progress bar). An upload goes to `<name>.part` and replaces a
+  file of the name only when it is complete. Alarm sounds are MP3 files in `sounds/alarms`,
+  saved recordings are in `recordings`.
+* **Download from a URL**: an `http://` or `https://` address (the IDF certificate bundle, up to 5
+  redirects) and a file name in the folder shown (empty: the URL's last part); the device
+  downloads it in the background, the card shows the progress, one download at a time.
+* **Format**: the login's password again and a question; erases the card and writes one FAT over
+  all of it. A wrong password waits a second and is answered 400 (the session stays). In setup
+  mode (no login) confirm alone.
+
+API, login required: `GET /api/sd` (state, `total_kb`, `free_kb`, name, `clock_khz`, `fetch`
+{state, path, done, total, error}), `GET /api/sd/list?dir=` (entries: name, size, dir),
+`GET /api/sd/file?path=` (the file), `POST /api/sd/file?path=` (the body is the file),
+`POST /api/sd/delete` and `/api/sd/mkdir` (`path`), `POST /api/sd/fetch` (`url`, `path`: 202),
+`POST /api/sd/mount` (`action=mount|unmount`), `POST /api/sd/format` (`confirm=yes`, `password`).
+Paths are relative to the card; `..`, a backslash and control characters are refused (400).
+Measured on the JC4880P443C (2026-10-23): 5 MB upload 4.2 s, download 10.9 s (the TCP send
+buffer of 5760 bytes limits it), format of 32 GB 2.5 s.
 
 **System.** Firmware and file system updates are uploaded here, see section 5. The
 backup card sits above the update card, so the backup is seen before an update.

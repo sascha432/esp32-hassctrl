@@ -22,6 +22,9 @@
 #include "hc/platform/device.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/time_sync.hpp"
+#if CONFIG_HC_SDCARD
+#include "hc/sdcard/sdcard.hpp"
+#endif
 #include "hc/touch_input/touch_input.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "lvgl.h"
@@ -267,6 +270,9 @@ void device_info(hc::ui::DeviceInfo &out)
     out.uptime_s = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
     out.heap_internal_kb = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);
     out.heap_psram_kb = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);
+#if CONFIG_HC_SDCARD
+    hc::sdcard::describe(hc::sdcard::status(), out.sd_card, sizeof(out.sd_card));
+#endif
 }
 
 // local time is UTC until the time zone comes from Home Assistant or is fixed on the Time page
@@ -572,6 +578,9 @@ const hc::ui::Backend g_backend{
     .mic_record = ui_sound::mic_record,
     .mic_record_cancel = ui_sound::mic_record_cancel,
     .mic_recording = ui_sound::mic_recording,
+#if CONFIG_HC_SDCARD
+    .mic_save = ui_sound::mic_save,
+#endif
     .vibration = ui_sound::vibration,
     .set_vibration = ui_sound::set_vibration_setting,
     .vibrate_click = ui_sound::vibrate_click,

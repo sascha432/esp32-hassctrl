@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-23
+
+- SD card (JC4880P443C, `CONFIG_HC_SDCARD`): FAT at `/sd`, alarm sounds from it, the mic recording saved as WAV,
+  a web UI page (files, upload, URL download, format with the password), console `sd`; off, the firmware is unchanged.
+- Host test of the sample's settings sections expects `time` (in the sample since the Time page).
+
 ## 2026-10-22
 
 - Variant `jc4880p443c.mic`: the test P4, wired as the kitchen one, for the microphone test.

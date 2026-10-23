@@ -13,6 +13,9 @@
 #include "esp_timer.h"
 #include "hc/network/network.hpp"
 #include "hc/platform/storage.hpp"
+#if CONFIG_HC_SDCARD
+#include "hc/sdcard/sdcard.hpp"
+#endif
 #include "lwip/sockets.h"
 
 #include "auth.hpp"
@@ -226,6 +229,15 @@ esp_err_t get_status(httpd_req_t *req)
         .number("total_kb", fs.fs_total / 1024)
         .end_object()
         .boolean("camera", g_camera != nullptr);
+#if CONFIG_HC_SDCARD
+    // the SD card page shows with this object
+    const hc::sdcard::Status sd = hc::sdcard::status();
+    json.begin_object("sd")
+        .string("state", hc::sdcard::state_name(sd.state))
+        .number("free_kb", static_cast<int64_t>(sd.free_bytes / 1024))
+        .number("total_kb", static_cast<int64_t>(sd.total_bytes / 1024))
+        .end_object();
+#endif
     if (g_hass != nullptr) {
         HassStatus hass{};
         g_hass->status(hass);
@@ -307,6 +319,9 @@ esp_err_t start(const Config &config)
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.uri_match_fn = httpd_uri_match_wildcard;
     server_config.max_uri_handlers = 56;
+#if CONFIG_HC_SDCARD
+    server_config.max_uri_handlers += detail::kSdRoutes;
+#endif
     // browsers keep connections open; with all sessions taken the oldest is closed (LRU). Sessions
     // + 2 of the server + the captive DNS must stay within CONFIG_LWIP_MAX_SOCKETS (16).
     server_config.max_open_sockets = 12;
@@ -336,6 +351,9 @@ esp_err_t start(const Config &config)
     detail::register_backup_routes(server, config.backup, config.device_name);
     detail::register_camera_routes(server, config.camera);
     detail::register_time_routes(server, config.time);
+#if CONFIG_HC_SDCARD
+    detail::register_sd_routes(server);
+#endif
     if (config.add_routes != nullptr) {
         config.add_routes(server);
     }

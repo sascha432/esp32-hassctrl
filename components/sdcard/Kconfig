@@ -1,0 +1,13 @@
+menu "hassctrl SD card"
+
+    config HC_SDCARD
+        bool "SD card"
+        depends on HC_BOARD_HAS_SDCARD
+        default y
+        help
+            The board's microSD slot (hc::board::Info::sd_*): FAT at /sd, mounted at boot, alarm
+            sounds from /sd/sounds/alarms, mic recordings saved as WAV, the SD card page of the
+            web UI (files, upload, download from a URL, format) and the console command `sd`.
+            Only boards with a slot offer it; without it none of the SD code is in the firmware.
+
+endmenu

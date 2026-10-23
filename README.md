@@ -52,6 +52,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   MP3 with the event `hassctrl_say` ([guide](docs/home-assistant/say.md)).
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.
+- SD card (JC4880P443C): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
+  `sounds/alarms` on it, the microphone's recording saved as WAV; not in the firmware without `CONFIG_HC_SDCARD`.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
   reported to Home Assistant, held on for 1 to 60 min after the last motion; the web UI shows a missing helper. Both found by the device's name, no setup (see "Supported hardware").
 
@@ -67,7 +69,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 - Status, Home Assistant (URL, token checked before it is stored, connection test), Wi-Fi, hotspot, camera, time (zone and SNTP servers), the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
-  a debug mode and a width to drag, system (backup export and import, password change, updates, restart, factory reset). Plain HTTP
+  a debug mode and a width to drag, SD card (files, upload, download from a URL, mount, format behind the password), system (backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.
 
 **Updates and recovery**
@@ -106,6 +108,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - Speaker: I2S amplifier (NS4168) or codec (ES8311)
 - Microphone: the ES8311's analog input, gain or auto gain, a level meter and a test recording that plays back, in Settings, Sound
 - Camera: MIPI-CSI (OV02C10, ESP32-P4)
+- Storage: microSD on SDMMC, 4 bit (JC4880P443C)
 
 ## Build
 

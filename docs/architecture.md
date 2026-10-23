@@ -781,41 +781,57 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   values, so none of them comes back with the restart.
 * **Files on LittleFS** hold the web UI files and the dashboard configuration
   (`dashboard.json`, section 5). The dashboard is edited in the web UI or imported
-  as YAML. There is no file manager.
+  as YAML. There is no file manager for them; the SD card's page is one for the card.
 * **Export and import** of the settings are actions in the web UI, as YAML like the dashboard,
   without secrets; an import may carry passwords added by hand. The password of a camera
   stream's address (`http://user:password@host/`) stays in `dashboard.json`; the export leaves
   it out. There is no automatic export file.
 * **Logs** are viewable in the web UI (`logbuf`): errors and warnings always, info messages as
   well in the debug mode (stored).
-* **SD card** (not built, no use decided yet). FAT through ESP-IDF's `fatfs` and
-  `esp_vfs_fat_sdmmc_mount` / `esp_vfs_fat_sdspi_mount`, mounted at e.g. `/sdcard`; the pins and
-  an "SD present" flag belong to the board.
-  * Slots: JC4880P443C SDMMC 4-bit (D0-D3 39-42, CMD 44, CLK 43), TTGO T4 SPI on its own bus
-    (CS 13, MOSI 15, SCK 14, MISO 2), JC3248W535 slot reserved on the module (pins unknown, needs
-    the schematic), WT32-SC01 none.
-  * P4: the C6 (esp_hosted) uses SDMMC slot 1, so the card takes slot 0 and the host is
-    initialized once for both. Slot 0's pins are powered from an on-chip LDO channel that may
-    have to be switched on first (`sd_pwr_ctrl_new_on_chip_ldo`). Both unverified.
-  * T4: MISO on GPIO 2 is a strapping pin; it needs the card's pull-up, and a card may get in the
-    way of download mode. Unverified.
+* **SD card** (`components/sdcard`, `CONFIG_HC_SDCARD`, default on where the board selects
+  `HC_BOARD_HAS_SDCARD`: the JC4880P443C). FAT at `/sd` with `esp_vfs_fat_sdmmc_mount`, the pins
+  and the supply in `board::Info::sd_*`.
+  * **Off, nothing is built**: the component has no sources, and every use (`main`, the
+    webserver's `api_sd.cpp` and `/api/status`, the console, the UI's System row and Save
+    button, `board::Info`'s fields, the httpd handler count) is inside `#if CONFIG_HC_SDCARD`.
+    ESP-IDF reads the requirements before Kconfig, so `fatfs` is always required, but nothing
+    references it. Checked on `jc4880p443c.mic`: every section of `idf.py size` the same as
+    before the card (2026-10-23). The recovery app turns it off (`sdkconfig.recovery`).
+  * **The controller is shared** with the C6's SDIO link (esp_hosted, slot 1); the card takes
+    slot 0 and its IO MUX pins. In IDF 6.1 `sdmmc_host_init()` returns the controller that exists
+    and `sdmmc_host_deinit_slot()` removes it only with the last slot, so the card mounts at
+    boot (after `board::init`, before the audio and the UI, which list its alarm sounds) whether
+    or not the C6 came first, and unmounting leaves Wi-Fi alone (an IDF error line "host
+    controller with slot registered" is that check, harmless).
+  * Power: the JC4880P443C's card and pins are on LDO channel 4 (`sd_pwr_ctrl_new_on_chip_ldo`),
+    3.3 V, through a switch that is always on. 40 MHz when the card takes it.
+  * **No card detect** on the JC4880P443C: mounted at boot, then by request (console `sd mount`,
+    the web UI's Mount); unmount before taking a card out. A card without a FAT, or with a FAT
+    that does not mount, is reported ("not formatted") and **never formatted by itself**; the web
+    UI formats it after the login's password (one FAT over the whole card, 32 KB clusters).
+  * Users: alarm sounds (`main/ui_sound.cpp`: the list merges `/fs/sounds/alarms` and
+    `/sd/sounds/alarms`, a name on both once; a stored name stays bare, the ring takes the
+    file system's file first, then the card's, the beeps when neither opens), the microphone's
+    recording (`sdcard::save_recording`: `/sd/recordings/rec-<date>-<time>.wav`, from the LVGL
+    task in 45 ms or from the console), the web UI page (ui/web/web-app.md section 4, SD card:
+    list, streamed upload and download, delete, folders, a download from a URL in a task of its
+    own like the OTA download, format), console `sd`.
+  * Free space: FAT counts it once after mounting (a full FAT scan on a card without FSInfo),
+    then keeps it. `status()` waits at most 20 ms for the lock, so the screen and the web server
+    do not wait for a format.
   * **RAM: FATFS buffers in PSRAM.** In IDF 6.1, `ff_memalloc()` tries PSRAM only when
     `CONFIG_FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS` is set; `CONFIG_FATFS_ALLOC_PREFER_EXTRAM`
     alone falls through to `MALLOC_CAP_DEFAULT`, which keeps small blocks internal (our
     `SPIRAM_MALLOC_ALWAYSINTERNAL` is 16384 B, 512 B on the T4 and WT32-SC01). The defaults are
-    right on all boards with a slot and stay as they are:
-    `FATFS_ALLOC_PREFER_EXTRAM=y`, `FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS=y`,
-    `FATFS_PER_FILE_CACHE=y`, `FATFS_USE_DYN_BUFFERS=y`.
-  * With these, the volume's work buffer, the table of open files (`max_files` x `sizeof(FIL)`)
-    and each file's one-sector cache (512 B on SD cards) are in PSRAM: about 2 KB plus the table
-    for `max_files = 4`. The order tried is DMA-capable aligned PSRAM, aligned PSRAM, aligned
-    internal RAM, then any RAM.
-  * P4: its PSRAM is DMA-capable, so the SDMMC controller reads and writes the cache directly.
-    ESP32 and S3: PSRAM is not DMA-capable, so the SD driver copies each sector through a small
-    internal bounce buffer, slower but fine for logs, sounds and backups. Internal RAM left per
-    volume: that bounce buffer and FATFS's locks.
-  * `FATFS_PER_FILE_CACHE=n` (one shared buffer for all files) saves the 512 B per file at the
-    cost of speed with several open files; not needed with the caches in PSRAM.
+    right and stay as they are: `FATFS_ALLOC_PREFER_EXTRAM=y`,
+    `FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS=y`, `FATFS_PER_FILE_CACHE=y`, `FATFS_USE_DYN_BUFFERS=y`.
+    The volume's work buffer, the table of open files (`max_files` = 4) and each file's sector
+    cache are in PSRAM; the P4's PSRAM is DMA-capable, so the SDMMC controller reads and writes
+    them directly. Long names on the heap (the default), UTF-8 names
+    (`CONFIG_FATFS_API_ENCODING_UTF_8`, the JC4880P443C's `sdkconfig.defaults`).
+  * Other boards (not built): the TTGO T4's slot is on SPI (CS 13, MOSI 15, SCK 14, MISO 2, a
+    strapping pin that needs the card's pullup), the JC3248W535's pins are unknown, the
+    WT32-SC01 has none.
 
 ### 9.4 Components
 
@@ -831,6 +847,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `devconsole` | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
 | `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files and the alarm sound (section 9.6, `CONFIG_HC_AUDIO`) |
 | `vibration` | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
+| `sdcard` | the microSD card: FAT at `/sd` on SDMMC slot 0, mount, unmount, format, a download from a URL onto it, WAV files, console `sd` (section 9.3, `CONFIG_HC_SDCARD`) |
 | `camera` | the MIPI-CSI camera of the JC4880P443C: capture, its settings, the web stream (section 9.8, `CONFIG_HC_BOARD_HAS_CAMERA`) |
 | `touch_input` | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
 | `orientation` | the MPU6050 on the board's I2C bus, the screen's rotation (section 8.1) |
