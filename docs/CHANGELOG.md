@@ -8,6 +8,8 @@
 - Web image: `tools/build_web.py` leaves out the pages of options the firmware lacks (SD card, Camera),
   keeps only the Bootstrap rules in use and minifies JS and CSS; 83 → 51 KB gzipped on the WT32.
 - Web files carry the image's ETag: a browser that has them gets 304 instead of the files.
+- Web UI: text in a template literal inside `${...}` kept its spaces only before the minifier
+  (a badge glued to the text before it); `tools/build_web.py` now passes template literals through unchanged.
 
 ## 2026-10-22
 

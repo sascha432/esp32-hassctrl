@@ -15,7 +15,8 @@ references and the web server's content types hold. What happens to the files:
   (classes the pages build from a variable, `alert-${kind}`). Rules without a class (:root, the
   dark mode's variables, elements) stay, so do @font-face and the @keyframes still referenced.
 * .js minified with rjsmin, .css with rcssmin: comments and whitespace only, no renaming, so a
-  browser's error line still reads. Everything else (icons.svg, index.html) is copied.
+  browser's error line still reads. Template literals pass rjsmin as placeholders and come back
+  unchanged (rjsmin squeezes the text of nested ones). Everything else (icons.svg, index.html) is copied.
 
 The same sources give the same bytes. The file is the same in esp32-pixeled.
 """
@@ -77,6 +78,100 @@ def strip_conditionals(text: str, options: set[str], name: str) -> str:
     if option:
         fail(f"{name}: #if {option} without #endif")
     return "".join(out)
+
+
+# ---------------------------------------------------------------------------------- js minify
+
+# a `/` after one of these starts a regex literal, after anything else (a name, `)`) it divides
+REGEX_AFTER = set("(,=:[!&|?{};+-*%<>~^") | {"return", "typeof", "case", "do", "else", "in", "of",
+                                             "new", "delete", "void", "throw", "yield", "await"}
+
+
+def _skip_quoted(js: str, i: int, quote: str) -> int:
+    """The index after the string literal (or regex) starting at js[i]."""
+    i += 1
+    in_class = False
+    while js[i] != quote or in_class:
+        if js[i] == "\\":
+            i += 1
+        elif quote == "/" and js[i] in "[]":
+            in_class = js[i] == "["
+        i += 1
+    return i + 1
+
+
+def _skip_template(js: str, i: int) -> int:
+    """The index after the template literal starting at js[i], its `${...}` included."""
+    i += 1
+    while js[i] != "`":
+        if js[i] == "\\":
+            i += 2
+        elif js.startswith("${", i):
+            i = _scan_code(js, i + 2, None)
+        else:
+            i += 1
+    return i + 1
+
+
+def _scan_code(js: str, i: int, spans: list[tuple[int, int]] | None) -> int:
+    """Walks code from js[i]: to the end when spans collects the template literals, else to the
+    index after the `}` that closes a `${`."""
+    depth, prev = 0, None
+    while i < len(js):
+        c = js[i]
+        if c.isspace():
+            i += 1
+            continue
+        if js.startswith("//", i):
+            i = js.find("\n", i) % (len(js) + 1)
+            continue
+        if js.startswith("/*", i):
+            i = js.index("*/", i) + 2
+            continue
+        if c in "'\"" or (c == "/" and (prev is None or prev in REGEX_AFTER)):
+            i, prev = _skip_quoted(js, i, c), "x"
+            continue
+        if c == "`":
+            end = _skip_template(js, i)
+            if spans is not None:
+                spans.append((i, end))
+            i, prev = end, "x"
+            continue
+        if c == "_" or c == "$" or c.isalnum():
+            j = i
+            while j < len(js) and (js[j] in "_$" or js[j].isalnum()):
+                j += 1
+            i, prev = j, js[i:j]
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            if spans is None and depth == 0:
+                return i + 1
+            depth -= 1
+        i, prev = i + 1, c
+    return i
+
+
+def minify_js(js: str, name: str) -> str:
+    """rjsmin with the template literals kept as they are: rjsmin takes the backtick of a template
+    inside `${...}` for the end of the outer one and squeezes the text after it (`${a ? ` b` : ""}`
+    lost its space). Each top-level template goes through rjsmin as a string placeholder."""
+    spans: list[tuple[int, int]] = []
+    try:
+        _scan_code(js, 0, spans)
+    except (IndexError, ValueError):
+        fail(f"{name}: an unterminated string, comment or template literal")
+    parts, last = [], 0
+    for n, (start, end) in enumerate(spans):
+        parts += [js[last:start], f'"\0{n}\0"']
+        last = end
+    parts.append(js[last:])
+    out = rjsmin.jsmin("".join(parts))
+    restored = re.sub(r'"\0(\d+)\0"', lambda m: js[slice(*spans[int(m.group(1))])], out)
+    if restored.count("`") != sum(js[slice(*s)].count("`") for s in spans):
+        fail(f"{name}: a template literal got lost in rjsmin")
+    return restored
 
 
 # ---------------------------------------------------------------------------------- css purge
@@ -198,7 +293,7 @@ def build(sdkconfig: Path, out: Path) -> list[tuple[str, int, int]]:
             continue
         if source.suffix in (".js", ".html"):
             text = strip_conditionals(source.read_text(encoding="utf-8"), options, name)
-            built[name] = (rjsmin.jsmin(text) if source.suffix == ".js" else text).encode("utf-8")
+            built[name] = (minify_js(text, name) if source.suffix == ".js" else text).encode("utf-8")
             tokens |= set(TOKEN.findall(text))
         elif source.suffix == ".css":
             text = source.read_text(encoding="utf-8")

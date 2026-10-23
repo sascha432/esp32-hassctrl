@@ -16,7 +16,7 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
 * **Bootstrap look with light and dark mode**, Bootstrap's CSS purged to the rules in use,
   section 2. No JavaScript framework; the files in `web/` are the readable sources, the browser
   gets what `tools/build_web.py` makes of them (pages of options the firmware lacks left out,
-  minified, gzipped by `tools/build_fs.py`). The device keeps only the gzipped files: a client
+  minified, template literals kept as written, gzipped by `tools/build_fs.py`). The device keeps only the gzipped files: a client
   without `Accept-Encoding: gzip` gets 406 (`curl` needs `--compressed`). Every file carries the
   image's `ETag` (`/www/etag`, written by `build_fs.py`; `Cache-Control: no-cache`), so a browser
   asks each time and gets 304 while the image is the same.
