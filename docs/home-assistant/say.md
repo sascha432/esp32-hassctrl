@@ -28,7 +28,7 @@ case). The name is `hassctrl-` and the last two bytes of the MAC address. It is 
 | `url` | instead of `message`: an MP3, `/local/doorbell.mp3` (a file in Home Assistant's `www` folder) or a whole `http(s)://` address; at most 1 MB, a WAV does not play |
 
 Home Assistant makes the speech (`/api/tts_get_url`), as MP3 in one channel; the panel downloads
-it and plays it.
+it and plays it. Music of the panel's player waits meanwhile and goes on after it.
 
 ## 3. Try it
 

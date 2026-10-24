@@ -28,11 +28,13 @@ enum class Page : uint8_t {
     Alarm,
     AlarmDetail,
     System,
-    // the file manager (CONFIG_HC_SDCARD): a folder, a file or folder, a new name, the player
+    // the file manager (CONFIG_HC_SDCARD): a folder, a file or folder, a new name
     Files,
     FileDetail,
     FileName,
+    // the media player and Home Assistant's media library (CONFIG_HC_UI_PLAYER)
     Player,
+    Media,
 };
 
 void init(lv_disp_t *disp, const Backend &backend, lv_obj_t *dashboard);

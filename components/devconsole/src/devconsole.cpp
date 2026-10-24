@@ -24,6 +24,9 @@
 #if CONFIG_HC_AUDIO
 #include "hc/audio/audio.hpp"
 #endif
+#if CONFIG_HC_UI_PLAYER
+#include "hc/player/player.hpp"
+#endif
 #include "hc/board/board.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/hass/hass.hpp"
@@ -886,6 +889,105 @@ int cmd_sound(int argc, char **argv)
 }
 #endif
 
+#if CONFIG_HC_UI_PLAYER
+const char *media_state_name(hc::audio::MediaState state)
+{
+    switch (state) {
+    case hc::audio::MediaState::Idle:
+        return "idle";
+    case hc::audio::MediaState::Playing:
+        return "playing";
+    case hc::audio::MediaState::Paused:
+        return "paused";
+    case hc::audio::MediaState::Failed:
+        return "failed";
+    case hc::audio::MediaState::Buffering:
+        return "buffering";
+    case hc::audio::MediaState::Interrupted:
+        return "interrupted";
+    }
+    return "?";
+}
+
+// The media player without the screen (components/player): what plays, the tags, the channel's
+// rate and the DMA underruns while music played
+int cmd_player(int argc, char **argv)
+{
+    if (argc == 3 && std::strcmp(argv[1], "play") == 0) {
+        const char *what = argv[2];
+        if (std::strncmp(what, "media-source://", 15) == 0 || std::strstr(what, "://") != nullptr ||
+            what[0] == '/') {
+            hc::memory::Vector<hc::player::Item> items(1);
+            items[0].origin = std::strncmp(what, "media-source://", 15) == 0 ? hc::player::Origin::Media
+                                                                            : hc::player::Origin::Address;
+            items[0].location = what;
+            hc::player::play(std::move(items), 0);
+            return 0;
+        }
+        if (!hc::player::play_file(what)) {
+            std::printf("does not play (a file on the card, relative to it, or a playlist)\n");
+            return 1;
+        }
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "next") == 0) {
+        hc::player::next();
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "prev") == 0) {
+        hc::player::previous();
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "pause") == 0) {
+        hc::player::toggle();
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "stop") == 0) {
+        hc::player::stop();
+        return 0;
+    }
+    if (argc == 3 && std::strcmp(argv[1], "seek") == 0) {
+        hc::player::seek(static_cast<uint32_t>(std::strtoul(argv[2], nullptr, 10) * 1000));
+        return 0;
+    }
+    if (argc == 3 && std::strcmp(argv[1], "shuffle") == 0) {
+        hc::player::set_shuffle(std::strcmp(argv[2], "on") == 0);
+        return 0;
+    }
+    if (argc == 3 && std::strcmp(argv[1], "repeat") == 0) {
+        const hc::player::Repeat repeat = std::strcmp(argv[2], "all") == 0   ? hc::player::Repeat::All
+                                          : std::strcmp(argv[2], "one") == 0 ? hc::player::Repeat::One
+                                                                             : hc::player::Repeat::Off;
+        hc::player::set_repeat(repeat);
+        return 0;
+    }
+    if (argc == 1 || (argc == 2 && std::strcmp(argv[1], "status") == 0)) {
+        const hc::player::Status s = hc::player::status();
+        const hc::audio::MediaDebug debug = hc::audio::media_debug();
+        std::printf("%s, %lu.%lu / %lu.%lu s, item %u of %u, shuffle %s, repeat %s\n", media_state_name(s.state),
+                    static_cast<unsigned long>(s.position_ms / 1000), static_cast<unsigned long>(s.position_ms % 1000 / 100),
+                    static_cast<unsigned long>(s.duration_ms / 1000), static_cast<unsigned long>(s.duration_ms % 1000 / 100),
+                    static_cast<unsigned>(s.count > 0 ? s.index + 1 : 0), static_cast<unsigned>(s.count),
+                    s.shuffle ? "on" : "off",
+                    s.repeat == hc::player::Repeat::All ? "all" : s.repeat == hc::player::Repeat::One ? "one" : "off");
+        std::printf("title '%s', artist '%s', album '%s'\n", s.title.c_str(), s.artist.c_str(), s.album.c_str());
+        uint32_t serial = 0;
+        const auto tags = hc::player::tags(serial);
+        if (tags && tags->cover.data) {
+            std::printf("cover %s, %u bytes\n", tags->cover.mime.c_str(), static_cast<unsigned>(tags->cover.size));
+        }
+        std::printf("channel %lu Hz, %lu underruns since start\n", static_cast<unsigned long>(debug.rate),
+                    static_cast<unsigned long>(debug.underruns));
+        if (!s.error.empty()) {
+            std::printf("last message: %s\n", s.error.c_str());
+        }
+        return 0;
+    }
+    return usage("player [status|play <file on the card|media-source://...|http(s) address>|pause|next|prev|stop|"
+                 "seek <s>|shuffle on|off|repeat off|all|one]");
+}
+#endif
+
 #if CONFIG_HC_MIC
 // The microphone without the screen: its level for a few seconds, a gain or the ALC for tuning the
 // constants of es8311.cpp (the stored setting comes back with the next change in Settings, Sound)
@@ -1149,8 +1251,34 @@ int cmd_hass(int argc, char **argv)
         std::printf("stream scale %s, from the next frame on\n", automatic ? "auto" : argv[2]);
         return 0;
     }
+    if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "media") == 0 &&
+        (std::strcmp(argv[2], "browse") == 0 || std::strcmp(argv[2], "resolve") == 0)) {
+        // the media library: a folder (without an id the top), or the address of a file
+        const char *id = argc == 4 ? argv[3] : "";
+        hc::memory::String error;
+        if (std::strcmp(argv[2], "resolve") == 0) {
+            hc::memory::String url, mime;
+            if (!hc::hass::resolve_media(id, 10000, url, mime, error)) {
+                std::printf("failed: %s\n", error.c_str());
+                return 1;
+            }
+            std::printf("%s (%s)\n", url.c_str(), mime.c_str());
+            return 0;
+        }
+        hc::core::MediaList list;
+        if (!hc::hass::browse_media(id, 10000, list, error)) {
+            std::printf("failed: %s\n", error.c_str());
+            return 1;
+        }
+        std::printf("%s: %u entries\n", list.title.c_str(), static_cast<unsigned>(list.items.size()));
+        for (const auto &item : list.items) {
+            std::printf("%s %-12s %s\n  %s\n", item.folder ? "[dir]" : item.playable ? "[play]" : "[-]",
+                        item.type.c_str(), item.title.c_str(), item.id.c_str());
+        }
+        return 0;
+    }
     return usage("hass page <n>|off, hass values, hass toggle <entity>, hass level <entity> <percent>, "
-                 "hass streamscale auto|0..3");
+                 "hass streamscale auto|0..3, hass media browse|resolve [\"media-source://...\"]");
 }
 
 int cmd_setup(int, char **)
@@ -1257,8 +1385,8 @@ void register_commands()
     add("swipe", "swipe across the screen", "<x1> <y1> <x2> <y2> [ms]", cmd_swipe);
     add("log", "log output on the serial port: toggle, or set a level", "[off|errors|warnings|on|debug]", cmd_log);
     add("factory-reset", "erase every setting and restart", "yes", cmd_factory_reset);
-    add("hass", "Home Assistant: subscribe a dashboard page, print its values, call a service",
-        "page <n>|off, values, toggle <entity>, level <entity> <percent>", cmd_hass);
+    add("hass", "Home Assistant: subscribe a dashboard page, print its values, call a service, browse the media library",
+        "page <n>|off, values, toggle <entity>, level <entity> <percent>, media browse|resolve [id]", cmd_hass);
     add("setup", "show the first setup screens (they come by themselves while no network is saved)", nullptr,
         cmd_setup);
     add("orient", "orientation sensor: gravity, board measurement (developer)", "[raw|capture 0|90|180|270|flat|clear]", cmd_orient);
@@ -1267,6 +1395,10 @@ void register_commands()
         cmd_light);
 #if CONFIG_HC_AUDIO
     add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
+#endif
+#if CONFIG_HC_UI_PLAYER
+    add("player", "media player: what plays, play a file of the card or of the media library, control it",
+        "[status|play <what>|pause|next|prev|stop|seek <s>|shuffle on|off|repeat off|all|one]", cmd_player);
 #endif
 #if CONFIG_HC_MIC
     add("mic", "microphone: its level for some seconds, a test recording, a gain or the ALC",

@@ -77,7 +77,8 @@ code: `sound.hpp`/`sound.cpp`, played through the `Backend`.
   widgets (button, switch, slider, arc, button matrix, keyboard) and plain objects marked with
   `sound::tappable()` (tiles, rows, custom buttons). A tap on a container, a backdrop or the
   screen, the end of a drag and the touch that only wakes the screen make none. **A custom tap
-  target must call `sound::tappable()`**, or it is silent.
+  target must call `sound::tappable()`**, or it is silent. While the player has music (playing,
+  paused or interrupted) the clicks and ticks are silent, the vibration stays.
 * **Ticks** while a slider or an arc moves, one per 1/25 of its range, and while a drag control
   marked with `sound::draggable()` moves (the dimmer's level), one per 14 px: the faster it moves,
   the more ticks.

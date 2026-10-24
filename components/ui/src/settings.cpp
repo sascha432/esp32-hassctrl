@@ -34,6 +34,8 @@ struct State {
     lv_obj_t *title = nullptr;
     lv_obj_t *wifi_icon = nullptr;
     lv_obj_t *hotspot_icon = nullptr;
+    // while the player has something: playing or paused, a tap opens it
+    lv_obj_t *player_icon = nullptr;
     lv_obj_t *ha_icon = nullptr;
     lv_obj_t *clock = nullptr;
     lv_obj_t *content = nullptr;
@@ -65,6 +67,19 @@ void update_bar()
     }
     char time[8];
     lv_label_set_text(g.clock, g.backend->time_text(time, sizeof(time)) ? time : "--:--");
+#if CONFIG_HC_UI_PLAYER
+    if (g.player_icon != nullptr) {
+        PlayerInfo info{};
+        g.backend->player_info(info);
+        const bool loaded = info.state != PlayerState::Idle && info.state != PlayerState::Failed;
+        if (loaded) {
+            lv_label_set_text(g.player_icon, info.state == PlayerState::Paused ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+            lv_obj_clear_flag(g.player_icon, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(g.player_icon, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+#endif
 }
 
 void on_tick(lv_timer_t *)
@@ -158,6 +173,23 @@ lv_obj_t *build_bar(lv_obj_t *parent)
     t::line_text(g.title, "Settings");
 
     g.hotspot_icon = t::label(bar, "Hotspot", t::font_small(), t::kActive);
+#if CONFIG_HC_UI_PLAYER
+    if (g.backend->player_info != nullptr) {
+        g.player_icon = t::label(bar, LV_SYMBOL_PLAY, t::font_normal(), t::kActive);
+        lv_obj_add_flag(g.player_icon, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+        // a finger's room around the small symbol
+        lv_obj_set_ext_click_area(g.player_icon, t::dim(12));
+        sound::tappable(g.player_icon);
+        lv_obj_add_event_cb(
+            g.player_icon,
+            [](lv_event_t *) {
+                if (g.depth == 0 || g.stack[g.depth - 1].page != Page::Player) {
+                    push(Page::Player);
+                }
+            },
+            LV_EVENT_CLICKED, nullptr);
+    }
+#endif
     g.wifi_icon = t::label(bar, LV_SYMBOL_WIFI, t::font_normal(), t::kTextMuted);
     g.ha_icon = t::label(bar, "HA", t::font_normal(), t::kTextMuted);
     g.clock = t::label(bar, "--:--", t::font_normal(), t::kText);

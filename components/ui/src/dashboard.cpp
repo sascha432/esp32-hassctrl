@@ -11,6 +11,7 @@
 #include "entity_picker.hpp"
 #include "overlay.hpp"
 #include "panel.hpp"
+#include "settings_pages.hpp"
 #include "swipe.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
@@ -283,6 +284,13 @@ void take_events()
 {
     core::HassEvent event;
     while (g.backend->take_event(event)) {
+#if CONFIG_HC_UI_PLAYER
+        // a folder of the media library, also without a dashboard
+        if (auto *media = std::get_if<core::MediaList>(&event)) {
+            settings::pages::on_media_list(std::move(*media));
+            continue;
+        }
+#endif
         if (!g.store) {
             continue;
         }

@@ -102,6 +102,25 @@ bool parse_entity_list(std::string_view json, core::EntityList &out);
 // The result of entity_details_message; false when it is not that.
 bool parse_entity_details(std::string_view json, core::EntityDetails &out);
 
+// ------------------------------------------------------------------------- media library
+
+// Home Assistant's media library (Media in its sidebar, docs/architecture.md section 9.6), browsed
+// by the player: {"id":4,"type":"media_source/browse_media","media_content_id":"media-source://..."},
+// without the id the top of the library.
+memory::String browse_media_message(uint32_t id, std::string_view media_id);
+
+// The `result` of that request: the folder's title and its children in HA's order. False with
+// `error` set when it is not a folder.
+bool decode_browse_media(const cJSON *result, core::MediaList &out, memory::String &error);
+
+// {"id":5,"type":"media_source/resolve_media","media_content_id":"media-source://..."}: the
+// address of a file to play, signed by Home Assistant for a short while (authSig).
+memory::String resolve_media_message(uint32_t id, std::string_view media_id);
+
+// The `result` of that request ({"url": "/media/local/x.mp3?authSig=...", "mime_type":
+// "audio/mpeg"}); false with `error` set without a url.
+bool decode_resolve_media(const cJSON *result, memory::String &url, memory::String &mime, memory::String &error);
+
 // ------------------------------------------------------------------------------- history
 
 // The history of a sensor panel is read in windows this long, one after the other: a 5 minute

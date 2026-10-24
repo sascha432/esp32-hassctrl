@@ -889,6 +889,54 @@ void fetch_entity(std::string_view entity_id, uint32_t generation)
     queue_at(lv_tick_get() + kEntityQueryMs, std::move(details));
 }
 
+void browse_media(std::string_view id, uint32_t generation)
+{
+    say("[sim] media '%.*s'\n", static_cast<int>(id.size()), id.data());
+    hc::core::MediaList media;
+    media.generation = generation;
+    media.id = hc::memory::String(id);
+    if (!hass_connected()) {
+        media.error = "not connected to Home Assistant";
+        queue_at(lv_tick_get() + kEntityQueryMs, std::move(media));
+        return;
+    }
+    const std::string base = "media-source://media_source/local";
+    auto folder = [&](const std::string &title, const std::string &item_id) {
+        media.items.push_back({hc::memory::String(item_id.c_str()), hc::memory::String(title.c_str()), "", true, false});
+    };
+    auto file = [&](const std::string &title, const std::string &type) {
+        media.items.push_back({hc::memory::String((std::string(id) + "/" + title).c_str()),
+                              hc::memory::String(title.c_str()), hc::memory::String(type.c_str()), false, true});
+    };
+    if (id.empty()) {
+        media.title = "Media sources";
+        folder("Camera", "media-source://camera");
+        folder("My media", "media-source://media_source");
+        folder("Text-to-speech", "media-source://tts");
+    } else if (id == "media-source://media_source") {
+        media.title = "My media";
+        folder("music", base + "/music");
+        media.items.push_back({hc::memory::String((base + "/doorbell.mp3").c_str()), "doorbell.mp3", "audio/mpeg",
+                              false, true});
+        media.items.push_back({hc::memory::String((base + "/garden.jpg").c_str()), "garden.jpg", "image/jpeg", false,
+                              true});
+    } else if (id == base + "/music") {
+        media.title = "music";
+        folder("Pelagial", base + "/music/Pelagial");
+        folder("Phanerozoic", base + "/music/Phanerozoic");
+    } else if (id.starts_with(base + "/music/")) {
+        media.title = hc::memory::String(id.substr(id.rfind('/') + 1));
+        for (const char *title : {"01 - Epipelagic.mp3", "02 - Mesopelagic Into the Uncanny.mp3",
+                                  "03 - Bathyalpelagic I Impasses.mp3", "04 - Abyssopelagic I Boundless Vasts.mp3",
+                                  "05 - Hadopelagic I Omen of the Deep.mp3"}) {
+            file(title, "audio/mpeg");
+        }
+    } else {
+        media.title = hc::memory::String(id.substr(id.rfind('/') + 1));
+    }
+    queue_at(lv_tick_get() + kEntityQueryMs, std::move(media));
+}
+
 bool take_event(hc::core::HassEvent &out)
 {
     // like the connection: everything again once it is back

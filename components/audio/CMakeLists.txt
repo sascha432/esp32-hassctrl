@@ -18,5 +18,5 @@ endif()
 
 idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS "include"
-                       REQUIRES esp_common
+                       REQUIRES core esp_common formats
                        PRIV_REQUIRES esp_driver_i2s freertos heap)

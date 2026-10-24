@@ -33,6 +33,16 @@ public:
         (void)ms;
         return false;
     }
+    // A download that has nothing to play right now: read() gave 0, but more comes.
+    virtual bool waiting() const
+    {
+        return false;
+    }
+    // it ended because reading failed (a download that broke for good)
+    virtual bool failed() const
+    {
+        return false;
+    }
 };
 
 // samples in memory (the click)

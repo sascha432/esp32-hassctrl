@@ -26,13 +26,17 @@ menu "hassctrl audio"
             Espressif's esp_audio_codec. Without it only the built-in sounds play.
 
     config HC_UI_PLAYER
-        bool "Audio player"
-        depends on HC_AUDIO && HC_SDCARD
+        bool "Media player"
+        depends on HC_AUDIO_MP3
         default y
+        # the covers of the tags are PNG or JPEG (main/ui_player.cpp: LVGL's lodepng)
+        select LV_USE_PNG
         help
-            Plays WAV files (16 bit PCM) and, with HC_AUDIO_MP3, MP3 files from the SD card: a tap
-            on one in the file manager of Settings opens the player, with pause, seek and a
-            spectrum analyser. Without it the file manager only lists, renames and deletes.
+            A player that runs in the background: MP3 files of Home Assistant's media library,
+            streamed while they play, and with an SD card (HC_SDCARD) its MP3 and WAV files and
+            playlists. A queue with next, previous, shuffle and repeat; the title, artist and
+            cover from the files' tags; pause, seek and a spectrum analyser. Without it the file
+            manager only lists, renames and deletes.
 
     config HC_AUDIO_ALARM
         bool "Alarm clock"

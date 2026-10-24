@@ -462,8 +462,9 @@ Orientation:
   and forwards only complete messages.
 * JSON is parsed with cJSON from the component registry (ESP-IDF 6 no longer bundles it),
   allocating from PSRAM through `cJSON_InitHooks`, set first thing in `app_main` (the stored
-  dashboard is parsed before `hass` starts). Messages are capped at 32 KB (the hourly forecast: 48 entries of about 320 bytes);
-  the buffer of a connection is PSRAM.
+  dashboard is parsed before `hass` starts). The buffer of a connection is 32 KB of PSRAM (the
+  hourly forecast: 48 entries of about 320 bytes); a larger message grows it up to 256 KB (a
+  folder of the media library: about 300 bytes a file), and it goes back to 32 KB after it.
 * The forecast of a weather entity is not in its state. The weather panel subscribes it with
   `weather/subscribe_forecast` (`{"type":"weather/subscribe_forecast","entity_id":...,
   "forecast_type":"daily"|"hourly"}`, Home Assistant 2023.9 and later): an empty result, then an
@@ -482,6 +483,14 @@ Orientation:
 * Sounds from Home Assistant: on a board with MP3 (`set_sound_player`) the hass task subscribes
   the event `hassctrl_say` after `auth_ok` (`subscribe_events`; Home Assistant allows a custom
   event to administrators only, a refusal is logged). The rest is in section 9.6.
+* The media library (Media in Home Assistant's sidebar, `CONFIG_HC_UI_PLAYER`):
+  `media_source/browse_media` lists a folder (`core::MediaList`: title, and per entry the
+  `media_content_id`, title, MIME type, folder, playable), `media_source/resolve_media` gives the
+  address of a file, signed by Home Assistant for 24 hours (`/media/local/...?authSig=...`).
+  Messages and decoders in `hass_protocol/src/media_source.cpp` (host tested). The hass task
+  keeps one browse and one resolve on their way (`MediaState`), a newer one replaces it; a
+  browse for the UI comes back through `take_event` stamped with its generation, the others
+  (the console, the music download) wait on a semaphore. The music itself is section 9.6.
 
 ---
 
@@ -849,10 +858,11 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 | `webserver` | captive portal DNS and redirect, the status API and the built-in page, the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the time zone and SNTP servers (`api_time.cpp`, main firmware only: `Config::time`), the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component |
 | `ui` | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, sound, camera, alarm, system), the pull-down zone and the alert strip on `lv_layer_top`, the dashboard with its tiles, panels and edit mode. Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
 | `light_sensor` | ambient light for the automatic brightness of `ui`, optional per device: a BH1750 on the board's I2C bus (looked for at 0x23 and 0x5C), averaged over a second, or an LDR on an ADC pin (`ldr.hpp`, the WT32-SC01's variant) |
-| `hass` | the Home Assistant connection of section 6: URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB cap) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. The stored URL, token and certificate, their checks and the token test are in `config.cpp` (runs in the caller's task); the session stays in one file, `hass.cpp`, because pages, history, forecast and queries share its state and task. URL parsing (`url.cpp`) is plain C++ for host tests |
+| `hass` | the Home Assistant connection of section 6: URL and token in the settings NVS, one WebSocket (`espressif/esp_websocket_client`, TLS with the CA bundle), authentication, the API's ping every 25 s, 70 s silence timeout, reconnect 2 s doubling to 30 s, a rejected token is not retried. One task owns the client; the client's event handler only puts messages together (PSRAM, 32 KB, up to 256 KB for a large one) and queues them. The web server and the UI get its status through function tables filled in `main` (`webserver::HassAccess`, `ui::Backend::hass_info`), so the recovery app links neither it nor cJSON. The stored URL, token and certificate, their checks and the token test are in `config.cpp` (runs in the caller's task); the session stays in one file, `hass.cpp`, because pages, history, forecast, queries and the media library share its state and task; the music's download is `media_audio.cpp`. URL parsing (`url.cpp`) is plain C++ for host tests |
 | `ota` | firmware and file system images from an upload, a tool or a URL download, app rollback ([ui/web/web-app.md](ui/web/web-app.md) section 5), restart into the recovery app and back, partition layout of section 9.5 |
 | `devconsole` | serial command line for development (`CONFIG_HC_DEV_CONSOLE`): Wi-Fi networks, hotspot, file system, restart, factory reset, and the board, Home Assistant and UI commands of the bring-up and of debugging (`help` lists them) |
-| `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files, the alarm sound and the player with its spectrum (section 9.6, `CONFIG_HC_AUDIO`) |
+| `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files, the alarm sound and the music of the player with its spectrum and tags (section 9.6, `CONFIG_HC_AUDIO`) |
+| `player` | the media player's queue, independent of the screen: SD files, playlists and the media library, next, previous, shuffle, repeat (section 9.6, `CONFIG_HC_UI_PLAYER`) |
 | `vibration` | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
 | `sdcard` | the microSD card: FAT at `/sd` on SDMMC slot 0, mount, unmount, format, list, delete, rename/move, a download from a URL onto it, WAV files, console `sd` (section 9.3, `CONFIG_HC_SDCARD`) |
 | `camera` | the MIPI-CSI camera of the JC4880P443C: capture, its settings, the web stream (section 9.8, `CONFIG_HC_BOARD_HAS_CAMERA`) |
@@ -940,8 +950,9 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   * `CONFIG_HC_AUDIO_MP3`: MP3 files (the alarm sounds), with the decoder below.
   * `CONFIG_HC_AUDIO_ALARM`: the alarm clock of Settings.
   * `CONFIG_HC_MIC`: the microphone (below), only where the board has one.
-  * `CONFIG_HC_UI_PLAYER`: the player of WAV and MP3 files on the SD card (below; needs
-    `CONFIG_HC_SDCARD`).
+  * `CONFIG_HC_UI_PLAYER`: the media player (below): the media library of Home Assistant on
+    every board with MP3, with `CONFIG_HC_SDCARD` also the card's files and playlists. It
+    selects LVGL's PNG decoder (`LV_USE_PNG`) for the covers.
 
   The UI, which is shared with the Windows version, has no `#if` for the audio options: the
   Backend entries of a missing feature are nullptr (`main/ui_sound.cpp`), and Settings leave its
@@ -970,8 +981,10 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   Every sound is padded to whole DMA buffers, and the first one after a pause gets a buffer of
   silence before it: after a pause the I2S driver hands out the buffer the DMA is sending at that
   moment, and a sound written there lost its start. 16 bit mono, written to both slots, so the amplifier
-  plays it whichever channel its CTRL pin selects. Three DMA buffers of 128 frames (768 bytes):
-  a click starts within about 16 ms.
+  plays it whichever channel its CTRL pin selects. Eight DMA buffers of 128 frames (2 KB): a
+  click starts within about 16 ms (between sounds the buffers are free, it goes into the next
+  one), and music at 48 kHz has 21 ms to spare: with three (8 ms) a download's burst left the
+  DMA without data a few times on the JC3248W535, with eight none in a minute with bursts.
 * **Sample rate**: the built-in sounds are 16 kHz; a file plays at its own rate, the I2S clock
   follows it (`i2s_channel_reconfig_std_clock()` with the channel stopped). Stereo is mixed to
   mono.
@@ -1015,14 +1028,56 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
     esp32p4]`), not by the option: the component manager fails on a `$CONFIG{...}` that a board
     without audio does not have. Without the option nothing of it is linked. It needs an ESP32-P4
     of revision 3.0 or later (the JC4880P443C is 3.01).
-* **Player** (`CONFIG_HC_UI_PLAYER`, `play_media`): a WAV file (16 bit PCM, mono or stereo, 8
-  to 48 kHz; `wav_source.cpp`, read 4 KB at a time into PSRAM) or an MP3 from the card, at the
-  volume. It ranks like an announcement: touch clicks are dropped while it plays, an alarm or a
-  sound from Home Assistant replaces it. Pause keeps the file open and writes nothing (the DMA
-  sends zeros), seek jumps to the byte the bitrate gives (the MP3 decoder finds the next frame;
-  a WAV exactly). The length of an MP3 is its size over the first frame's bitrate (exact for a
-  constant bitrate); esp_audio_codec reports that bitrate in kbit/s, not bit/s as its header
-  says (2026-10-23). The state and the position are atomics the screen reads (`media_status`).
+* **Music** (`CONFIG_HC_UI_PLAYER`, `play_media`, `play_stream`): the audio task has two
+  places, a sound (click, tone, alarm, announcement) and the music, each with its own sources
+  (two `Mp3Source`s, so an alarm's MP3 does not close the music's). A sound plays over the music,
+  which waits meanwhile and goes on where it was when the sound ended (`MediaState::Interrupted`):
+  an alarm or an announcement interrupts it, the touch clicks are dropped while there is music,
+  playing or paused (a click would switch the I2S clock from 48 to 16 kHz and back). The music
+  is a WAV file (16 bit PCM, mono or stereo, 8 to 48 kHz; `wav_source.cpp`), an MP3 file, or an
+  MP3 that is downloaded while it plays, at the volume. Pause keeps it open and writes nothing
+  (the DMA sends zeros). When it ends by itself the player is told (`set_media_ended`, on the
+  audio task); a stop or a newer file does not. A recording of the microphone is refused while
+  there is music (its rate is 16 kHz).
+  * **Download** (`hass/src/media_audio.cpp`): a task per file (6 KB of stack, 8 KB with https,
+    in PSRAM: it touches no flash) resolves the `media-source://` id (the address is kept until a
+    connection fails), GETs it and writes what arrives into a `core::ByteRing` (1 MB of PSRAM,
+    32 s at 256 kbit/s; one writer, one reader, atomics, host tested). It downloads in bursts:
+    when the ring is full the connection is closed, and a new one (`Range`) fetches the next
+    half once half of the ring was played, every 16 s at 256 kbit/s. A connection kept open
+    with a full ring held its whole TCP window in Wi-Fi's receive buffers, internal RAM: 76 KB
+    on the P4, and on the JC3248W535 it left 7 KB of internal RAM and no DMA memory (2026-10-23).
+    With the bursts: 192 of 219 KB free on the P4, 14 to 15 of 16 KB on the JC3248W535. The audio task reads the ring and never waits on the network: it plays from
+    32 KB on, and when the ring runs dry it waits again for 32 KB (`MediaState::Buffering`, the
+    DMA sends zeros meanwhile, the task looks every 10 ms). A seek goes through the ring to the
+    download, which fetches the file again from there (`Range: bytes=N-`, HTTP 206; a server
+    that ignores the range has the bytes before read past); a connection that broke off is
+    tried again from where it was, five times 2 s apart, then the music fails. The task lives
+    until the audio task cancels the ring (the music ends or is replaced), also after the file
+    is complete, for a seek back.
+  * **Tags** (`formats/src/mp3_tags.cpp`, host tested): `formats::Mp3Reader` is fed the first
+    bytes of a file or a download as they are read: the ID3v2 tag (2.2 to 2.4, ISO-8859-1,
+    UTF-16 and UTF-8 texts; title, artist, album, track and the cover, the front cover first, up
+    to 1 MB of tag) and the Xing/Info or VBRI header of the first frame. The tag's bytes are not
+    handed to the decoder: a 70 KB PNG cover held bytes it took for frames. The length is the
+    header's frame count, else the size without the tag over the first frame's bitrate
+    (esp_audio_codec reports it in kbit/s, not bit/s as its header says); a seek uses the
+    header's table, else the bitrate. The tags go to the screen once read (`media_tags`).
+  * **Covers**: JPEG with the decoders of the camera images (`hass::decode_jpeg`), PNG with
+    LVGL's lodepng (`main/ui_player.cpp`), cut to a square of the screen's size.
+  * The state and the position are atomics the screen reads (`media_status`); `media_debug()`
+    gives the channel's rate and the DMA underruns while music played (i2s `on_send_q_ovf`).
+* **Player** (`components/player`): the queue, independent of the screen, so the next item
+  starts also with no screen open. Items are a file of the card, a `media-source://` id or an
+  address (a playlist's line). A file of the card plays its folder's MP3 and WAV files from it
+  on (in the order of the names), a playlist (`.m3u`, `.m3u8`, `formats/src/m3u.cpp`, host tested:
+  `#EXTINF` titles, paths relative to the playlist, `\` as `/`) its entries, an MP3 of the
+  media library its folder's MP3s from it on. Next, previous (within the first 3 s the one
+  before, else the start of the item), shuffle (the item that plays first, the rest in a random
+  order) and repeat off, all or one (`player::Queue`, host tested); shuffle and repeat are stored
+  (`ui` / `player`, `set_blob_later`). An item that cannot be played is skipped with a message
+  (the alert strip, or the player's page in Settings), three in a row stop the queue. Console
+  `player`.
   * **Spectrum** (`spectrum.cpp`): the task copies every chunk of the player's file, before the
     volume, into a ring of 1024 samples in PSRAM; `media_spectrum()` takes the last 512 on the
     caller's task (the screen, about 30 times a second), a Hann window, a radix-2 float FFT of
@@ -1067,7 +1122,8 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
     A newer sound stops a download between two reads. A WAV is refused with a log line (no WAV support).
   * `audio::play_mp3` takes the buffer; the MP3 source decodes it in place and frees it at the
     end. It is an announcement: only an alarm or another announcement replaces it, the touch
-    sounds are dropped while it plays; it plays at the volume (0: silent).
+    sounds are dropped while it plays, music waits and goes on after it; it plays at the volume
+    (0: silent).
   * Console: `sound say <tts entity> <text>` and `sound url <url>` do what the event does.
 
 **Microphone** (`CONFIG_HC_MIC`, menu "hassctrl audio", on by default where the board selects

@@ -5,9 +5,11 @@
 // replaces the one that plays, so quick taps do not queue up clicks. An alarm sound is the
 // exception: it plays at full volume whatever the volume is, and only stop_alarm() or another
 // alarm sound replaces it. An announcement (play_mp3) is one in between: only an alarm or another
-// announcement replaces it, the touch sounds are dropped while it plays. A file of the player
-// (play_media) ranks like an announcement, and an announcement replaces it too. The channel runs
-// only while a sound plays and stops a second after the last one, unless Config::keep_running.
+// announcement replaces it, the touch sounds are dropped while it plays. The music of the player
+// (play_media, play_stream) has a place of its own: an alarm or an announcement interrupts it and
+// it goes on where it was when that ended; the touch sounds are dropped while there is music. The
+// channel runs only while a sound plays and stops a second after the last one, unless
+// Config::keep_running.
 //
 // The built-in sounds are 16 bit mono PCM at kSampleRate; an MP3 file (CONFIG_HC_AUDIO_MP3) plays
 // at its own sample rate, mixed to mono.
@@ -18,9 +20,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 #include "esp_err.h"
 #include "sdkconfig.h"
+
+#if CONFIG_HC_UI_PLAYER
+#include "hc/core/byte_ring.hpp"
+#include "hc/formats/mp3_tags.hpp"
+#endif
 
 namespace hc::audio {
 
@@ -91,10 +99,12 @@ void play_alarm(const char *path, bool loop);
 void stop_alarm();
 bool alarm_playing();
 
-// The player (the file manager of Settings, CONFIG_HC_UI_PLAYER): a WAV file (16 bit PCM) or an
+// The music of the player (components/player, CONFIG_HC_UI_PLAYER): a WAV file (16 bit PCM) or an
 // MP3 (CONFIG_HC_AUDIO_MP3) at the volume, with pause, seek and a spectrum of what plays. false
 // when it cannot start (volume 0, no audio); a file that cannot be read ends as MediaState::Failed.
-enum class MediaState : uint8_t { Idle, Playing, Paused, Failed };
+// Buffering: a download has not enough to play yet (at the start, after a seek, when it ran dry);
+// Interrupted: an alarm or an announcement plays, the music goes on after it.
+enum class MediaState : uint8_t { Idle, Playing, Paused, Failed, Buffering, Interrupted };
 
 struct MediaStatus {
     MediaState state;
@@ -105,10 +115,32 @@ struct MediaStatus {
 
 #if CONFIG_HC_UI_PLAYER
 bool play_media(const char *path);
+// A download on its way (an MP3 of Home Assistant's media library): it plays once a part of it is
+// there. The task reads `ring` and cancels it when the music ends or is replaced, which ends the
+// download; a seek asks the download for the bytes from there.
+bool play_stream(std::shared_ptr<core::ByteRing> ring);
 void pause_media(bool pause);
 void seek_media(uint32_t ms);
 void stop_media();
 MediaStatus media_status();
+
+// Called on the audio task when the music ended by itself (`failed`: it could not be read, or its
+// download broke), not when it was stopped or replaced: the player's queue goes on. Quick: post
+// and return.
+using MediaEnded = void (*)(bool failed);
+void set_media_ended(MediaEnded callback);
+
+// The tags of the MP3 that plays (title, artist, album, cover), null before they were read; a WAV
+// has none. `serial` changes with every file's tags.
+std::shared_ptr<const formats::Mp3Tags> media_tags(uint32_t &serial);
+
+// For the console: the rate the channel runs at, and how often its DMA ran dry while music
+// played (since start).
+struct MediaDebug {
+    uint32_t rate;
+    uint32_t underruns;
+};
+MediaDebug media_debug();
 
 // The levels of what the player plays now in `count` bands spaced evenly in octaves from 40 Hz
 // to half the rate, 0 (-60 dB and below) to 1 (full scale), before the volume. A 512 point FFT

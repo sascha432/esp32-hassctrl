@@ -50,6 +50,9 @@ void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity
 // (lights dim unless their id has "onoff").
 void find_entities(std::string_view query, size_t max, uint32_t generation);
 void fetch_entity(std::string_view entity_id, uint32_t generation);
+// A made-up media library (Settings, Media): My media with a music folder of two albums of MP3s,
+// a picture and a sound, 300 ms after the request.
+void browse_media(std::string_view id, uint32_t generation);
 // how the forecast answers (step `forecast`): with the entries, never (Loading...), or an error
 enum class ForecastMode : uint8_t { Ok, Loading, Error };
 void set_forecast_mode(ForecastMode mode);

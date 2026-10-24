@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <mutex>
 
 #include "driver/i2s_std.h"
 #include "esp_check.h"
@@ -32,10 +34,12 @@ using detail::Source;
 
 constexpr const char *kTag = "audio";
 
-// Three DMA buffers of 128 frames: 8 ms each at 16 kHz, so a click starts within about 16 ms of
-// play(); 768 bytes of internal RAM.
+// DMA buffers of 128 frames: 8 ms each at 16 kHz, so a click starts within about 16 ms of play()
+// (between sounds the buffers are free, a click goes into the next one). Eight of them, 2 KB of
+// internal RAM: 21 ms at 48 kHz carry the music over a download's burst, which with three (8 ms)
+// left the DMA without data a few times a burst on the JC3248W535 (2026-10-23).
 constexpr uint32_t kDmaFrames = 128;
-constexpr uint32_t kDmaBuffers = 3;
+constexpr uint32_t kDmaBuffers = 8;
 // samples written per i2s_channel_write, one DMA buffer: between two of them a newer sound takes
 // over
 constexpr size_t kChunk = kDmaFrames;
@@ -47,6 +51,8 @@ constexpr uint16_t kMaxToneMs = 5000;
 // of a click that came first: quick taps clicked louder than single ones (2026-10-09).
 constexpr uint32_t kWakeMs = 20;
 constexpr size_t kQueueLength = 4;
+// music that waits for its download is tried again this often
+constexpr TickType_t kWaitingPoll = pdMS_TO_TICKS(10);
 #if CONFIG_HC_AUDIO_MP3
 constexpr bool kFiles = true;
 #else
@@ -64,7 +70,19 @@ constexpr uint32_t kStackSize = 3072;
 // above the LVGL task (4), so a busy screen does not starve the DMA buffers
 constexpr UBaseType_t kPriority = 5;
 
-enum class Kind : uint8_t { Samples, Tone, Beeps, File, Buffer, StopAlarm, Media, MediaPause, MediaSeek, MediaStop };
+enum class Kind : uint8_t {
+    Samples,
+    Tone,
+    Beeps,
+    File,
+    Buffer,
+    StopAlarm,
+    Media,
+    Stream,
+    MediaPause,
+    MediaSeek,
+    MediaStop,
+};
 
 // a request that changes what plays, not a sound: it is not dropped at volume 0
 bool is_control(Kind kind)
@@ -77,8 +95,6 @@ struct Request {
     bool alarm; // full volume, only another alarm or StopAlarm replaces it
     // a sound from Home Assistant: only an alarm or another announcement replaces it
     bool announcement;
-    // a file of the player (play_media), ranked as an announcement
-    bool media;
     bool loop;
     // MediaPause: pause or go on; MediaSeek: where to
     bool pause;
@@ -88,6 +104,10 @@ struct Request {
     // Buffer: an MP3 the request owns (play_mp3)
     uint8_t *data;
     size_t size;
+#if CONFIG_HC_UI_PLAYER
+    // Stream: the download, on the heap; the task takes it (play_stream)
+    std::shared_ptr<core::ByteRing> *ring;
+#endif
     uint16_t hz;
     char path[kMaxPath];
 };
@@ -106,6 +126,34 @@ std::atomic<bool> g_alarm{false};
 std::atomic<MediaState> g_media_state{MediaState::Idle};
 std::atomic<uint32_t> g_media_position_ms{0};
 std::atomic<uint32_t> g_media_duration_ms{0};
+// the channel's rate (Player::prepare): a recording is at kSampleRate
+std::atomic<uint32_t> g_rate{kSampleRate};
+#if CONFIG_HC_UI_PLAYER
+MediaEnded g_media_ended = nullptr;
+// the tags of the music that plays, under g_tags_mutex; the serial counts new ones
+std::mutex g_tags_mutex;
+std::shared_ptr<const formats::Mp3Tags> g_tags;
+std::atomic<uint32_t> g_tags_serial{0};
+// the DMA ran dry while music played (i2s on_send_q_ovf), counted while it plays
+std::atomic<bool> g_count_underruns{false};
+std::atomic<uint32_t> g_underruns{0};
+
+void publish_tags(const formats::Mp3Tags &tags)
+{
+    auto copy = std::make_shared<const formats::Mp3Tags>(tags);
+    std::lock_guard lock(g_tags_mutex);
+    g_tags = std::move(copy);
+    g_tags_serial.fetch_add(1);
+}
+
+bool IRAM_ATTR on_send_overflow(i2s_chan_handle_t, i2s_event_data_t *, void *)
+{
+    if (g_count_underruns.load(std::memory_order_relaxed)) {
+        g_underruns.fetch_add(1, std::memory_order_relaxed);
+    }
+    return false;
+}
+#endif
 
 #if CONFIG_HC_MIC
 // The test recording (mic_record_start), PSRAM, kept once allocated: it plays from there. Posted:
@@ -113,8 +161,6 @@ std::atomic<uint32_t> g_media_duration_ms{0};
 int16_t *g_record = nullptr;
 std::atomic<bool> g_record_posted{false};
 std::atomic<bool> g_record_plays{false};
-// the channel's rate (Player::prepare): a recording is at kSampleRate
-std::atomic<uint32_t> g_rate{kSampleRate};
 #endif
 
 int32_t gain_of(uint8_t percent)
@@ -130,43 +176,56 @@ void drop(const Request &request)
     if (request.kind == Kind::Buffer) {
         heap_caps_free(request.data);
     }
+#if CONFIG_HC_UI_PLAYER
+    if (request.kind == Kind::Stream) {
+        (*request.ring)->cancel();
+        delete request.ring;
+    }
+#endif
 }
 
-// The task's state: the sound that plays and the channel
+// The task's state: what plays and the channel. Two slots: a sound (a click, a tone, an alarm, an
+// announcement) and a file of the player (music). A sound plays over the music, which waits
+// meanwhile and goes on where it was when the sound ended: an alarm or an announcement interrupts
+// it, the others (clicks) are dropped while there is music, playing or paused.
 class Player {
 public:
-    // a request from the queue: it replaces the sound that plays, except a normal sound over an
-    // alarm or an announcement, and an announcement over an alarm
     void accept(const Request &request)
     {
-        if (request.kind == Kind::StopAlarm) {
+        switch (request.kind) {
+        case Kind::StopAlarm:
             if (alarm_) {
-                end();
+                end_sound();
             }
             return;
-        }
-        if (request.kind == Kind::MediaStop) {
-            if (media_) {
-                end();
+#if CONFIG_HC_UI_PLAYER
+        case Kind::MediaStop:
+            if (media_ != nullptr) {
+                end_media(false, false);
             }
             return;
-        }
-        if (request.kind == Kind::MediaPause) {
-            if (media_ && paused_ != request.pause) {
+        case Kind::MediaPause:
+            if (media_ != nullptr && paused_ != request.pause) {
                 paused_ = request.pause;
                 // the DMA sent zeros meanwhile: going on needs a lead-in (see lead_in())
                 idle_ = true;
-                g_media_state.store(paused_ ? MediaState::Paused : MediaState::Playing);
+                update_media_state();
             }
             return;
-        }
-        if (request.kind == Kind::MediaSeek) {
-            if (media_ && active_->seek(request.ms)) {
+        case Kind::MediaSeek:
+            if (media_ != nullptr && media_->seek(request.ms)) {
                 media_start_ms_ = request.ms;
                 media_samples_ = 0;
                 g_media_position_ms.store(request.ms);
             }
             return;
+        case Kind::Media:
+        case Kind::Stream:
+            start_media(request);
+            return;
+#endif
+        default:
+            break;
         }
 #if CONFIG_HC_MIC
         const bool recording = request.kind == Kind::Samples && g_record != nullptr && request.samples == g_record;
@@ -174,80 +233,46 @@ public:
             g_record_posted.store(false);
         }
 #endif
-        if ((alarm_ && !request.alarm) ||
-            ((announcement_ || media_) && !request.alarm && !request.announcement && !request.media)) {
+        if ((alarm_ && !request.alarm) || ((announcement_ || has_media()) && !request.alarm && !request.announcement)) {
             drop(request);
-            if (request.media) {
-                g_media_state.store(MediaState::Idle);
-            }
             return;
         }
-        // a file of the player after another: the state stays Playing in between
-        finish(!request.media);
-        active_ = open(request);
-        if (request.media) {
-            g_media_state.store(active_ != nullptr ? MediaState::Playing : MediaState::Failed);
-        }
-        if (active_ != nullptr) {
+        finish_sound();
+        sound_ = open(request);
+        if (sound_ != nullptr) {
             alarm_ = request.alarm;
             announcement_ = request.announcement;
-            media_ = request.media;
             loop_ = request.loop;
-            if (media_) {
-                media_start_ms_ = 0;
-                media_samples_ = 0;
-                g_media_position_ms.store(0);
-                g_media_duration_ms.store(active_->duration_ms());
-            }
             g_alarm.store(alarm_);
 #if CONFIG_HC_MIC
             g_record_plays.store(recording);
 #endif
         }
+        update_media_state();
     }
 
-    // a paused file of the player does not count
-    bool playing() const
+    // something to play: a sound, or music that is not paused
+    bool active() const
     {
-        return active_ != nullptr && !paused_;
+        return sound_ != nullptr || (has_media() && !paused_);
     }
 
-    // the next samples to the channel; at the end the sound loops or stops
+    // only music that waits for its download: the task looks again a little later
+    bool waiting() const
+    {
+        return sound_ == nullptr && has_media() && !paused_ && media_waiting_;
+    }
+
     void step(int16_t *buffer)
     {
-        size_t count = active_->read(buffer, kChunk);
-        if (count == 0 && loop_ && active_->restart()) {
-            count = active_->read(buffer, kChunk);
-        }
-        if (count == 0) {
-            end();
-            return;
-        }
-        if (!prepare(active_->sample_rate())) {
-            finish();
-            return;
-        }
-        if (idle_) {
-            lead_in();
-            idle_ = false;
+        if (sound_ != nullptr) {
+            step_sound(buffer);
         }
 #if CONFIG_HC_UI_PLAYER
-        if (media_) {
-            const uint32_t rate = active_->sample_rate();
-            detail::spectrum_feed(buffer, count, rate);
-            media_samples_ += count;
-            g_media_position_ms.store(media_start_ms_ + static_cast<uint32_t>(media_samples_ * 1000 / rate));
-            if (g_media_duration_ms.load() == 0) {
-                // an MP3 knows it after its first frame
-                g_media_duration_ms.store(active_->duration_ms());
-            }
+        else if (media_ != nullptr && !paused_) {
+            step_media(buffer);
         }
 #endif
-        const int32_t gain = alarm_ ? 32768 : g_gain.load(std::memory_order_relaxed);
-        for (size_t i = 0; i < count; i++) {
-            buffer[i] = static_cast<int16_t>(std::clamp<int32_t>((buffer[i] * gain) >> 15, INT16_MIN, INT16_MAX));
-        }
-        write(buffer, count);
     }
 
     void stop_channel()
@@ -279,6 +304,47 @@ public:
     }
 
 private:
+    bool has_media() const
+    {
+#if CONFIG_HC_UI_PLAYER
+        return media_ != nullptr;
+#else
+        return false;
+#endif
+    }
+
+    // the next samples of the sound to the channel; at its end it loops or stops
+    void step_sound(int16_t *buffer)
+    {
+        size_t count = sound_->read(buffer, kChunk);
+        if (count == 0 && loop_ && sound_->restart()) {
+            count = sound_->read(buffer, kChunk);
+        }
+        if (count == 0) {
+            end_sound();
+            return;
+        }
+        if (!prepare(sound_->sample_rate())) {
+            finish_sound();
+            update_media_state();
+            return;
+        }
+        if (idle_) {
+            lead_in();
+            idle_ = false;
+        }
+        const int32_t gain = alarm_ ? 32768 : g_gain.load(std::memory_order_relaxed);
+        apply_gain(buffer, count, gain);
+        write(buffer, count);
+    }
+
+    static void apply_gain(int16_t *buffer, size_t count, int32_t gain)
+    {
+        for (size_t i = 0; i < count; i++) {
+            buffer[i] = static_cast<int16_t>(std::clamp<int32_t>((buffer[i] * gain) >> 15, INT16_MIN, INT16_MAX));
+        }
+    }
+
     Source *open(const Request &request)
     {
         switch (request.kind) {
@@ -311,76 +377,179 @@ private:
             }
 #endif
             return nullptr;
-        case Kind::Media:
-            return open_media(request.path);
-        case Kind::StopAlarm:
-        case Kind::MediaPause:
-        case Kind::MediaSeek:
-        case Kind::MediaStop:
+        default:
             break;
         }
         return nullptr;
     }
 
-    // a WAV file by its name, else an MP3 (CONFIG_HC_UI_PLAYER; never asked for without)
-    Source *open_media(const char *path)
-    {
-#if CONFIG_HC_UI_PLAYER
-        const size_t length = std::strlen(path);
-        if (length > 4 && strcasecmp(path + length - 4, ".wav") == 0) {
-            return wav_.open(path) ? &wav_ : nullptr;
-        }
-#if CONFIG_HC_AUDIO_MP3
-        if (file_.open(path)) {
-            return &file_;
-        }
-#endif
-#else
-        (void)path;
-#endif
-        return nullptr;
-    }
-
-    // the sound ends (or is stopped): the rest of its DMA buffer silent, the next sound starts in
-    // a buffer of its own (see lead_in())
-    void end()
+    // the sound ends (or is stopped): the rest of its DMA buffer silent, the next sound (or the
+    // music it interrupted) starts in a buffer of its own (see lead_in())
+    void end_sound()
     {
         if (enabled_) {
             write_silence((kDmaFrames - fill_) % kDmaFrames);
         }
         idle_ = true;
-        finish();
+        finish_sound();
+        update_media_state();
     }
 
-    // `ended`: a file of the player that goes is reported as ended (not when another follows)
-    void finish(bool ended = true)
+    void finish_sound()
     {
 #if CONFIG_HC_AUDIO_MP3
-        if (active_ == &file_) {
+        if (sound_ == &file_) {
             file_.close();
         }
 #endif
-#if CONFIG_HC_UI_PLAYER
-        if (active_ == &wav_) {
-            wav_.close();
-        }
-#endif
-        if (media_) {
-#if CONFIG_HC_UI_PLAYER
-            detail::spectrum_clear();
-#endif
-            if (ended) {
-                g_media_state.store(MediaState::Idle);
-            }
-        }
-        active_ = nullptr;
+        sound_ = nullptr;
         alarm_ = false;
         announcement_ = false;
-        media_ = false;
-        paused_ = false;
+        loop_ = false;
         g_alarm.store(false);
 #if CONFIG_HC_MIC
         g_record_plays.store(false);
+#endif
+    }
+
+#if CONFIG_HC_UI_PLAYER
+    // a WAV file by its name, else an MP3; or a download (an MP3)
+    Source *open_media(const Request &request)
+    {
+        if (request.kind == Kind::Stream) {
+            std::shared_ptr<core::ByteRing> ring = std::move(*request.ring);
+            delete request.ring;
+#if CONFIG_HC_AUDIO_MP3
+            return media_mp3_.open(std::move(ring)) ? &media_mp3_ : nullptr;
+#else
+            ring->cancel();
+            return nullptr;
+#endif
+        }
+        const size_t length = std::strlen(request.path);
+        if (length > 4 && strcasecmp(request.path + length - 4, ".wav") == 0) {
+            return wav_.open(request.path) ? &wav_ : nullptr;
+        }
+#if CONFIG_HC_AUDIO_MP3
+        if (media_mp3_.open(request.path)) {
+            return &media_mp3_;
+        }
+#endif
+        return nullptr;
+    }
+
+    // a newer file replaces the one there is
+    void start_media(const Request &request)
+    {
+        finish_media();
+        media_ = open_media(request);
+        if (media_ == nullptr) {
+            g_media_state.store(MediaState::Failed);
+            if (g_media_ended != nullptr) {
+                g_media_ended(true);
+            }
+            return;
+        }
+        media_start_ms_ = 0;
+        media_samples_ = 0;
+        tags_published_ = false;
+        g_media_position_ms.store(0);
+        g_media_duration_ms.store(media_->duration_ms());
+        update_media_state();
+    }
+
+    // the next samples of the music to the channel; at its end the player is told
+    void step_media(int16_t *buffer)
+    {
+        const size_t count = media_->read(buffer, kChunk);
+        if (count == 0) {
+            if (media_->waiting()) {
+                if (!media_waiting_) {
+                    media_waiting_ = true;
+                    // the DMA sends zeros while it waits
+                    idle_ = true;
+                    update_media_state();
+                }
+                return;
+            }
+            end_media(true, media_->failed());
+            return;
+        }
+        if (media_waiting_) {
+            media_waiting_ = false;
+            update_media_state();
+        }
+        const uint32_t rate = media_->sample_rate();
+        if (!prepare(rate)) {
+            end_media(true, true);
+            return;
+        }
+        if (idle_) {
+            lead_in();
+            idle_ = false;
+        }
+        detail::spectrum_feed(buffer, count, rate);
+        media_samples_ += count;
+        g_media_position_ms.store(media_start_ms_ + static_cast<uint32_t>(media_samples_ * 1000 / rate));
+        // an MP3 knows it after its first frame, or better after its Xing header, a download once
+        // its size came
+        g_media_duration_ms.store(media_->duration_ms());
+#if CONFIG_HC_AUDIO_MP3
+        if (!tags_published_ && media_ == &media_mp3_ && media_mp3_.tags_ready()) {
+            tags_published_ = true;
+            publish_tags(*media_mp3_.tags());
+        }
+#endif
+        apply_gain(buffer, count, g_gain.load(std::memory_order_relaxed));
+        write(buffer, count);
+    }
+
+    // `report`: it ended by itself, the player is told (not when it was stopped)
+    void end_media(bool report, bool failed)
+    {
+        if (enabled_ && sound_ == nullptr && !paused_) {
+            write_silence((kDmaFrames - fill_) % kDmaFrames);
+        }
+        idle_ = true;
+        finish_media();
+        g_media_state.store(failed ? MediaState::Failed : MediaState::Idle);
+        if (report && g_media_ended != nullptr) {
+            g_media_ended(failed);
+        }
+    }
+
+    void finish_media()
+    {
+#if CONFIG_HC_AUDIO_MP3
+        if (media_ == &media_mp3_) {
+            media_mp3_.close();
+        }
+#endif
+        if (media_ == &wav_) {
+            wav_.close();
+        }
+        if (media_ != nullptr) {
+            detail::spectrum_clear();
+        }
+        media_ = nullptr;
+        paused_ = false;
+        media_waiting_ = false;
+        g_count_underruns.store(false);
+    }
+#endif
+
+    void update_media_state()
+    {
+#if CONFIG_HC_UI_PLAYER
+        if (media_ == nullptr) {
+            return;
+        }
+        const MediaState state = paused_            ? MediaState::Paused
+                                 : sound_ != nullptr ? MediaState::Interrupted
+                                 : media_waiting_    ? MediaState::Buffering
+                                                     : MediaState::Playing;
+        g_media_state.store(state);
+        g_count_underruns.store(state == MediaState::Playing);
 #endif
     }
 
@@ -423,9 +592,7 @@ private:
                 return false;
             }
             rate_ = rate;
-#if CONFIG_HC_MIC
             g_rate.store(rate);
-#endif
         }
         if (!enabled_) {
             // the DMA sends zeros between sounds (auto_clear), so the channel can keep running
@@ -451,21 +618,28 @@ private:
     detail::MemorySource memory_;
     detail::ToneSource tone_;
     detail::BeepsSource beeps_;
-#if CONFIG_HC_UI_PLAYER
-    detail::WavSource wav_;
-#endif
 #if CONFIG_HC_AUDIO_MP3
+    // the sounds' MP3: an alarm, an announcement
     detail::Mp3Source file_;
 #endif
-    Source *active_ = nullptr;
+    Source *sound_ = nullptr;
     bool alarm_ = false;
     bool announcement_ = false;
-    bool media_ = false;
-    bool paused_ = false;
+    bool loop_ = false;
+#if CONFIG_HC_UI_PLAYER
+    detail::WavSource wav_;
+#if CONFIG_HC_AUDIO_MP3
+    // the music's MP3, open while an alarm plays its own
+    detail::Mp3Source media_mp3_;
+#endif
+    Source *media_ = nullptr;
     // the player's position: where it started (or was sought to) and the samples since
     uint32_t media_start_ms_ = 0;
     uint64_t media_samples_ = 0;
-    bool loop_ = false;
+    bool tags_published_ = false;
+#endif
+    bool paused_ = false;
+    bool media_waiting_ = false;
     // samples in the DMA buffer being filled
     uint32_t fill_ = 0;
     // no sound since the last one ended: the next one needs a lead-in
@@ -482,20 +656,23 @@ void audio_task(void *)
         player.run(kSampleRate);
     }
     for (;;) {
-        // playing: only look for a newer sound; idle: wait for one, the channel stops meanwhile
-        // (or runs on, Config::keep_running)
+        // playing: only look for a newer sound; music waiting for its download: look again soon;
+        // idle: wait for one, the channel stops meanwhile (or runs on, Config::keep_running)
         const TickType_t idle = g_config.keep_running ? portMAX_DELAY : kIdleStop;
-        const TickType_t wait = player.playing() ? 0 : (player.channel_running() ? idle : portMAX_DELAY);
+        const TickType_t wait = player.waiting()  ? kWaitingPoll
+                                : player.active() ? 0
+                                : player.channel_running() ? idle
+                                                           : portMAX_DELAY;
         Request request;
         if (xQueueReceive(g_queue, &request, wait) == pdTRUE) {
             do {
                 player.accept(request);
             } while (xQueueReceive(g_queue, &request, 0) == pdTRUE);
-        } else if (!player.playing()) {
+        } else if (!player.active()) {
             player.stop_channel();
             continue;
         }
-        if (player.playing()) {
+        if (player.active()) {
             player.step(buffer);
         }
     }
@@ -672,6 +849,13 @@ esp_err_t start(const Config &config)
     std_config.gpio_cfg.dout = static_cast<gpio_num_t>(config.dout);
     std_config.gpio_cfg.din = I2S_GPIO_UNUSED;
     esp_err_t err = i2s_channel_init_std_mode(g_channel, &std_config);
+#if CONFIG_HC_UI_PLAYER
+    if (err == ESP_OK) {
+        i2s_event_callbacks_t callbacks{};
+        callbacks.on_send_q_ovf = on_send_overflow;
+        i2s_channel_register_event_callback(g_channel, &callbacks, nullptr);
+    }
+#endif
 #if CONFIG_HC_MIC
     if (err == ESP_OK && g_rx != nullptr && start_mic(std_config) != ESP_OK) {
         // the speaker without it
@@ -799,10 +983,30 @@ bool play_media(const char *path)
     // without it the file plays all the same, only the spectrum stays empty
     detail::spectrum_prepare();
     Request request = make(Kind::Media);
-    request.media = true;
     std::snprintf(request.path, sizeof(request.path), "%s", path);
     // Playing from now on, so the screen does not see the old state before the task takes it
     g_media_state.store(MediaState::Playing);
+    g_media_position_ms.store(0);
+    g_media_duration_ms.store(0);
+    if (!post(request)) {
+        g_media_state.store(MediaState::Idle);
+        return false;
+    }
+    return true;
+}
+
+bool play_stream(std::shared_ptr<core::ByteRing> ring)
+{
+    if (g_queue == nullptr || !ring || !ring->valid()) {
+        if (ring) {
+            ring->cancel();
+        }
+        return false;
+    }
+    detail::spectrum_prepare();
+    Request request = make(Kind::Stream);
+    request.ring = new std::shared_ptr<core::ByteRing>(std::move(ring));
+    g_media_state.store(MediaState::Buffering);
     g_media_position_ms.store(0);
     g_media_duration_ms.store(0);
     if (!post(request)) {
@@ -834,6 +1038,23 @@ void stop_media()
 MediaStatus media_status()
 {
     return {g_media_state.load(), g_media_position_ms.load(), g_media_duration_ms.load()};
+}
+
+void set_media_ended(MediaEnded callback)
+{
+    g_media_ended = callback;
+}
+
+std::shared_ptr<const formats::Mp3Tags> media_tags(uint32_t &serial)
+{
+    std::lock_guard lock(g_tags_mutex);
+    serial = g_tags_serial.load();
+    return g_tags;
+}
+
+MediaDebug media_debug()
+{
+    return {g_rate.load(), g_underruns.load()};
 }
 #endif
 
@@ -894,6 +1115,12 @@ bool mic_record_start()
     if (g_rx == nullptr || volume() == 0 || mic_record_state(remaining) != RecordState::Idle) {
         return false;
     }
+#if CONFIG_HC_UI_PLAYER
+    // the music's rate is not the recording's
+    if (const MediaState state = g_media_state.load(); state != MediaState::Idle && state != MediaState::Failed) {
+        return false;
+    }
+#endif
     if (g_record == nullptr) {
         g_record = static_cast<int16_t *>(heap_caps_malloc(kRecordSamples * sizeof(int16_t), MALLOC_CAP_SPIRAM));
         if (g_record == nullptr) {

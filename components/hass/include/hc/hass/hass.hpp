@@ -25,6 +25,7 @@
 #include <string_view>
 
 #include "esp_err.h"
+#include "hc/core/byte_ring.hpp"
 #include "hc/core/entity.hpp"
 #include "hc/core/layout.hpp"
 #include "hc/memory/large.hpp"
@@ -163,6 +164,10 @@ void play_stream(std::string_view entity_id, std::string_view stream, core::Enti
                  uint16_t height, bool swap_bytes, uint32_t generation);
 void stop_stream();
 
+// A JPEG in memory (the cover of an MP3) as a `width` x `height` frame, cut to cover it, with the
+// decoders of the camera images (one at a time); on the calling task. `swap_bytes` as fetch_image.
+bool decode_jpeg(const uint8_t *jpeg, size_t size, uint16_t width, uint16_t height, bool swap_bytes, core::Image &out);
+
 // For measurements: the decoder's scale of a stream's frames, 0..3 (1:1..1:8); -1 (default) the
 // smallest that covers the box.
 void set_stream_scale(int shift);
@@ -182,6 +187,26 @@ bool entity_details(std::string_view entity_id, uint32_t timeout_ms, memory::Str
 // one query of the web editor's picker: a newer request of either replaces the one on its way.
 void find_entities(std::string_view query, size_t max, uint32_t timeout_ms, uint32_t generation);
 void fetch_entity(std::string_view entity_id, uint32_t timeout_ms, uint32_t generation);
+
+// Home Assistant's media library (Media in its sidebar, docs/architecture.md section 9.6). The
+// folder `media_id` (empty: the top) comes back through take_event as a core::MediaList stamped
+// with `generation`, with the error set when it failed; a newer browse replaces one on its way.
+void browse_media(std::string_view media_id, uint32_t timeout_ms, uint32_t generation);
+
+// The same, blocking the calling task until the answer came, at most `timeout_ms` (the console).
+bool browse_media(std::string_view media_id, uint32_t timeout_ms, core::MediaList &out, memory::String &error);
+
+// The address of the file `media_id` to stream: a path of Home Assistant signed for a short while
+// ("/media/local/x.mp3?authSig=..."), and its MIME type. Blocks the calling task.
+bool resolve_media(std::string_view media_id, uint32_t timeout_ms, memory::String &url, memory::String &mime,
+                   memory::String &error);
+
+// Downloads the music `source` into `ring` while the player plays it (media_audio.cpp): a
+// media-source:// id of the media library, a path of Home Assistant ("/media/local/x.mp3") or an
+// http(s) address. A task of its own until the ring is cancelled; the ring's seeks fetch the file
+// again from there, a broken connection is tried again a few times before the ring fails. False
+// when it cannot start (no memory).
+bool stream_media(std::string_view source, std::shared_ptr<core::ByteRing> ring);
 
 // A Home Assistant instance found on the network.
 struct Found {

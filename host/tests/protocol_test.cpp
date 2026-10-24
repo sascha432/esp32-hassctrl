@@ -1005,3 +1005,51 @@ TEST(core_mjpeg_part_header)
     CHECK(!mjpeg_content_length("Content-Length: 12a", length));
     CHECK(!mjpeg_content_length("--frame", length));
 }
+
+TEST(protocol_media_source)
+{
+    Json top(cJSON_Parse(browse_media_message(4, "").c_str()));
+    REQUIRE(top != nullptr);
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(top.get(), "type")), "media_source/browse_media");
+    CHECK(cJSON_GetObjectItem(top.get(), "media_content_id") == nullptr);
+    Json folder(cJSON_Parse(browse_media_message(5, "media-source://media_source/local/music \"x\"").c_str()));
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(folder.get(), "media_content_id")),
+              "media-source://media_source/local/music \"x\"");
+    Json resolve(cJSON_Parse(resolve_media_message(6, "media-source://media_source/local/a.mp3").c_str()));
+    CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(resolve.get(), "type")), "media_source/resolve_media");
+    CHECK(cJSON_GetObjectItem(resolve.get(), "id")->valueint == 6);
+
+    // as Home Assistant 2026.10 answers for a folder of the local media
+    Json answer(cJSON_Parse(R"({"title":"music","media_class":"directory","media_content_type":"",
+        "media_content_id":"media-source://media_source/local/music","children_media_class":"directory",
+        "can_play":false,"can_expand":true,"thumbnail":null,"not_shown":0,"children":[
+        {"title":"Solaris","media_class":"directory","media_content_type":"",
+         "media_content_id":"media-source://media_source/local/music/Solaris","can_play":false,"can_expand":true},
+        {"title":"01 Engel.mp3","media_class":"music","media_content_type":"audio/mpeg",
+         "media_content_id":"media-source://media_source/local/music/01 Engel.mp3","can_play":true,"can_expand":false},
+        {"title":"no id","can_play":true}]})"));
+    MediaList list;
+    memory::String error;
+    REQUIRE(decode_browse_media(answer.get(), list, error));
+    CHECK_STR(list.title.c_str(), "music");
+    REQUIRE(list.items.size() == 2);
+    CHECK_STR(list.items[0].title.c_str(), "Solaris");
+    CHECK(list.items[0].folder);
+    CHECK(!list.items[0].playable);
+    CHECK_STR(list.items[1].type.c_str(), "audio/mpeg");
+    CHECK(list.items[1].playable);
+    CHECK(!list.items[1].folder);
+    Json empty(cJSON_Parse(R"({"title":"empty","can_expand":true})"));
+    REQUIRE(decode_browse_media(empty.get(), list, error));
+    CHECK(list.items.empty());
+    Json broken(cJSON_Parse(R"({"title":"x","children":7})"));
+    CHECK(!decode_browse_media(broken.get(), list, error));
+
+    memory::String url, mime;
+    Json resolved(cJSON_Parse(R"({"url":"/media/local/music/a.mp3?authSig=abc","mime_type":"audio/mpeg"})"));
+    REQUIRE(decode_resolve_media(resolved.get(), url, mime, error));
+    CHECK_STR(url.c_str(), "/media/local/music/a.mp3?authSig=abc");
+    CHECK_STR(mime.c_str(), "audio/mpeg");
+    Json no_url(cJSON_Parse(R"({"mime_type":"audio/mpeg"})"));
+    CHECK(!decode_resolve_media(no_url.get(), url, mime, error));
+}

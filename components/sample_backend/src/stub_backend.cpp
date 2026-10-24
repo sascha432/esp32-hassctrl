@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -778,6 +779,7 @@ struct FakeFile {
 
 std::vector<FakeFile> g_files = {
     {"music", 0, true},
+    {"music/Evening.m3u", 214, false},
     {"music/Morning.mp3", 4'318'204, false},
     {"music/Rain on the roof.wav", 21'168'044, false},
     // the text fonts beyond ASCII (theme.cpp)
@@ -923,16 +925,39 @@ FileResult sd_rename(const char *from, const char *to)
 #if CONFIG_HC_UI_PLAYER
 // ------------------------------------------------------------------------------ the player
 
+using hc::ui::PlayerRepeat;
 using hc::ui::PlayerState;
 
+// what the fake player plays: a file of the fake card or an MP3 of the made-up media library
+struct FakeTrack {
+    std::string title;
+    std::string artist;
+    std::string album;
+    uint32_t duration_ms;
+};
+
 struct FakePlayer {
+    std::vector<FakeTrack> queue;
+    size_t index = 0;
     PlayerState state = PlayerState::Idle;
     // the position at `since`, the tick it plays from
     uint32_t position_ms = 0;
     uint32_t since = 0;
-    uint32_t duration_ms = 0;
+    bool shuffle = false;
+    PlayerRepeat repeat = PlayerRepeat::Off;
+    uint32_t cover_serial = 0;
 };
 FakePlayer g_player;
+
+void player_start(size_t index)
+{
+    g_player.index = index;
+    g_player.position_ms = 0;
+    g_player.since = lv_tick_get();
+    g_player.state = g.sound.volume > 0 ? PlayerState::Playing : PlayerState::Failed;
+    g_player.cover_serial++;
+    print("player plays", g_player.queue[index].title.c_str());
+}
 
 void player_update()
 {
@@ -942,54 +967,187 @@ void player_update()
     const uint32_t now_ms = lv_tick_get();
     g_player.position_ms += now_ms - g_player.since;
     g_player.since = now_ms;
-    if (g_player.position_ms >= g_player.duration_ms) {
-        g_player = FakePlayer{};
+    if (g_player.position_ms < g_player.queue[g_player.index].duration_ms) {
+        return;
+    }
+    // the next one, as the real queue does
+    if (g_player.repeat == PlayerRepeat::One) {
+        player_start(g_player.index);
+    } else if (g_player.index + 1 < g_player.queue.size()) {
+        player_start(g_player.index + 1);
+    } else if (g_player.repeat == PlayerRepeat::All) {
+        player_start(0);
+    } else {
+        g_player.state = PlayerState::Idle;
     }
 }
 
-bool player_open(const char *path)
+std::string title_of(const std::string &name)
 {
-    if (g.sound.volume == 0) {
+    const size_t slash = name.rfind('/');
+    std::string title = slash == std::string::npos ? name : name.substr(slash + 1);
+    const size_t dot = title.rfind('.');
+    return dot == std::string::npos ? title : title.substr(0, dot);
+}
+
+bool player_supports(const char *name)
+{
+    const size_t length = std::strlen(name);
+    auto ends = [&](const char *extension) {
+        const size_t n = std::strlen(extension);
+        return length > n && std::strcmp(name + length - n, extension) == 0;
+    };
+    return ends(".mp3") || ends(".wav") || ends(".m3u") || ends(".m3u8");
+}
+
+bool player_is_playlist(const char *name)
+{
+    const size_t length = std::strlen(name);
+    return (length > 4 && std::strcmp(name + length - 4, ".m3u") == 0) ||
+           (length > 5 && std::strcmp(name + length - 5, ".m3u8") == 0);
+}
+
+#if CONFIG_HC_SDCARD
+// the folder's playable files from `path` on; a playlist plays the folder music/
+bool player_play_file(const char *path)
+{
+    std::string file = trimmed(path);
+    if (player_is_playlist(file.c_str())) {
+        file = "music/Morning.mp3";
+    }
+    const std::string folder = parent_of(file);
+    g_player.queue.clear();
+    size_t index = 0;
+    for (const FakeFile &f : g_files) {
+        if (f.dir || parent_of(f.path) != folder || !player_supports(f.path.c_str()) ||
+            player_is_playlist(f.path.c_str())) {
+            continue;
+        }
+        if (f.path == file) {
+            index = g_player.queue.size();
+        }
+        // about 128 kbit/s for an MP3, 16 bit mono 16 kHz for a WAV
+        const bool wav = f.path.compare(f.path.size() - 4, 4, ".wav") == 0;
+        g_player.queue.push_back({title_of(f.path), "", "",
+                                  static_cast<uint32_t>(wav ? f.size * 1000 / 32000 : f.size * 8 / 128)});
+    }
+    if (g_player.queue.empty()) {
         return false;
     }
-    const FakeFile *f = find_file(trimmed(path));
-    if (f == nullptr) {
-        g_player = FakePlayer{};
-        g_player.state = PlayerState::Failed;
-        return true;
-    }
-    // about 128 kbit/s for an MP3, 16 bit mono 16 kHz for a WAV
-    const bool wav = f->path.size() > 4 && f->path.compare(f->path.size() - 4, 4, ".wav") == 0;
-    g_player.duration_ms = static_cast<uint32_t>(wav ? f->size * 1000 / 32000 : f->size * 8 / 128);
-    g_player.position_ms = 0;
-    g_player.since = lv_tick_get();
-    g_player.state = PlayerState::Playing;
-    print("player plays", path);
+    player_start(index);
     return true;
 }
+#endif
 
-void player_pause(bool pause)
+void player_play_media(const hc::core::MediaList &folder, size_t index)
+{
+    g_player.queue.clear();
+    size_t start = 0;
+    for (size_t i = 0; i < folder.items.size(); i++) {
+        const hc::core::MediaItem &item = folder.items[i];
+        if (item.folder || !item.playable) {
+            continue;
+        }
+        if (i == index) {
+            start = g_player.queue.size();
+        }
+        // the tags of the made-up library: the folder is the album
+        g_player.queue.push_back({title_of(item.title.c_str()).substr(5), "The Ocean", folder.title.c_str(),
+                                  static_cast<uint32_t>(180000 + 37000 * (i % 4))});
+    }
+    if (!g_player.queue.empty()) {
+        player_start(start);
+    }
+}
+
+void player_toggle()
 {
     player_update();
-    if (g_player.state == PlayerState::Playing && pause) {
+    if (g_player.state == PlayerState::Playing) {
         g_player.state = PlayerState::Paused;
-    } else if (g_player.state == PlayerState::Paused && !pause) {
+    } else if (g_player.state == PlayerState::Paused) {
         g_player.state = PlayerState::Playing;
         g_player.since = lv_tick_get();
+    } else if (!g_player.queue.empty()) {
+        player_start(g_player.index);
     }
 }
 
 void player_seek(uint32_t ms)
 {
     player_update();
-    g_player.position_ms = std::min(ms, g_player.duration_ms);
-    g_player.since = lv_tick_get();
+    if (!g_player.queue.empty()) {
+        g_player.position_ms = std::min(ms, g_player.queue[g_player.index].duration_ms);
+        g_player.since = lv_tick_get();
+    }
+}
+
+void player_next()
+{
+    if (!g_player.queue.empty()) {
+        player_start((g_player.index + 1) % g_player.queue.size());
+    }
+}
+
+void player_previous()
+{
+    player_update();
+    if (g_player.queue.empty()) {
+        return;
+    }
+    if (g_player.position_ms > 3000) {
+        player_seek(0);
+        return;
+    }
+    player_start(g_player.index > 0 ? g_player.index - 1 : g_player.queue.size() - 1);
 }
 
 void player_info(hc::ui::PlayerInfo &out)
 {
     player_update();
-    out = {g_player.state, g_player.position_ms, g_player.duration_ms};
+    out = {};
+    out.state = g_player.state;
+    out.position_ms = g_player.position_ms;
+    out.count = static_cast<uint16_t>(g_player.queue.size());
+    out.index = static_cast<uint16_t>(g_player.index);
+    out.shuffle = g_player.shuffle;
+    out.repeat = g_player.repeat;
+    if (!g_player.queue.empty()) {
+        const FakeTrack &track = g_player.queue[g_player.index];
+        out.duration_ms = track.duration_ms;
+        std::snprintf(out.title, sizeof(out.title), "%s", track.title.c_str());
+        std::snprintf(out.artist, sizeof(out.artist), "%s", track.artist.c_str());
+        std::snprintf(out.album, sizeof(out.album), "%s", track.album.c_str());
+    }
+    const bool loaded = out.state != PlayerState::Idle && out.state != PlayerState::Failed;
+    out.cover_serial = loaded ? g_player.cover_serial : 0;
+}
+
+// a cover for the media library's tracks: a gradient with a ring, its hue from the album
+bool player_cover(uint16_t size, hc::core::Image &out)
+{
+    if (g_player.queue.empty() || g_player.queue[g_player.index].album.empty()) {
+        return false;
+    }
+    hc::core::Pixels pixels = hc::core::allocate_pixels(static_cast<size_t>(size) * size);
+    if (!pixels) {
+        return false;
+    }
+    const auto hue = static_cast<uint16_t>(std::hash<std::string>{}(g_player.queue[g_player.index].album) % 360);
+    for (uint32_t y = 0; y < size; y++) {
+        for (uint32_t x = 0; x < size; x++) {
+            const float dx = static_cast<float>(x) / size - 0.5f;
+            const float dy = static_cast<float>(y) / size - 0.5f;
+            const float r = std::sqrt(dx * dx + dy * dy);
+            const bool ring = r > 0.28f && r < 0.33f;
+            const auto value = static_cast<uint8_t>(ring ? 100 : 30 + 60 * y / size);
+            pixels.get()[y * size + x] = lv_color_hsv_to_rgb(hue, ring ? 20 : 80, value).full;
+        }
+    }
+    out.width = size;
+    out.height = size;
+    out.pixels = std::move(pixels);
+    return true;
 }
 
 // a rough music shape: more in the bass, a beat, the bands wobbling
@@ -1007,12 +1165,6 @@ bool player_spectrum(float *bands, size_t count)
         bands[i] = std::clamp(shape + wobble + (x < 0.25f ? 0.2f * beat : 0.0f) - 0.1f, 0.0f, 1.0f);
     }
     return true;
-}
-
-bool player_supports(const char *name)
-{
-    const size_t length = std::strlen(name);
-    return length > 4 && (std::strcmp(name + length - 4, ".mp3") == 0 || std::strcmp(name + length - 4, ".wav") == 0);
 }
 #endif
 
@@ -1104,19 +1256,30 @@ const hc::ui::Backend kBackend{
     .sd_rename = sd_rename,
 #endif
 #if CONFIG_HC_UI_PLAYER
-    .player_open = player_open,
-    .player_pause = player_pause,
+#if CONFIG_HC_SDCARD
+    .player_play_file = player_play_file,
+#endif
+    .player_play_media = player_play_media,
+    .player_toggle = player_toggle,
     .player_seek = player_seek,
+    .player_next = player_next,
+    .player_previous = player_previous,
     .player_stop =
         [] {
             if (g_player.state != PlayerState::Idle) {
                 print("player stops");
             }
-            g_player = FakePlayer{};
+            g_player.state = PlayerState::Idle;
+            g_player.position_ms = 0;
         },
+    .player_set_shuffle = [](bool shuffle) { g_player.shuffle = shuffle; },
+    .player_set_repeat = [](PlayerRepeat repeat) { g_player.repeat = repeat; },
     .player_info = player_info,
     .player_spectrum = player_spectrum,
     .player_supports = player_supports,
+    .player_is_playlist = player_is_playlist,
+    .player_cover = player_cover,
+    .media_browse = browse_media,
 #endif
     .device_info = device_info,
     .time_text = time_text,

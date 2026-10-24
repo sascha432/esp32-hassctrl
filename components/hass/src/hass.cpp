@@ -44,6 +44,9 @@ constexpr uint32_t kRetryMaxMs = 30000;
 // the largest message taken; the compact template results stay far below it. An hourly forecast
 // of 48 hours is about 16 KB (the buffer of a connection is PSRAM).
 constexpr size_t kMaxMessage = 32768;
+// A larger one grows the buffer up to this (a folder of the media library is about 300 bytes a
+// file); the buffer goes back to kMaxMessage after it.
+constexpr size_t kMaxLargeMessage = 256 * 1024;
 constexpr TickType_t kSendTimeout = pdMS_TO_TICKS(5000);
 // the timers of the task are checked at least this often
 constexpr TickType_t kTick = pdMS_TO_TICKS(500);
@@ -126,7 +129,33 @@ struct Motion {
     bool occupied = false;
 };
 
-using Command = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast, Motion>;
+// What a caller of the media library waits for: the folder, or the address of a file.
+struct MediaWait {
+    SemaphoreHandle_t done = xSemaphoreCreateBinary();
+    core::MediaList list;
+    memory::String url;
+    memory::String mime;
+    memory::String error;
+
+    ~MediaWait()
+    {
+        if (done != nullptr) {
+            vSemaphoreDelete(done);
+        }
+    }
+};
+
+// media_source/browse_media, or resolve_media; without `wait` a folder goes to the UI stamped
+// with `generation`
+struct MediaRequest {
+    bool resolve = false;
+    memory::String media_id;
+    uint32_t timeout_ms = 0;
+    std::shared_ptr<MediaWait> wait;
+    uint32_t generation = 0;
+};
+
+using Command = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast, Motion, MediaRequest>;
 
 struct Event {
     EventType type = EventType::Reconnect;
@@ -148,7 +177,8 @@ struct Event {
 // What the WebSocket task needs of one connection: its messages are put together here.
 struct Connection {
     uint32_t generation = 0;
-    char *buffer = nullptr; // kMaxMessage, PSRAM
+    char *buffer = nullptr; // kMaxMessage, up to kMaxLargeMessage; PSRAM
+    size_t capacity = 0;
     size_t length = 0;
     bool too_large = false;
 };
@@ -305,11 +335,21 @@ void receive(Connection &c, const esp_websocket_event_data_t &d)
     }
     if (c.buffer == nullptr) {
         c.buffer = static_cast<char *>(json_malloc(kMaxMessage));
+        c.capacity = c.buffer != nullptr ? kMaxMessage : 0;
     }
-    if (c.buffer == nullptr || c.length + static_cast<size_t>(d.data_len) > kMaxMessage) {
+    const size_t needed = c.length + static_cast<size_t>(d.data_len);
+    if (c.buffer != nullptr && !c.too_large && needed > c.capacity && needed <= kMaxLargeMessage) {
+        const size_t grown = std::min(kMaxLargeMessage, std::max(needed, c.capacity * 2));
+        if (auto *larger = static_cast<char *>(heap_caps_realloc_prefer(
+                c.buffer, grown, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT))) {
+            c.buffer = larger;
+            c.capacity = grown;
+        }
+    }
+    if (c.buffer == nullptr || needed > c.capacity) {
         if (!c.too_large) {
             ESP_LOGW(kTag, "a message of %d bytes is dropped (more than %u)", d.payload_len,
-                     static_cast<unsigned>(kMaxMessage));
+                     static_cast<unsigned>(kMaxLargeMessage));
         }
         c.too_large = true;
     } else if (!c.too_large && d.data_len > 0) {
@@ -331,6 +371,11 @@ void receive(Connection &c, const esp_websocket_event_data_t &d)
     }
     c.length = 0;
     c.too_large = false;
+    if (c.capacity > kMaxMessage) {
+        std::free(c.buffer);
+        c.buffer = nullptr;
+        c.capacity = 0;
+    }
 }
 
 void on_websocket_event(void *arg, esp_event_base_t, int32_t id, void *event_data)
@@ -407,6 +452,15 @@ struct PendingCall {
     core::EntityIndex entity = core::kNone;
 };
 
+// A request of the media library on its way: a browse and a resolve have one each, a newer one
+// replaces it. Owned by the hass task.
+struct MediaState {
+    MediaRequest request;
+    bool active = false;
+    uint32_t id = 0;
+    int64_t deadline = 0;
+};
+
 // Owned by the hass task.
 struct Session {
     esp_websocket_client_handle_t client = nullptr;
@@ -448,6 +502,8 @@ struct Session {
     int8_t motion_helper = -1;
     PendingCall calls[kMaxCalls] = {};
     size_t next_call = 0;
+    MediaState browse;
+    MediaState resolve;
 };
 
 Session s;
@@ -557,6 +613,64 @@ void start_query(Query query)
     if (!send_text(message)) {
         q.id = 0;
         query_done("the request could not be sent");
+    }
+}
+
+// The answer of a media request (its `result`, or `error`) to the waiting task or the UI; the
+// request is over.
+void media_done(MediaState &m, const char *error, const cJSON *result = nullptr)
+{
+    if (!m.active) {
+        return;
+    }
+    MediaRequest &r = m.request;
+    core::MediaList list;
+    memory::String url, mime, decode_error;
+    if (error == nullptr) {
+        const bool ok = r.resolve ? hass_protocol::decode_resolve_media(result, url, mime, decode_error)
+                                  : hass_protocol::decode_browse_media(result, list, decode_error);
+        if (!ok) {
+            error = decode_error.c_str();
+        }
+    }
+    if (error != nullptr) {
+        ESP_LOGW(kTag, "media %s of \"%s\": %s", r.resolve ? "resolve" : "browse", r.media_id.c_str(), error);
+    }
+    if (r.wait) {
+        if (error != nullptr) {
+            r.wait->error = error;
+        } else {
+            r.wait->list = std::move(list);
+            r.wait->url = std::move(url);
+            r.wait->mime = std::move(mime);
+        }
+        xSemaphoreGive(r.wait->done);
+    } else if (!r.resolve) {
+        list.generation = r.generation;
+        list.id = std::move(r.media_id);
+        list.error = error != nullptr ? error : "";
+        deliver(std::move(list));
+    }
+    m = {};
+}
+
+void start_media(MediaRequest request)
+{
+    MediaState &m = request.resolve ? s.resolve : s.browse;
+    media_done(m, "replaced by a newer request");
+    m.request = std::move(request);
+    m.active = true;
+    if (!s.authenticated) {
+        media_done(m, "not connected to Home Assistant");
+        return;
+    }
+    m.id = s.next_id++;
+    m.deadline = now_ms() + m.request.timeout_ms;
+    const memory::String message = m.request.resolve ? hass_protocol::resolve_media_message(m.id, m.request.media_id)
+                                                     : hass_protocol::browse_media_message(m.id, m.request.media_id);
+    if (!send_text(message)) {
+        m.id = 0;
+        media_done(m, "the request could not be sent");
     }
 }
 
@@ -688,6 +802,8 @@ void close_connection()
     }
     s.query.id = 0;
     query_done("the connection to Home Assistant broke");
+    media_done(s.browse, "the connection to Home Assistant broke");
+    media_done(s.resolve, "the connection to Home Assistant broke");
 }
 
 // the state while no connection is open and none is planned at once
@@ -1035,6 +1151,10 @@ void on_command(Command &command)
         render_forecast();
         return;
     }
+    if (auto *media = std::get_if<MediaRequest>(&command)) {
+        start_media(std::move(*media));
+        return;
+    }
     if (const auto *motion = std::get_if<Motion>(&command)) {
         const int8_t state = motion->occupied ? 1 : 0;
         if (state != s.motion) {
@@ -1182,6 +1302,13 @@ void on_reply(const cJSON *root, const char *type, uint32_t id)
                               : message != nullptr ? message : "Home Assistant refused the forecast");
         }
         return;
+    }
+    for (MediaState *m : {&s.browse, &s.resolve}) {
+        if (id == m->id && m->id != 0) {
+            media_done(*m, success ? nullptr : message != nullptr ? message : "Home Assistant refused the request",
+                       cJSON_GetObjectItemCaseSensitive(root, "result"));
+            return;
+        }
     }
     if (id == q.id && q.id != 0) {
         if (!success) {
@@ -1342,6 +1469,11 @@ void on_timers()
     }
     if (s.query.active && now >= s.query.deadline) {
         query_done("Home Assistant did not answer in time");
+    }
+    for (MediaState *m : {&s.browse, &s.resolve}) {
+        if (m->active && now >= m->deadline) {
+            media_done(*m, "Home Assistant did not answer in time");
+        }
     }
 
     std::lock_guard lock(g_mutex);
@@ -1511,6 +1643,68 @@ void fetch_entity(std::string_view entity_id, uint32_t timeout_ms, uint32_t gene
     q.timeout_ms = timeout_ms;
     q.generation = generation;
     post_command(std::move(q));
+}
+
+namespace {
+
+// a media request for a waiting task: its answer, or null with `error` set
+std::shared_ptr<MediaWait> run_media(bool resolve, std::string_view media_id, uint32_t timeout_ms,
+                                     memory::String &error)
+{
+    auto wait = std::make_shared<MediaWait>();
+    if (wait->done == nullptr) {
+        error = "no memory";
+        return nullptr;
+    }
+    post_command(MediaRequest{.resolve = resolve,
+                              .media_id = memory::String(media_id),
+                              .timeout_ms = timeout_ms,
+                              .wait = wait,
+                              .generation = 0});
+    // the task answers at its deadline at the latest; the margin covers its tick
+    if (xSemaphoreTake(wait->done, pdMS_TO_TICKS(timeout_ms) + kTick * 2) != pdTRUE) {
+        error = "Home Assistant did not answer in time";
+        return nullptr;
+    }
+    if (!wait->error.empty()) {
+        error = std::move(wait->error);
+        return nullptr;
+    }
+    return wait;
+}
+
+} // namespace
+
+void browse_media(std::string_view media_id, uint32_t timeout_ms, uint32_t generation)
+{
+    post_command(MediaRequest{.resolve = false,
+                              .media_id = memory::String(media_id),
+                              .timeout_ms = timeout_ms,
+                              .wait = {},
+                              .generation = generation});
+}
+
+bool browse_media(std::string_view media_id, uint32_t timeout_ms, core::MediaList &out, memory::String &error)
+{
+    const auto result = run_media(false, media_id, timeout_ms, error);
+    if (!result) {
+        return false;
+    }
+    out = std::move(result->list);
+    out.id = memory::String(media_id);
+    return true;
+}
+
+bool resolve_media(std::string_view media_id, uint32_t timeout_ms, memory::String &url, memory::String &mime,
+                   memory::String &error)
+{
+    const auto result = run_media(true, media_id, timeout_ms, error);
+    if (!result) {
+        return false;
+    }
+    url = std::move(result->url);
+    mime = std::move(result->mime);
+    return true;
 }
 
 namespace detail {

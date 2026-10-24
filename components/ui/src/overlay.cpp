@@ -58,6 +58,8 @@ struct State {
     bool swiped = false;
     // lv_tick_get() when the Home Assistant problem started, 0 while there is none
     uint32_t hass_problem_since = 0;
+    // the player's last message seen (PlayerInfo::error_serial)
+    uint32_t player_error_serial = 0;
 };
 
 State g;
@@ -305,6 +307,23 @@ void on_update(lv_timer_t *)
     // its bar: no pull-down, only event messages.
     const bool frame = settings::is_open() || setup::active();
     const bool editing = dashboard::editing();
+#if CONFIG_HC_UI_PLAYER
+    // an item the player skipped (it plays on in the background); in Settings the player's page
+    // shows it
+    if (g.backend->player_info != nullptr) {
+        PlayerInfo info{};
+        g.backend->player_info(info);
+        if (info.error_serial != g.player_error_serial) {
+            g.player_error_serial = info.error_serial;
+            if (!frame && info.error[0] != 0) {
+                char text[kTextSize];
+                std::snprintf(text, sizeof(text), LV_SYMBOL_WARNING "  %s", info.error);
+                show(text, t::kAlert, kEventMs);
+                return;
+            }
+        }
+    }
+#endif
     set_hidden(g.zone, frame || editing);
     if (frame) {
         remove_strip();

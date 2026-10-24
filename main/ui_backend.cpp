@@ -29,6 +29,7 @@
 #include "hc/webserver/webserver.hpp"
 #include "lvgl.h"
 #include "ui_files.hpp"
+#include "ui_player.hpp"
 #include "ui_sound.hpp"
 #if CONFIG_HC_BOARD_HAS_CAMERA
 #include "camera_preview.hpp"
@@ -624,13 +625,23 @@ const hc::ui::Backend g_backend{
     .sd_rename = ui_files::rename,
 #endif
 #if CONFIG_HC_UI_PLAYER
-    .player_open = ui_files::player_open,
-    .player_pause = ui_files::player_pause,
-    .player_seek = ui_files::player_seek,
-    .player_stop = ui_files::player_stop,
-    .player_info = ui_files::player_info,
-    .player_spectrum = ui_files::player_spectrum,
-    .player_supports = ui_files::player_supports,
+#if CONFIG_HC_SDCARD
+    .player_play_file = ui_player::play_file,
+#endif
+    .player_play_media = ui_player::play_media,
+    .player_toggle = ui_player::toggle,
+    .player_seek = ui_player::seek,
+    .player_next = ui_player::next,
+    .player_previous = ui_player::previous,
+    .player_stop = ui_player::stop,
+    .player_set_shuffle = ui_player::set_shuffle,
+    .player_set_repeat = ui_player::set_repeat,
+    .player_info = ui_player::info,
+    .player_spectrum = ui_player::spectrum,
+    .player_supports = ui_player::supports,
+    .player_is_playlist = ui_player::is_playlist,
+    .player_cover = ui_player::cover,
+    .media_browse = ui_player::browse,
 #endif
     .device_info = device_info,
     .time_text = time_text,

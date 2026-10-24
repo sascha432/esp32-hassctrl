@@ -1,7 +1,8 @@
-// Settings, the player of a WAV or MP3 file on the SD card (CONFIG_HC_UI_PLAYER,
-// docs/ui/lvgl/lvgl-settings.md section 3): a spectrum analyser, the position with seeking,
-// Play/Pause, Stop and the volume. It plays from the moment the page opens and stops when the page
-// is left; while it plays, Settings do not close by themselves.
+// Settings, the media player (CONFIG_HC_UI_PLAYER, docs/ui/lvgl/lvgl-settings.md section 3): the
+// cover and the tags of what plays, a spectrum analyser, the position with seeking, previous,
+// play/pause, next and stop, shuffle and repeat, and the volume. The player plays on in the
+// background (components/player): the page only shows and controls it, leaving it changes
+// nothing. It opens from the file manager, the media library and the play icon of the status bar.
 
 #include "settings_pages.hpp"
 
@@ -11,7 +12,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include "overlay.hpp"
 #include "sound.hpp"
 #include "theme.hpp"
 
@@ -32,6 +32,18 @@ constexpr float kBarFall = 0.06f;
 constexpr float kPeakFall = 0.012f;
 // the position slider's steps
 constexpr int32_t kSliderSteps = 1000;
+// the cover's side and the spectrum's height (scaled); smaller on a screen less than
+// kShortScreen high (480x320 in landscape), so the controls stay in sight
+constexpr lv_coord_t kCoverPx = 120;
+constexpr lv_coord_t kSpectrumPx = 110;
+constexpr lv_coord_t kShortCoverPx = 88;
+constexpr lv_coord_t kShortSpectrumPx = 72;
+constexpr lv_coord_t kShortScreen = 400;
+
+bool short_screen()
+{
+    return lv_disp_get_ver_res(nullptr) < kShortScreen;
+}
 
 const Backend &be()
 {
@@ -39,15 +51,30 @@ const Backend &be()
 }
 
 struct Player {
+    lv_obj_t *cover_box = nullptr;
+    lv_obj_t *cover = nullptr;
+    lv_obj_t *cover_none = nullptr;
+    lv_obj_t *title = nullptr;
+    lv_obj_t *artist = nullptr;
+    lv_obj_t *album = nullptr;
+    lv_obj_t *place = nullptr;
     lv_obj_t *spectrum = nullptr;
     lv_obj_t *time = nullptr;
     lv_obj_t *slider = nullptr;
     lv_obj_t *play_label = nullptr;
+    lv_obj_t *shuffle_label = nullptr;
+    lv_obj_t *repeat_label = nullptr;
     lv_obj_t *message = nullptr;
     lv_timer_t *timer = nullptr;
     float bars[kBands] = {};
     float peaks[kBands] = {};
     PlayerInfo info{};
+    // what the page shows: built from the first info, then updated when it changes
+    bool shown = false;
+    uint32_t error_serial = 0;
+    uint32_t cover_serial = 0;
+    core::Image cover_image;
+    lv_img_dsc_t cover_dsc{};
 };
 Player g;
 
@@ -83,36 +110,14 @@ void show_message(const char *text)
     }
 }
 
-void start()
+bool loaded(PlayerState state)
 {
-    std::memset(g.bars, 0, sizeof(g.bars));
-    std::memset(g.peaks, 0, sizeof(g.peaks));
-    if (!be().player_open(selected_file())) {
-        show_message("It does not play: the volume is 0.");
-        return;
-    }
-    show_message("");
-}
-
-void on_play(lv_event_t *)
-{
-    switch (g.info.state) {
-    case PlayerState::Playing:
-        be().player_pause(true);
-        break;
-    case PlayerState::Paused:
-        be().player_pause(false);
-        break;
-    case PlayerState::Idle:
-    case PlayerState::Failed:
-        start();
-        break;
-    }
+    return state != PlayerState::Idle && state != PlayerState::Failed;
 }
 
 void on_seek(lv_event_t *event)
 {
-    if (g.info.duration_ms == 0 || g.info.state == PlayerState::Idle || g.info.state == PlayerState::Failed) {
+    if (g.info.duration_ms == 0 || !loaded(g.info.state)) {
         return;
     }
     const auto value = static_cast<uint64_t>(lv_slider_get_value(lv_event_get_target(event)));
@@ -126,6 +131,94 @@ void on_slide(lv_event_t *event)
         const auto value = static_cast<uint64_t>(lv_slider_get_value(lv_event_get_target(event)));
         show_time(static_cast<uint32_t>(value * g.info.duration_ms / kSliderSteps));
     }
+}
+
+void show_options()
+{
+    lv_label_set_text(g.shuffle_label, LV_SYMBOL_SHUFFLE "  Shuffle");
+    lv_obj_set_style_text_color(g.shuffle_label, t::color(g.info.shuffle ? t::kActive : t::kTextMuted), 0);
+    const char *repeat = g.info.repeat == PlayerRepeat::All   ? LV_SYMBOL_LOOP "  Repeat all"
+                         : g.info.repeat == PlayerRepeat::One ? LV_SYMBOL_LOOP "  Repeat one"
+                                                              : LV_SYMBOL_LOOP "  Repeat";
+    lv_label_set_text(g.repeat_label, repeat);
+    lv_obj_set_style_text_color(g.repeat_label,
+                                t::color(g.info.repeat != PlayerRepeat::Off ? t::kActive : t::kTextMuted), 0);
+}
+
+void show_cover()
+{
+    core::Image image;
+    const lv_coord_t size = lv_obj_get_width(g.cover_box);
+    const bool have = size > 0 && be().player_cover(static_cast<uint16_t>(size), image) && image.pixels;
+    // LVGL keeps what it read of the old pixels by their address
+    lv_img_cache_invalidate_src(&g.cover_dsc);
+    g.cover_image = std::move(image);
+    if (have) {
+        t::image_dsc(g.cover_dsc, g.cover_image.pixels.get(), g.cover_image.width, g.cover_image.height);
+        lv_img_set_src(g.cover, &g.cover_dsc);
+        lv_obj_clear_flag(g.cover, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g.cover_none, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(g.cover, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(g.cover_none, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void set_text(lv_obj_t *label, const char *text)
+{
+    if (std::strcmp(lv_label_get_text(label), text) != 0) {
+        lv_label_set_text(label, text);
+    }
+    if (text[0] == 0) {
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// what changed of the info since the last frame
+void show_info(const PlayerInfo &info)
+{
+    const PlayerInfo before = g.info;
+    g.info = info;
+    if (!g.shown || info.state != before.state) {
+        const bool pause = info.state == PlayerState::Playing || info.state == PlayerState::Buffering ||
+                           info.state == PlayerState::Interrupted;
+        lv_label_set_text(g.play_label, pause ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+    }
+    set_text(g.title, info.count > 0 ? info.title : "Nothing plays");
+    set_text(g.artist, info.artist);
+    set_text(g.album, info.album);
+    char place[48] = {};
+    if (info.count > 1) {
+        std::snprintf(place, sizeof(place), "%u / %u", info.index + 1u, static_cast<unsigned>(info.count));
+    }
+    if (info.state == PlayerState::Buffering) {
+        const size_t used = std::strlen(place);
+        std::snprintf(place + used, sizeof(place) - used, "%sLoading ...", used > 0 ? "   " : "");
+    }
+    set_text(g.place, place);
+    if (!g.shown || info.shuffle != before.shuffle || info.repeat != before.repeat) {
+        show_options();
+    }
+    if (!g.shown || info.cover_serial != g.cover_serial) {
+        g.cover_serial = info.cover_serial;
+        show_cover();
+    }
+    if (g.shown && info.error_serial != g.error_serial) {
+        show_message(info.error);
+    }
+    g.error_serial = info.error_serial;
+    if (!lv_obj_has_state(g.slider, LV_STATE_PRESSED)) {
+        const uint32_t position = loaded(info.state) ? info.position_ms : 0;
+        const int32_t value = info.duration_ms > 0
+                                  ? static_cast<int32_t>(std::min<uint64_t>(
+                                        uint64_t{position} * kSliderSteps / info.duration_ms, kSliderSteps))
+                                  : 0;
+        lv_slider_set_value(g.slider, value, LV_ANIM_OFF);
+        show_time(position);
+    }
+    g.shown = true;
 }
 
 // The look of an LED meter (your example, 2026-10-23): each band a column of rounded segments,
@@ -190,28 +283,68 @@ void on_frame(lv_timer_t *)
     if (moved) {
         lv_obj_invalidate(g.spectrum);
     }
-
     PlayerInfo info{};
     be().player_info(info);
-    const PlayerState before = g.info.state;
-    g.info = info;
-    if (info.state != before) {
-        lv_label_set_text(g.play_label, info.state == PlayerState::Playing ? LV_SYMBOL_PAUSE "  Pause"
-                                                                            : LV_SYMBOL_PLAY "  Play");
-        keep_open(info.state == PlayerState::Playing || info.state == PlayerState::Paused);
-        if (info.state == PlayerState::Failed) {
-            show_message("This file does not play: not a 16 bit WAV or an MP3, or damaged.");
-        }
+    show_info(info);
+}
+
+// a round button with a symbol, the play button larger
+lv_obj_t *control(lv_obj_t *parent, const char *symbol, lv_event_cb_t callback, bool large)
+{
+    lv_obj_t *button = t::button(parent, symbol, callback);
+    const lv_coord_t size = t::dim(large ? 64 : 52);
+    // round: not the width of a text button
+    lv_obj_set_style_min_width(button, 0, 0);
+    lv_obj_set_size(button, size, size);
+    lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(button, 0, 0);
+    if (large) {
+        lv_obj_set_style_bg_color(button, t::color(t::kActive), 0);
+        lv_obj_set_style_border_width(button, 0, 0);
     }
-    if (!lv_obj_has_state(g.slider, LV_STATE_PRESSED)) {
-        const uint32_t position = info.state == PlayerState::Idle ? 0 : info.position_ms;
-        const int32_t value = info.duration_ms > 0
-                                  ? static_cast<int32_t>(std::min<uint64_t>(
-                                        uint64_t{position} * kSliderSteps / info.duration_ms, kSliderSteps))
-                                  : 0;
-        lv_slider_set_value(g.slider, value, LV_ANIM_OFF);
-        show_time(position);
-    }
+    lv_obj_t *label = lv_obj_get_child(button, 0);
+    lv_obj_set_style_text_font(label, large ? &t::font_large() : &t::font_medium(), 0);
+    lv_obj_center(label);
+    return button;
+}
+
+// the cover and the tags beside it
+void build_header(lv_obj_t *col)
+{
+    lv_obj_t *header = t::plain(col);
+    lv_obj_set_size(header, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(header, t::dim(14), 0);
+
+    const lv_coord_t cover = t::dim(short_screen() ? kShortCoverPx : kCoverPx);
+    g.cover_box = t::plain(header);
+    lv_obj_set_size(g.cover_box, cover, cover);
+    lv_obj_set_style_bg_opa(g.cover_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(g.cover_box, t::color(t::kCard), 0);
+    lv_obj_set_style_radius(g.cover_box, t::radius(), 0);
+    lv_obj_set_style_clip_corner(g.cover_box, true, 0);
+    g.cover = lv_img_create(g.cover_box);
+    lv_obj_center(g.cover);
+    lv_obj_add_flag(g.cover, LV_OBJ_FLAG_HIDDEN);
+    g.cover_none = t::label(g.cover_box, LV_SYMBOL_AUDIO, t::font_huge(), t::kTextMuted);
+    lv_obj_center(g.cover_none);
+
+    lv_obj_t *text = t::plain(header);
+    lv_obj_set_height(text, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(text, 1);
+    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(text, t::dim(4), 0);
+    g.title = t::label(text, "", t::font_medium(), t::kText);
+    lv_obj_set_width(g.title, lv_pct(100));
+    lv_label_set_long_mode(g.title, LV_LABEL_LONG_WRAP);
+    g.artist = t::label(text, "", t::font_normal(), t::kTextValue);
+    lv_obj_set_width(g.artist, lv_pct(100));
+    lv_label_set_long_mode(g.artist, LV_LABEL_LONG_DOT);
+    g.album = t::label(text, "", t::font_small(), t::kTextMuted);
+    lv_obj_set_width(g.album, lv_pct(100));
+    lv_label_set_long_mode(g.album, LV_LABEL_LONG_DOT);
+    g.place = t::label(text, "", t::font_small(), t::kTextMuted);
 }
 
 } // namespace
@@ -220,9 +353,10 @@ Built player_page(lv_obj_t *content)
 {
     g = Player{};
     lv_obj_t *col = t::column(content);
+    build_header(col);
 
     g.spectrum = t::plain(col);
-    lv_obj_set_size(g.spectrum, lv_pct(100), t::dim(160));
+    lv_obj_set_size(g.spectrum, lv_pct(100), t::dim(short_screen() ? kShortSpectrumPx : kSpectrumPx));
     lv_obj_set_style_bg_opa(g.spectrum, LV_OPA_COVER, 0);
     // black as the meter of the example: the colors stand out
     lv_obj_set_style_bg_color(g.spectrum, lv_color_black(), 0);
@@ -254,15 +388,37 @@ Built player_page(lv_obj_t *content)
     lv_obj_add_event_cb(g.slider, on_slide, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(g.slider, on_seek, LV_EVENT_RELEASED, nullptr);
 
-    lv_obj_t *buttons = button_row(col);
-    lv_obj_t *play = t::button(buttons, LV_SYMBOL_PLAY "  Play", on_play);
-    g.play_label = lv_obj_get_child(play, 0);
-    t::button(buttons, LV_SYMBOL_STOP "  Stop", [](lv_event_t *) { be().player_stop(); });
+    // previous, play/pause, next, stop: centered
+    lv_obj_t *controls = t::plain(col);
+    lv_obj_set_size(controls, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(controls, t::dim(16), 0);
+    lv_obj_set_style_pad_ver(controls, t::dim(6), 0);
+    control(controls, LV_SYMBOL_PREV, [](lv_event_t *) { be().player_previous(); }, false);
+    g.play_label = lv_obj_get_child(control(controls, LV_SYMBOL_PLAY, [](lv_event_t *) { be().player_toggle(); }, true), 0);
+    control(controls, LV_SYMBOL_NEXT, [](lv_event_t *) { be().player_next(); }, false);
+    control(controls, LV_SYMBOL_STOP, [](lv_event_t *) { be().player_stop(); }, false);
+
+    lv_obj_t *options = button_row(col);
+    lv_obj_set_flex_align(options, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    g.shuffle_label = lv_obj_get_child(
+        t::button(options, LV_SYMBOL_SHUFFLE "  Shuffle", [](lv_event_t *) { be().player_set_shuffle(!g.info.shuffle); }),
+        0);
+    g.repeat_label = lv_obj_get_child(t::button(options, LV_SYMBOL_LOOP "  Repeat",
+                                                [](lv_event_t *) {
+                                                    // off, all, one, off
+                                                    const auto next = static_cast<PlayerRepeat>(
+                                                        (static_cast<int>(g.info.repeat) + 1) % 3);
+                                                    be().player_set_repeat(next);
+                                                }),
+                                      0);
+    // what plays and its controls first, the spectrum after them
+    lv_obj_move_to_index(g.spectrum, static_cast<int32_t>(lv_obj_get_index(options)));
     if (sound::available()) {
         volume_card(col);
     }
 
-    // the page goes: the sound stops with it
     lv_obj_add_event_cb(
         col,
         [](lv_event_t *) {
@@ -270,16 +426,17 @@ Built player_page(lv_obj_t *content)
                 lv_timer_del(g.timer);
                 g.timer = nullptr;
             }
-            be().player_stop();
+            lv_img_cache_invalidate_src(&g.cover_dsc);
+            g.cover_image = {};
         },
         LV_EVENT_DELETE, nullptr);
     g.timer = lv_timer_create(on_frame, kFrameMs, nullptr);
-    // Idle before it starts: the first frame sets the button's text
-    g.info.state = PlayerState::Idle;
-    start();
-    const char *path = selected_file();
-    const char *slash = std::strrchr(path, '/');
-    return {slash != nullptr ? slash + 1 : path, nullptr};
+    // the layout first, so the cover knows its size
+    lv_obj_update_layout(col);
+    PlayerInfo info{};
+    be().player_info(info);
+    show_info(info);
+    return {"Player", nullptr};
 }
 
 } // namespace hc::ui::settings::pages

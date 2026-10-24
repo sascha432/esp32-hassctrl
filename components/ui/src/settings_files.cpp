@@ -122,6 +122,29 @@ bool playable(const char *name)
 #endif
 }
 
+bool playlist(const char *name)
+{
+#if CONFIG_HC_UI_PLAYER
+    return be().player_is_playlist != nullptr && be().player_is_playlist(name);
+#else
+    (void)name;
+    return false;
+#endif
+}
+
+// The selected file plays: its folder from it on, or the playlist; the player opens. A file the
+// player does not take is reported in the alert strip.
+void play_selected()
+{
+#if CONFIG_HC_UI_PLAYER
+    if (!be().player_play_file(g_selected)) {
+        overlay::show(LV_SYMBOL_WARNING "  It does not play", t::kAlert, 4000);
+        return;
+    }
+    push(Page::Player);
+#endif
+}
+
 // folders first, then by name without case
 bool before(const FileEntry &a, const FileEntry &b)
 {
@@ -166,8 +189,13 @@ void on_entry(lv_event_t *event)
         return;
     }
     select(entry);
-    if (g_selected[0] != 0) {
-        push(playable(entry.name) ? Page::Player : Page::FileDetail);
+    if (g_selected[0] == 0) {
+        return;
+    }
+    if (playable(entry.name)) {
+        play_selected();
+    } else {
+        push(Page::FileDetail);
     }
 }
 
@@ -305,7 +333,10 @@ Built files_page(lv_obj_t *content)
     }
     for (size_t i = 0; i < g_shown; i++) {
         const FileEntry &entry = g_entries[i];
-        const char *symbol = entry.dir ? LV_SYMBOL_DIRECTORY : playable(entry.name) ? LV_SYMBOL_AUDIO : LV_SYMBOL_FILE;
+        const char *symbol = entry.dir                ? LV_SYMBOL_DIRECTORY
+                             : playlist(entry.name)    ? LV_SYMBOL_LIST
+                             : playable(entry.name)    ? LV_SYMBOL_AUDIO
+                                                       : LV_SYMBOL_FILE;
         char name[kFilePathSize + 8];
         std::snprintf(name, sizeof(name), "%s  %s", symbol, entry.name);
         char size[16] = "";
@@ -346,7 +377,7 @@ Built file_detail_page(lv_obj_t *content)
     }
     lv_obj_t *buttons = button_row(col);
     if (!entry.dir && playable(entry.name)) {
-        t::button(buttons, LV_SYMBOL_PLAY "  Play", [](lv_event_t *) { push(Page::Player); });
+        t::button(buttons, LV_SYMBOL_PLAY "  Play", [](lv_event_t *) { play_selected(); });
     }
     t::button(buttons, "Rename / move", [](lv_event_t *) { push(Page::FileName, nullptr, kRename); });
     t::button(

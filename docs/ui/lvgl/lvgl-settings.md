@@ -5,7 +5,7 @@ the first setup. Reference resolution 480 x 320, landscape (WT32-SC01). Colors, 
 the building blocks of a page: [lvgl-design.md](lvgl-design.md). Code: `components/ui/src/settings.cpp`
 (frame, stack, dialogs), `settings_pages.cpp` (quick settings, Home Assistant, System, the shared
 parts), `settings_wifi.cpp` (Wi-Fi, Hotspot), `settings_display.cpp`, `settings_sound.cpp`, `settings_alarm.cpp`,
-`settings_camera.cpp`, `settings_files.cpp` (the file manager), `settings_player.cpp`, `setup.cpp`,
+`settings_camera.cpp`, `settings_files.cpp` (the file manager), `settings_player.cpp`, `settings_media.cpp`, `setup.cpp`,
 `keyboard.cpp`, `alarm.cpp`.
 
 ## 1. Frame and status bar
@@ -28,7 +28,7 @@ Settings and the first setup have the status bar (36 px) and the content area be
 | Part | Content |
 | --- | --- |
 | left | `<` back (left of the title) and the title of the page |
-| right | state icons for Wi-Fi and Home Assistant (always shown, the glyph or color shows the state), Hotspot (only while it is on), the time |
+| right | Hotspot (only while it is on), the player's play or pause symbol in the accent color (only while it has music, playing, paused or interrupted; a tap opens the player), state icons for Wi-Fi and Home Assistant (always shown, the glyph or color shows the state), the time |
 
 * Only the time, no date. Without time sync it shows `--:--`.
 
@@ -48,8 +48,8 @@ on the error opens the matching page.
   bar goes one level back. From quick settings it closes Settings. There is no swipe up to
   close: it fired while scrolling.
 * Settings closes after 5 minutes without a touch. Every touch, including typing,
-  restarts the timer. While a form has unsaved changes, or the player plays or is paused, the
-  timeout is off.
+  restarts the timer. While a form has unsaved changes the timeout is off. The player plays on
+  when Settings close.
 * Two kinds of controls:
   * **live controls** such as sliders and switches apply immediately and are saved with a delayed
     write;
@@ -81,6 +81,8 @@ on the error opens the matching page.
 +------------------------------------------------------------+
 |  Camera                                                 >  |
 +------------------------------------------------------------+
+|  ♪  Media                                               >  |
++------------------------------------------------------------+
 |  Alarm           07:30, Mon-Fri                         >  |
 +------------------------------------------------------------+
 |  System                                                 >  |
@@ -90,7 +92,8 @@ on the error opens the matching page.
 The Volume slider is only there with an audio output (`CONFIG_HC_AUDIO` on a board with an
 amplifier, docs/architecture.md section 9.6), the Sound row with an audio output or a vibration
 motor (section 9.7), the Camera row only with a camera whose sensor answered
-(`CONFIG_HC_BOARD_HAS_CAMERA`, the JC4880P443C), the Alarm row only with the alarm
+(`CONFIG_HC_BOARD_HAS_CAMERA`, the JC4880P443C), the Media row only with the player
+(`CONFIG_HC_UI_PLAYER`), the Alarm row only with the alarm
 (`CONFIG_HC_AUDIO_ALARM`); the page scrolls then. The Alarm row shows the time and the days of
 the alarm that rings next, "Off" (none is on), "None" (no alarm), or "Snoozed until 07:40".
 
@@ -111,10 +114,11 @@ they scroll the page (the switch alone was hard to hit).
 | Alarm | only with the alarm: "Next" (the alarm that rings next: in 7 h 12 min, or the day and time when it is more than a day away; "Waiting for the clock" without SNTP; "Off"); "Alarms (2 of 5)" with a row per alarm (the time, the days, its on/off switch; a tap opens its page); "Add alarm" (up to 5) adds 07:00 Mon-Fri, on, the beeps, Vibrate on, and opens its page; a line: an alarm rings at full volume until Stop or Snooze, at most 10 minutes |
 | Alarm (one) | "Alarm" on or off; "Next" of this alarm; the time on two rollers (hour, minute; setting it turns the alarm on; a quick drag moves them up to 4x the finger, a fling further); the days as seven buttons Mon to Sun (none: once, then it turns itself off); "Snooze" 5, 10, 15, 20 or 30 min (a tap steps); "Vibrate" on or off (only with a vibration motor; the motor's pattern while this alarm rings); the sound: "Beeps" (built in) and the MP3 files of `/fs/sounds/alarms`, a tap selects it and plays it once at full volume (with the motor when Vibrate is on), leaving the page stops it; "Delete alarm" (red) after a question. Every change is stored at once |
 | System | device name, firmware version, address, MAC, uptime, memory, "SD card" (only with `CONFIG_HC_SDCARD`: "7.4 of 29.0 GB free", MB below 1 GB, or no card, not formatted, unmounted; a tap opens the file manager); reset web UI login; restart; factory reset |
-| SD card (file manager) | only with `CONFIG_HC_SDCARD`. One folder at a time (the title is its name, "SD card" at the root, its path above the list): ".." goes up, then the folders (folder icon, `>`), then the files (a note for a WAV or MP3 the player takes, else a file icon) with their size, each sorted by name without case; up to 200 entries, "N more not shown" past them; "Empty"; "New folder". A tap on a folder opens it, on a WAV or MP3 the player (only with `CONFIG_HC_UI_PLAYER`), on another file its page; a long press on any entry opens its page. Without a card the page says the card's state. The folder is kept while the device runs (the page stack's text is too short for a path); a folder that is gone shows the root. Problems ("The name is taken", "The folder is not empty", ...) go to the alert strip |
-| File or folder | name, folder, size (a file); "Play" (a WAV or MP3 with the player), "Rename / move", "Delete" (red; after a question; a folder only when it is empty) |
+| SD card (file manager) | only with `CONFIG_HC_SDCARD`. One folder at a time (the title is its name, "SD card" at the root, its path above the list): ".." goes up, then the folders (folder icon, `>`), then the files (a note for a WAV or MP3 the player takes, else a file icon) with their size, each sorted by name without case; up to 200 entries, "N more not shown" past them; "Empty"; "New folder". A tap on a folder opens it, on a WAV or MP3 plays the folder's WAV and MP3 files from it on and opens the player, on a playlist (`.m3u`, `.m3u8`, a list icon) plays its entries (only with `CONFIG_HC_UI_PLAYER`), on another file its page; a long press on any entry opens its page. Without a card the page says the card's state. The folder is kept while the device runs (the page stack's text is too short for a path); a folder that is gone shows the root. Problems ("The name is taken", "The folder is not empty", ...) go to the alert strip |
+| File or folder | name, folder, size (a file); "Play" (a WAV, MP3 or playlist with the player: as a tap on it in the list), "Rename / move", "Delete" (red; after a question; a folder only when it is empty) |
 | Rename / move, New folder | a text field with the keyboard: Rename holds the path relative to the card, so a folder in front moves it there (the folder must exist; never over a name that exists, a folder not into itself); New folder takes a name in the shown folder. "Rename" / "Create" and OK act; afterwards the list shows the folder it went to |
-| Player | only with `CONFIG_HC_UI_PLAYER` (WAV 16 bit PCM, MP3 with `CONFIG_HC_AUDIO_MP3`). Plays from the moment it opens, at the volume; the title is the file name. A spectrum analyser in the look of an LED meter on black: 16 bands from 40 Hz to half the sample rate, each a column of segments in the colors of the rainbow from red (bass) to violet, the lowest segment always lit, the peak a white segment that falls slowly (about 30 frames a second). A card with the time "1:23 / 4:56" and the position slider, which seeks when it is let go (an MP3's length comes from its first frame's bitrate: about right for a variable one). "Play"/"Pause", "Stop", the volume card. Touch clicks do not interrupt it; an alarm or a sound from Home Assistant ends it. Leaving the page stops it. "It does not play: the volume is 0", or a line that the file does not play |
+| Player | only with `CONFIG_HC_UI_PLAYER`. Shows and controls what plays; the music goes on in the background (components/player), leaving the page or closing Settings changes nothing. Opens from the file manager, the media library and the play symbol of the status bar. The cover from the file's tags (120 px, a note on a card without one), beside it the title (the tags', else the file name), the artist, the album and "2 / 11" in the queue, "Loading ..." while a download has not enough to play. A card with the time "1:23 / 4:56" and the position slider, which seeks when it is let go. Previous (within the first 3 s the one before, else the start), Play/Pause (a larger round button in the accent color; a queue that ended starts again), Next, Stop. "Shuffle" and "Repeat" / "Repeat all" / "Repeat one" (a tap steps), lit while on, stored. A spectrum analyser in the look of an LED meter on black: 16 bands from 40 Hz to half the sample rate, each a column of segments in the colors of the rainbow from red (bass) to violet, the lowest segment always lit, the peak a white segment that falls slowly (about 30 frames a second). The volume card. On a screen less than 400 px high (480 x 320 in landscape) the cover is 88 px and the spectrum lower, so the controls are in sight. An item that could not be played: a red line. Touch clicks are silent while there is music, vibration stays; an alarm or a sound from Home Assistant interrupts it and it goes on after it |
+| Media | only with `CONFIG_HC_UI_PLAYER`. Home Assistant's media library, folder by folder as Media in Home Assistant's sidebar shows it, from its top (My media, Camera, Text-to-speech, ...; the title "Media", then the folder's). ".." goes up, then the entries in Home Assistant's order: a folder (folder icon, `>`), an MP3 (a note), anything else (a file icon, grey, takes no touches); the names over the full row, a smaller font before they are cut; up to 200, "N more not shown". A tap on a folder opens it, on an MP3 plays the folder's MP3s from it on and opens the player. "Loading ..." while Home Assistant answers, the error with "Again", "This folder is empty". The folder that was open stays open while the device runs |
 
 **Wi-Fi:**
 
@@ -178,23 +182,41 @@ snooze time, the sound and the motor are the ringing alarm's.
 +------------------------------------------------------------+
 ```
 
-**SD card** (a folder) and **Player:**
+**SD card** (a folder) and **Media** (an album):
 
 ```
 +------------------------------------------------------------+      +--------------------------------------+
-| < recordings                                  [wifi] 12:41 |      | < Morning.mp3           [wifi] 12:41 |
+| < recordings                                  [wifi] 12:41 |      | < Pelagial      [wifi] [HA] 12:41    |
 +------------------------------------------------------------+      +--------------------------------------+
-|  /recordings                                               |      |  +--------------------------------+  |
-|  ^  ..                                                     |      |  | #                              |  |
-|  ♪  rec-2026-10-23-0812.wav                     156.3 KB   |      |  | #  #  =     =                  |  |
-|  ♪  rec-2026-10-23-0915.wav                      95.8 KB   |      |  | #  #  #  #  #  =  #  =         |  |
-|  [  New folder  ]                                          |      |  | #  #  #  #  #  #  #  #  #  #   |  |
-+------------------------------------------------------------+      |  +--------------------------------+  |
-                                                                    |  0:30 / 4:29                         |
-                                                                    |  [====o---------------------------]  |
-                                                                    |  [ Pause ]  [ Stop ]                 |
-                                                                    |  Volume  [==========o------]  50 %   |
-                                                                    +--------------------------------------+
+|  /recordings                                               |      |  ^  ..                               |
+|  ^  ..                                                     |      |  ♪  01 - Epipelagic.mp3              |
+|  ♪  rec-2026-10-23-0812.wav                     156.3 KB   |      |  ♪  02 - Mesopelagic Into the Unc... |
+|  ♪  rec-2026-10-23-0915.wav                      95.8 KB   |      |  ♪  03 - Bathyalpelagic I Impasse... |
+|  ≡  Evening.m3u                                     214 B  |      |                                      |
+|  [  New folder  ]                                          |      |                                      |
++------------------------------------------------------------+      +--------------------------------------+
+```
+
+**Player** (portrait):
+
+```
++--------------------------------------+
+| < Player        ▶ [wifi] [HA] 12:41  |
++--------------------------------------+
+|  +--------+  Mesopelagic Into the    |
+|  | cover  |  Uncanny                 |
+|  |        |  The Ocean               |
+|  +--------+  Pelagial  2 / 3         |
+|  0:30 / 4:29                         |
+|  [====o---------------------------]  |
+|      (|<)  ( || )  (>|)  ([])        |
+|      [ Shuffle ]  [ Repeat all ]     |
+|  +--------------------------------+  |
+|  | #  #  #  #  #  =  #  =         |  |
+|  | #  #  #  #  #  #  #  #  #  #   |  |
+|  +--------------------------------+  |
+|  Volume  [==========o------]  50 %   |
++--------------------------------------+
 ```
 
 **Confirmation dialog:**

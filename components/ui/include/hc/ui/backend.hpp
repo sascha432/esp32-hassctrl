@@ -148,13 +148,29 @@ enum class FileResult : uint8_t { Ok, NoCard, BadName, NotFound, Exists, NotEmpt
 #endif
 
 #if CONFIG_HC_UI_PLAYER
-// the player of a WAV or MP3 file on the card
-enum class PlayerState : uint8_t { Idle, Playing, Paused, Failed };
+// The media player (components/player): Buffering while a download has not enough to play,
+// Interrupted while an alarm or a sound of Home Assistant plays over it.
+enum class PlayerState : uint8_t { Idle, Playing, Paused, Failed, Buffering, Interrupted };
+enum class PlayerRepeat : uint8_t { Off, All, One };
 
 struct PlayerInfo {
     PlayerState state;
     uint32_t position_ms;
     uint32_t duration_ms; // 0 while it is not known
+    // the item in the queue (0-based) and how many there are; 0: nothing queued
+    uint16_t index;
+    uint16_t count;
+    bool shuffle;
+    PlayerRepeat repeat;
+    // from the file's tags, the title else the file's name
+    char title[96];
+    char artist[64];
+    char album[64];
+    // the last item that was skipped and why; the counter changes with every one
+    char error[96];
+    uint32_t error_serial;
+    // changes when the cover of what plays changes (player_cover)
+    uint32_t cover_serial;
 };
 #endif
 
@@ -367,19 +383,38 @@ struct Backend {
     FileResult (*sd_rename)(const char *from, const char *to);
 #endif
 #if CONFIG_HC_UI_PLAYER
-    // Plays `path` (a WAV or, with MP3 support, an MP3 file) at the volume; false when it cannot
-    // start (volume 0). A file it cannot read ends as PlayerState::Failed. Nothing of it is
-    // stored.
-    bool (*player_open)(const char *path);
-    void (*player_pause)(bool pause);
+    // The media player (components/player): it plays on in the background, the screens only
+    // control it. Shuffle and repeat are stored.
+#if CONFIG_HC_SDCARD
+    // A file of the card: its folder's playable files from it on, or a playlist's entries; false
+    // when it does not play.
+    bool (*player_play_file)(const char *path);
+#endif
+    // the playable entries of a folder of Home Assistant's media library, from `index` on
+    void (*player_play_media)(const core::MediaList &folder, size_t index);
+    // play <-> pause; a queue that ended starts its item again
+    void (*player_toggle)();
     void (*player_seek)(uint32_t ms);
+    void (*player_next)();
+    // to the start of the item, or within its first 3 s to the one before
+    void (*player_previous)();
     void (*player_stop)();
+    void (*player_set_shuffle)(bool shuffle);
+    void (*player_set_repeat)(PlayerRepeat repeat);
     void (*player_info)(PlayerInfo &out);
     // The levels of what plays in `count` bands, low to high, 0 to 1; false while nothing plays.
     // About 30 calls a second while the player shows.
     bool (*player_spectrum)(float *bands, size_t count);
-    // whether the player takes the file (by its name): WAV always, MP3 with MP3 support
+    // the file manager: the player takes the file (MP3, WAV, a playlist); a playlist
     bool (*player_supports)(const char *name);
+    bool (*player_is_playlist)(const char *name);
+    // The cover of what plays, `size` x `size` in the display's pixel format (the middle of a
+    // picture of another shape); false without one. Decoded on the calling task, once its
+    // cover_serial changed.
+    bool (*player_cover)(uint16_t size, core::Image &out);
+    // Home Assistant's media library: the folder `id` (empty: the top) comes back through
+    // take_event as a core::MediaList stamped with `generation`.
+    void (*media_browse)(std::string_view id, uint32_t generation);
 #endif
 
     void (*device_info)(DeviceInfo &out);

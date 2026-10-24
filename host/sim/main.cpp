@@ -34,6 +34,7 @@ namespace {
 
 namespace ui = hc::ui;
 namespace sample = hc::sample;
+namespace core = hc::core;
 
 struct Options {
     int width = 480;
@@ -203,11 +204,25 @@ const Page kPages[] = {
          open_chain({ui::settings::Page::System, ui::settings::Page::Files, ui::settings::Page::FileDetail});
          ui::settings::push(ui::settings::Page::FileName, nullptr, 1);
      }},
-    {"player", "Settings, System, SD card, the player of an MP3",
+    {"player", "Settings, the player: an MP3 of the card plays (its folder queued)",
      [] {
          ui::settings::pages::select_file("music/Morning.mp3", 4'318'204, false);
+         sample::backend().player_play_file("music/Morning.mp3");
          open_chain({ui::settings::Page::System, ui::settings::Page::Files, ui::settings::Page::Player});
      }},
+    {"player-media", "Settings, the player: an album of the media library plays (tags and a cover)",
+     [] {
+         core::MediaList album;
+         album.title = "Pelagial";
+         for (const char *title : {"01 - Epipelagic.mp3", "02 - Mesopelagic Into the Uncanny.mp3",
+                                   "03 - Bathyalpelagic I Impasses.mp3"}) {
+             album.items.push_back({title, title, "audio/mpeg", false, true});
+         }
+         sample::backend().player_play_media(album, 1);
+         open_chain({ui::settings::Page::Media, ui::settings::Page::Player});
+     }},
+    {"media", "Settings, Media: the top of Home Assistant's media library (wait 400 ms for it)",
+     [] { ui::settings::open(ui::settings::Page::Media); }},
 };
 
 const Page *find_page(const char *name)

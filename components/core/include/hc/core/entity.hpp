@@ -279,8 +279,28 @@ struct EntityDetails {
     memory::String error;
 };
 
+// One entry of Home Assistant's media library (media_source/browse_media): a folder or a file.
+struct MediaItem {
+    memory::String id;    // media_content_id, "media-source://media_source/local/music/x.mp3"
+    memory::String title;
+    memory::String type;  // media_content_type: "audio/mpeg", "directory", ...
+    bool folder = false;  // can_expand
+    bool playable = false; // can_play
+};
+
+// A folder of the media library; `generation` is the one of the request, the UI drops the
+// answers of an older one.
+struct MediaList {
+    uint32_t generation = 0;
+    memory::String id; // the folder's media_content_id, empty: the top
+    memory::String title;
+    memory::Vector<MediaItem> items;
+    memory::String error; // empty: it worked
+};
+
 // What the connection hands to the UI.
-using HassEvent = std::variant<PageValues, ServiceFailed, History, Image, Forecast, EntityList, EntityDetails>;
+using HassEvent =
+    std::variant<PageValues, ServiceFailed, History, Image, Forecast, EntityList, EntityDetails, MediaList>;
 
 class EntityStore {
 public:

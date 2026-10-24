@@ -44,7 +44,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 **Screen and device**
 
 - Dark theme on LVGL 8.4, text with umlauts and the rest of Latin-1. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
-  display, sound, camera, alarm, system.
+  display, sound, camera, media, alarm, system.
 - Brightness, dimming and screen off after a time, automatic brightness from a light sensor,
   rotation from an orientation sensor or by hand, wake on motion with a motion sensor.
 - Touch feedback (click, slider ticks, vibration) on boards with a speaker or a motor.
@@ -55,7 +55,10 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - SD card (JC4880P443C): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
   `sounds/alarms` on it, the microphone's recording saved as WAV; not in the firmware without `CONFIG_HC_SDCARD`.
 - File manager in Settings, System, SD card: folders, new folder, rename/move, delete; rename/move in the web UI too.
-- Player for WAV and MP3 files on the card: pause, seek, LED-style spectrum analyser (`CONFIG_HC_UI_PLAYER`).
+- Media player that plays on in the background (`CONFIG_HC_UI_PLAYER`, boards with MP3): Home Assistant's media
+  library (Settings, Media) streamed while it plays, the card's folders and playlists (`.m3u`); title, artist and cover
+  from the tags, next, previous, shuffle, repeat, seek, LED-style spectrum analyser; alarms and Home Assistant's
+  sounds pause it, a play symbol in the status bar opens it.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
   reported to Home Assistant, held on for 1 to 60 min after the last motion; the web UI shows a missing helper. Both found by the device's name, no setup (see "Supported hardware").
 

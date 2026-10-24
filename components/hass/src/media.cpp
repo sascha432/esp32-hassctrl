@@ -564,4 +564,18 @@ void set_stream_scale(int shift)
     g_stream_shift = shift < 0 ? -1 : std::min(shift, 3);
 }
 
+bool decode_jpeg(const uint8_t *jpeg, size_t size, uint16_t width, uint16_t height, bool swap_bytes, core::Image &out)
+{
+    const Request request{.entity_id = {}, .stream = {}, .entity = core::kNone, .width = width, .height = height,
+                          .swap_bytes = swap_bytes, .whole = false, .generation = 0};
+    DecodeTimes times;
+    char error[64] = {};
+    std::lock_guard lock(g_decode_mutex);
+    if (!decode(request, jpeg, size, false, -1, out, times, error, sizeof(error))) {
+        ESP_LOGW(kTag, "a picture of %u bytes: %s", static_cast<unsigned>(size), error);
+        return false;
+    }
+    return true;
+}
+
 } // namespace hc::hass

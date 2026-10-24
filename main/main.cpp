@@ -34,6 +34,9 @@
 #include "hc/devconsole/devconsole.hpp"
 #include "hc/frame_display/frame_display.hpp"
 #include "hc/hass/hass.hpp"
+#if CONFIG_HC_UI_PLAYER
+#include "hc/player/player.hpp"
+#endif
 #include "hc/light_sensor/ldr.hpp"
 #include "hc/light_sensor/light_sensor.hpp"
 #include "hc/logbuf/logbuf.hpp"
@@ -202,6 +205,9 @@ void start_audio(const hc::board::Info &board)
 #if CONFIG_HC_AUDIO_MP3
     // the sounds of Home Assistant's hassctrl_say event (before hass::start)
     hc::hass::set_sound_player(hc::audio::play_mp3);
+#endif
+#if CONFIG_HC_UI_PLAYER
+    hc::player::start();
 #endif
 }
 #endif

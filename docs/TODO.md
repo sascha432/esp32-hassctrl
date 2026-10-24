@@ -1144,8 +1144,11 @@ Your report of the first version (2026-10-09):
       JC3248W535 builds without card and player.
 - [x] Player tested by you on the test P4: plays smoothly, the spectrum at enough frames per
       second (2026-10-23).
-- [ ] Player: seek in a long MP3 with a variable bitrate (the length is estimated from the first
-      frame there).
+- [x] A long MP3 (95.7 MB, 256 kbit/s) played to its end at 52:17, the length shown from the
+      start (your report, 2026-10-23).
+- [x] Player: an MP3 with a variable bitrate (2026-10-23): the length and the seek come from its
+      Xing/Info or VBRI header now (`formats::Mp3Reader`, host tested); one without a header is
+      still only about right (the first frame's bitrate).
 - [ ] Seen once on the test P4 while testing (2026-10-23): the web server stopped accepting
       (`httpd_accept_conn: error in accept (128)`) as the Home Assistant WebSocket dropped; ping
       still answered, a restart fixed it. Not reproduced yet; watch for it.
@@ -1258,7 +1261,45 @@ Your report of the second version (2026-10-09):
 - [x] No WAV support (decided 2026-10-17): a WAV is refused with a log line (HA converts with
       `preferred_format`, so it should not come).
 - [x] No `media_player` entity (DLNA renderer, `tts.speak`, Music Assistant): not planned
-      (decided 2026-10-17); `hassctrl_say` stays the way to play sounds.
+      (decided 2026-10-17); `hassctrl_say` stays the way to play sounds. Still so with the media
+      player of 2026-10-23: the panel browses Home Assistant's media library itself, Home
+      Assistant does not control it.
+
+## Media player (2026-10-23)
+
+Your request: a full media player in the background, Home Assistant's media library streamed
+while it plays, the SD card's files and playlists; clicks silent while music plays, vibration
+stays, an alarm and a sound of Home Assistant pause the music; a play symbol in the status bar
+opens it; the JC3248W535 gets it with the media library only. Design: architecture.md section
+9.6 ("Music", "Player"), the pages: ui/lvgl/lvgl-settings.md section 3 (Player, Media).
+
+- [x] Media library over the WebSocket (`media_source/browse_media`, `resolve_media`), console
+      `hass media browse|resolve`; a message larger than 32 KB grows the buffer up to 256 KB.
+      Your library seen from the test P4: 11 albums, MP3 at 48 kHz 256 kbit/s, ID3v2.3 with
+      UTF-16 texts and PNG covers of 192x192 (20 to 71 KB), some without a cover.
+- [x] Streaming (test P4, COM11): plays from the download at 48 kHz, title, artist, album and the
+      PNG cover from the tags, the length right; a seek fetches again from there (HTTP 206); a
+      folder name with `;` and `&` plays.
+- [x] `sound ring` during music: Interrupted, the position held, Stop on the alarm screen and the
+      music goes on from there; `sound say` the same.
+- [x] SD card folder (5 MP3s): the queue in the order of the names, next, previous (restart after
+      3 s, else the one before), the next track at the end of one; music goes on with Settings
+      closed, the play symbol in the status bar opens the player.
+- [x] Simulator: pages `player`, `player-media`, `media` at the P4's and the JC3248W535's size,
+      also in landscape (the controls stay in sight: cover 88 px, a lower spectrum).
+- [x] JC3248W535 (COM10, 2026-10-23): a stream with tags and the PNG cover, seek, the player from
+      the play symbol of the status bar.
+- [x] Internal RAM while a download plays (2026-10-23): a connection kept open with a full ring
+      held its TCP window in Wi-Fi's buffers, internal RAM: 76 KB on the P4, on the JC3248W535
+      7 KB left and no DMA memory. Now the download comes in bursts (a 1 MB ring, the connection
+      closed while it is full, the next half fetched with Range) and its task's stack is PSRAM:
+      192 of 219 KB free on the P4, 14 to 15 of 16 KB on the JC3248W535.
+- [x] Underruns during the bursts on the JC3248W535 (12 to 26 in a minute with 3 DMA buffers):
+      8 DMA buffers (21 ms at 48 kHz), none in a minute on either board, also not at the start.
+- [ ] A playlist (`.m3u`) on the card: host tested, the simulator shows it, not played on the
+      device yet.
+- [ ] By ear, your check: the sound of a stream, its start, the alarm and the speech over music
+      and the music going on after them.
 
 ## Vibration (2026-10-09)
 
