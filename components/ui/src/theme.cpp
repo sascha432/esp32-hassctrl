@@ -8,10 +8,24 @@
 
 #include "sound.hpp"
 
-// the digit fonts of the clock tile (tools/build_icons.py), C files like the icon fonts
+// the digit fonts of the clock tile and the text fonts (tools/build_icons.py), C files like the icon
+// fonts. hc_text_<size> holds what the built-in Montserrat lacks (umlauts, Latin-1, quotes, euro) and
+// falls back to lv_font_montserrat_<size> for the rest; it exists where that size is enabled.
 extern "C" {
 LV_FONT_DECLARE(hc_digits_48)
 LV_FONT_DECLARE(hc_digits_72)
+LV_FONT_DECLARE(hc_text_12)
+LV_FONT_DECLARE(hc_text_14)
+LV_FONT_DECLARE(hc_text_16)
+LV_FONT_DECLARE(hc_text_18)
+LV_FONT_DECLARE(hc_text_20)
+LV_FONT_DECLARE(hc_text_22)
+LV_FONT_DECLARE(hc_text_24)
+LV_FONT_DECLARE(hc_text_26)
+LV_FONT_DECLARE(hc_text_28)
+LV_FONT_DECLARE(hc_text_32)
+LV_FONT_DECLARE(hc_text_34)
+LV_FONT_DECLARE(hc_text_36)
 }
 
 namespace hc::ui::theme {
@@ -112,19 +126,19 @@ struct Fonts {
     const lv_font_t *item; // the items of the panels' lists
 };
 
-constexpr Fonts kFonts{100, &lv_font_montserrat_12, &lv_font_montserrat_14, &lv_font_montserrat_16, &lv_font_montserrat_20,
-                       &lv_font_montserrat_28, &lv_font_montserrat_14};
+constexpr Fonts kFonts{100, &hc_text_12, &hc_text_14, &hc_text_16, &hc_text_20,
+                       &hc_text_28, &hc_text_14};
 // only in the builds of the boards that use them (their sdkconfig.defaults)
 #if LV_FONT_MONTSERRAT_18 && LV_FONT_MONTSERRAT_24 && LV_FONT_MONTSERRAT_26 && LV_FONT_MONTSERRAT_36
 // the list items a third larger than the normal font: the panels' lists read small on the P4
-constexpr Fonts kLargeFonts{130, &lv_font_montserrat_16, &lv_font_montserrat_18, &lv_font_montserrat_20,
-                            &lv_font_montserrat_26, &lv_font_montserrat_36, &lv_font_montserrat_24};
+constexpr Fonts kLargeFonts{130, &hc_text_16, &hc_text_18, &hc_text_20,
+                            &hc_text_26, &hc_text_36, &hc_text_24};
 #endif
 
 // Settings on the large-font boards: one font step up from the large set (about 155 % of the normal set)
 #if LV_FONT_MONTSERRAT_22 && LV_FONT_MONTSERRAT_32 && LV_FONT_MONTSERRAT_34
-constexpr Fonts kSettingsFonts{155, &lv_font_montserrat_18, &lv_font_montserrat_22, &lv_font_montserrat_24,
-                               &lv_font_montserrat_32, &lv_font_montserrat_34, &lv_font_montserrat_28};
+constexpr Fonts kSettingsFonts{155, &hc_text_18, &hc_text_22, &hc_text_24,
+                               &hc_text_32, &hc_text_34, &hc_text_28};
 #endif
 constexpr int kSettingsMetricPercent = 128;
 

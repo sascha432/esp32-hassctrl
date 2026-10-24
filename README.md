@@ -43,7 +43,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 **Screen and device**
 
-- Dark theme on LVGL 8.4. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
+- Dark theme on LVGL 8.4, text with umlauts and the rest of Latin-1. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
   display, sound, camera, alarm, system.
 - Brightness, dimming and screen off after a time, automatic brightness from a light sensor,
   rotation from an orientation sensor or by hand, wake on motion with a motion sensor.

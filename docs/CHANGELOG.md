@@ -2,6 +2,8 @@
 
 ## 2026-10-23
 
+- Umlauts and the rest of Latin-1, quotes, dashes and euro on the screen (file names, entity names):
+  `hc_text_<size>` fonts with the built-in Montserrat as fallback.
 - File manager on the screen (Settings, System, SD card) and rename/move on the web UI's SD page (`POST /api/sd/rename`);
   WAV/MP3 player with seek and a spectrum analyser (`CONFIG_HC_UI_PLAYER`); console `sd rm|mkdir|mv`.
 - SD card (JC4880P443C, `CONFIG_HC_SDCARD`): FAT at `/sd`, alarm sounds from it, the mic recording saved as WAV,

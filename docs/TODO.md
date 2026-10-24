@@ -1520,6 +1520,13 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       LVGL task. Accepted (you, 2026-10-17): only during a burst (reconnect, mass toggle in HA),
       rare, at most 100 ms, nothing lost; no "queue is full" in your test logs.
 
+## Text fonts (2026-10-23)
+
+- [x] Umlauts in file names (your report): the built-in Montserrat is ASCII only; the theme's
+      fonts now add Latin-1, quotes, dashes and euro (simulator: "Über Grüße – Café.mp3";
+      flashed on the test P4).
+- [ ] A file name with umlauts on the test P4's card, your check on the screen.
+
 ## Known issues
 
 - [x] **JC3248W535 boot loop with a camera tile on the main page** (your report 2026-10-21): it

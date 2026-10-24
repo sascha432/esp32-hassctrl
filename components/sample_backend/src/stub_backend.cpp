@@ -780,6 +780,8 @@ std::vector<FakeFile> g_files = {
     {"music", 0, true},
     {"music/Morning.mp3", 4'318'204, false},
     {"music/Rain on the roof.wav", 21'168'044, false},
+    // the text fonts beyond ASCII (theme.cpp)
+    {"music/Über Grüße – Café.mp3", 3'902'118, false},
     {"recordings", 0, true},
     {"recordings/rec-2026-10-23-0812.wav", 160'044, false},
     {"recordings/rec-2026-10-23-0915.wav", 98'124, false},

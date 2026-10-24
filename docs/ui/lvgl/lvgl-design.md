@@ -59,7 +59,11 @@ dark theme: phone cameras do not read light-on-dark codes reliably.
 ## 3. Typography
 
 Montserrat, LVGL's built-in fonts. LVGL cannot scale fonts, so each size is a font in flash;
-a board builds only the sizes it uses (its `sdkconfig.defaults`). Two sets, chosen once at the
+a board builds only the sizes it uses (its `sdkconfig.defaults`). The built-in fonts hold only ASCII
+and LVGL's symbols, so the theme's fonts are `hc_text_<size>` (`tools/build_icons.py`): the rest of
+Latin-1 (umlauts, accents, ß, °, ·), en and em dash, the quotes, ellipsis and euro, with the built-in
+font of the same size as fallback for the rest and its line height, so the layout is the same (an
+accented capital may stick out by 1 px). Text outside that, such as Cyrillic or emoji, draws nothing. Two sets, chosen once at the
 start by `Options::large_fonts`:
 
 | `theme::` | Normal | Large | Use |
