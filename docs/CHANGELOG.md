@@ -2,6 +2,7 @@
 
 ## 2026-10-23
 
+- Wi-Fi modem sleep while the screen is off (`network::set_power_save`), off again when it wakes.
 - Umlauts and the rest of Latin-1, quotes, dashes and euro on the screen (file names, entity names):
   `hc_text_<size>` fonts with the built-in Montserrat as fallback.
 - Media player in the background: Home Assistant's media library (Settings, Media) streamed while it plays, SD folders

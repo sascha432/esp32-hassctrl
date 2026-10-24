@@ -23,6 +23,7 @@
 //     successful connection of the setup, and whenever the user turned it on. It never opens by
 //     itself when the Wi-Fi fails (touch is a requirement, Settings is the recovery path).
 //   * The hotspot password is generated on the first boot: 8 digits and 2 lowercase letters.
+//   * Modem sleep only while the screen is off (set_power_save).
 
 #include <cstddef>
 #include <cstdint>
@@ -154,6 +155,9 @@ esp_err_t scan();
 esp_err_t force_hotspot(bool on);
 esp_err_t set_hotspot(bool on);
 esp_err_t new_hotspot_password();
+// Modem sleep (WIFI_PS_MIN_MODEM): the radio sleeps between the router's beacons, every packet
+// waits up to one beacon interval. Off from the start; `main` turns it on while the screen is off.
+esp_err_t set_power_save(bool on);
 
 const char *state_name(StaState state);
 

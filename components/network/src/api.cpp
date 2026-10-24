@@ -163,6 +163,11 @@ esp_err_t new_hotspot_password()
     return command(MsgType::NewHotspotPassword);
 }
 
+esp_err_t set_power_save(bool on)
+{
+    return command(MsgType::PowerSave, 0, on ? 1 : 0);
+}
+
 const char *state_name(StaState state)
 {
     switch (state) {

@@ -228,6 +228,15 @@ void handle(const Msg &msg)
         }
         ESP_LOGI(kTag, "new hotspot password");
         break;
+    case MsgType::PowerSave: {
+        const esp_err_t err = esp_wifi_set_ps(msg.value != 0 ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
+        if (err == ESP_OK) {
+            ESP_LOGI(kTag, "modem sleep %s", msg.value != 0 ? "on" : "off");
+        } else {
+            ESP_LOGW(kTag, "modem sleep %s: %s", msg.value != 0 ? "on" : "off", esp_err_to_name(err));
+        }
+        break;
+    }
     case MsgType::Import: {
         const ImportJob &job = *static_cast<const ImportJob *>(msg.data);
         cmd_import(job);
@@ -393,9 +402,9 @@ esp_err_t start(const char *device_name, Listener listener, void *context)
     ESP_RETURN_ON_FALSE(xTaskCreate(task, "network", 4096, nullptr, 5, nullptr) == pdPASS, ESP_ERR_NO_MEM, kTag,
                         "task");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), kTag, "wifi start");
-    // No modem sleep: with it every packet waits for the next beacon (ping 18 to 200 ms, single
-    // web requests up to seconds on the T4). The panels run on mains power; a battery remote
-    // will need its own choice here.
+    // No modem sleep while the screen is on: with it every packet waits for the next beacon (ping
+    // 18 to 200 ms, single web requests up to seconds on the T4). set_power_save() turns it on
+    // while the screen is off.
     esp_wifi_set_ps(WIFI_PS_NONE);
     ESP_LOGI(kTag, "%u saved networks, hotspot '%s' %s", t.stored.count, device_name,
              t.status.hotspot_on ? "on" : "off");

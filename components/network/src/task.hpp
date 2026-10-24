@@ -36,6 +36,7 @@ enum class MsgType : uint8_t {
     Hotspot,
     NewHotspotPassword,
     ForceHotspot,
+    PowerSave,
     Import,
     WifiEvent,
     GotIp,

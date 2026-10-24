@@ -366,6 +366,17 @@ bool motion(bool &occupied)
     return true;
 }
 
+// The UI turns the backlight to 0 only when the screen is off (power.hpp): the Wi-Fi modem
+// sleeps then, and wakes with the screen (docs/architecture.md section 9.2).
+void set_backlight(uint8_t percent)
+{
+    static bool sleeping = false;
+    hc::board::set_backlight(percent);
+    if ((percent == 0) != sleeping && net::set_power_save(percent == 0) == ESP_OK) {
+        sleeping = percent == 0;
+    }
+}
+
 // The sensor also sees the screen: the board's share of it at full brightness, scaled by the
 // backlight of the moment, is taken off.
 bool ambient_lux(float &out)
@@ -565,7 +576,7 @@ const hc::ui::Backend g_backend{
     .new_hotspot_password = [] { net::new_hotspot_password(); },
     .display_settings = display_settings,
     .set_display_settings = set_display_settings,
-    .set_backlight = [](uint8_t percent) { hc::board::set_backlight(percent); },
+    .set_backlight = set_backlight,
     .ambient_lux = ambient_lux,
     .motion = motion,
     // nullptr without the options (ui_sound.cpp)

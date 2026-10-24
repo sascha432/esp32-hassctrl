@@ -755,9 +755,12 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   second attempt always worked). A network saved without a password makes the driver look for an
   open network; against a secured one that ends in reason 210, shown as "the network needs a
   password, add it again". Passwords of 1 to 7 characters are refused when a network is saved.
-* Wi-Fi power save is off for the panels, which run on mains power: with modem sleep every
-  packet waits for the next beacon (ping 107 ms average, single requests up to seconds on the
-  T4), without it 19 ms.
+* Wi-Fi power save is off while the screen is on: with modem sleep every packet waits for the
+  next beacon (ping 107 ms average, single requests up to seconds on the T4), without it 19 ms.
+  While the screen is off (backlight 0, `ui/src/power.hpp`) `main` turns modem sleep on
+  (`WIFI_PS_MIN_MODEM`, `network::set_power_save`) and off again with the first step of the
+  fade up; Home Assistant's updates and the web UI are slower then, nobody looks at the screen.
+  JC3248W535 with the screen off: 120 mA without, 93 mA with modem sleep (2026-10-23).
 
 ### 9.3 Storage
 

@@ -223,8 +223,8 @@ Step 4 is done in increments. Running on the T4 since 2026-10-06:
   `POST /api/wifi/add`. Passwords are write-only.
 - The built-in page has the setup forms (Wi-Fi, create login), the login form and log out.
 - **Wi-Fi power save off**: with modem sleep the ping took 18 to 200 ms (107 ms average) and
-  single requests up to seconds; without it 19 ms average and 70 to 140 ms per request. A
-  battery remote will need its own setting.
+  single requests up to seconds; without it 19 ms average and 70 to 140 ms per request. Since
+  2026-10-23 modem sleep is on while the screen is off.
 - SNTP starts with the network (pool.ntp.org), needed for the token expiry.
 - Console: `login-reset yes` removes the web UI login (setup mode again).
 
@@ -2082,3 +2082,7 @@ Not built yet (placeholders in the code or the documentation):
       enough for a lux table. Instead a simple two-point setup for the automatic brightness: the light
       where the display is at its minimum, and the light where it is at 100 %. Built and flashed on the WT32 2026-10-10 (Display page: "Lowest brightness at" /
       "Full brightness at", tap in the room's light; defaults 0 and 350 lx; in the backup). Confirmed by you 2026-10-10.
+- [ ] Wi-Fi modem sleep while the screen is off (built 2026-10-23, `network::set_power_save` from
+      `main`'s backlight). JC3248W535 (2026-10-23): on with the screen off, off with the waking tap
+      (log `modem sleep on/off`); 120 → 93 mA with the screen off (measured by you). Open: the tiles
+      current right after waking, the alarm and a `hassctrl_say` with the screen off.

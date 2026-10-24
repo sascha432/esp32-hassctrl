@@ -45,7 +45,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 - Dark theme on LVGL 8.4, text with umlauts and the rest of Latin-1. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
   display, sound, camera, media, alarm, system.
-- Brightness, dimming and screen off after a time, automatic brightness from a light sensor,
+- Brightness, dimming and screen off after a time (Wi-Fi modem sleep while off), automatic brightness from a light sensor,
   rotation from an orientation sensor or by hand, wake on motion with a motion sensor.
 - Touch feedback (click, slider ticks, vibration) on boards with a speaker or a motor.
 - Up to 5 alarms, each with its time, days, snooze, sound (beeps or MP3) and Vibrate switch. Home Assistant makes the device speak a text (tts) or play an
