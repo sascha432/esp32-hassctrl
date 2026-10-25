@@ -801,7 +801,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
 * **Logs** are viewable in the web UI (`logbuf`): errors and warnings always, info messages as
   well in the debug mode (stored).
 * **SD card** (`components/sdcard`, `CONFIG_HC_SDCARD`, default on where the board selects
-  `HC_BOARD_HAS_SDCARD`: the JC4880P443C). FAT at `/sd` with `esp_vfs_fat_sdmmc_mount`, the pins
+  `HC_BOARD_HAS_SDCARD`: the JC4880P443C and the JC3248W535). FAT at `/sd` with `esp_vfs_fat_sdmmc_mount`, the pins
   and the supply in `board::Info::sd_*`.
   * **Off, nothing is built**: the component has no sources, and every use (`main`, the
     webserver's `api_sd.cpp` and `/api/status`, the console, the UI's System row and Save
@@ -816,7 +816,12 @@ console `c6 update <url>`); a different major version on the two chips is a mism
     or not the C6 came first, and unmounting leaves Wi-Fi alone (an IDF error line "host
     controller with slot registered" is that check, harmless).
   * Power: the JC4880P443C's card and pins are on LDO channel 4 (`sd_pwr_ctrl_new_on_chip_ldo`),
-    3.3 V, through a switch that is always on. 40 MHz when the card takes it.
+    3.3 V, through a switch that is always on (the LDO code is built only where the chip has
+    one, `SOC_GP_LDO_SUPPORTED`). 40 MHz when the card takes it.
+  * **1 bit** (`sd_data_gpios[1]` = -1): the JC3248W535's slot is wired for SPI (CS 10, MOSI 11,
+    CLK 12, MISO 13, 10k pullups, 3.3 V rail) and runs as SDMMC 1 bit through the ESP32-S3's GPIO
+    matrix: CMD on MOSI, D0 on MISO. ESP-IDF leaves D3 alone in 1 bit mode, a low D3 at CMD0
+    would select SPI mode, so `start()` drives the D3 given (CS) high. 40 MHz.
   * **No card detect** on the JC4880P443C: mounted at boot, then by request (console `sd mount`,
     the web UI's Mount); unmount before taking a card out. A card without a FAT, or with a FAT
     that does not mount, is reported ("not formatted") and **never formatted by itself**; the web
@@ -849,8 +854,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
     them directly. Long names on the heap (the default), UTF-8 names
     (`CONFIG_FATFS_API_ENCODING_UTF_8`, the JC4880P443C's `sdkconfig.defaults`).
   * Other boards (not built): the TTGO T4's slot is on SPI (CS 13, MOSI 15, SCK 14, MISO 2, a
-    strapping pin that needs the card's pullup), the JC3248W535's pins are unknown, the
-    WT32-SC01 has none.
+    strapping pin that needs the card's pullup); the WT32-SC01 has none.
 
 ### 9.4 Components
 

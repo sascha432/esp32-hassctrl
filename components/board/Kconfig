@@ -19,6 +19,7 @@ menu "hassctrl board"
             bool "Guition JC3248W535 (ESP32-S3, 320x480 AXS15231B over QSPI, integrated touch)"
             depends on IDF_TARGET_ESP32S3
             select HC_BOARD_HAS_AUDIO
+            select HC_BOARD_HAS_SDCARD
 
         config HC_BOARD_JC4880P443C
             bool "Guition JC4880P443C (ESP32-P4 + C6, 480x800 ST7701S over MIPI-DSI, GT911 touch)"

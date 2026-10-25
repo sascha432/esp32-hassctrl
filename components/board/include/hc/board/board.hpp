@@ -106,8 +106,9 @@ struct Info {
     // the level of the sensor's output while it sees motion
     bool motion_active_high = true;
 #if CONFIG_HC_SDCARD
-    // A microSD slot on SDMMC slot 0, 4 bit (hc::sdcard). The board's Kconfig option selects
-    // HC_BOARD_HAS_SDCARD when it has one; without CONFIG_HC_SDCARD these fields are not built.
+    // A microSD slot on SDMMC slot 0 (hc::sdcard): 4 bit, or 1 bit with D1 -1 (a D3 given then is
+    // held high, SD mode). The board's Kconfig option selects HC_BOARD_HAS_SDCARD when it has one;
+    // without CONFIG_HC_SDCARD these fields are not built.
     int8_t sd_clk_gpio = -1;
     int8_t sd_cmd_gpio = -1;
     std::array<int8_t, 4> sd_data_gpios = {-1, -1, -1, -1};

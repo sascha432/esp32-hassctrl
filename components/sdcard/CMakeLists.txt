@@ -10,4 +10,4 @@ endif()
 idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS "include"
                        REQUIRES board esp_common
-                       PRIV_REQUIRES console esp_driver_sdmmc esp_http_client esp_hw_support esp_timer fatfs freertos mbedtls sdmmc)
+                       PRIV_REQUIRES console esp_driver_gpio esp_driver_sdmmc esp_http_client esp_hw_support esp_timer fatfs freertos mbedtls sdmmc)

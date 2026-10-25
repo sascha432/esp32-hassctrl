@@ -10,8 +10,12 @@
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#include "driver/gpio.h"
 #include "sdmmc_cmd.h"
+#include "soc/soc_caps.h"
+#if SOC_GP_LDO_SUPPORTED
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#endif
 
 namespace hc::sdcard {
 
@@ -53,7 +57,7 @@ esp_err_t mount_locked(bool format)
     if (g_card != nullptr) {
         return ESP_OK;
     }
-    if (g_lock == nullptr || g_power == nullptr) {
+    if (g_lock == nullptr) {
         return ESP_ERR_INVALID_STATE;
     }
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
@@ -110,10 +114,12 @@ esp_err_t start(const board::Info &board)
         return ESP_ERR_NOT_SUPPORTED;
     }
     g_lock = xSemaphoreCreateMutexStatic(&g_lock_buffer);
+#if SOC_GP_LDO_SUPPORTED
     if (board.sd_ldo_channel >= 0) {
         const sd_pwr_ctrl_ldo_config_t ldo{.ldo_chan_id = board.sd_ldo_channel};
         ESP_RETURN_ON_ERROR(sd_pwr_ctrl_new_on_chip_ldo(&ldo, &g_power), kTag, "LDO %d", board.sd_ldo_channel);
     }
+#endif
     g_slot = SDMMC_SLOT_CONFIG_DEFAULT();
     g_slot.clk = static_cast<gpio_num_t>(board.sd_clk_gpio);
     g_slot.cmd = static_cast<gpio_num_t>(board.sd_cmd_gpio);
@@ -121,7 +127,15 @@ esp_err_t start(const board::Info &board)
     g_slot.d1 = static_cast<gpio_num_t>(board.sd_data_gpios[1]);
     g_slot.d2 = static_cast<gpio_num_t>(board.sd_data_gpios[2]);
     g_slot.d3 = static_cast<gpio_num_t>(board.sd_data_gpios[3]);
-    g_slot.width = board.sd_data_gpios[3] >= 0 ? 4 : 1;
+    g_slot.width = board.sd_data_gpios[1] >= 0 ? 4 : 1;
+    if (g_slot.width == 1 && board.sd_data_gpios[3] >= 0) {
+        // 1 bit: ESP-IDF leaves D3 alone, a low D3 (CS) at the first command selects SPI mode
+        g_slot.d3 = GPIO_NUM_NC;
+        const auto d3 = static_cast<gpio_num_t>(board.sd_data_gpios[3]);
+        gpio_reset_pin(d3);
+        gpio_set_direction(d3, GPIO_MODE_OUTPUT);
+        gpio_set_level(d3, 1);
+    }
     // the board has its own pullups; the internal ones help a card that is slow to answer
     g_slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
     g_state = State::NoCard;

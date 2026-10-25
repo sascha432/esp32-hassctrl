@@ -1159,8 +1159,10 @@ Your report of the first version (2026-10-09):
       2026-10-23), not the card.
 - [ ] Alarm sound names with letters outside ASCII ("Krypton Ä" on the card) show a box: the
       Montserrat fonts have ASCII only.
-- [ ] SD card on other boards: the TTGO T4's SPI slot (SPI host, not built), the JC3248W535's
-      (pins unknown). A card put in while the device runs needs `sd mount` or the web UI (no
+- [x] SD card on the JC3248W535 (2026-10-25, your request): the SPI-wired slot as SDMMC 1 bit
+      (CLK 12, CMD 11, D0 13, D3 10 held high); a 512 MB card mounted at 40 MHz, `sd ls` lists it. Working (your
+      check); the kitchen P4 with the changed driver works too (2026-10-25).
+- [ ] SD card on the TTGO T4: SPI slot on the ESP32 (SPI host, not built). A card put in while the device runs needs `sd mount` or the web UI (no
       card detect on the JC4880P443C).
 - [ ] Microphone hiss: a quiet room comes up to about -46 dBFS under Auto gain (54 dB ceiling),
       audible in pauses; normal for this MEMS class. Try the ES8311's noise gate (automute,

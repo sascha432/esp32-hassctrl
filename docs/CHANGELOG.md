@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25
+
+- SD card on the JC3248W535: its SPI-wired slot as SDMMC 1 bit (CLK 12, CMD 11, D0 13, D3 10 held high), 40 MHz.
+- sdcard: no LDO needed (the P4's on-chip LDO code only where the chip has one); 1 or 4 bit from D1.
+
 ## 2026-10-23
 
 - Wi-Fi modem sleep while the screen is off (`network::set_power_save`), off again when it wakes.

@@ -52,7 +52,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   MP3 with the event `hassctrl_say` ([guide](docs/home-assistant/say.md)).
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.
-- SD card (JC4880P443C): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
+- SD card (JC4880P443C, JC3248W535): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
   `sounds/alarms` on it, the microphone's recording saved as WAV; not in the firmware without `CONFIG_HC_SDCARD`.
 - File manager in Settings, System, SD card: folders, new folder, rename/move, delete; rename/move in the web UI too.
 - Media player that plays on in the background (`CONFIG_HC_UI_PLAYER`, boards with MP3): Home Assistant's media
@@ -113,7 +113,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - Speaker: I2S amplifier (NS4168) or codec (ES8311)
 - Microphone: the ES8311's analog input, gain or auto gain, a level meter and a test recording that plays back, in Settings, Sound
 - Camera: MIPI-CSI (OV02C10, ESP32-P4)
-- Storage: microSD on SDMMC, 4 bit (JC4880P443C)
+- Storage: microSD on SDMMC, 4 bit (JC4880P443C) or 1 bit (JC3248W535)
 
 ## Build
 

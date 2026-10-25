@@ -60,6 +60,14 @@ constexpr Info kInfo = variant::apply(Info{
     // a tap about a second after the last sound caught the NS4168 waking or going to sleep: that
     // click was quieter (2026-10-09)
     .audio_always_on = true,
+#if CONFIG_HC_SDCARD
+    // the TF slot (schematic, wired for SPI: CS 10, MOSI 11, CLK 12, MISO 13, 10k pullups, 3.3 V
+    // rail, no card detect): SDMMC 1 bit through the GPIO matrix, CMD on MOSI, D0 on MISO; D1 and
+    // D2 are not connected, D3 (CS) is held high so the card stays in SD mode
+    .sd_clk_gpio = 12,
+    .sd_cmd_gpio = 11,
+    .sd_data_gpios = {13, -1, -1, 10},
+#endif
 });
 // the image tag at the top of this file names the board the same way
 static_assert(std::string_view(kInfo.name) == std::string_view(hc_image_tag.board));

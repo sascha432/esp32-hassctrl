@@ -255,14 +255,15 @@ OV02C10 of the JC4880P443C (docs/devices/JC4880P443C, "Camera", and architecture
 
 ## 12. SD card (if the board has a slot)
 
-The `sdcard` component (architecture.md section 9.3) knows the SDMMC host; an SPI slot (the
-TTGO T4) is not built.
+The `sdcard` component (architecture.md section 9.3) knows the SDMMC host; an SPI slot on a chip
+with the GPIO matrix for SDMMC (ESP32-S3: the JC3248W535) runs as 1 bit (CMD on MOSI, D0 on MISO,
+CS as D3, held high); one on the ESP32 (the TTGO T4) is not built.
 
 - [ ] From the schematic, on the device page: the pins (on the ESP32-P4 slot 0 has fixed IO MUX
       pins: CLK 43, CMD 44, D0..D3 39..42), the pullups, the card's supply and whether a pin
       switches it, a card-detect pin. The JC4880P443C: the card and its pins on LDO channel 4
       through a switch that is always on, no card detect.
-- [ ] `Info::sd_clk_gpio`, `sd_cmd_gpio`, `sd_data_gpios` (four, or D0 alone and -1 for 1 bit),
+- [ ] `Info::sd_clk_gpio`, `sd_cmd_gpio`, `sd_data_gpios` (four, or D0 and -1 for D1 and D2 for 1 bit, D3 the CS pin of an SPI slot),
       `sd_ldo_channel` (-1 for a card on the 3.3 V rail), all inside `#if CONFIG_HC_SDCARD`; the
       board's Kconfig choice entry gets `select HC_BOARD_HAS_SDCARD`.
 - [ ] The boot log shows `sdcard: <name> at /sd: .. free, .. kHz, .. ms`; console `sd`, `sd ls`,

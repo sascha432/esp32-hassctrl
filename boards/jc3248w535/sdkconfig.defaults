@@ -32,3 +32,7 @@ CONFIG_LV_COLOR_16_SWAP=y
 # the 32 dynamic Wi-Fi receive buffers; the mailbox holds a window of them.
 CONFIG_LWIP_TCP_WND_DEFAULT=23040
 CONFIG_LWIP_TCP_RECVMBOX_SIZE=32
+
+# The microSD card (components/sdcard, CONFIG_HC_SDCARD): file names as UTF-8 (uploads from the
+# web UI), long names on the heap (the IDF default). Nothing of FAT is linked without the option.
+CONFIG_FATFS_API_ENCODING_UTF_8=y
