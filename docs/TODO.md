@@ -137,6 +137,8 @@ over MIPI-DSI (esp_lvgl_port's DSI display, `Info::mipi_dsi`, LVGL software rota
       dialog did not stand out of the dimmed page on the board (your report): veil 80 %, dialog
       body `theme::kDialog` 0x161d25, alert strip 90 % on all boards; variant picked by you in the
       sim (B of A/B), flashed on the P4, confirmed working by you on the board (2026-10-13).
+- [x] History in the dialog without its own card (2026-10-25, your request): the card color runs to
+      the dialog's edges below one 1 px line; the small screens keep the card. Confirmed by you in the sim.
 - [x] **Check the start orientation** on the WT32 leaning on the desk: it should be upright
       within about a second after boot, without turning it. Working, confirmed by you 2026-10-10.
 - [x] PSRAM of the WT32: the device page says 4 MB (decided 2026-10-07), whatever the boot log

@@ -30,6 +30,8 @@ constexpr uint32_t kBucketSeconds = 300;
 constexpr lv_coord_t kChipGap = 6;
 // between the title row and the card
 constexpr lv_coord_t kCardGap = 8;
+// the card reaches the panel's edge when the area is this close to it (the panel's margin)
+constexpr lv_coord_t kEdgeGap = 8;
 // the gap at the right of the graph, above the time labels
 constexpr lv_coord_t kGraphRight = 8;
 constexpr lv_coord_t kTimeTop = 2;
@@ -481,6 +483,29 @@ void build_card(lv_obj_t *parent, const lv_area_t &area)
 {
     g.card = panel::card(parent, area);
     lv_obj_clear_flag(g.card, LV_OBJ_FLAG_CLICKABLE);
+    if (dashboard::options().panel_dialogs) {
+        // no card in the dialog: the graph's background runs to the dialog's edges where the area
+        // is only the margin away from them, a line on top separates it from the title row; the
+        // padding keeps the children where they would be in the area
+        lv_obj_update_layout(parent);
+        const lv_coord_t parent_w = lv_obj_get_content_width(parent);
+        const lv_coord_t parent_h = lv_obj_get_content_height(parent);
+        const auto pad_left = static_cast<lv_coord_t>(area.x1 <= kEdgeGap ? area.x1 : 0);
+        const auto right = static_cast<lv_coord_t>(parent_w - 1 - area.x2);
+        const auto pad_right = static_cast<lv_coord_t>(right <= kEdgeGap ? right : 0);
+        const auto bottom = static_cast<lv_coord_t>(parent_h - 1 - area.y2);
+        const auto pad_bottom = static_cast<lv_coord_t>(bottom <= kEdgeGap ? bottom : 0);
+        lv_obj_set_pos(g.card, static_cast<lv_coord_t>(area.x1 - pad_left), area.y1);
+        lv_obj_set_size(g.card, static_cast<lv_coord_t>(lv_area_get_width(&area) + pad_left + pad_right),
+                        static_cast<lv_coord_t>(lv_area_get_height(&area) + pad_bottom));
+        lv_obj_set_style_radius(g.card, 0, 0);
+        lv_obj_set_style_border_side(g.card, LV_BORDER_SIDE_TOP, 0);
+        lv_obj_set_style_pad_left(g.card, pad_left, 0);
+        lv_obj_set_style_pad_right(g.card, pad_right, 0);
+        lv_obj_set_style_pad_bottom(g.card, pad_bottom, 0);
+        // the dialog's round corners cut the background at the bottom
+        lv_obj_set_style_clip_corner(parent, true, 0);
+    }
     // the size is the one of the area: the objects are placed before LVGL lays them out
     const lv_coord_t card_w = lv_area_get_width(&area);
     g.card_w = card_w;

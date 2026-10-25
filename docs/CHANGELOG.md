@@ -5,6 +5,7 @@
 - JC3248W535: 42 KB internal RAM free with Home Assistant connected (was 10 KB): plain `malloc` above 512 bytes goes to
   PSRAM (`sdkconfig.main.esp32s3`), three static scratch buffers in PSRAM (`EXT_RAM_BSS_ATTR`). SD downloads from the
   web UI and MP3s from the card read in whole DMA chunks again.
+- History in the P4's panel dialogs: no card around the graph; its background runs to the panel's edges below one line.
 - Spectrum: the lowest bands no longer share one FFT bin (1024 point FFT, at least one bin per band).
 - SD card on the JC3248W535: its SPI-wired slot as SDMMC 1 bit (CLK 12, CMD 11, D0 13, D3 10 held high), 40 MHz.
 - sdcard: no LDO needed (the P4's on-chip LDO code only where the chip has one); 1 or 4 bit from D1.
