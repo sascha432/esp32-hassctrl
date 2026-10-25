@@ -83,7 +83,8 @@ firmware 1.79 MB, recovery app 960 KB (6 % of the factory partition free: watch 
 AXS15231B takes no row address over QSPI and cannot rotate a frame (MADCTL MV: empty screen), so
 the board sets `Info::full_frames` and `main` uses `components/frame_display`: LVGL direct mode
 into one PSRAM frame, sent from the top down to the lowest changed row in 32-line bands, rotated
-in software while copied into two internal DMA buffers (40 KB). Dead ends: esp_lvgl_port's
+in software while copied into two internal DMA buffers (40 KB; 16-line bands would save 20 KB but
+cost 3-5 % per full frame, benchmark 2026-10-25). Dead ends: esp_lvgl_port's
 `trans_size` path (full refresh, no rotation), DMA straight from PSRAM ("DMA TX underflow"), 80 MHz
 (garbled picture), 60 MHz (= 40 MHz, the SPI clock is 80 MHz divided by a whole number).
 
@@ -92,6 +93,7 @@ in software while copied into two internal DMA buffers (40 KB). Dead ends: esp_l
 | partial refreshes | 42 per second, avg 22 ms (was 65 ms with esp_lvgl_port full refresh at 32 MHz) |
 | full screen | 40-45 ms |
 | free internal RAM after boot | 56 KB (web API) |
+| free internal RAM, HA connected (2026-10-25) | 42 KB, DMA 34 KB (was 10 KB and 2 KB before the RAM changes of that day) |
 
 - [x] Boots from erased flash: recovery app, main firmware in ota_0, web UI image, first setup
       screen (LVGL screenshot 320x480), no errors in the log (2026-10-08).
@@ -2088,3 +2090,26 @@ Not built yet (placeholders in the code or the documentation):
       `main`'s backlight). JC3248W535 (2026-10-23): on with the screen off, off with the waking tap
       (log `modem sleep on/off`); 120 → 93 mA with the screen off (measured by you). Open: the tiles
       current right after waking, the alarm and a `hassctrl_say` with the screen off.
+- [ ] **Console `restart` did not restart once** (JC3248W535, 2026-10-25, the firmware with 10 KB free):
+      the log showed the Wi-Fi driver stopping (`run -> init`, `flush txq`), then hass kept trying to
+      connect ("Host is unreachable") for 40 s and the board stayed up until esptool reset it. A
+      shutdown handler after the Wi-Fi stop (backlight, pending settings) or `esp_restart` itself
+      waited; not seen again with 42 KB free. Watch for it.
+- [ ] **Web downloads at 20-35 KB/s on the JC3248W535** (2026-10-25). Not the RAM: with 42 KB internal
+      and 34 KB DMA free an SD file (4 MB of an MP3, `GET /api/sd/file`) comes at 22-24 KB/s without
+      a break, `/api/fs/files.zip` (LittleFS, no card) at 34 KB/s, a 16 KB static file at 125 KB/s;
+      modem sleep off (ping 7 ms; with it on, 45-113 ms, half the speed). All of them go through
+      `httpd_resp_send_chunk`; suspects are lwIP's send buffer (`TCP_SND_BUF` 5760) with the
+      client's delayed ACKs, and Nagle on the chunk headers. Not measured on the other boards yet
+      (WT32 not on COM9, the test P4's console did not answer).
+- [x] **JC3248W535 internal RAM** (2026-10-25): 10 KB free with Home Assistant connected (DMA 2 KB; the
+      SD driver read sector by sector, the player ran dry, `sd get` and web downloads failed). Measured
+      per start step: 210 KB after boot, console 15 KB, LVGL 50 KB (40 KB bands, 7 KB task stack),
+      audio and player 9 KB, network 84 KB (Wi-Fi static RX and TX buffers 16 x 1.6 KB each, the
+      Wi-Fi, lwIP, mDNS and event tasks), web server 18 KB, hass 8 KB, 11 KB more once connected. Done:
+      `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512` (`sdkconfig.main.esp32s3`, as on the ESP32),
+      three static scratch buffers in PSRAM (`EXT_RAM_BSS_ATTR`): 42 KB free, DMA 34 KB. Tried and
+      dropped: 16-line display bands (20 KB, but 3-5 % more per full frame in the benchmark). Left as
+      options with a cost: Wi-Fi `IRAM_OPT`/`RX_IRAM_OPT` off (33 KB, Wi-Fi code from the flash cache
+      next to a 16 KB instruction cache), fewer static Wi-Fi TX buffers (1.6 KB each, TX throughput),
+      LVGL's task stack in PSRAM (7 KB, hot in the render path), the console's 10 KB stack.

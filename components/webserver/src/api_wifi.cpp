@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "esp_attr.h"
 #include "hc/network/network.hpp"
 
 #include "http_util.hpp"
@@ -37,9 +38,11 @@ esp_err_t get_wifi(httpd_req_t *req)
     if (!require_login(req)) {
         return ESP_OK;
     }
-    static char buffer[2560];
-    static net::SavedNetworkInfo saved[net::kMaxNetworks];
-    static net::ScanEntry scan[20];
+    // scratch of the web server's task, too large for its stack; in PSRAM (EXT_RAM_BSS_ATTR), it is
+    // only touched while the page loads
+    static EXT_RAM_BSS_ATTR char buffer[2560];
+    static EXT_RAM_BSS_ATTR net::SavedNetworkInfo saved[net::kMaxNetworks];
+    static EXT_RAM_BSS_ATTR net::ScanEntry scan[20];
     const size_t saved_count = net::saved_networks(saved, net::kMaxNetworks);
     const size_t scan_count = net::last_scan(scan, 20);
 

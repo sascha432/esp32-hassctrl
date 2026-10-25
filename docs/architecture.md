@@ -846,7 +846,7 @@ console `c6 update <url>`); a different major version on the two chips is a mism
   * **RAM: FATFS buffers in PSRAM.** In IDF 6.1, `ff_memalloc()` tries PSRAM only when
     `CONFIG_FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS` is set; `CONFIG_FATFS_ALLOC_PREFER_EXTRAM`
     alone falls through to `MALLOC_CAP_DEFAULT`, which keeps small blocks internal (our
-    `SPIRAM_MALLOC_ALWAYSINTERNAL` is 16384 B, 512 B on the T4 and WT32-SC01). The defaults are
+    `SPIRAM_MALLOC_ALWAYSINTERNAL` is 16384 B on the P4, 512 B on the ESP32 and the S3). The defaults are
     right and stay as they are: `FATFS_ALLOC_PREFER_EXTRAM=y`,
     `FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS=y`, `FATFS_PER_FILE_CACHE=y`, `FATFS_USE_DYN_BUFFERS=y`.
     The volume's work buffer, the table of open files (`max_files` = 4) and each file's sector
@@ -1028,7 +1028,7 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
     IRAM on the ESP32-S3.
   * Memory: the library allocates through weak `media_lib_module_malloc/calloc/realloc` and
     `media_lib_free`, which call `malloc`; every block under 16 KB went to internal RAM
-    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`, the default on the S3 and P4), 25 KB of the 33 KB left. `mp3_source.cpp` defines
+    (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`, the default on the P4, on the S3 until 2026-10-25), 25 KB of the 33 KB left. `mp3_source.cpp` defines
     them and prefers PSRAM: while a file plays the internal RAM stays where it was (39 KB on the
     JC3248W535).
   * The dependency is fetched for the targets of the boards with audio (`target in [esp32s3,
@@ -1386,10 +1386,15 @@ esp32-hassctrl/
   `picture_panel.cpp`, `orientation.cpp`, `main.cpp`, `edit_mode.cpp`).
 * Memory: large buffers (message reassembly, images, store) in PSRAM via `heap_caps_malloc`;
   LVGL draw buffers in internal DMA RAM. No allocation per frame in the render path. On the
-  ESP32 a plain `malloc` up to 512 bytes goes to internal RAM first, anything larger to PSRAM
-  (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` in `sdkconfig.main.esp32`; the ESP-IDF default 16 KB
-  filled the WT32's internal RAM). Memory that must be internal (DMA, code that runs with the
-  cache off) is asked for with `heap_caps_malloc`. The console command `mem` shows what is free.
+  ESP32 and the S3 a plain `malloc` up to 512 bytes goes to internal RAM first, anything larger to
+  PSRAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` in `sdkconfig.main.esp32` and `.esp32s3`; the
+  ESP-IDF default 16 KB filled the WT32's internal RAM, and the JC3248W535's: 10 KB left with Home
+  Assistant connected, 42 KB with 512). On the S3 the IRAM code counts too: IRAM and DRAM are one
+  SRAM, every byte of code in IRAM (Wi-Fi's `IRAM_OPT`, LVGL's fast functions) is a byte less of
+  heap. Memory that must be internal (DMA, code that runs with the cache off) is asked for with
+  `heap_caps_malloc`. A static scratch buffer that is used now and then (an import, the Wi-Fi
+  page) is `EXT_RAM_BSS_ATTR`, in PSRAM (`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY`). The
+  console command `mem` shows what is free.
   A buffer that is only faster in internal RAM (a JPEG decoder's tables and lines) takes it only
   while 32 KB stay free (`hass::detail::hot_alloc`), else PSRAM: Wi-Fi, lwIP and TLS allocate at
   any moment and fail where nobody looks. The same goes for libraries that take internal RAM

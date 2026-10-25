@@ -1,0 +1,9 @@
+# Main firmware on the ESP32-S3 (read by ESP-IDF after sdkconfig.main, docs/architecture.md section 2).
+
+# Plain malloc puts everything up to this size into internal RAM first (ESP-IDF default 16384).
+# The JC3248W535 has 150 KB of heap after the static data (IRAM code counts, the S3 takes both from
+# one SRAM) and was down to 10 KB with Home Assistant connected: the SD card read sector by sector,
+# the player ran dry, the web UI could not download a file (docs/TODO.md, 2026-10-25). Above 512
+# bytes, allocations go to PSRAM, as on the ESP32; DMA buffers, task stacks and the code that runs
+# with the cache off ask for internal RAM explicitly.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512

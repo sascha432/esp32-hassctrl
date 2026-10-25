@@ -18,6 +18,9 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
 # Wi-Fi and lwIP buffers go to the PSRAM where there is one, internal RAM stays for DMA and LVGL
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# Static scratch buffers that are used now and then (an import, the Wi-Fi page, the spectrum's
+# copy) are marked EXT_RAM_BSS_ATTR and live in PSRAM instead of the internal .bss
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 
 # Fast reconnect (docs/architecture.md section 9.2): no ARP probe of the offered address (it costs
 # about a second), and ask the router for the last address again instead of starting over

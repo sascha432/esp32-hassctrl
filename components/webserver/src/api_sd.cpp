@@ -216,8 +216,12 @@ esp_err_t get_file(httpd_req_t *req)
         return send_error(req, "404 Not Found", "no such file");
     }
     // whole clusters' worth straight into a DMA buffer: the SDMMC driver reads them in one
-    // transfer, where 4 KB through stdio went sector by sector through its bounce buffer
+    // transfer, where 4 KB through stdio went sector by sector through its bounce buffer. When the
+    // DMA memory is short, the bounce buffer it is, from PSRAM: slower, but the file comes.
     auto *chunk = static_cast<char *>(heap_caps_aligned_alloc(kDmaAlign, kReadChunk, MALLOC_CAP_DMA));
+    if (chunk == nullptr) {
+        chunk = static_cast<char *>(heap_caps_aligned_alloc(kDmaAlign, kReadChunk, MALLOC_CAP_SPIRAM));
+    }
     if (chunk == nullptr) {
         close(file);
         return send_error(req, "503 Service Unavailable", "no memory");

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "hc/audio/audio.hpp"
@@ -143,7 +144,8 @@ bool media_spectrum(float *bands, size_t count)
     if (count == 0 || g_ring == nullptr || !make_fft()) {
         return false;
     }
-    static int16_t latest[kFftSize];
+    // the screen task's copy of the ring, in PSRAM like the FFT's own arrays
+    static EXT_RAM_BSS_ATTR int16_t latest[kFftSize];
     taskENTER_CRITICAL(&g_lock);
     const uint32_t rate = g_rate;
     const size_t start = (g_ring_end + kRingSize - kFftSize) % kRingSize;

@@ -40,7 +40,8 @@ constexpr Info kInfo = variant::apply(Info{
     .mirror_x = false,
     .mirror_y = false,
     .swap_bytes = true,
-    // the frame is sent in bands of this many lines, two band buffers of 20 KB in internal RAM
+    // the frame is sent in bands of this many lines, two band buffers of 20 KB in internal DMA RAM
+    // (16 lines would save 20 KB but cost 3-5 % per full frame, benchmark 2026-10-25)
     .draw_buffer_lines = 32,
     .full_frames = true,
     // the touch reports at 60 Hz, a read in between answers "no finger" (docs/devices/JC3248W535)
