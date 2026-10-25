@@ -1086,10 +1086,12 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   (the alert strip, or the player's page in Settings), three in a row stop the queue. Console
   `player`.
   * **Spectrum** (`spectrum.cpp`): the task copies every chunk of the player's file, before the
-    volume, into a ring of 1024 samples in PSRAM; `media_spectrum()` takes the last 512 on the
+    volume, into a ring of 2048 samples in PSRAM; `media_spectrum()` takes the last 1024 on the
     caller's task (the screen, about 30 times a second), a Hann window, a radix-2 float FFT of
     its own (no esp-dsp), and the peaks of 16 bands spaced in octaves from 40 Hz to half the
-    rate, -60 to 0 dB as 0 to 1. Tables and work arrays (6 KB) in PSRAM, made on first use.
+    rate, -60 to 0 dB as 0 to 1. A bin is 43 Hz at 44.1 kHz, narrower than the lowest bands:
+    every band gets at least one bin of its own, so these step a bin at a time. Tables and work
+    arrays (16 KB) in PSRAM, made on first use.
 * **Sounds in the file system image**: `sounds/` of the repository goes to `/fs/sounds/` of
   boards built with `CONFIG_HC_AUDIO_MP3` (`tools/build_fs.py`; a device's own files outside
   `/www` and `/sounds` are kept). The alarm sounds `sounds/alarms/*.mp3` are six alarm sounds of

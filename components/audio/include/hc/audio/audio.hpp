@@ -143,8 +143,9 @@ struct MediaDebug {
 MediaDebug media_debug();
 
 // The levels of what the player plays now in `count` bands spaced evenly in octaves from 40 Hz
-// to half the rate, 0 (-60 dB and below) to 1 (full scale), before the volume. A 512 point FFT
-// on the caller's task (the screen's, about 30 times a second); false while nothing plays.
+// to half the rate (at least one FFT bin each, so the lowest step 43 Hz at a time), 0 (-60 dB and
+// below) to 1 (full scale), before the volume. A 1024 point FFT on the caller's task (the
+// screen's, about 30 times a second); false while nothing plays.
 bool media_spectrum(float *bands, size_t count);
 #endif
 

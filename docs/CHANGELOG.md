@@ -2,6 +2,7 @@
 
 ## 2026-10-25
 
+- Spectrum: the lowest bands no longer share one FFT bin (1024 point FFT, at least one bin per band).
 - SD card on the JC3248W535: its SPI-wired slot as SDMMC 1 bit (CLK 12, CMD 11, D0 13, D3 10 held high), 40 MHz.
 - sdcard: no LDO needed (the P4's on-chip LDO code only where the chip has one); 1 or 4 bit from D1.
 

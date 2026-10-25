@@ -12,8 +12,9 @@ namespace hc::audio {
 
 namespace {
 
-constexpr size_t kFftSize = 512;
-constexpr size_t kFftBits = 9;
+// 43 Hz per bin at 44.1 kHz
+constexpr size_t kFftSize = 1024;
+constexpr size_t kFftBits = 10;
 // twice the FFT: the task writes one half while the screen reads the other
 constexpr size_t kRingSize = 2 * kFftSize;
 constexpr float kLowestHz = 40.0f;
@@ -163,19 +164,21 @@ bool media_spectrum(float *bands, size_t count)
     const float bin_hz = static_cast<float>(rate) / kFftSize;
     const float top = static_cast<float>(rate) / 2.0f;
     const float ratio = std::pow(top / kLowestHz, 1.0f / static_cast<float>(count));
-    float low = kLowestHz;
+    float high = kLowestHz;
+    // every band at least one bin of its own: the low bands are narrower than a bin and would
+    // all show the same one, so they step a bin at a time until the octaves are wider
+    size_t first_bin = 1;
     for (size_t band = 0; band < count; band++) {
-        const float high = low * ratio;
-        size_t first_bin = std::max<size_t>(1, static_cast<size_t>(low / bin_hz));
-        size_t last_bin = std::min<size_t>(kFftSize / 2 - 1, static_cast<size_t>(high / bin_hz));
-        last_bin = std::max(first_bin, last_bin);
+        high *= ratio;
+        const size_t end = std::max(first_bin + 1, static_cast<size_t>(high / bin_hz + 0.5f));
+        const size_t last_bin = std::min(kFftSize / 2, end) - 1;
         float peak = 0.0f;
         for (size_t bin = first_bin; bin <= last_bin; bin++) {
             peak = std::max(peak, g_fft->re[bin] * g_fft->re[bin] + g_fft->im[bin] * g_fft->im[bin]);
         }
         const float db = 10.0f * std::log10(peak / (full * full) + 1e-12f);
         bands[band] = std::clamp((db - kFloorDb) / -kFloorDb, 0.0f, 1.0f);
-        low = high;
+        first_bin = std::min(last_bin + 1, kFftSize / 2 - 1);
     }
     return true;
 }
