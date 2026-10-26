@@ -16,6 +16,10 @@
 - **Docs with every change.** Update the affected `docs/*.md` (architecture, adding-a-board, CHANGELOG, the
   pages under `docs/ui` and `docs/devices`) in the same commit as the code. Check `docs/TODO.md`: mark items
   done or changed, add new open points, update the state lines.
+- **Changelog with every change.** `docs/CHANGELOG.md`: an entry under today's date (newest
+  first, inside the unreleased version), under Added, Changed, Fixed or Removed, saying what a
+  user or developer sees. A change that reverses an entry of the same day replaces it instead of
+  adding a second one.
 - **NVS writes follow the policy** in docs/architecture.md section 9.3: values changed by live
   controls or by using the device go through `platform::set_blob_later` (10 s delay), explicit
   saves and secrets are written at once, nothing writes per frame or per touch.
