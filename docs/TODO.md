@@ -1129,6 +1129,12 @@ Your report of the first version (2026-10-09):
       tone at -15, a quiet room -46); a recording plays back (heard by the microphone at -23 dBFS).
       Record no longer catches the tap's click (first 200 ms skipped, last 150 ms on Stop).
       Working and tested by you on the test P4 (2026-10-22).
+- [x] Variant `jc4880p443c.hallway` (2026-10-26, your request): COM15, camera, microphone and
+      development console, no motor, relay or motion sensor. Flashed (recovery, main, web image):
+      boots as `variant hallway`, OV02C10 and the microphone found. Its C6 came with the vendor's
+      esp_hosted 2.3.2, which dropped Wi-Fi every few seconds (reason 8), too short for
+      `c6 update <url>`; updated to 3.0.9 with the new `c6 update slot` (image written to ota_1
+      over USB, Wi-Fi off): versions match, Wi-Fi and Home Assistant connect on the first try.
 - [x] SD card (2026-10-23, your request): `components/sdcard`, `CONFIG_HC_SDCARD` (default on, only
       boards that `select HC_BOARD_HAS_SDCARD`, the JC4880P443C). Off, `jc4880p443c.mic` is the
       same as before in every section of `idf.py size` (3,062,597 bytes); on, +54 KB. Tested on

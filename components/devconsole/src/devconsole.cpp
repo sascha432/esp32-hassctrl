@@ -204,8 +204,8 @@ int cmd_wifi(int argc, char **argv)
 }
 
 // The Wi-Fi coprocessor (ESP32-C6 of the JC4880P443C): its firmware version, and an update from
-// a URL. After a successful update this chip restarts, which resets the coprocessor into the new
-// firmware.
+// a URL or, without Wi-Fi, from the free app slot (written over USB). After a successful update
+// this chip restarts, which resets the coprocessor into the new firmware.
 int cmd_c6(int argc, char **argv)
 {
     if (!net::has_coprocessor()) {
@@ -218,14 +218,22 @@ int cmd_c6(int argc, char **argv)
             std::printf("coprocessor does not answer\n");
             return 1;
         }
-        std::printf("coprocessor esp_hosted %s, this side %s\n", version, net::host_hosted_version());
+        std::printf("coprocessor esp_hosted %s, this side %s, free app slot %s\n", version, net::host_hosted_version(),
+                    net::coprocessor_slot());
         return 0;
     }
     if (std::strcmp(argv[1], "update") == 0 && argc == 3) {
-        std::printf("downloading %s\n", argv[2]);
-        const esp_err_t err = net::update_coprocessor(argv[2], [](size_t done, size_t total) {
+        const auto progress = [](size_t done, size_t total) {
             std::printf("  %u of %u KB\n", static_cast<unsigned>(done / 1024), static_cast<unsigned>(total / 1024));
-        });
+        };
+        esp_err_t err;
+        if (std::strcmp(argv[2], "slot") == 0) {
+            std::printf("from %s, Wi-Fi off\n", net::coprocessor_slot());
+            err = net::update_coprocessor_from_slot(progress);
+        } else {
+            std::printf("downloading %s\n", argv[2]);
+            err = net::update_coprocessor(argv[2], progress);
+        }
         if (err != ESP_OK) {
             std::printf("update failed: %s, the coprocessor keeps its firmware\n", esp_err_to_name(err));
             return 1;
@@ -236,7 +244,7 @@ int cmd_c6(int argc, char **argv)
         esp_restart();
         return 0;
     }
-    return usage("c6 [version|update <http url>]");
+    return usage("c6 [version|update <http url>|update slot]");
 }
 
 int cmd_hotspot(int argc, char **argv)
@@ -1372,7 +1380,8 @@ void register_commands()
     add("wifi", "Wi-Fi: status, saved networks, scan, reconnect", "[status|list|add|connect|remove|up|down|policy|scan|results|reconnect]",
         cmd_wifi);
     add("hotspot", "turn the hotspot on or off, or give it a new password", "on|off|password", cmd_hotspot);
-    add("c6", "Wi-Fi coprocessor: firmware version, update from a URL", "[version|update <http url>]", cmd_c6);
+    add("c6", "Wi-Fi coprocessor: firmware version, update from a URL or the free app slot",
+        "[version|update <http url>|update slot]", cmd_c6);
     add("fs", "file system status", nullptr, cmd_fs);
     add("mem", "free memory: internal, DMA, PSRAM", nullptr, cmd_mem);
     add("restart", "restart the device", nullptr, cmd_restart);

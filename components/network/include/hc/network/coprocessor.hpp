@@ -26,4 +26,10 @@ using CoprocessorProgress = void (*)(size_t done, size_t total);
 // download, use it from the console only.
 esp_err_t update_coprocessor(const char *url, CoprocessorProgress progress);
 
+// The same without the network, for a coprocessor whose firmware cannot hold Wi-Fi (the vendor's
+// esp_hosted 2.3.2): the image was written over USB into this chip's free app slot (the OTA slot
+// coprocessor_slot() names, "ota_1" after a serial flash). Wi-Fi is stopped while it runs.
+const char *coprocessor_slot();
+esp_err_t update_coprocessor_from_slot(CoprocessorProgress progress);
+
 } // namespace hc::network

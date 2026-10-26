@@ -154,7 +154,7 @@ the repository keep an example of every add-on. Steps: [docs/adding-a-board.md](
 
 Pins, verified settings and quirks: [docs/devices/](docs/devices/). The ESP32-C6 of the
 JC4880P443C has firmware of its own (`boards/jc4880p443c/c6`), updated from the P4 with the
-console command `c6 update <url>`, see its device page.
+console command `c6 update <url>` (or `c6 update slot` without Wi-Fi), see its device page.
 
 ## Tests on the PC
 
@@ -230,7 +230,7 @@ python tools/build.py wt32_sc01 -p COM9 flash
 python tools/build_fs.py wt32_sc01 -p COM9
 ```
 
-The ports of the developer's boards: WT32-SC01 COM9, JC3248W535 COM10, JC4880P443C COM11,
+The ports of the developer's boards: WT32-SC01 COM9, JC3248W535 COM10, JC4880P443C COM11 (the hallway unit `jc4880p443c.hallway` COM15),
 TTGO T4 COM13. `python tools/screenshot.py COM9 out.png` takes a screenshot of a running board
 over the serial console, `python tools/bench.py wt32_sc01 -p COM9` runs the rendering benchmark
 ([docs/benchmark.md](docs/benchmark.md)).

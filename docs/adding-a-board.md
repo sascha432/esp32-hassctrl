@@ -285,7 +285,8 @@ CS as D3, held high); one on the ESP32 (the TTGO T4) is not built.
 The board file in the repository holds the board type and, as an example, the add-ons of the
 developer's unit: the WT32-SC01's LDR on GPIO 34, motor on 27 and the calibration of its MPU6050,
 the JC4880P443C's relay 1 on GPIO 32. A unit wired differently is a **variant**: a directory
-of its own in git (`wt32_sc01.bench`, `jc4880p443c.kitchen`, `jc4880p443c.mic`).
+of its own in git (`wt32_sc01.bench`, `jc4880p443c.kitchen`, `jc4880p443c.mic`,
+`jc4880p443c.hallway`).
 
 1. Create `boards/<board>/variants/<name>/` (`<name>`: letters, digits, underscore) and copy
    `components/board/src/variant/hc_board_variant.hpp` into it.

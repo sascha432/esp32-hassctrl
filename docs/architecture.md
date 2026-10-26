@@ -681,7 +681,9 @@ ESP32-C6 of the board, and `network` gets the `esp_wifi` API from `esp_wifi_remo
 `esp_hosted` (SDIO) without code changes. The device name comes from the P4's base MAC.
 The C6 runs an esp_hosted coprocessor firmware of the same version as the host side, built
 from `boards/jc4880p443c/c6` and sent to it over SDIO (`hc::network::update_coprocessor`,
-console `c6 update <url>`); a different major version on the two chips is a mismatch.
+console `c6 update <url>`), or, while the C6 cannot hold Wi-Fi, from the P4's free app slot
+written over USB (`update_coprocessor_from_slot`, console `c6 update slot`, Wi-Fi stopped); a
+different major version on the two chips is a mismatch.
 
 ---
 

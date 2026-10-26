@@ -7,6 +7,15 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-10-26
+
+Added
+
+* Variant `jc4880p443c.hallway` (COM15): camera, microphone and development console; no motor,
+  relay or motion sensor.
+* Console `c6 update slot`: updates the C6 from the P4's free app slot, written over USB, with Wi-Fi
+  off; for a new board whose vendor C6 firmware cannot hold Wi-Fi.
+
 ### 2026-10-25
 
 Added

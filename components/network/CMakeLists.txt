@@ -9,4 +9,4 @@ idf_component_register(SRCS "src/coprocessor.cpp"
                             "src/station.cpp"
                             "src/store.cpp"
                        INCLUDE_DIRS "include"
-                       PRIV_REQUIRES esp_event esp_http_client esp_netif esp_wifi platform)
+                       PRIV_REQUIRES app_update esp_app_format esp_event esp_http_client esp_netif esp_wifi platform)
