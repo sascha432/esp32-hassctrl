@@ -394,7 +394,8 @@ memory::String display_value(const EntityState &state, const Tile &tile);
 // The unit a sensor tile shows: the tile's own, else the one Home Assistant reports.
 std::string_view display_unit(const EntityState &state, const Tile &tile);
 
-// The name a tile shows: its own, else the entity's friendly_name, else the entity id.
+// The name a tile shows: its own, else the entity's friendly_name, else the entity id (a media
+// tile: "Media").
 std::string_view display_name(const EntityState &state, const Tile &tile, std::string_view entity_id);
 
 } // namespace hc::core

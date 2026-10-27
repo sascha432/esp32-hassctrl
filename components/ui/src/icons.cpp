@@ -139,6 +139,9 @@ const char *for_tile(const core::Tile &tile, std::string_view entity_id, const c
     if (tile.kind == core::TileKind::Area) {
         return glyph("folder");
     }
+    if (tile.kind == core::TileKind::Media) {
+        return glyph("music");
+    }
     if (tile.kind == core::TileKind::Clock) {
         return nullptr; // the time is the picture
     }

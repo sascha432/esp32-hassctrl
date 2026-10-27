@@ -1309,10 +1309,50 @@ opens it; the JC3248W535 gets it with the media library only. Design: architectu
       192 of 219 KB free on the P4, 14 to 15 of 16 KB on the JC3248W535.
 - [x] Underruns during the bursts on the JC3248W535 (12 to 26 in a minute with 3 DMA buffers):
       8 DMA buffers (21 ms at 48 kHz), none in a minute on either board, also not at the start.
-- [ ] A playlist (`.m3u`) on the card: host tested, the simulator shows it, not played on the
-      device yet.
+- [x] A playlist (`.m3u`) on the card (2026-10-25, JC3248W535): `Mix.m3u` in the card's root
+      with three files of `music/` played as 1/3 to 3/3, next went through them.
 - [ ] By ear, your check: the sound of a stream, its start, the alarm and the speech over music
       and the music going on after them.
+
+## Media tile and folder play (2026-10-25)
+
+Your request: a play button on folders that plays all subfolders; the Media row of Settings
+replaced by a dashboard tile whose config picks Home Assistant, an SD folder or both (then two
+folders, "Home Assistant" and "SD card"). Design: architecture.md sections 5 and 9.6, the browser:
+ui/lvgl/lvgl-settings.md section 3 (Media).
+
+- [x] `type: media` with `folder` (a `media-source://` id or an SD path; none: both tops; your
+      choice 2026-10-25, replaces a `source` key) in the file format, the web editor (a folder
+      picker over `GET /api/hass/media` and the SD list) and the edit mode; host tests for the
+      key, the natural order and the walk (`player/tree.cpp`).
+- [x] Simulator: pages `media`, `media-hass`, `media-sd`, `player-folder` at the WT32's, the
+      JC3248W535's and the P4's size; the sample's media tile on the Rooms page.
+- [x] JC3248W535 (COM10): `player folder /` walked the card (28 MP3s in `music/`, the other
+      folders without music), the queue started at the first in name order, next went on.
+- [x] JC3248W535: `player folder media-source://media_source/local/music` collected 105 MP3s of
+      your library in a few seconds and played them in name order with tags and cover. A folder
+      whose name has "..." in it is refused by Home Assistant ("Invalid path") and left out.
+- [x] "Loading ..." for good and taps on the old rows (your report, 2026-10-25): the UI's event
+      queue (16) dropped its oldest event when full, also a media folder; now page values and
+      images go first, and the browser gives up after 12 s ("Again"); taps wait for the new page.
+      JC3248W535 over serial: 10 quick folder changes and 3 reopens with taps during the slide,
+      the list came every time, no "UI events full".
+- [ ] On the screen, your check: the media tile, ▶ of a folder with subfolders and an `.m3u` on
+      the card (the test card has none).
+- [ ] Media browser memory: a folder of the library seen is held twice (the cache in
+      `settings_media.cpp` copies it, the page keeps its own), up to 8 cached; keep one copy
+      (the page shows a cached entry) or cache without the `type` string.
+- [ ] Walk of the card: `sdcard::list` calls `stat()` per entry, which on FAT scans the folder
+      again (n² per folder); the walk needs only the folder flag, which `readdir` gives in
+      `d_type`. A list without the stat would make `player folder` on a big card linear.
+- [ ] The browser's own `playable()` (`settings_media.cpp`) repeats `player::playable_media`;
+      one rule, over the backend, so a row's play icon and the walk agree.
+- [ ] JC3248W535: playing an MP3 from the card logs `alloc failed: 2048 bytes, caps 0x8` (DMA:
+      3 KB free, largest 2 KB; internal 10 KB free) on every start, also a single file; it plays
+      on. Seen 2026-10-25, not caused by the folder play; DMA memory for the card's reads is short.
+      Also short of internal RAM there (10 KB free, largest 7.5 KB): `sd get` fails (its task
+      wants an 8 KB stack, ESP_ERR_NO_MEM), and the web UI's download of a card file answers
+      "no memory"; the upload works.
 
 ## Vibration (2026-10-09)
 

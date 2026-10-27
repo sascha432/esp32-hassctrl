@@ -938,6 +938,16 @@ int cmd_player(int argc, char **argv)
         }
         return 0;
     }
+    if (argc == 3 && std::strcmp(argv[1], "folder") == 0) {
+        // a folder with its subfolders, as the play button of the media browser
+        const char *what = argv[2];
+        const bool media = std::strncmp(what, "media-source://", 15) == 0;
+        if (!(media ? hc::player::play_media_folder(what, "") : hc::player::play_folder(what, ""))) {
+            std::printf("does not play (a folder of the card, relative to it, or a media-source:// folder)\n");
+            return 1;
+        }
+        return 0;
+    }
     if (argc == 2 && std::strcmp(argv[1], "next") == 0) {
         hc::player::next();
         return 0;
@@ -1406,8 +1416,9 @@ void register_commands()
     add("sound", "speaker: volume, test tone, touch sound, sounds of Home Assistant", "[volume <percent>|tone [hz] [ms]|click|tick|play <file>|url <url>|say <tts entity> <text>|alarm [file]|stop|ring]", cmd_sound);
 #endif
 #if CONFIG_HC_UI_PLAYER
-    add("player", "media player: what plays, play a file of the card or of the media library, control it",
-        "[status|play <what>|pause|next|prev|stop|seek <s>|shuffle on|off|repeat off|all|one]", cmd_player);
+    add("player", "media player: what plays, play a file or folder of the card or of the media library, control it",
+        "[status|play <what>|folder <what>|pause|next|prev|stop|seek <s>|shuffle on|off|repeat off|all|one]",
+        cmd_player);
 #endif
 #if CONFIG_HC_MIC
     add("mic", "microphone: its level for some seconds, a test recording, a gain or the ALC",

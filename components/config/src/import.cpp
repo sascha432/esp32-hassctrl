@@ -267,21 +267,24 @@ private:
     // `type:` is only for the kinds without an entity; every other tile is made by its entity
     bool kind_of(const yaml::Node &item, std::string_view type, std::string_view entity, int frame, Tile &tile)
     {
-        if (type == "area" || type == "spacer" || type == "clock") {
+        if (type == "area" || type == "spacer" || type == "clock" || type == "media") {
             if (!entity.empty()) {
                 return fail(frame, item.line, format("a%s %.*s has no entity", type == "area" ? "n" : "",
                                                      static_cast<int>(type.size()), type.data())
                                                   .c_str());
             }
-            tile.kind = type == "area" ? TileKind::Area : type == "spacer" ? TileKind::Spacer : TileKind::Clock;
+            tile.kind = type == "area"     ? TileKind::Area
+                        : type == "spacer" ? TileKind::Spacer
+                        : type == "clock"  ? TileKind::Clock
+                                           : TileKind::Media;
             return true;
         }
         if (!type.empty()) {
             return fail(frame, item.line,
-                        "type: is only for area, spacer and clock, the entity decides what the tile is");
+                        "type: is only for area, spacer, clock and media, the entity decides what the tile is");
         }
         if (entity.empty()) {
-            return fail(frame, item.line, "a tile needs an entity, or type: area, spacer or clock");
+            return fail(frame, item.line, "a tile needs an entity, or type: area, spacer, clock or media");
         }
         tile.kind = core::kind_of_entity(entity);
         return true;
@@ -431,6 +434,8 @@ private:
                 }
             } else if (key == "zone") {
                 tile.zone.assign(text.data(), text.size());
+            } else if (key == "folder") {
+                tile.folder.assign(text.data(), text.size());
             } else {
                 return fail(frame, entry.line, format("unknown tile key '%.*s'", static_cast<int>(key.size()), key.data()).c_str());
             }

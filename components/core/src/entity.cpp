@@ -273,6 +273,9 @@ std::string_view display_name(const EntityState &state, const Tile &tile, std::s
     if (!state.name.empty()) {
         return state.name;
     }
+    if (tile.kind == TileKind::Media) {
+        return "Media";
+    }
     return entity_id;
 }
 

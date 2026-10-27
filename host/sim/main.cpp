@@ -221,8 +221,28 @@ const Page kPages[] = {
          sample::backend().player_play_media(album, 1);
          open_chain({ui::settings::Page::Media, ui::settings::Page::Player});
      }},
-    {"media", "Settings, Media: the top of Home Assistant's media library (wait 400 ms for it)",
-     [] { ui::settings::open(ui::settings::Page::Media); }},
+    {"media", "a media tile's browser without a folder: Home Assistant and SD card",
+     [] {
+         ui::settings::pages::media_open("");
+         ui::settings::open_alone(ui::settings::Page::Media, nullptr);
+     }},
+    {"media-hass", "a media tile's browser at My media of Home Assistant's library (wait 400 ms for it)",
+     [] {
+         ui::settings::pages::media_open("media-source://media_source");
+         ui::settings::open_alone(ui::settings::Page::Media, nullptr);
+     }},
+    {"media-sd", "a media tile's browser at the SD card's music/",
+     [] {
+         ui::settings::pages::media_open("music");
+         ui::settings::open_alone(ui::settings::Page::Media, nullptr);
+     }},
+    {"player-folder", "the player after the play button of music/Albums: its subfolders queued",
+     [] {
+         ui::settings::pages::media_open("music");
+         sample::backend().player_play_folder("music/Albums", "Albums");
+         ui::settings::open_alone(ui::settings::Page::Media, nullptr);
+         ui::settings::push(ui::settings::Page::Player);
+     }},
 };
 
 const Page *find_page(const char *name)

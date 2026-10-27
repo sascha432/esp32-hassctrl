@@ -889,16 +889,12 @@ void fetch_entity(std::string_view entity_id, uint32_t generation)
     queue_at(lv_tick_get() + kEntityQueryMs, std::move(details));
 }
 
-void browse_media(std::string_view id, uint32_t generation)
+bool media_folder(std::string_view id, hc::core::MediaList &media)
 {
-    say("[sim] media '%.*s'\n", static_cast<int>(id.size()), id.data());
-    hc::core::MediaList media;
-    media.generation = generation;
     media.id = hc::memory::String(id);
     if (!hass_connected()) {
         media.error = "not connected to Home Assistant";
-        queue_at(lv_tick_get() + kEntityQueryMs, std::move(media));
-        return;
+        return false;
     }
     const std::string base = "media-source://media_source/local";
     auto folder = [&](const std::string &title, const std::string &item_id) {
@@ -934,6 +930,15 @@ void browse_media(std::string_view id, uint32_t generation)
     } else {
         media.title = hc::memory::String(id.substr(id.rfind('/') + 1));
     }
+    return true;
+}
+
+void browse_media(std::string_view id, uint32_t generation)
+{
+    say("[sim] media '%.*s'\n", static_cast<int>(id.size()), id.data());
+    hc::core::MediaList media;
+    media.generation = generation;
+    media_folder(id, media);
     queue_at(lv_tick_get() + kEntityQueryMs, std::move(media));
 }
 

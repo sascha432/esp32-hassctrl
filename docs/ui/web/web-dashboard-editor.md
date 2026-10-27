@@ -22,11 +22,15 @@ dashboard as one file is on the System page (web-app.md section 1), not here.
   means the new area, not the page it is on), rename, delete (with its tiles, after a confirm that names the count), move a tile to another
   page by dragging it onto the tree.
 * **Grid.** `defaults.grid`, and per area page its own grid or the default. 1x1 to 32x32; a tile is 1x1 to 8x8.
-* **Tiles.** Add from a Home Assistant entity, add an area, a spacer or a clock, remove, duplicate, move to
+* **Tiles.** Add from a Home Assistant entity, add an area, a spacer, a clock or a media tile, remove, duplicate, move to
   another page, reorder. A clock has no entity: style (digital, analog), 24 or 12 h,
   seconds, date, rim and ticks of an analog face, and the time zone (a text field with the
   device's list of IANA names as suggestions; an unknown name is refused by the device's check).
-  The preview shows a fixed time or the clock glyph. A timer (`timer.*`) has no keys of its own;
+  The preview shows a fixed time or the clock glyph. A media tile has no entity either: its
+  folder, where the browser starts (a text field, empty: both tops). "Pick" opens a folder
+  browser: "Home Assistant" and "SD card", then folder by folder (`GET /api/hass/media?id=`,
+  `GET /api/sd/list?dir=`, names in natural order); "Use this folder" takes the one shown, "None:
+  both tops" clears it. The preview shows the `music` glyph. A timer (`timer.*`) has no keys of its own;
   the preview shows the timer glyph; an automation or a script (`automation.*`, `script.*`: the
   `automation` kind) shows the robot or script glyph. Every key of the tile format; the keys a kind does not have are hidden.
   A new tile is 1x1. The size is set per orientation, in the orientation the preview shows
@@ -171,7 +175,7 @@ Below 800 px the columns stack: the page as a dropdown, the preview, the tile fo
 | `dashboard` | `save_layout()` |
 | `ui` | edit mode ([lvgl-dashboard.md](../lvgl/lvgl-dashboard.md) section 7) |
 | `api_dashboard.cpp` | `POST /api/dashboard?check=1`; answers `{"checked", "revision", "dashboard"}` with the cells per tile (null where a tile is not drawn), on 400 `{"error", "path"}` |
-| `api_hass.cpp` | `GET /api/hass/entities?domain=&q=`, `GET /api/hass/entity?id=` |
+| `api_hass.cpp` | `GET /api/hass/entities?domain=&q=`, `GET /api/hass/entity?id=`, `GET /api/hass/media?id=` (the media tile's folder picker) |
 | `api_dashboard.cpp` | `GET /api/dashboard/editor`: the screen of the device, `core::icon_names()` and the time zone names for the clock tile |
 | `tools/build_icons.py` | also writes `web/icons.svg`, one `<symbol>` per icon name (about 6 KB gzipped) |
 | `web/` | `dashboard.js`, loaded only by the Dashboard page, so the setup on a phone stays small |

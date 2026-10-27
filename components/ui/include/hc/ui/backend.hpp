@@ -389,9 +389,15 @@ struct Backend {
     // A file of the card: its folder's playable files from it on, or a playlist's entries; false
     // when it does not play.
     bool (*player_play_file)(const char *path);
+    // The folder `path` of the card with its subfolders (depth first, natural order, a folder's
+    // playlist in place of its files); the items are collected in the background, the player says
+    // Buffering with `title` meanwhile. False when it cannot start.
+    bool (*player_play_folder)(const char *path, std::string_view title);
 #endif
     // the playable entries of a folder of Home Assistant's media library, from `index` on
     void (*player_play_media)(const core::MediaList &folder, size_t index);
+    // the folder `id` of the media library with its subfolders, as player_play_folder
+    bool (*player_play_media_folder)(std::string_view id, std::string_view title);
     // play <-> pause; a queue that ended starts its item again
     void (*player_toggle)();
     void (*player_seek)(uint32_t ms);

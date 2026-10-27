@@ -18,9 +18,9 @@ namespace {
 namespace t = theme;
 namespace pages = settings::pages;
 
-enum class Type : uint8_t { Tile, Area, Clock };
+enum class Type : uint8_t { Tile, Area, Clock, Media };
 
-constexpr const char *kTypes[] = {"Tile", "Area", "Clock"};
+constexpr const char *kTypes[] = {"Tile", "Area", "Clock", "Media"};
 constexpr core::Span kSizes[] = {{1, 1}, {2, 1}, {1, 2}, {2, 2}};
 constexpr int8_t kDecimals[] = {-1, 0, 1, 2};
 // the choices of a step: a size or decimals beyond the usual ones (set in the web editor) is one more
@@ -52,6 +52,7 @@ struct State {
     bool seconds = false;
     bool date = false;
     bool swipe = false;
+    memory::String folder; // the media tile's; the web editor sets it, kept here
 };
 
 State g;
@@ -155,6 +156,8 @@ core::TileKind kind()
         return core::TileKind::Area;
     case Type::Clock:
         return core::TileKind::Clock;
+    case Type::Media:
+        return core::TileKind::Media;
     default:
         return core::kind_of_entity(g.entity);
     }
@@ -180,6 +183,9 @@ bool put(const char *first, bool first_dimmer, char *problem, size_t size)
         tile.hours12 = g.hours12;
         tile.seconds = g.seconds;
         tile.date = g.date;
+    }
+    if (g.type == Type::Media) {
+        tile.folder = g.folder;
     }
     added.entity = g.entity;
     if (changing()) {
@@ -281,7 +287,10 @@ void step_options()
     close_step();
     char title[80];
     std::snprintf(title, sizeof(title), "Options of %s",
-                  g.title[0] != 0 ? g.title : g.type == Type::Clock ? "the clock" : g.entity.c_str());
+                  g.title[0] != 0          ? g.title
+                  : g.type == Type::Clock ? "the clock"
+                  : g.type == Type::Media ? "the media tile"
+                                          : g.entity.c_str());
     g.step = picker::frame(g.parent, title, "Back", on_options_back,
                            changing() ? "Save" : g.type == Type::Area ? "Next" : "Add", on_options_done);
     g.status = status_label(g.step);
@@ -361,6 +370,13 @@ void step_options()
         pages::section(list, "Area");
         switch_row(list, "Swipe navigation", &g.swipe);
         break;
+    case core::TileKind::Media: {
+        // the folder is picked in the web editor, which browses both
+        pages::section(list, "Media");
+        t::caption_value(list, "Folder (web editor)",
+                         g.folder.empty() ? "Home Assistant and SD card" : g.folder.c_str());
+        break;
+    }
     default:
         break;
     }
@@ -416,7 +432,7 @@ void step_title()
     lv_obj_set_style_pad_row(body, t::dim(6), 0);
     // the type of a tile that is there stays: an entity's domain decides its kind
     if (!changing()) {
-        choices(body, kTypes, 3, static_cast<size_t>(g.type),
+        choices(body, kTypes, 4, static_cast<size_t>(g.type),
                 [](lv_event_t *event) { g.type = static_cast<Type>(choose(event)); });
     }
 
@@ -467,7 +483,10 @@ void change(lv_obj_t *parent, core::TileIndex index, core::Orientation o)
     g.page = tile.page;
     g.o = o;
     g.tile = index;
-    g.type = tile.kind == core::TileKind::Area ? Type::Area : tile.kind == core::TileKind::Clock ? Type::Clock : Type::Tile;
+    g.type = tile.kind == core::TileKind::Area    ? Type::Area
+             : tile.kind == core::TileKind::Clock ? Type::Clock
+             : tile.kind == core::TileKind::Media ? Type::Media
+                                                  : Type::Tile;
     std::snprintf(g.title, sizeof(g.title), "%s", tile.name.c_str());
     g.entity = memory::String(layout.entity_id(tile));
     g.size = tile.in(o).size;
@@ -478,6 +497,7 @@ void change(lv_obj_t *parent, core::TileIndex index, core::Orientation o)
     g.seconds = tile.seconds;
     g.date = tile.date;
     g.swipe = tile.swipe;
+    g.folder = tile.folder;
     step_title();
 }
 

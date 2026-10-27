@@ -12,6 +12,8 @@
 
 #include "hc/ui/ui.hpp"
 #include "lvgl.h"
+#include "hc/core/natural.hpp"
+#include "hc/player/tree.hpp"
 #include "hc/sample/sample_hass.hpp"
 
 namespace hc::sample {
@@ -784,6 +786,17 @@ std::vector<FakeFile> g_files = {
     {"music/Rain on the roof.wav", 21'168'044, false},
     // the text fonts beyond ASCII (theme.cpp)
     {"music/Über Grüße – Café.mp3", 3'902'118, false},
+    // a folder with subfolders for the play button; the numbers go 2 before 10
+    {"music/Albums", 0, true},
+    {"music/Albums/Tides", 0, true},
+    {"music/Albums/Tides/1 Low water.mp3", 5'120'400, false},
+    {"music/Albums/Tides/2 Flood.mp3", 4'480'112, false},
+    {"music/Albums/Tides/10 High water.mp3", 6'012'880, false},
+    // a playlist takes the place of the folder's files
+    {"music/Albums/Live", 0, true},
+    {"music/Albums/Live/Live.m3u", 96, false},
+    {"music/Albums/Live/Encore.mp3", 3'640'000, false},
+    {"music/Albums/Live/Opening.mp3", 4'100'000, false},
     {"recordings", 0, true},
     {"recordings/rec-2026-10-23-0812.wav", 160'044, false},
     {"recordings/rec-2026-10-23-0915.wav", 98'124, false},
@@ -1039,6 +1052,108 @@ bool player_play_file(const char *path)
 }
 #endif
 
+#if CONFIG_HC_SDCARD
+// the length of a made-up track: about 128 kbit/s for an MP3, 16 bit mono 16 kHz for a WAV
+uint32_t duration_of(const FakeFile &f)
+{
+    const bool wav = f.path.size() > 4 && f.path.compare(f.path.size() - 4, 4, ".wav") == 0;
+    return static_cast<uint32_t>(wav ? f.size * 1000 / 32000 : f.size * 8 / 128);
+}
+
+// the walk of the real player (hc/player/tree.hpp) over the made-up card; a playlist lists the
+// folder's files backwards
+bool player_play_folder(const char *path, std::string_view)
+{
+    const auto items = hc::player::collect_tree(
+        hc::memory::String(trimmed(path).c_str()),
+        [](const hc::memory::String &id, hc::memory::Vector<hc::player::TreeEntry> &out) {
+            const std::string folder(id.c_str());
+            if (!folder.empty()) {
+                const FakeFile *f = find_file(folder);
+                if (f == nullptr || !f->dir) {
+                    return false;
+                }
+            }
+            for (const FakeFile &f : g_files) {
+                if (parent_of(f.path) != folder || (!f.dir && !player_supports(f.path.c_str()))) {
+                    continue;
+                }
+                hc::player::TreeEntry entry;
+                entry.id = f.path.c_str();
+                entry.name = f.path.substr(f.path.rfind('/') + 1).c_str();
+                entry.dir = f.dir;
+                entry.playlist = !f.dir && player_is_playlist(f.path.c_str());
+                out.push_back(std::move(entry));
+            }
+            return true;
+        },
+        [](const hc::memory::String &id, hc::memory::Vector<hc::player::Item> &out) {
+            const std::string folder = parent_of(id.c_str());
+            for (auto f = g_files.rbegin(); f != g_files.rend(); ++f) {
+                if (!f->dir && parent_of(f->path) == folder && player_supports(f->path.c_str()) &&
+                    !player_is_playlist(f->path.c_str())) {
+                    out.push_back({hc::player::Origin::File, f->path.c_str(), ""});
+                }
+            }
+            return true;
+        },
+        [](const hc::player::TreeEntry &entry) {
+            return hc::player::Item{hc::player::Origin::File, entry.id, ""};
+        });
+    g_player.queue.clear();
+    for (const hc::player::Item &item : items) {
+        const FakeFile *f = find_file(item.location.c_str());
+        g_player.queue.push_back({title_of(item.location.c_str()), "", "", f != nullptr ? duration_of(*f) : 180000});
+    }
+    if (g_player.queue.empty()) {
+        return false;
+    }
+    player_start(0);
+    return true;
+}
+#endif
+
+// the walk of the real player over the made-up library
+bool player_play_media_folder(std::string_view id, std::string_view)
+{
+    const auto items = hc::player::collect_tree(
+        hc::memory::String(id),
+        [](const hc::memory::String &folder, hc::memory::Vector<hc::player::TreeEntry> &out) {
+            hc::core::MediaList list;
+            if (!hc::sample::media_folder(folder.c_str(), list)) {
+                return false;
+            }
+            for (const hc::core::MediaItem &item : list.items) {
+                if (!item.folder && (!item.playable || item.type != "audio/mpeg")) {
+                    continue;
+                }
+                hc::player::TreeEntry entry;
+                entry.id = item.id;
+                entry.name = item.title;
+                entry.dir = item.folder;
+                out.push_back(std::move(entry));
+            }
+            return true;
+        },
+        [](const hc::memory::String &, hc::memory::Vector<hc::player::Item> &) { return false; },
+        [](const hc::player::TreeEntry &entry) {
+            return hc::player::Item{hc::player::Origin::Media, entry.id, entry.name};
+        });
+    g_player.queue.clear();
+    for (size_t i = 0; i < items.size(); i++) {
+        // the folder is the album
+        const std::string location = items[i].location.c_str();
+        const std::string folder = location.substr(0, location.rfind('/'));
+        g_player.queue.push_back({title_of(items[i].title.c_str()), "The Ocean", folder.substr(folder.rfind('/') + 1),
+                                  static_cast<uint32_t>(180000 + 37000 * (i % 4))});
+    }
+    if (g_player.queue.empty()) {
+        return false;
+    }
+    player_start(0);
+    return true;
+}
+
 void player_play_media(const hc::core::MediaList &folder, size_t index)
 {
     g_player.queue.clear();
@@ -1258,8 +1373,10 @@ const hc::ui::Backend kBackend{
 #if CONFIG_HC_UI_PLAYER
 #if CONFIG_HC_SDCARD
     .player_play_file = player_play_file,
+    .player_play_folder = player_play_folder,
 #endif
     .player_play_media = player_play_media,
+    .player_play_media_folder = player_play_media_folder,
     .player_toggle = player_toggle,
     .player_seek = player_seek,
     .player_next = player_next,

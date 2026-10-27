@@ -123,11 +123,6 @@ Built quick(lv_obj_t *content)
     if (camera_available()) {
         t::row(col, "Camera", "", true, [](lv_event_t *) { push(Page::Camera); });
     }
-#if CONFIG_HC_UI_PLAYER
-    if (be().media_browse != nullptr) {
-        t::row(col, LV_SYMBOL_AUDIO "  Media", "", true, [](lv_event_t *) { push(Page::Media); });
-    }
-#endif
     g_quick_alarm = nullptr;
     if (alarm::available()) {
         g_quick_alarm = t::row(col, "Alarm", "", true, [](lv_event_t *) { push(Page::Alarm); });

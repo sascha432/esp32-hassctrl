@@ -153,6 +153,8 @@ struct MediaRequest {
     uint32_t timeout_ms = 0;
     std::shared_ptr<MediaWait> wait;
     uint32_t generation = 0;
+    // set by the task when the request comes in: timeout_ms from then, waiting included
+    int64_t deadline = 0;
 };
 
 using Command = std::variant<Subscribe, Call, FetchHistory, Query, SubscribeForecast, Motion, MediaRequest>;
@@ -233,11 +235,21 @@ void deliver(HassEvent event)
 {
     std::lock_guard lock(g_events_mutex);
     if (g_events.size() >= kMaxUiEvents) {
+        // Full (the UI was busy, a screen animation): the oldest page values or image make room,
+        // which newer ones replace. An answer (a media folder, the search, a history) is asked for
+        // once and waited for: it goes only when nothing else is there.
+        auto drop = std::find_if(g_events.begin(), g_events.end(), [](const HassEvent &e) {
+            return std::holds_alternative<core::PageValues>(e) || std::holds_alternative<core::Image>(e);
+        });
+        if (drop == g_events.end()) {
+            drop = g_events.begin();
+            ESP_LOGW(kTag, "UI events full: an answer is dropped");
+        }
         // a frame of the stream that is dropped counts as taken, or the stream would wait for it
-        if (const auto *image = std::get_if<core::Image>(&g_events.front()); image != nullptr && image->live) {
+        if (const auto *image = std::get_if<core::Image>(&*drop); image != nullptr && image->live) {
             detail::frame_taken();
         }
-        g_events.pop_front();
+        g_events.erase(drop);
     }
     g_events.push_back(std::move(event));
 }
@@ -452,13 +464,16 @@ struct PendingCall {
     core::EntityIndex entity = core::kNone;
 };
 
-// A request of the media library on its way: a browse and a resolve have one each, a newer one
-// replaces it. Owned by the hass task.
+// A request of the media library on its way: a browse and a resolve have one each. One on its
+// way is never replaced (the player's folder walk and the browser would cancel each other):
+// newer ones wait behind it, the waited ones (a task blocks on them) in order, the UI's as the
+// newest one only. Owned by the hass task.
 struct MediaState {
     MediaRequest request;
     bool active = false;
     uint32_t id = 0;
     int64_t deadline = 0;
+    std::deque<MediaRequest> pending;
 };
 
 // Owned by the hass task.
@@ -616,8 +631,10 @@ void start_query(Query query)
     }
 }
 
+void send_media(MediaState &m, MediaRequest request);
+
 // The answer of a media request (its `result`, or `error`) to the waiting task or the UI; the
-// request is over.
+// request is over, the next one waiting goes.
 void media_done(MediaState &m, const char *error, const cJSON *result = nullptr)
 {
     if (!m.active) {
@@ -651,27 +668,54 @@ void media_done(MediaState &m, const char *error, const cJSON *result = nullptr)
         list.error = error != nullptr ? error : "";
         deliver(std::move(list));
     }
-    m = {};
+    m.request = {};
+    m.active = false;
+    m.id = 0;
+    m.deadline = 0;
+    if (!m.pending.empty()) {
+        MediaRequest next = std::move(m.pending.front());
+        m.pending.pop_front();
+        send_media(m, std::move(next));
+    }
 }
 
-void start_media(MediaRequest request)
+// `request` goes to Home Assistant; `m` is free
+void send_media(MediaState &m, MediaRequest request)
 {
-    MediaState &m = request.resolve ? s.resolve : s.browse;
-    media_done(m, "replaced by a newer request");
     m.request = std::move(request);
     m.active = true;
     if (!s.authenticated) {
         media_done(m, "not connected to Home Assistant");
         return;
     }
+    if (now_ms() >= m.request.deadline) {
+        // its time went by waiting behind the others
+        media_done(m, "Home Assistant did not answer in time");
+        return;
+    }
     m.id = s.next_id++;
-    m.deadline = now_ms() + m.request.timeout_ms;
+    m.deadline = m.request.deadline;
     const memory::String message = m.request.resolve ? hass_protocol::resolve_media_message(m.id, m.request.media_id)
                                                      : hass_protocol::browse_media_message(m.id, m.request.media_id);
     if (!send_text(message)) {
         m.id = 0;
         media_done(m, "the request could not be sent");
     }
+}
+
+void start_media(MediaRequest request)
+{
+    MediaState &m = request.resolve ? s.resolve : s.browse;
+    request.deadline = now_ms() + request.timeout_ms;
+    if (!m.active) {
+        send_media(m, std::move(request));
+        return;
+    }
+    if (!request.wait) {
+        // the UI's: only the newest waits, the older one was for a folder left
+        std::erase_if(m.pending, [](const MediaRequest &r) { return !r.wait; });
+    }
+    m.pending.push_back(std::move(request));
 }
 
 // the answer (or its error) to the UI; the request is over

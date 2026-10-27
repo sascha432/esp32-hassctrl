@@ -8,12 +8,12 @@
 #if CONFIG_HC_SDCARD
 
 #include <algorithm>
-#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 #include <new>
 
+#include "hc/core/natural.hpp"
 #include "keyboard.hpp"
 #include "overlay.hpp"
 #include "theme.hpp"
@@ -145,19 +145,13 @@ void play_selected()
 #endif
 }
 
-// folders first, then by name without case
+// folders first, then by name without case, numbers by value (the player's order)
 bool before(const FileEntry &a, const FileEntry &b)
 {
     if (a.dir != b.dir) {
         return a.dir;
     }
-    for (size_t i = 0;; i++) {
-        const int x = std::tolower(static_cast<unsigned char>(a.name[i]));
-        const int y = std::tolower(static_cast<unsigned char>(b.name[i]));
-        if (x != y || x == 0) {
-            return x < y;
-        }
-    }
+    return core::natural_less(a.name, b.name);
 }
 
 void select(const FileEntry &entry)

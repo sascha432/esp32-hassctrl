@@ -69,18 +69,21 @@ add_library(hc_dashboard STATIC
     ${HC_ROOT}/components/core/src/icons.cpp
     ${HC_ROOT}/components/core/src/image.cpp
     ${HC_ROOT}/components/core/src/layout.cpp
+    ${HC_ROOT}/components/core/src/natural.cpp
     ${HC_ROOT}/components/core/src/pending.cpp
     ${HC_ROOT}/components/core/src/timezone.cpp
     ${HC_ROOT}/components/core/src/weather.cpp
     ${HC_ROOT}/components/formats/src/json_writer.cpp
     ${HC_ROOT}/components/formats/src/yaml.cpp
     ${HC_ROOT}/components/memory/src/large.cpp
+    ${HC_ROOT}/components/player/src/tree.cpp
 )
 target_include_directories(hc_dashboard PUBLIC
     ${HC_ROOT}/components/config/include
     ${HC_ROOT}/components/core/include
     ${HC_ROOT}/components/formats/include
     ${HC_ROOT}/components/memory/include
+    ${HC_ROOT}/components/player/include
 )
 target_link_libraries(hc_dashboard PUBLIC cjson)
 target_compile_options(hc_dashboard PRIVATE /W4 /permissive- /utf-8 /EHsc)

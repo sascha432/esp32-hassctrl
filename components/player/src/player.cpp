@@ -8,8 +8,12 @@
 
 #include "esp_log.h"
 #include "esp_random.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "hc/core/natural.hpp"
 #include "hc/hass/hass.hpp"
 #include "hc/platform/settings.hpp"
+#include "hc/player/tree.hpp"
 #if CONFIG_HC_SDCARD
 #include <fcntl.h>
 #include <unistd.h>
@@ -34,8 +38,14 @@ constexpr uint32_t kRestartMs = 3000;
 constexpr int kMaxFailures = 3;
 // a playlist larger than this is cut
 constexpr size_t kMaxPlaylist = 64 * 1024;
-// the most files of a folder in the queue
+// the most files of a folder in the queue, also of a folder with its subfolders
 constexpr size_t kMaxFolder = 1000;
+// a folder of the media library comes within this
+constexpr uint32_t kBrowseTimeoutMs = 10000;
+// the folders of the media library a folder's play button lists at most: one request each
+constexpr size_t kMaxMediaFolders = 100;
+// the task that collects a folder with its subfolders; PSRAM
+constexpr uint32_t kWalkStack = 8192;
 
 struct Stored {
     uint8_t shuffle;
@@ -50,6 +60,17 @@ Repeat g_repeat = Repeat::Off;
 int g_failures = 0;
 memory::String g_error;
 uint32_t g_error_serial = 0;
+// a folder with its subfolders is being collected (play_folder, play_media_folder): its title; a
+// newer one, play() or stop() makes the older one's result void
+memory::String g_collecting;
+uint32_t g_walk = 0;
+
+// the folder's items are still collected: the queue is the old one, the buttons wait
+bool collecting()
+{
+    std::lock_guard lock(g_mutex);
+    return !g_collecting.empty();
+}
 
 void store()
 {
@@ -172,7 +193,8 @@ bool add_file(const sdcard::Entry &entry, void *context)
     return list.items.size() < kMaxFolder;
 }
 
-bool play_playlist(const char *path)
+// the entries of the playlist `path` (relative to the card)
+bool read_playlist(const char *path, memory::Vector<Item> &items)
 {
     char full[sdcard::kMaxPath];
     if (!sdcard::make_path(path, full, sizeof(full))) {
@@ -193,7 +215,6 @@ bool play_playlist(const char *path)
     const size_t slash = relative.find_last_of('/');
     const auto entries =
         formats::parse_m3u(text, slash == std::string_view::npos ? std::string_view() : relative.substr(0, slash));
-    memory::Vector<Item> items;
     for (const auto &entry : entries) {
         Item item;
         item.origin = entry.address ? Origin::Address : Origin::File;
@@ -201,13 +222,156 @@ bool play_playlist(const char *path)
         item.title = entry.title.empty() ? name_of(entry.location) : entry.title;
         items.push_back(std::move(item));
     }
-    if (items.empty()) {
+    return !items.empty();
+}
+
+bool play_playlist(const char *path)
+{
+    memory::Vector<Item> items;
+    if (!read_playlist(path, items)) {
         return false;
     }
     play(std::move(items), 0);
     return true;
 }
+
+struct TreeList {
+    memory::Vector<TreeEntry> *out;
+    const memory::String *folder;
+};
+
+bool add_tree_entry(const sdcard::Entry &entry, void *context)
+{
+    auto &list = *static_cast<TreeList *>(context);
+    if (!entry.dir && !playable(entry.name)) {
+        return true;
+    }
+    TreeEntry one;
+    one.id = list.folder->empty() ? memory::String(entry.name) : *list.folder + "/" + entry.name;
+    // a path the card cannot open is left out
+    if (one.id.size() + std::strlen(sdcard::kMountPoint) + 1 >= sdcard::kMaxPath) {
+        return true;
+    }
+    one.name = entry.name;
+    one.dir = entry.dir;
+    one.playlist = !entry.dir && is_playlist(entry.name);
+    list.out->push_back(std::move(one));
+    return list.out->size() < kMaxFolder;
+}
+
+memory::Vector<Item> collect_sd(const memory::String &folder)
+{
+    return collect_tree(
+        folder,
+        [](const memory::String &id, memory::Vector<TreeEntry> &out) {
+            TreeList list{&out, &id};
+            return sdcard::list(id.c_str(), add_tree_entry, &list) == sdcard::Result::Ok;
+        },
+        [](const memory::String &id, memory::Vector<Item> &out) { return read_playlist(id.c_str(), out); },
+        [](const TreeEntry &entry) {
+            Item item;
+            item.origin = Origin::File;
+            item.location = entry.id;
+            item.title = name_of(entry.id);
+            return item;
+        });
+}
 #endif
+
+memory::Vector<Item> collect_media(const memory::String &folder)
+{
+    TreeLimits limits;
+    limits.items = kMaxFolder;
+    limits.folders = kMaxMediaFolders;
+    return collect_tree(
+        folder,
+        [](const memory::String &id, memory::Vector<TreeEntry> &out) {
+            core::MediaList list;
+            memory::String error;
+            if (!hass::browse_media(id, kBrowseTimeoutMs, list, error)) {
+                ESP_LOGW(kTag, "%s: %s", id.c_str(), error.c_str());
+                return false;
+            }
+            for (const core::MediaItem &entry : list.items) {
+                if (!entry.folder && !playable_media(entry)) {
+                    continue;
+                }
+                TreeEntry one;
+                one.id = entry.id;
+                one.name = entry.title;
+                one.dir = entry.folder;
+                out.push_back(std::move(one));
+            }
+            return true;
+        },
+        [](const memory::String &, memory::Vector<Item> &) { return false; },
+        [](const TreeEntry &entry) {
+            Item item;
+            item.origin = Origin::Media;
+            item.location = entry.id;
+            // "01 - Engel.mp3" until the tags come
+            item.title = name_of(entry.name);
+            return item;
+        },
+        limits);
+}
+
+struct Walk {
+    bool media;
+    memory::String folder;
+    uint32_t serial;
+};
+
+void walk_task(void *arg)
+{
+    std::unique_ptr<Walk> walk(static_cast<Walk *>(arg));
+#if CONFIG_HC_SDCARD
+    memory::Vector<Item> items = walk->media ? collect_media(walk->folder) : collect_sd(walk->folder);
+#else
+    memory::Vector<Item> items = collect_media(walk->folder);
+#endif
+    {
+        std::lock_guard lock(g_mutex);
+        if (walk->serial == g_walk) {
+            if (items.empty()) {
+                g_error = "Nothing to play in " + g_collecting;
+                g_error_serial++;
+                ESP_LOGW(kTag, "%s", g_error.c_str());
+                g_collecting.clear();
+            } else {
+                ESP_LOGI(kTag, "%u items under %s", static_cast<unsigned>(items.size()), walk->folder.c_str());
+                g_collecting.clear();
+                g_queue.set(std::move(items), 0, g_shuffle, esp_random());
+                g_failures = 0;
+                start_from_current();
+            }
+        }
+    }
+    walk.reset();
+    vTaskDeleteWithCaps(nullptr);
+}
+
+bool start_walk(bool media, std::string_view folder, std::string_view title)
+{
+    auto *walk = new Walk{media, memory::String(folder), 0};
+    {
+        std::lock_guard lock(g_mutex);
+        walk->serial = ++g_walk;
+        g_collecting = title.empty() ? memory::String(folder) : memory::String(title);
+        if (g_collecting.empty()) {
+            g_collecting = "the folder";
+        }
+    }
+    // what played stops: the new queue starts once it is collected
+    audio::stop_media();
+    if (xTaskCreateWithCaps(walk_task, "player_walk", kWalkStack, walk, 3, nullptr, MALLOC_CAP_SPIRAM) != pdPASS) {
+        delete walk;
+        std::lock_guard lock(g_mutex);
+        g_collecting.clear();
+        return false;
+    }
+    return true;
+}
 
 } // namespace
 
@@ -226,6 +390,9 @@ void start()
 void play(memory::Vector<Item> items, size_t index)
 {
     std::lock_guard lock(g_mutex);
+    // a folder still collected does not replace this
+    g_walk++;
+    g_collecting.clear();
     g_queue.set(std::move(items), index, g_shuffle, esp_random());
     g_failures = 0;
     start_from_current();
@@ -239,6 +406,42 @@ bool playable(const char *name)
 bool is_playlist(const char *name)
 {
     return has_extension(name, ".m3u") || has_extension(name, ".m3u8");
+}
+
+bool playable_media(const core::MediaItem &item)
+{
+    if (item.folder || !item.playable) {
+        return false;
+    }
+    return item.type == "audio/mpeg" || item.type == "audio/mp3" || has_extension(item.title.c_str(), ".mp3");
+}
+
+bool play_folder(const char *path, std::string_view title)
+{
+#if CONFIG_HC_SDCARD
+    char full[sdcard::kMaxPath];
+    if (!sdcard::make_path(path, full, sizeof(full))) {
+        return false;
+    }
+    // relative to the card as the walk joins it: "/music/" -> "music"
+    std::string_view folder(path);
+    while (!folder.empty() && folder.front() == '/') {
+        folder.remove_prefix(1);
+    }
+    while (!folder.empty() && folder.back() == '/') {
+        folder.remove_suffix(1);
+    }
+    return start_walk(false, folder, title);
+#else
+    (void)path;
+    (void)title;
+    return false;
+#endif
+}
+
+bool play_media_folder(std::string_view id, std::string_view title)
+{
+    return start_walk(true, id, title);
 }
 
 bool play_file(const char *path)
@@ -255,8 +458,8 @@ bool play_file(const char *path)
         return false;
     }
     // in the order of the names, as the file manager shows them
-    std::sort(list.items.begin(), list.items.end(),
-              [](const Item &a, const Item &b) { return strcasecmp(a.location.c_str(), b.location.c_str()) < 0; });
+    std::stable_sort(list.items.begin(), list.items.end(),
+                     [](const Item &a, const Item &b) { return core::natural_less(a.location, b.location); });
     const auto found = std::find_if(list.items.begin(), list.items.end(),
                                     [&](const Item &item) { return item.location == relative; });
     if (found == list.items.end()) {
@@ -278,6 +481,9 @@ void pause(bool pause)
 
 void toggle()
 {
+    if (collecting()) {
+        return;
+    }
     const audio::MediaState state = audio::media_status().state;
     if (state == audio::MediaState::Idle || state == audio::MediaState::Failed) {
         std::lock_guard lock(g_mutex);
@@ -296,6 +502,9 @@ void seek(uint32_t ms)
 void next()
 {
     std::lock_guard lock(g_mutex);
+    if (!g_collecting.empty()) {
+        return;
+    }
     g_failures = 0;
     // the next button goes on also with repeat one, and from the last to the first
     if (g_queue.next(g_repeat == Repeat::Off ? Repeat::All : g_repeat)) {
@@ -305,6 +514,9 @@ void next()
 
 void previous()
 {
+    if (collecting()) {
+        return;
+    }
     if (audio::media_status().position_ms > kRestartMs) {
         audio::seek_media(0);
         return;
@@ -318,6 +530,12 @@ void previous()
 
 void stop()
 {
+    {
+        std::lock_guard lock(g_mutex);
+        // a folder still collected does not start
+        g_walk++;
+        g_collecting.clear();
+    }
     audio::stop_media();
 }
 
@@ -356,6 +574,16 @@ Status status()
     out.repeat = g_repeat;
     out.error = g_error;
     out.error_serial = g_error_serial;
+    if (!g_collecting.empty()) {
+        // the items of a folder come; what played was stopped
+        out.state = audio::MediaState::Buffering;
+        out.position_ms = 0;
+        out.duration_ms = 0;
+        out.count = 0;
+        out.index = 0;
+        out.title = g_collecting;
+        return out;
+    }
     if (const Item *item = g_queue.current()) {
         out.origin = item->origin;
         out.title = item->title.empty() ? name_of(item->location) : item->title;

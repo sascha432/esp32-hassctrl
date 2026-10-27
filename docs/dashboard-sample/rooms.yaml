@@ -52,3 +52,13 @@
     # and the timeline. A script (rooms/workshop.yaml) is the same tile without the switch.
     - entity: automation.gate_alarm
       name: Gate Alarm
+    # The media browser (no entity; the device needs the media player). `folder` is where it
+    # starts: a folder of Home Assistant's media library ("media-source://media_source/local/music",
+    # in quotes; "media-source://" is its top) or of the SD card (relative to it, no leading `/`;
+    # "/" is the card's root). Without `folder` the browser's top has two folders, "Home
+    # Assistant" and "SD card". The web editor's "Pick" browses both. A tap on a file plays its
+    # folder from there on, the play button of a folder plays it with all its subfolders (name
+    # order, 2 before 10; a folder with an .m3u plays the playlist instead of its files). The
+    # default icon is `music`.
+    - type: media
+      folder: music

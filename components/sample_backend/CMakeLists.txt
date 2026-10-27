@@ -3,4 +3,4 @@
 # (docs/benchmark.md). LVGL comes through ui, whose manifest makes it public.
 idf_component_register(SRCS "src/stub_backend.cpp" "src/sample_hass.cpp"
                        INCLUDE_DIRS "include"
-                       REQUIRES ui config core)
+                       REQUIRES ui config core player)

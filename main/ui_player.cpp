@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
-#include <strings.h>
 
 #include "esp_log.h"
 #include "hc/audio/audio.hpp"
@@ -47,17 +46,6 @@ hc::ui::PlayerState state_of(hc::audio::MediaState state)
     return hc::ui::PlayerState::Idle;
 }
 
-// an MP3 of the media library (the player's format)
-bool playable(const hc::core::MediaItem &item)
-{
-    if (item.folder || !item.playable) {
-        return false;
-    }
-    const size_t length = item.title.size();
-    return item.type == "audio/mpeg" || item.type == "audio/mp3" ||
-           (length > 4 && strcasecmp(item.title.c_str() + length - 4, ".mp3") == 0);
-}
-
 // A PNG as RGB565 (the display's lv_color_t), its alpha over black; the whole picture.
 hc::core::Pixels decode_png(const uint8_t *png, size_t size, uint32_t &width, uint32_t &height)
 {
@@ -91,7 +79,17 @@ bool play_file(const char *path)
 {
     return hc::player::play_file(path);
 }
+
+bool play_folder(const char *path, std::string_view title)
+{
+    return hc::player::play_folder(path, title);
+}
 #endif
+
+bool play_media_folder(std::string_view id, std::string_view title)
+{
+    return hc::player::play_media_folder(id, title);
+}
 
 void play_media(const hc::core::MediaList &folder, size_t index)
 {
@@ -99,7 +97,7 @@ void play_media(const hc::core::MediaList &folder, size_t index)
     size_t start = 0;
     for (size_t i = 0; i < folder.items.size(); i++) {
         const hc::core::MediaItem &entry = folder.items[i];
-        if (!playable(entry)) {
+        if (!hc::player::playable_media(entry)) {
             continue;
         }
         if (i == index) {

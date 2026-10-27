@@ -1,6 +1,7 @@
 #include "hc/core/layout.hpp"
 #include "hc/core/timezone.hpp"
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 
@@ -150,6 +151,21 @@ std::expected<void, Problem> check_tile(const Layout &layout, TileIndex index)
         if (!tile.zone.empty() && (tile.zone.size() > kMaxZoneLength || time_zone_rule(tile.zone) == nullptr)) {
             return tile_problem(index, format("unknown time zone '%.48s' (an IANA name like Europe/Berlin)", tile.zone.c_str()));
         }
+    }
+    if (!tile.folder.empty() && kind != TileKind::Media) {
+        return tile_problem(index, "folder is only for media tiles");
+    }
+    if (hass_media_folder(tile.folder)) {
+        bool plain = tile.folder.size() <= kMaxMediaIdLength;
+        for (const char c : tile.folder) {
+            plain = plain && static_cast<unsigned char>(c) >= 0x20;
+        }
+        if (!plain) {
+            return tile_problem(index, "folder: a media-source:// id of at most 255 bytes");
+        }
+    } else if (!valid_media_folder(tile.folder)) {
+        return tile_problem(index, "folder is media-source://... or a folder of the SD card like music/albums (no .., "
+                                   "no \\, no / at the ends)");
     }
     return {};
 }
@@ -309,6 +325,8 @@ const char *kind_name(TileKind kind)
         return "timer";
     case TileKind::Automation:
         return "automation";
+    case TileKind::Media:
+        return "media";
     }
     return "?";
 }
@@ -353,6 +371,31 @@ bool clock_ticks_of(std::string_view text, ClockTicks &out)
         }
     }
     return false;
+}
+
+bool valid_media_folder(std::string_view folder)
+{
+    if (folder == "/") {
+        return true;
+    }
+    if (folder.size() > kMaxFolderLength || (!folder.empty() && (folder.front() == '/' || folder.back() == '/'))) {
+        return false;
+    }
+    size_t start = 0;
+    while (start <= folder.size() && !folder.empty()) {
+        const size_t slash = std::min(folder.find('/', start), folder.size());
+        const std::string_view name = folder.substr(start, slash - start);
+        if (name.empty() || name == "." || name == "..") {
+            return false;
+        }
+        for (const char c : name) {
+            if (static_cast<unsigned char>(c) < 0x20 || c == '\\') {
+                return false;
+            }
+        }
+        start = slash + 1;
+    }
+    return true;
 }
 
 TileKind kind_of_entity(std::string_view entity_id)
@@ -714,6 +757,9 @@ std::expected<Layout, Problem> change_tile(const Layout &layout, TileIndex index
         break;
     case TileKind::Area:
         tile.swipe = from.swipe;
+        break;
+    case TileKind::Media:
+        tile.folder = from.folder;
         break;
     default:
         tile.dimmer = false;

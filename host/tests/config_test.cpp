@@ -1,5 +1,6 @@
 // components/config: the YAML import with includes, the stored JSON and the YAML export.
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <filesystem>
@@ -150,7 +151,7 @@ TEST(config_imports_the_documented_sample)
     CHECK(imported->other_keys.empty()); // the settings sections are commented out
     CHECK(layout.grid == (Span{4, 3}));
     CHECK(layout.pages.size() == 3);
-    CHECK(layout.tiles.size() == 23);
+    CHECK(layout.tiles.size() == 24);
 
     const Tile *ceiling = named(layout, "Ceiling");
     REQUIRE(ceiling != nullptr);
@@ -198,6 +199,12 @@ TEST(config_imports_the_documented_sample)
     REQUIRE(shop != nullptr);
     CHECK(shop->style == ClockStyle::Analog && shop->ticks == ClockTicks::Minute && shop->border && shop->seconds &&
           shop->in(L).size == (Span{2, 1}) && shop->in(L).cell == (Cell{2, 1}) && shop->in(P).size == (Span{1, 2}));
+    // the media browser on the Rooms page, in the last free cell
+    const auto media = std::find_if(layout.tiles.begin(), layout.tiles.end(),
+                                     [](const Tile &t) { return t.kind == TileKind::Media; });
+    REQUIRE(media != layout.tiles.end());
+    CHECK(media->folder == "music" && media->page == rooms->opens);
+    CHECK(media->in(L).shown && media->in(P).shown);
     CHECK(layout.entities.size() == 17);
     for (size_t i = 0; i < layout.tiles.size(); i++) {
         CHECK(layout.tiles[i].id == i + 1);
@@ -233,7 +240,7 @@ TEST(config_rejects_the_format_of_the_old_firmware)
         return import_error(files);
     };
     CHECK_STR(error("tiles:\n  - type: dimmer\n    entity: light.a\n"),
-              "hass.yaml:2: type: is only for area, spacer and clock, the entity decides what the tile is");
+              "hass.yaml:2: type: is only for area, spacer, clock and media, the entity decides what the tile is");
     CHECK_STR(error("tiles:\n  - entity: camera.a\n    icon: bulb\n"), "hass.yaml:2: unknown icon 'bulb'");
     CHECK_STR(error("tiles:\n  - entity: switch.a\n    icon: auto\n"), "hass.yaml:2: unknown icon 'auto'");
     CHECK_STR(error("defaults:\n  grid:\n    cols: 4\ntiles:\n  - entity: switch.a\n"),
@@ -338,8 +345,8 @@ TEST(config_checks_tile_keys)
               "hass.yaml:4: unknown key 'at' (landscape: and portrait: take size, cell and hidden)");
     CHECK_STR(error("entity: switch.a\n    landscape:\n      cell: 4,0\n"), "ok"); // outside the grid: left out
     CHECK_STR(error("type: sensor\n    entity: switch.a\n"),
-              "hass.yaml:2: type: is only for area, spacer and clock, the entity decides what the tile is");
-    CHECK_STR(error("name: X\n"), "hass.yaml:2: a tile needs an entity, or type: area, spacer or clock");
+              "hass.yaml:2: type: is only for area, spacer, clock and media, the entity decides what the tile is");
+    CHECK_STR(error("name: X\n"), "hass.yaml:2: a tile needs an entity, or type: area, spacer, clock or media");
     CHECK_STR(error("type: clock\n    entity: sensor.a\n"), "hass.yaml:2: a clock has no entity");
     CHECK_STR(error("type: clock\n    hours: 13\n"), "hass.yaml:3: hours is 12 or 24");
     CHECK_STR(error("type: clock\n    seconds: yes\n"), "hass.yaml:3: seconds is true or false");
@@ -463,6 +470,41 @@ TEST(config_keeps_a_clock)
     const auto yaml = hc::config::write_yaml(layout);
     CHECK(yaml.find("- type: clock\n") != std::string::npos && yaml.find("zone: Europe/London") != std::string::npos);
     check_round_trips(layout);
+}
+
+TEST(config_keeps_a_media_tile)
+{
+    FileSet files;
+    files.add("hass.yaml", "tiles:\n"
+                           "  - type: media\n"
+                           "  - type: media\n"
+                           "    name: Music\n"
+                           "    folder: music/albums\n"
+                           "  - type: media\n"
+                           "    folder: \"media-source://media_source/local/music\"\n");
+    const auto imported = hc::config::import_yaml(files.view(), "hass.yaml");
+    if (!imported) {
+        hc::test::fail(__FILE__, __LINE__, std::string(imported.error()));
+        return;
+    }
+    const Layout &layout = imported->layout;
+    REQUIRE(layout.tiles.size() == 3);
+    CHECK(layout.tiles[0].kind == TileKind::Media && layout.tiles[0].folder.empty() &&
+          layout.tiles[0].entity == hc::core::kNone);
+    CHECK(layout.tiles[1].folder == "music/albums");
+    CHECK(layout.tiles[2].folder == "media-source://media_source/local/music");
+    const auto json = hc::config::write_json(layout);
+    CHECK(json.find("\"type\":\"media\",\"name\":\"Music\",\"folder\":\"music/albums\"") != std::string::npos);
+    const auto yaml = hc::config::write_yaml(layout);
+    CHECK(yaml.find("- type: media\n") != std::string::npos &&
+          yaml.find("folder: media-source://media_source/local/music\n") != std::string::npos);
+    check_round_trips(layout);
+
+    FileSet bad;
+    bad.add("hass.yaml", "tiles:\n"
+                         "  - type: media\n"
+                         "    source: sd\n");
+    CHECK(!hc::config::import_yaml(bad.view(), "hass.yaml"));
 }
 
 TEST(config_json_is_strict)

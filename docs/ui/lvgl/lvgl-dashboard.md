@@ -155,6 +155,7 @@ takes no taps while it moves. Every board slides (the swipe fires the slide;
 | switch, button, sensor, lock, timer, automation, area, wide | the icon left (48 px on a large cell, else 24), right of it the value (sensor, lock, timer, automation) and the name | as the one-cell tile |
 | picture (camera) | the camera image over the whole card, the name centered on a dark band at its bottom; the camera icon and the name until the first image arrives, the camera struck through when it failed (`camera-off`: a stream that wants a login, a camera not reached); any shape | shows the image full screen |
 | area | folder (or the tile's icon), name | opens the page |
+| media | `music` (or the tile's icon), name ("Media" without one) | opens the media browser at its `folder` ([lvgl-settings.md](lvgl-settings.md) section 3), alone: `<` comes back to the dashboard; a device without the player says so in the alert strip |
 | spacer | nothing | |
 | clock, digital | the icon when the tile has one (24 px), the time in the largest digit font that fits the width and leaves the lines below their room (72 or 48 px digits, `theme::font_digits_*`, then the text fonts; chosen once, so the digits stay put), with `hours: 12` AM/PM beside it, with `seconds` the seconds; the date under it (`date: true`, "Fri 16 Oct"); the name when the tile has one | nothing |
 | clock, analog | the face (drawn by hand, `tiles_clock.cpp`: hour and minute hand with round ends, with `seconds` a second hand in the active color, `ticks` none / quarter / hour (default) / minute, `border: true` a rim; a tick redraws only the strips of the hands that moved), the date and the name below it; wide: the face as tall as the card at the left, name and date right of it. A face that would be under 40 px drops the date, then the name; under 30 px of radius the minute ticks become hour ticks | nothing |
@@ -379,7 +380,7 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
 
 ```
 1  New tile                  [Cancel] [Next]     2  Entity of the tile    [Back]
-   (Tile) ( Area ) ( Clock )                        [ ceil              ] [kbd]
+   (Tile) (Area) (Clock) (Media)                    [ ceil              ] [kbd]
    [ title               ] [kbd]                    | Attic Ceiling   light.attic_ceiling |
    q w e r t y u i o p ...  (OK: Next)              | Kitchen Ceiling ✓ light.kitchen_... |
 
@@ -389,13 +390,15 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
    Sensor: Decimals (Auto) (0) (1) (2)
    Clock:  Analog / 12 hours / Seconds / Date
    Area:   Swipe navigation     [off]   [Next]
+   Media:  Folder (set in the web editor)
 ```
 
 * **Start**: a tap on a "+" cell (not in the gap between cells). No steps when the cell cannot
   take a 1x1 tile: a spacer there says "A spacer keeps this cell free" (spacers are not drawn),
   a full page "No room for a tile here". In the alert strip.
-* **1. Title and type**: Tile (of an entity), Area or Clock, and the title (the tile's `name`;
-  empty: Home Assistant's friendly name, or no name for a clock; an area needs one). OK on the
+* **1. Title and type**: Tile (of an entity), Area, Clock or Media, and the title (the tile's
+  `name`; empty: Home Assistant's friendly name, no name for a clock, "Media" for a media tile;
+  an area needs one). OK on the
   keyboard is Next. Tile and Area need the Home Assistant connection for the search; without it
   the step says so.
 * **2. Entity** (a tile): the search. Home Assistant filters with the template of the web
@@ -406,7 +409,7 @@ with a "+"; a tap on one opens the steps, each a page over the edit layer with t
   A ✓ marks an entity a tile shows already. A tap on a row asks for its details (a light's color
   modes) and goes on.
 * **3. Options** (the rest stays in the web editor: icon, unit, step, stream,
-  time zone, the clock's border and ticks): the size in the shown orientation (the sizes the grid
+  time zone, the clock's border and ticks, the media tile's folder, which the step shows): the size in the shown orientation (the sizes the grid
   has room for), a light's `dimmer` (preset from Home Assistant: more color modes than `onoff`),
   a sensor's decimals, the clock's style, 12 hours, seconds and date, an area's swipe navigation.
   Add puts it into the edited copy; a problem (no room for 2x2 there) stays on the step.

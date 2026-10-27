@@ -190,7 +190,8 @@ void fetch_entity(std::string_view entity_id, uint32_t timeout_ms, uint32_t gene
 
 // Home Assistant's media library (Media in its sidebar, docs/architecture.md section 9.6). The
 // folder `media_id` (empty: the top) comes back through take_event as a core::MediaList stamped
-// with `generation`, with the error set when it failed; a newer browse replaces one on its way.
+// with `generation`, with the error set when it failed. A browse on its way is not replaced: a
+// newer one waits behind it (of these, only the newest), `timeout_ms` counts from the call.
 void browse_media(std::string_view media_id, uint32_t timeout_ms, uint32_t generation);
 
 // The same, blocking the calling task until the answer came, at most `timeout_ms` (the console).

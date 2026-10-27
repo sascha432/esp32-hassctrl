@@ -27,6 +27,8 @@ constexpr size_t kMaxNameLength = 32;    // bytes of UTF-8
 constexpr size_t kMaxEntityLength = 64;
 constexpr size_t kMaxUnitLength = 12;
 constexpr uint8_t kMaxDecimals = 6;
+constexpr size_t kMaxFolderLength = 96;  // the media tile's SD folder (a path of the card is 128 with "/sd/")
+constexpr size_t kMaxMediaIdLength = 255; // the media tile's folder of Home Assistant's media library
 constexpr uint16_t kDefaultRefresh = 60; // seconds between two camera images
 constexpr uint16_t kMaxRefresh = 3600;
 constexpr float kDefaultLightStep = 10;  // percent per + or - in the light panel
@@ -34,7 +36,7 @@ constexpr float kMaxLightStep = 50;
 constexpr float kMinClimateStep = 0.1f;  // degrees
 constexpr float kMaxClimateStep = 5;
 
-// What a tile shows and does. Every kind but Area, Spacer and Clock has an entity (has_entity),
+// What a tile shows and does. Every kind but Area, Spacer, Clock and Media has an entity (has_entity),
 // and the entity's domain decides the kind (kind_of_entity).
 enum class TileKind : uint8_t {
     Area,    // opens a page of its own
@@ -50,13 +52,14 @@ enum class TileKind : uint8_t {
     Clock,   // the time, digital or analog, in the device's zone or one of its own; no entity
     Timer,   // timer: the time left, a tap opens the timer panel, a double tap starts or cancels
     Automation, // automation, script: the last run, a tap opens the automation panel, a double tap runs it
+    Media,   // opens the media browser at its folder (Home Assistant's library or the SD card); no entity
 };
 
 const char *kind_name(TileKind kind);
 
 inline bool has_entity(TileKind kind)
 {
-    return kind != TileKind::Area && kind != TileKind::Spacer && kind != TileKind::Clock;
+    return kind != TileKind::Area && kind != TileKind::Spacer && kind != TileKind::Clock && kind != TileKind::Media;
 }
 
 // the clock tile (docs/ui/lvgl/lvgl-dashboard.md section 3): `style` and `ticks` as the file has them
@@ -68,6 +71,21 @@ const char *clock_ticks_name(ClockTicks ticks);
 // "digital"/"analog" and "none"/"quarter"/"hour"/"minute"; false (out unchanged) for anything else
 bool clock_style_of(std::string_view text, ClockStyle &out);
 bool clock_ticks_of(std::string_view text, ClockTicks &out);
+
+// The media tile's `folder`: a folder of Home Assistant's media library (its media-source:// id;
+// "media-source://" is its top) or of the SD card (relative to it; "/" is its root); empty: the
+// browser shows both tops.
+constexpr std::string_view kMediaSourcePrefix = "media-source://";
+
+inline bool hass_media_folder(std::string_view folder)
+{
+    return folder.starts_with(kMediaSourcePrefix);
+}
+
+// A folder of the SD card as `folder:` takes it: relative to the card, '/' between names, no "..",
+// no backslash, no control characters, no '/' at either end, at most kMaxFolderLength; "" is the
+// card's root, and so is "/".
+bool valid_media_folder(std::string_view folder);
 
 // "light.kitchen" -> Light. The entity id is not checked here.
 TileKind kind_of_entity(std::string_view entity_id);
@@ -134,6 +152,9 @@ struct Tile {
     ClockStyle style = ClockStyle::Digital;
     ClockTicks ticks = ClockTicks::Hour; // analog
     memory::String zone;         // an IANA time zone name; empty: the device's
+    // Media: the folder the browser starts at, media-source://... or a path of the SD card;
+    // empty: both tops (Home Assistant and the SD card)
+    memory::String folder;
     Placement sides[2];          // by Orientation
 
     Placement &in(Orientation o)
@@ -220,7 +241,7 @@ void reset_arrangement(Layout &layout, PageIndex page, Orientation o);
 std::expected<Layout, Problem> remove_tile(const Layout &layout, TileIndex tile);
 
 // What the edit mode adds (docs/ui/lvgl/lvgl-dashboard.md section 7.2): a tile of an entity, a
-// clock, or an area with the first tile of its page.
+// clock, a media tile, or an area with the first tile of its page.
 struct NewTile {
     Tile tile;               // its kind (not for an entity: the domain decides), name and options
     memory::String entity;   // the entity of a tile of one, else empty
@@ -235,9 +256,9 @@ struct NewTile {
 std::expected<Layout, Problem> add_tile(const Layout &layout, PageIndex page, NewTile added, Orientation o, Cell cell);
 
 // The layout with what the edit mode changes of `tile` (section 7.2): from `changed.tile` its name,
-// a light's dimmer, a sensor's decimals, a clock's style, 12 hours, seconds and date, an area's
-// swipe, and its size in `o`; `changed.entity` (an entity's tile, may be another one: its domain
-// decides the kind, the keys the new kind does not have go). The other keys stay. A larger size
+// a light's dimmer, a sensor's decimals, a clock's style, 12 hours, seconds and date, a media tile's
+// folder, an area's swipe, and its size in `o`; `changed.entity` (an entity's tile, may
+// be another one: its domain decides the kind, the keys the new kind does not have go). The other keys stay. A larger size
 // keeps the tile's cell and pushes the tiles in the way aside, as move_tile() does; finished. A
 // problem when a rule is broken or the size has no room there.
 std::expected<Layout, Problem> change_tile(const Layout &layout, TileIndex tile, const NewTile &changed, Orientation o);

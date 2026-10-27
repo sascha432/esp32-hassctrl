@@ -223,6 +223,8 @@ private:
             tile.kind = TileKind::Spacer;
         } else if (cJSON_IsString(type) && std::strcmp(type->valuestring, "clock") == 0) {
             tile.kind = TileKind::Clock;
+        } else if (cJSON_IsString(type) && std::strcmp(type->valuestring, "media") == 0) {
+            tile.kind = TileKind::Media;
         } else if (type != nullptr) {
             return fail(tile.id, "type");
         } else if (cJSON_IsString(entity)) {
@@ -287,6 +289,11 @@ private:
                 ok = cJSON_IsString(item);
                 if (ok) {
                     tile.zone = item->valuestring;
+                }
+            } else if (key == "folder") {
+                ok = cJSON_IsString(item);
+                if (ok) {
+                    tile.folder = item->valuestring;
                 }
             } else if (key == "grid" && tile.kind == TileKind::Area) {
                 ok = span(item, grid);
@@ -394,6 +401,9 @@ void write_tile(formats::JsonWriter &json, const core::Layout &layout, const Til
     }
     if (!tile.zone.empty()) {
         json.string("zone", tile.zone.c_str());
+    }
+    if (!tile.folder.empty()) {
+        json.string("folder", tile.folder.c_str());
     }
     if (with_cells) {
         // where the device draws the tile; null: not drawn in that orientation

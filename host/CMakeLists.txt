@@ -53,6 +53,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/core/src/icons.cpp
     ${HC_ROOT}/components/core/src/image.cpp
     ${HC_ROOT}/components/core/src/layout.cpp
+    ${HC_ROOT}/components/core/src/natural.cpp
     ${HC_ROOT}/components/core/src/pending.cpp
     ${HC_ROOT}/components/core/src/timezone.cpp
     ${HC_ROOT}/components/core/src/weather.cpp
@@ -75,6 +76,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/network/src/merge.cpp
     ${HC_ROOT}/components/network/src/selection.cpp
     ${HC_ROOT}/components/player/src/queue.cpp
+    ${HC_ROOT}/components/player/src/tree.cpp
 )
 target_include_directories(hc_tests PRIVATE
     tests

@@ -43,6 +43,9 @@ const core::Expectation *pending(core::EntityIndex entity);
 void open_page(core::PageIndex page);
 // to the parent of the current page
 void back();
+// The media browser of the media `tile` (Settings' Media page alone: `<` comes back here); without
+// the player a message in the alert strip.
+void open_media(core::TileIndex tile);
 // A swipe (swipe.hpp): `direction` -1 for a swipe right, which goes back on a swipe page (an
 // area with `swipe`); 1 for a swipe left, which does nothing.
 void swiped(int direction);

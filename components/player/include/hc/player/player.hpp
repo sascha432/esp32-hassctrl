@@ -13,8 +13,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string_view>
 
 #include "hc/audio/audio.hpp"
+#include "hc/core/entity.hpp"
 #include "hc/formats/mp3_tags.hpp"
 #include "hc/player/queue.hpp"
 
@@ -30,9 +32,18 @@ void play(memory::Vector<Item> items, size_t index);
 // entries (.m3u, .m3u8). False when it is neither or the card cannot be read.
 bool play_file(const char *path);
 
+// A folder with its subfolders (tree.hpp: depth first, natural order, a folder's playlist in place
+// of its files): the card's folder `path`, or the media library's folder `id`. What plays stops at
+// once; a task collects the items (status() says Buffering with `title` meanwhile) and the queue
+// starts with them, or the error says there is nothing to play. False when it cannot start.
+bool play_folder(const char *path, std::string_view title);
+bool play_media_folder(std::string_view id, std::string_view title);
+
 // the name is a file the player plays: .mp3, .wav, or a playlist
 bool playable(const char *name);
 bool is_playlist(const char *name);
+// an entry of the media library the player plays: an MP3
+bool playable_media(const core::MediaItem &item);
 
 void pause(bool pause);
 // Playing <-> paused; a queue that ended or was stopped starts its item again.

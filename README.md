@@ -20,6 +20,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   Material Design icons.
 - Clock tiles, digital or analog (hands, ticks, rim), 24 or 12 h, seconds, date, in the device's
   time zone or any IANA zone.
+- Media tiles open the media browser at a folder of Home Assistant's media library or the SD card
+  (picked in the web editor), or at both tops.
 - Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.
 - A grid per page up to 32x32, tiles up to 8x8; size, place and visibility per orientation.
 - Panels a tile opens: light (level, color, color temperature, effects, on/off timeline), climate
@@ -35,7 +37,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   dropped stream, which is only opened while it plays; zoom and position are kept per camera, also
   across a restart.
 - Edit mode on the screen: long press, drag tiles around, remove them, per orientation; a "+" on
-  every free cell adds a tile (entity found by a search in Home Assistant), an area or a clock;
+  every free cell adds a tile (entity found by a search in Home Assistant), an area, a clock or a media tile;
   a tap on a tile changes its title, entity and options.
 - Live values over one WebSocket to Home Assistant (`wss://` with certificate check), feedback
   while an action runs or fails, a start screen until the first values come, an alert strip for
@@ -44,7 +46,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 **Screen and device**
 
 - Dark theme on LVGL 8.4, text with umlauts and the rest of Latin-1. A pull-down opens Settings: Wi-Fi, hotspot, Home Assistant state,
-  display, sound, camera, media, alarm, system.
+  display, sound, camera, alarm, system.
 - Brightness, dimming and screen off after a time (Wi-Fi modem sleep while off), automatic brightness from a light sensor,
   rotation from an orientation sensor or by hand, wake on motion with a motion sensor.
 - Touch feedback (click, slider ticks, vibration) on boards with a speaker or a motor.
@@ -55,8 +57,10 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - SD card (JC4880P443C, JC3248W535): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
   `sounds/alarms` on it, the microphone's recording saved as WAV; not in the firmware without `CONFIG_HC_SDCARD`.
 - File manager in Settings, System, SD card: folders, new folder, rename/move, delete; rename/move in the web UI too.
+  Names in natural order (2 before 10).
 - Media player that plays on in the background (`CONFIG_HC_UI_PLAYER`, boards with MP3): Home Assistant's media
-  library (Settings, Media) streamed while it plays, the card's folders and playlists (`.m3u`); title, artist and cover
+  library (a media tile) streamed while it plays, the card's folders and playlists (`.m3u`), a folder's ▶ plays it
+  with all its subfolders (a folder's playlist in place of its files); title, artist and cover
   from the tags, next, previous, shuffle, repeat, seek, LED-style spectrum analyser; alarms and Home Assistant's
   sounds pause it, a play symbol in the status bar opens it.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor

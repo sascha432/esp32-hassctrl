@@ -99,8 +99,11 @@ void select_file(const char *path, uint64_t size, bool dir);
 #if CONFIG_HC_UI_PLAYER
 // the media player, what plays in the background (settings_player.cpp)
 Built player_page(lv_obj_t *content);
-// Home Assistant's media library (settings_media.cpp); on_media_list(): a folder came (the
-// dashboard's events)
+// The media browser of a media tile (settings_media.cpp): Home Assistant's media library and the
+// SD card. media_open() sets the tile's folder before the page opens (media-source://..., a path
+// of the card, empty: both tops; the folder that was open stays open while it stays the same);
+// on_media_list(): a folder of the library came (the dashboard's events).
+void media_open(const char *folder);
 Built media_page(lv_obj_t *content);
 void on_media_list(core::MediaList list);
 #endif

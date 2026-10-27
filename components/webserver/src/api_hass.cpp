@@ -15,6 +15,10 @@
 //                              a connection (docs/ui/web/web-dashboard-editor.md section 3)
 //   GET  /api/hass/entity?id=  {"id", "name", "domain", "state", "icon", "device_class", "unit",
 //                              "color_modes", "temp_step"}, or {"id", "missing": true}
+//   GET  /api/hass/media?id=   the folder picker of a media tile: {"title", "folders": [[id,
+//                              title], ...]}, the subfolders of the media library's folder id
+//                              (media-source://..., none: the top) in name order; 503 without
+//                              a connection or when Home Assistant refuses it
 //
 // The token is write-only: no answer contains it. Only in the main firmware: the recovery app
 // has no Home Assistant connection and does not register these routes.
@@ -197,6 +201,22 @@ esp_err_t get_entity(httpd_req_t *req)
     return send_answer(req, text, length, error);
 }
 
+esp_err_t get_media(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    char id[256];
+    query_text(req, "id", id, sizeof(id));
+    if (id[0] != 0 && std::strncmp(id, "media-source://", 15) != 0) {
+        return send_error(req, "400 Bad Request", "not a media-source:// id");
+    }
+    char error[96] = {};
+    size_t length = 0;
+    char *text = g_hass->media(id, length, error, sizeof(error));
+    return send_answer(req, text, length, error);
+}
+
 esp_err_t post_reconnect(httpd_req_t *req)
 {
     if (!require_login(req)) {
@@ -240,6 +260,7 @@ void register_hass_routes(httpd_handle_t server, const HassAccess *hass)
         {.uri = "/api/hass/discover", .method = HTTP_GET, .handler = get_discover, .user_ctx = nullptr},
         {.uri = "/api/hass/entities", .method = HTTP_GET, .handler = get_entities, .user_ctx = nullptr},
         {.uri = "/api/hass/entity", .method = HTTP_GET, .handler = get_entity, .user_ctx = nullptr},
+        {.uri = "/api/hass/media", .method = HTTP_GET, .handler = get_media, .user_ctx = nullptr},
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

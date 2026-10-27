@@ -706,7 +706,7 @@ void update(View &view, const core::Layout &layout, const core::EntityState &sta
         return;
     }
     const core::Tile &tile = layout.tiles[view.tile];
-    if (tile.kind == TileKind::Area) {
+    if (tile.kind == TileKind::Area || tile.kind == TileKind::Media) {
         update_icon(view, layout, state, true);
         return;
     }

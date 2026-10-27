@@ -111,6 +111,8 @@ window.hcEditor = (() => {
   let pageKey = 0, sel = null, orient = "l";
   let icons = [];    // the device sends the names (/api/dashboard/editor)
   let zones = [];    // the time zone names of a clock tile, from the device too
+  // the folder picker of a media tile: where it is ({src: "hass"|"sd", id, title} per level)
+  let mediaPath = [];
   let check = { state: "ok", text: "", k: null }, checkTimer = null, checkSeq = 0;
   let addCell = null, drag = null;
   // the entity picker: the tile whose entity it replaces (null: a new tile), the newest search,
@@ -214,6 +216,7 @@ window.hcEditor = (() => {
     if (t.name) return t.name;
     if (t.type === "spacer") return "Spacer";
     if (t.type === "clock") return "Clock";
+    if (t.type === "media") return "Media";
     if (t.type === "area") return "(no name)";
     return haNames.get(t.entity) || (t.entity || "?").split(".")[1] || t.entity;
   }
@@ -310,6 +313,7 @@ window.hcEditor = (() => {
     if (k !== "picture") { delete t.refresh; delete t.stream; }
     if (k !== "clock") for (const key of ["zone", "hours", "seconds", "date", "style", "border", "ticks"]) delete t[key];
     if (k === "clock" && t.style !== "analog") { delete t.border; delete t.ticks; }
+    if (k !== "media") delete t.folder;
   }
   function insertTile(p, t, cell) {
     if (cell) {
@@ -413,6 +417,7 @@ window.hcEditor = (() => {
     const k = kindOf(t), e = t.entity || "";
     if (k === "area") return "folder";
     if (k === "clock") return "none"; // the time is the picture
+    if (k === "media") return "music";
     if (k === "light") return "lightbulb";
     if (k === "climate") return "thermostat";
     if (k === "picture") return "camera";
@@ -465,7 +470,7 @@ window.hcEditor = (() => {
       return `<div class="tile ${flags}" ${attrs}>${icon}${face}${date}${t.name ? name : ""}<div class="kind">${t.zone ? esc(t.zone) : "clock"}</div></div>`;
     }
     const icon = iconOf(t) === "none" ? "" : svg(iconOf(t), large ? 44 : 24);
-    const hint = k === "light" && t.dimmer ? "dimmer" : k === "area" ? "area" : "";
+    const hint = k === "light" && t.dimmer ? "dimmer" : k === "area" ? "area" : k === "media" ? "media" : "";
     return `<div class="tile ${flags}" ${attrs}>${icon}${name}${hint ? `<div class="kind">${hint}</div>` : ""}</div>`;
   }
 
@@ -597,6 +602,7 @@ window.hcEditor = (() => {
             <button class="btn btn-sm btn-outline-secondary" data-act="add-area" ${p.depth >= 5 ? "disabled" : ""}>+ Area</button>
             <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button>
             <button class="btn btn-sm btn-outline-secondary" data-act="add-clock">+ Clock</button>
+            <button class="btn btn-sm btn-outline-secondary" data-act="add-media">+ Media</button>
           </div>
         </div>
         <div class="ed-insp"><div class="card mb-0"><div class="card-body insp" id="ed-insp"></div></div></div>
@@ -662,7 +668,7 @@ window.hcEditor = (() => {
     const movable = pages().filter((x) => x.key !== p.key && !(t.type === "area" && isInside(x.key, t._k)));
     const known = [...entitiesInUse()].sort();
     let body = "";
-    if (k !== "area" && k !== "spacer" && k !== "clock") {
+    if (k !== "area" && k !== "spacer" && k !== "clock" && k !== "media") {
       body += field("Entity", `<div class="input-group input-group-sm">
           <input class="form-control" list="ed-ents" data-field="entity" value="${esc(t.entity)}" spellcheck="false">
           <button class="btn btn-outline-secondary" data-act="pick-entity">Pick</button></div>
@@ -697,6 +703,12 @@ window.hcEditor = (() => {
       }
       body += field("Time zone", `<input class="form-control form-control-sm" list="ed-zones" data-field="zone" value="${esc(t.zone || "")}" placeholder="the device's (from Home Assistant)" spellcheck="false">
         <datalist id="ed-zones">${zones.map((x) => `<option value="${x}">`).join("")}</datalist>`, "an IANA name, Europe/London");
+    }
+    if (k === "media") {
+      body += field("Folder", `<div class="input-group input-group-sm">
+          <input class="form-control" data-field="folder" value="${esc(t.folder || "")}" placeholder="none: Home Assistant and SD card" spellcheck="false">
+          <button class="btn btn-outline-secondary" data-act="pick-folder">Pick</button></div>`,
+        "where the browser starts: a folder of Home Assistant's media library (media-source://...) or of the SD card (music/albums)");
     }
     body += field(`Size in ${oname(orient)}`, sizeSelect(p, t, orient),
       orient === "p" ? "columns x rows of the turned screen; without one the landscape size turned" : "columns x rows; portrait turns it unless set there");
@@ -866,7 +878,8 @@ window.hcEditor = (() => {
       <div class="list-group ent-list mb-3" id="ed-ent-list"></div>
       ${replaceK ? "" : `<div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" data-act="add-area">+ Area</button>
         <button class="btn btn-sm btn-outline-secondary" data-act="add-spacer">+ Spacer</button>
-        <button class="btn btn-sm btn-outline-secondary" data-act="add-clock">+ Clock</button></div>`}`, "modal-lg");
+        <button class="btn btn-sm btn-outline-secondary" data-act="add-clock">+ Clock</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="add-media">+ Media</button></div>`}`, "modal-lg");
     const input = root.querySelector("#ed-ent");
     input.addEventListener("input", () => { clearTimeout(pickTimer); pickTimer = setTimeout(search, 300); });
     input.addEventListener("keydown", (e) => {
@@ -952,6 +965,54 @@ window.hcEditor = (() => {
     closeModal();
   }
 
+  // The folder picker of a media tile: the two tops, then folder by folder through Home Assistant's
+  // media library (GET /api/hass/media) or the SD card (GET /api/sd/list); "Use this folder" takes
+  // the one shown, "Both tops" clears the folder.
+  const natural = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).compare;
+  function openFolderPicker() {
+    mediaPath = [];
+    modal("Folder of the media tile", `<div class="small text-body-secondary mb-2" id="ed-mp-where"></div>
+      <div class="list-group ent-list mb-3" id="ed-mp-list"></div>
+      <div class="d-flex gap-2"><button class="btn btn-sm btn-primary" data-act="mp-use" id="ed-mp-use">Use this folder</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="mp-both">None: both tops</button></div>`, "modal-lg");
+    drawFolderPicker();
+  }
+  async function drawFolderPicker() {
+    const list = root.querySelector("#ed-mp-list");
+    if (!list) return;
+    const here = mediaPath[mediaPath.length - 1];
+    root.querySelector("#ed-mp-where").textContent = here ? mediaPath.map((x) => x.title).join(" / ") : "Home Assistant's media library or the SD card";
+    root.querySelector("#ed-mp-use").disabled = !here;
+    const row = (act, data, text) => `<a href="#" class="list-group-item list-group-item-action" data-act="${act}" ${data}>${text}</a>`;
+    const up = here ? row("mp-up", "", "..") : "";
+    if (!here) {
+      list.innerHTML = row("mp-open", `data-src="hass" data-id="" data-title="Home Assistant"`, "Home Assistant") +
+        row("mp-open", `data-src="sd" data-id="" data-title="SD card"`, "SD card");
+      return;
+    }
+    list.innerHTML = up + `<div class="list-group-item text-body-secondary">Loading ...</div>`;
+    let folders = [];
+    try {
+      if (here.src === "hass") {
+        const r = await request("GET", "/api/hass/media?id=" + encodeURIComponent(here.id));
+        if (r.status !== 200) throw new Error((r.answer && r.answer.error) || "Home Assistant did not answer");
+        folders = r.answer.folders.map(([id, title]) => ({ id, title }));
+      } else {
+        const r = await request("GET", "/api/sd/list?dir=" + encodeURIComponent(here.id));
+        if (r.status !== 200) throw new Error((r.answer && r.answer.error) || "no SD card");
+        folders = r.answer.entries.filter((e) => e.dir).map((e) => ({ id: (here.id ? here.id + "/" : "") + e.name, title: e.name }))
+          .sort((a, b) => natural(a.title, b.title));
+      }
+    } catch (e) {
+      if (mediaPath[mediaPath.length - 1] === here) list.innerHTML = up + `<div class="list-group-item text-warning-emphasis">${esc(e.message)}</div>`;
+      return;
+    }
+    // a newer step replaced this one while it waited
+    if (mediaPath[mediaPath.length - 1] !== here) return;
+    list.innerHTML = up + (folders.length ? folders.map((f) => row("mp-open", `data-src="${here.src}" data-id="${esc(f.id)}" data-title="${esc(f.title)}"`, esc(f.title))).join("")
+      : `<div class="list-group-item text-body-secondary">No folders in it</div>`);
+  }
+
   function openIcons() {
     const t = locate(sel).tile;
     modal("Icon", `<input class="form-control form-control-sm mb-2" id="ed-icon-q" placeholder="Search">
@@ -988,6 +1049,17 @@ window.hcEditor = (() => {
     "goto-problem": () => { if (check.k) actions.select({ dataset: { k: check.k } }); },
     add: (el) => openPicker(el.dataset.c !== undefined ? { c: +el.dataset.c, r: +el.dataset.r } : null),
     "pick-entity": () => openPicker(null, sel),
+    "pick-folder": () => openFolderPicker(),
+    "mp-open": (el) => { mediaPath.push({ src: el.dataset.src, id: el.dataset.id, title: el.dataset.title }); drawFolderPicker(); },
+    "mp-up": () => { mediaPath.pop(); drawFolderPicker(); },
+    "mp-use": () => {
+      const here = mediaPath[mediaPath.length - 1];
+      // the top of the library has no id of its own: its first level is media-source://
+      const folder = here.src === "hass" ? here.id || "media-source://" : here.id || "/";
+      closeModal();
+      change(() => { const t = locate(sel).tile; if (folder) t.folder = folder; else delete t.folder; });
+    },
+    "mp-both": () => { closeModal(); change(() => { delete locate(sel).tile.folder; }); },
     pick: (el) => {
       if (el.classList.contains("disabled")) return;
       root.querySelectorAll("#ed-ent-list [data-act=pick]").forEach((x) => x.classList.add("disabled"));
@@ -1005,6 +1077,7 @@ window.hcEditor = (() => {
     },
     "add-spacer": () => { if (!root.querySelector("#ed-modal")) addCell = null; addTile({ _k: K++, type: "spacer" }); },
     "add-clock": () => { if (!root.querySelector("#ed-modal")) addCell = null; addTile({ _k: K++, type: "clock" }); },
+    "add-media": () => { if (!root.querySelector("#ed-modal")) addCell = null; addTile({ _k: K++, type: "media" }); },
     "reset-arr": () => change(() => resetArrangement(pageByKey(pageKey), orient)),
     icon: () => openIcons(),
     "set-icon": (el) => { const v = el.dataset.icon; closeModal(); change(() => { const t = locate(sel).tile; if (v) t.icon = v; else delete t.icon; }); },
@@ -1071,6 +1144,12 @@ window.hcEditor = (() => {
       if (["seconds", "date", "border"].includes(f)) { if (v) t[f] = true; else delete t[f]; return; }
       if (f === "hours") { if (v) t.hours = 12; else delete t.hours; return; }
       if (f === "style" || f === "ticks") { if (v) t[f] = v; else delete t[f]; stripForKind(t); return; }
+      if (f === "folder") {
+        // "/" is the card's root, a media-source:// id stays as it is
+        const x = v.startsWith("media-source://") || /^\/+$/.test(v) ? (v.startsWith("/") ? "/" : v) : v.replace(/^\/+|\/+$/g, "");
+        if (x) t.folder = x; else delete t.folder;
+        return;
+      }
       if (f === "size-l" || f === "size-p") {
         const o = f.slice(-1);
         if (v) sideW(t, o).size = v.split("x").map(Number); else delete side(t, o).size;

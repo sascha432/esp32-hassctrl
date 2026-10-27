@@ -439,6 +439,23 @@ void back()
     }
 }
 
+void open_media(core::TileIndex tile)
+{
+    if (!g.layout || tile >= g.layout->tiles.size()) {
+        return;
+    }
+#if CONFIG_HC_UI_PLAYER
+    if (g.backend->media_browse != nullptr) {
+        const core::Tile &media = g.layout->tiles[tile];
+        settings::pages::media_open(media.folder.c_str());
+        // slides in from the right and back to the right, as a page of the dashboard
+        settings::open_alone(settings::Page::Media, g.screen);
+        return;
+    }
+#endif
+    overlay::show(LV_SYMBOL_WARNING "  No media player on this device");
+}
+
 void swiped(int direction)
 {
     // a swipe right on a swipe page goes back; nothing else

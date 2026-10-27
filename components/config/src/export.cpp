@@ -162,6 +162,9 @@ private:
         if (!tile.zone.empty()) {
             put("zone", formats::yaml::quote(tile.zone));
         }
+        if (!tile.folder.empty()) {
+            put("folder", formats::yaml::quote(tile.folder));
+        }
         if (tile.kind == TileKind::Area) {
             const core::Page &page = _layout.pages[tile.opens];
             if (page.has_grid) {

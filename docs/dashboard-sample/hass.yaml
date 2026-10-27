@@ -198,8 +198,9 @@ defaults:
 #                                                   (Enabled switch, last run, Run, the timeline)
 #   everything else (sensor.*, binary_sensor.*, ...)
 #                                                   shows the state, a tap opens the history
-# Only `area`, `spacer` and `clock` have a `type` (they have no entity; the clock is in rooms.yaml
-# and rooms/workshop.yaml). Every key except `entity` is optional.
+# Only `area`, `spacer`, `clock` and `media` have a `type` (they have no entity; the clock is in
+# rooms.yaml and rooms/workshop.yaml, the media browser in rooms.yaml). Every key except `entity`
+# is optional.
 tiles:
   # A light as a dimmer: level fill from the bottom, drag to set the level, double tap to switch,
   # tap for the light panel (colors, effects). Two rows tall, so the fill has room.

@@ -156,7 +156,7 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
   none; `motion_helper`: empty without a sensor, `unknown`, `missing`, `found`, and `motion_entity`), `POST /api/hass` (`url`, `token`; a new token is tried first, 400 when Home Assistant
   rejects it; an empty token keeps the stored one, an empty url removes both), `POST /api/hass/reconnect`, `POST /api/hass/certificate` (`fingerprint`, 64 hex
   digits, colons allowed; empty forgets it), `GET /api/hass/discover`, and for the
-  dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`
+  dashboard editor's entity picker `GET /api/hass/entities`, `GET /api/hass/entity`, its media folder picker `GET /api/hass/media`
   ([web-dashboard-editor.md](web-dashboard-editor.md) section 3). The token is write-only. The recovery app has none of them (404).
 
 ```

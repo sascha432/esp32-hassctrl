@@ -64,6 +64,9 @@ struct HassAccess {
     // one, `entity_id` is valid.
     char *(*entities)(const char *domain, const char *query, size_t &length, char *error, size_t error_size);
     char *(*entity)(const char *entity_id, size_t &length, char *error, size_t error_size);
+    // The folder picker of a media tile: the subfolders of the media library's folder `id` (empty:
+    // the top) as {"title", "folders": [[id, title], ...]}, blocking up to 10 s; null with `error`.
+    char *(*media)(const char *id, size_t &length, char *error, size_t error_size);
 };
 
 // One uploaded file of a dashboard import: its path inside the folder and its text.

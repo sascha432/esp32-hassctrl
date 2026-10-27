@@ -53,6 +53,8 @@ void fetch_entity(std::string_view entity_id, uint32_t generation);
 // A made-up media library (Settings, Media): My media with a music folder of two albums of MP3s,
 // a picture and a sound, 300 ms after the request.
 void browse_media(std::string_view id, uint32_t generation);
+// the same folder at once (the play button of a folder walks the library); false when not connected
+bool media_folder(std::string_view id, hc::core::MediaList &out);
 // how the forecast answers (step `forecast`): with the entries, never (Loading...), or an error
 enum class ForecastMode : uint8_t { Ok, Loading, Error };
 void set_forecast_mode(ForecastMode mode);

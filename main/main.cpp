@@ -29,6 +29,7 @@
 #endif
 #include "hc/config/dashboard.hpp"
 #include "hc/core/icons.hpp"
+#include "hc/core/natural.hpp"
 #include "hc/core/timezone.hpp"
 #include "hc/dashboard/dashboard.hpp"
 #include "hc/devconsole/devconsole.hpp"
@@ -276,6 +277,8 @@ char *hass_answer(bool ok, const hc::memory::String &json, const hc::memory::Str
 
 // the editor's search waits on the web server's task, a few seconds at most
 constexpr uint32_t kHassQueryTimeoutMs = 6000;
+// a folder of the media library (the media tile's folder picker)
+constexpr uint32_t kMediaBrowseTimeoutMs = 10000;
 
 const hc::webserver::HassAccess kHassAccess{
     .status =
@@ -329,6 +332,37 @@ const hc::webserver::HassAccess kHassAccess{
             hc::memory::String json, problem;
             const bool ok = hc::hass::entity_details(entity_id, kHassQueryTimeoutMs, json, problem);
             return hass_answer(ok, json, problem, length, error, error_size);
+        },
+    .media =
+        [](const char *id, size_t &length, char *error, size_t error_size) {
+            hc::core::MediaList list;
+            hc::memory::String problem;
+            if (!hc::hass::browse_media(id, kMediaBrowseTimeoutMs, list, problem)) {
+                return hass_answer(false, {}, problem, length, error, error_size);
+            }
+            std::stable_sort(list.items.begin(), list.items.end(),
+                             [](const hc::core::MediaItem &a, const hc::core::MediaItem &b) {
+                                 return hc::core::natural_less(a.title, b.title);
+                             });
+            cJSON *root = cJSON_CreateObject();
+            cJSON_AddStringToObject(root, "title", list.title.c_str());
+            cJSON *folders = cJSON_AddArrayToObject(root, "folders");
+            for (const hc::core::MediaItem &item : list.items) {
+                if (item.folder) {
+                    cJSON *row = cJSON_CreateArray();
+                    cJSON_AddItemToArray(row, cJSON_CreateString(item.id.c_str()));
+                    cJSON_AddItemToArray(row, cJSON_CreateString(item.title.c_str()));
+                    cJSON_AddItemToArray(folders, row);
+                }
+            }
+            char *printed = cJSON_PrintUnformatted(root);
+            cJSON_Delete(root);
+            if (printed == nullptr) {
+                return hass_answer(false, {}, "no memory", length, error, error_size);
+            }
+            const hc::memory::String json(printed);
+            cJSON_free(printed);
+            return hass_answer(true, json, problem, length, error, error_size);
         },
 };
 

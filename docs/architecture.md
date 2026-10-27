@@ -152,7 +152,10 @@ Two actors own all state. Everything between them is a message.
 
 * The **core lives in the UI task.** The UI is the only consumer of entity state, so putting the
   store there removes every lock around the model. The dashboard screen takes the waiting events
-  from an `lv_timer` every 20 ms (`Backend::take_event`).
+  from an `lv_timer` every 20 ms (`Backend::take_event`). At most 16 wait; when the UI was busy
+  (a screen animation) and they are full, the oldest page values or image make room. An answer
+  (a media folder, the entity search, a history) is asked for once and waited for: it is dropped
+  only when nothing else is waiting (logged).
 * **Decoding happens in the hass task.** The UI task receives typed values
   (`PageValues{generation, updates}`), never JSON. Parsing a few KB never blocks rendering.
 * **Sending never blocks the UI.** `esp_websocket_client_send_text` takes a lock and can block up
@@ -360,7 +363,7 @@ YAML import and export:
 Tile format:
 
 * The kind of a tile follows from the domain of its entity. `type` is only for the tiles
-  without an entity: `area`, `spacer` and `clock`. A light tile with the flag `dimmer` shows the
+  without an entity: `area`, `spacer`, `clock` and `media`. A light tile with the flag `dimmer` shows the
   level fill; without it, it acts as a simple switch.
 * Icons: one name per glyph, no duplicates. The names are the MDI names (`lightbulb`,
   `power-plug`).
@@ -387,15 +390,21 @@ Tile format, details:
   | `lock` | lock (the state in words) | opens the lock panel (lock, unlock, open, the timeline); never unlocks by itself |
   | `weather` | weather: the condition, the temperature, the humidity | opens the forecast panel |
   | `type: clock` (no entity) | clock: the time, digital or analog, in the device's zone or its own `zone` ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 3) | nothing |
+  | `type: media` (no entity) | media: the icon `music` and its name (default "Media") | opens the media browser at its `folder`, a folder of Home Assistant's media library or of the SD card; without one both tops ([ui/lvgl/lvgl-settings.md](ui/lvgl/lvgl-settings.md) section 3) |
   | `sensor`, `binary_sensor`, every other domain | sensor (read only) | opens the panel with the history |
 
   Every tile is 1x1 unless its `landscape:` / `portrait:` size says otherwise. Any kind takes
   any size up to the grid; the look of a tile follows
   its shape ([ui/lvgl/lvgl-dashboard.md](ui/lvgl/lvgl-dashboard.md) section 3).
-* `type:` exists only for `area`, `spacer` and `clock`; on any other tile it is an error. The
-  clock's keys (`zone`, `hours`, `seconds`, `date`, `style`, `border`, `ticks`) are only for
-  clocks, `border` and `ticks` only for analog ones; `zone` is an IANA name the firmware knows
-  (`core::time_zone_rule`), anything else is refused at import.
+* `type:` exists only for `area`, `spacer`, `clock` and `media`; on any other tile it is an
+  error. The clock's keys (`zone`, `hours`, `seconds`, `date`, `style`, `border`, `ticks`) are
+  only for clocks, `border` and `ticks` only for analog ones; `zone` is an IANA name the firmware
+  knows (`core::time_zone_rule`), anything else is refused at import. The media tile's key is
+  `folder`, where its browser starts: a `media-source://` id of Home Assistant's media library
+  (at most 255 bytes; `media-source://` alone is its top) or a folder of the SD card relative to
+  it (no `..`, no `\`, no `/` at the ends, at most 96 bytes; `/` alone is its root); without it
+  the browser shows both tops. Only for media tiles. The web editor picks it with a folder
+  browser (`GET /api/hass/media`, `GET /api/sd/list`).
 * Icon order, the same as in the Home Assistant frontend or as close as the glyph subset
   allows: the `icon` of the tile; the entity's `icon`
   attribute (set by the user in HA, or by older integrations) when the glyph is in the firmware;
@@ -488,9 +497,12 @@ Orientation:
   `media_content_id`, title, MIME type, folder, playable), `media_source/resolve_media` gives the
   address of a file, signed by Home Assistant for 24 hours (`/media/local/...?authSig=...`).
   Messages and decoders in `hass_protocol/src/media_source.cpp` (host tested). The hass task
-  keeps one browse and one resolve on their way (`MediaState`), a newer one replaces it; a
-  browse for the UI comes back through `take_event` stamped with its generation, the others
-  (the console, the music download) wait on a semaphore. The music itself is section 9.6.
+  keeps one browse and one resolve on their way (`MediaState`); one on its way is never
+  replaced, newer ones wait behind it (the waited ones in order, the UI's as the newest only),
+  each with its timeout from when it was asked, so the player's folder walk and the browser do
+  not cancel each other. A browse for the UI comes back through `take_event` stamped with its
+  generation, the others (the console, the music download, the walk) wait on a semaphore. The
+  music itself is section 9.6.
 
 ---
 
@@ -1079,9 +1091,20 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
 * **Player** (`components/player`): the queue, independent of the screen, so the next item
   starts also with no screen open. Items are a file of the card, a `media-source://` id or an
   address (a playlist's line). A file of the card plays its folder's MP3 and WAV files from it
-  on (in the order of the names), a playlist (`.m3u`, `.m3u8`, `formats/src/m3u.cpp`, host tested:
-  `#EXTINF` titles, paths relative to the playlist, `\` as `/`) its entries, an MP3 of the
-  media library its folder's MP3s from it on. Next, previous (within the first 3 s the one
+  on (in the order of the names: without case, numbers by value, `core::natural_less`, host
+  tested), a playlist (`.m3u`, `.m3u8`, `formats/src/m3u.cpp`, host tested: `#EXTINF` titles,
+  paths relative to the playlist, `\` as `/`) its entries, an MP3 of the media library its
+  folder's MP3s from it on (in the order the browser shows: folders first, then the names).
+  * **A folder with its subfolders** (the play button of a folder in the media browser,
+    `player::play_folder` / `play_media_folder`, console `player folder`): `player/src/tree.cpp`
+    (host tested) walks depth first, each folder's files before its subfolders, both in the
+    order of the names. A folder with a playlist gives the playlist's entries (the first one by
+    name) in place of its files, its subfolders follow; a playlist that cannot be read leaves the
+    files. What plays stops at once; a task (8 KB stack in PSRAM) lists the folders (the card's
+    with `sdcard::list`, the library's with the blocking `hass::browse_media`, one request a
+    folder, 10 s each) while the player says Buffering with the folder's name, then the queue
+    starts at its first item. At most 1000 items, 8 levels below the folder, 100 folders of the
+    library; a newer play or folder makes the walk's result void, an empty one is reported. Next, previous (within the first 3 s the one
   before, else the start of the item), shuffle (the item that plays first, the rest in a random
   order) and repeat off, all or one (`player::Queue`, host tested); shuffle and repeat are stored
   (`ui` / `player`, `set_blob_later`). An item that cannot be played is skipped with a message

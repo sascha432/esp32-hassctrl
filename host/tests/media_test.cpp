@@ -2,6 +2,8 @@
 // components/formats/src/mp3_tags.cpp: the tags and the Xing header at the start of an MP3.
 // components/formats/src/m3u.cpp: the player's playlists.
 // components/player/src/queue.cpp: the order of the player's queue.
+// components/player/src/tree.cpp: a folder with its subfolders (the play button of a folder).
+// components/core/src/natural.cpp: the order of names, numbers by value.
 
 #include <algorithm>
 #include <cstring>
@@ -10,9 +12,11 @@
 
 #include "check.hpp"
 #include "hc/core/byte_ring.hpp"
+#include "hc/core/natural.hpp"
 #include "hc/formats/m3u.hpp"
 #include "hc/formats/mp3_tags.hpp"
 #include "hc/player/queue.hpp"
+#include "hc/player/tree.hpp"
 
 using namespace hc;
 
@@ -318,4 +322,119 @@ TEST(player_queue_shuffle)
     queue.set_shuffle(false, 0);
     CHECK(queue.current()->location.c_str() == playing);
     CHECK(queue.position() == static_cast<size_t>(playing[0] - 'a'));
+}
+
+TEST(natural_order)
+{
+    using core::natural_less;
+    CHECK(natural_less("2 Flood", "10 High water"));
+    CHECK(!natural_less("10 High water", "2 Flood"));
+    CHECK(natural_less("track9", "Track10"));
+    CHECK(natural_less("abc", "ABCD"));
+    CHECK(!natural_less("ABC", "abc") && !natural_less("abc", "ABC"));
+    CHECK(natural_less("a1b2", "a1b10"));
+    CHECK(natural_less("1", "01") && !natural_less("01", "1"));
+    CHECK(natural_less("disc 1/x", "disc 2/a"));
+    CHECK(natural_less("12345678901234567890", "12345678901234567891"));
+    CHECK(natural_less("Album", "Album 2"));
+    std::vector<std::string> names = {"10.mp3", "b.mp3", "2.mp3", "A.mp3", "1.mp3"};
+    std::sort(names.begin(), names.end(), [](const std::string &a, const std::string &b) { return natural_less(a, b); });
+    CHECK(names == (std::vector<std::string>{"1.mp3", "2.mp3", "10.mp3", "A.mp3", "b.mp3"}));
+}
+
+namespace {
+
+// a made-up card: a path and whether it is a folder
+struct FakeTree {
+    std::vector<std::pair<std::string, bool>> entries;
+    std::vector<std::string> listed;
+
+    memory::Vector<player::Item> collect(const char *root, const player::TreeLimits &limits = {})
+    {
+        return player::collect_tree(
+            root,
+            [this](const memory::String &id, memory::Vector<player::TreeEntry> &out) {
+                listed.push_back(id.c_str());
+                const std::string folder = id.c_str();
+                bool found = folder.empty();
+                for (const auto &[path, dir] : entries) {
+                    found = found || (path == folder && dir);
+                    const size_t slash = path.rfind('/');
+                    const std::string parent = slash == std::string::npos ? "" : path.substr(0, slash);
+                    if (parent != folder) {
+                        continue;
+                    }
+                    player::TreeEntry entry;
+                    entry.id = path.c_str();
+                    entry.name = path.substr(slash == std::string::npos ? 0 : slash + 1).c_str();
+                    entry.dir = dir;
+                    entry.playlist = path.ends_with(".m3u");
+                    out.push_back(std::move(entry));
+                }
+                return found;
+            },
+            [](const memory::String &id, memory::Vector<player::Item> &out) {
+                // "broken.m3u" cannot be read; the others list two addresses
+                if (std::string(id.c_str()).ends_with("broken.m3u")) {
+                    return false;
+                }
+                out.push_back({player::Origin::Address, (std::string(id.c_str()) + "#1").c_str(), ""});
+                out.push_back({player::Origin::Address, (std::string(id.c_str()) + "#2").c_str(), ""});
+                return true;
+            },
+            [](const player::TreeEntry &entry) { return player::Item{player::Origin::File, entry.id, entry.name}; },
+            limits);
+    }
+};
+
+std::string locations(const memory::Vector<player::Item> &items)
+{
+    std::string out;
+    for (const auto &item : items) {
+        out += (out.empty() ? "" : " ") + std::string(item.location.c_str());
+    }
+    return out;
+}
+
+} // namespace
+
+TEST(player_tree_order)
+{
+    FakeTree tree;
+    tree.entries = {
+        {"music", true},
+        {"music/b.mp3", false},
+        {"music/Tides", true},
+        {"music/Tides/10 c.mp3", false},
+        {"music/Tides/2 b.mp3", false},
+        {"music/Tides/1 a.mp3", false},
+        {"music/Live", true},
+        {"music/Live/x.mp3", false},
+        {"music/Live/z.m3u", false},
+        {"music/Live/a.m3u", false},
+        {"music/Live/Bonus", true},
+        {"music/Live/Bonus/y.mp3", false},
+        {"music/Broken", true},
+        {"music/Broken/broken.m3u", false},
+        {"music/Broken/w.mp3", false},
+        {"music/A.mp3", false},
+    };
+    // the folder's files first, then the subfolders in natural order; a playlist (the first by
+    // name) in place of the files, its subfolders after it; a playlist that cannot be read: the files
+    CHECK_STR(locations(tree.collect("music")).c_str(),
+              "music/A.mp3 music/b.mp3 music/Broken/w.mp3 music/Live/a.m3u#1 music/Live/a.m3u#2 "
+              "music/Live/Bonus/y.mp3 music/Tides/1 a.mp3 music/Tides/2 b.mp3 music/Tides/10 c.mp3");
+    CHECK(tree.collect("nowhere").empty());
+    // the limits: items, depth below the first folder, folders listed
+    player::TreeLimits limits;
+    limits.items = 4;
+    CHECK_STR(locations(tree.collect("music", limits)).c_str(), "music/A.mp3 music/b.mp3 music/Broken/w.mp3 music/Live/a.m3u#1");
+    limits = {};
+    limits.depth = 0;
+    CHECK_STR(locations(tree.collect("music", limits)).c_str(), "music/A.mp3 music/b.mp3");
+    limits = {};
+    limits.folders = 2;
+    tree.listed.clear();
+    CHECK_STR(locations(tree.collect("music", limits)).c_str(), "music/A.mp3 music/b.mp3 music/Broken/w.mp3");
+    CHECK(tree.listed.size() == 2);
 }

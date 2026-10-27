@@ -638,8 +638,10 @@ const hc::ui::Backend g_backend{
 #if CONFIG_HC_UI_PLAYER
 #if CONFIG_HC_SDCARD
     .player_play_file = ui_player::play_file,
+    .player_play_folder = ui_player::play_folder,
 #endif
     .player_play_media = ui_player::play_media,
+    .player_play_media_folder = ui_player::play_media_folder,
     .player_toggle = ui_player::toggle,
     .player_seek = ui_player::seek,
     .player_next = ui_player::next,

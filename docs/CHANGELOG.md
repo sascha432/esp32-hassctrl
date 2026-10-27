@@ -13,6 +13,12 @@ Added
 
 * Variant `jc4880p443c.hallway`: motion sensor on GPIO 28, active high.
 
+Fixed
+
+* A folder's ▶ and the media browser (or the web editor's folder picker) no longer cancel each
+  other's requests to Home Assistant: a request on its way is answered first, newer ones wait.
+* Stop while a folder is still collected cancels it; play/pause, next and previous wait for it.
+
 ### 2026-10-26
 
 Added
@@ -22,10 +28,19 @@ Added
 * Console `c6 update slot`: updates the C6 from the P4's free app slot, written over USB, with Wi-Fi
   off; for a new board whose vendor C6 firmware cannot hold Wi-Fi.
 
+Changed
+
+* Media browser: folders of the library seen while it is open show again at once (scroll kept)
+  and are reloaded in the background; the page changes only if the folder did. A folder of 200
+  subfolders builds in 0.3 s instead of 1.7 s on the P4.
+
 ### 2026-10-25
 
 Added
 
+* Media tile (`type: media`, `folder`: a media library or SD folder, picked in the web editor)
+  replaces Settings › Media; a folder's ▶ plays it with its subfolders (natural order, a folder's
+  playlist in place of its files).
 * SD card on the JC3248W535: its SPI-wired slot as SDMMC 1 bit (CLK 12, CMD 11, D0 13, D3 10 held
   high), 40 MHz.
 
@@ -41,6 +56,8 @@ Changed
 
 Fixed
 
+* Media browser no longer hangs at "Loading ...": a full UI event queue drops page values, not
+  answers; 12 s timeout.
 * Spectrum: the lowest bands no longer share one FFT bin (1024 point FFT, at least one bin per
   band).
 

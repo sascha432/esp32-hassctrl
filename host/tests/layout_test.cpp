@@ -306,6 +306,44 @@ TEST(layout_checks_clocks)
     CHECK_STR(clock_ticks_name(ClockTicks::Minute), "minute");
 }
 
+TEST(layout_checks_media_tiles)
+{
+    const auto problem = [](auto change) {
+        Layout layout;
+        Tile tile;
+        tile.kind = TileKind::Media;
+        change(layout, tile);
+        layout.add_tile(0, tile);
+        return problem_of(layout);
+    };
+    CHECK_STR(kind_name(TileKind::Media), "media");
+    CHECK(!has_entity(TileKind::Media));
+    CHECK_STR(problem([](Layout &, Tile &) {}), "ok");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.folder = "music/albums"; }), "ok");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.folder = "/"; }), "ok"); // the card's root
+    CHECK_STR(problem([](Layout &, Tile &t) { t.folder = "media-source://"; }), "ok"); // the library's top
+    CHECK_STR(problem([](Layout &, Tile &t) { t.folder = "media-source://media_source/local/music/Ein Album"; }), "ok");
+    CHECK_STR(problem([](Layout &l, Tile &t) { t.entity = l.intern("media_player.a"); }), "a media has no entity");
+    for (const char *bad : {"/music", "music/", "a//b", "../x", "a/../b", "a\\b", "a/./b", "http://x/music"}) {
+        CHECK_STR(problem([&](Layout &, Tile &t) { t.folder = bad; }),
+                  "folder is media-source://... or a folder of the SD card like music/albums (no .., no \\, no / at "
+                  "the ends)");
+    }
+    CHECK_STR(problem([](Layout &, Tile &t) { t.folder = "media-source://" + std::string(250, 'a'); }),
+              "folder: a media-source:// id of at most 255 bytes");
+    CHECK_STR(problem([](Layout &, Tile &t) { t.zone = "Europe/London"; }),
+              "hours, seconds, date, style, border, ticks and zone are only for clock tiles");
+    // the media key on another kind
+    Layout layout;
+    Tile clock;
+    clock.kind = TileKind::Clock;
+    clock.folder = "music";
+    layout.add_tile(0, clock);
+    CHECK_STR(problem_of(layout), "folder is only for media tiles");
+    CHECK(hass_media_folder("media-source://tts") && !hass_media_folder("music"));
+    CHECK(valid_media_folder("") && valid_media_folder("Musik/Über") && !valid_media_folder(std::string(97, 'a')));
+}
+
 TEST(layout_checks_pages)
 {
     Layout empty;
