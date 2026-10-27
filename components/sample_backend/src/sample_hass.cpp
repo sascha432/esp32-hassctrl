@@ -920,6 +920,7 @@ bool media_folder(std::string_view id, hc::core::MediaList &media)
         media.title = "music";
         folder("Pelagial", base + "/music/Pelagial");
         folder("Phanerozoic", base + "/music/Phanerozoic");
+        file("Evening.m3u", "audio/x-mpegurl");
     } else if (id.starts_with(base + "/music/")) {
         media.title = hc::memory::String(id.substr(id.rfind('/') + 1));
         for (const char *title : {"01 - Epipelagic.mp3", "02 - Mesopelagic Into the Uncanny.mp3",

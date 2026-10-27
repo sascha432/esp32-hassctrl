@@ -2,8 +2,8 @@
 
 // The media player (docs/architecture.md section 9.6, CONFIG_HC_UI_PLAYER): what plays, in the
 // background and independent of any screen. A queue of items from the SD card (a folder from a
-// file on, a playlist) or from Home Assistant's media library (a folder from a file on), with
-// next, previous, shuffle and repeat; the audio task plays them (audio::play_media for a file,
+// file on, a playlist) or from Home Assistant's media library (a folder from a file on, a
+// playlist), with next, previous, shuffle and repeat; the audio task plays them (audio::play_media for a file,
 // audio::play_stream with a download of hass::stream_media for the media library). When an item
 // ends the next one starts, also with no screen open; an item that cannot be played is skipped
 // with a message, three in a row stop the queue.
@@ -39,11 +39,17 @@ bool play_file(const char *path);
 bool play_folder(const char *path, std::string_view title);
 bool play_media_folder(std::string_view id, std::string_view title);
 
+// The media library's playlist `id` (is_media_playlist), downloaded by the same task as a folder:
+// a path in it is relative to the playlist's folder, an address streams. False when it cannot start.
+bool play_media_playlist(std::string_view id, std::string_view title);
+
 // the name is a file the player plays: .mp3, .wav, or a playlist
 bool playable(const char *name);
 bool is_playlist(const char *name);
 // an entry of the media library the player plays: an MP3
 bool playable_media(const core::MediaItem &item);
+// an entry of the media library that is a playlist (audio/x-mpegurl, .m3u, .m3u8)
+bool is_media_playlist(const core::MediaItem &item);
 
 void pause(bool pause);
 // Playing <-> paused; a queue that ended or was stopped starts its item again.

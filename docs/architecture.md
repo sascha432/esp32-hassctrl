@@ -1094,7 +1094,11 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   on (in the order of the names: without case, numbers by value, `core::natural_less`, host
   tested), a playlist (`.m3u`, `.m3u8`, `formats/src/m3u.cpp`, host tested: `#EXTINF` titles,
   paths relative to the playlist, `\` as `/`) its entries, an MP3 of the media library its
-  folder's MP3s from it on (in the order the browser shows: folders first, then the names).
+  folder's MP3s from it on (in the order the browser shows: folders first, then the names). A
+  playlist of the library (`audio/x-mpegurl`, `.m3u`, `.m3u8`; `player::play_media_playlist`)
+  is downloaded by the folder task below with `hass::stream_media` into a 64 KB ring (15 s at
+  most): its paths are relative to the playlist's folder and become `media-source://` ids, its
+  addresses stream as they are.
   * **A folder with its subfolders** (the play button of a folder in the media browser,
     `player::play_folder` / `play_media_folder`, console `player folder`): `player/src/tree.cpp`
     (host tested) walks depth first, each folder's files before its subfolders, both in the

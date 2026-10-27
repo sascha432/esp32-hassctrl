@@ -1339,14 +1339,19 @@ ui/lvgl/lvgl-settings.md section 3 (Media).
       the list came every time, no "UI events full".
 - [ ] On the screen, your check: the media tile, ▶ of a folder with subfolders and an `.m3u` on
       the card (the test card has none).
+- [ ] A playlist of the media library (your report 2026-10-27, hallway P4: the row was grey, Home
+      Assistant lists it as `audio/x-mpegurl`): it plays now, paths relative to it as library
+      ids, addresses as streams. Your check on the screen with `music/playlists/...Radio
+      Station...m3u`; a radio stream that is not MP3 (AAC) still does not play.
 - [ ] Media browser memory: a folder of the library seen is held twice (the cache in
       `settings_media.cpp` copies it, the page keeps its own), up to 8 cached; keep one copy
       (the page shows a cached entry) or cache without the `type` string.
 - [ ] Walk of the card: `sdcard::list` calls `stat()` per entry, which on FAT scans the folder
       again (n² per folder); the walk needs only the folder flag, which `readdir` gives in
       `d_type`. A list without the stat would make `player folder` on a big card linear.
-- [ ] The browser's own `playable()` (`settings_media.cpp`) repeats `player::playable_media`;
-      one rule, over the backend, so a row's play icon and the walk agree.
+- [ ] The browser's own `playable()` and `media_playlist()` (`settings_media.cpp`) repeat
+      `player::playable_media` and `is_media_playlist`; one rule, over the backend, so a row's
+      play icon and the walk agree.
 - [ ] JC3248W535: playing an MP3 from the card logs `alloc failed: 2048 bytes, caps 0x8` (DMA:
       3 KB free, largest 2 KB; internal 10 KB free) on every start, also a single file; it plays
       on. Seen 2026-10-25, not caused by the folder play; DMA memory for the card's reads is short.

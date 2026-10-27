@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hc/core/natural.hpp"
+#include "hc/formats/m3u.hpp"
 #include "hc/hass/hass.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/player/tree.hpp"
@@ -18,7 +19,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "hc/formats/m3u.hpp"
 #include "hc/sdcard/sdcard.hpp"
 #endif
 
@@ -44,7 +44,11 @@ constexpr size_t kMaxFolder = 1000;
 constexpr uint32_t kBrowseTimeoutMs = 10000;
 // the folders of the media library a folder's play button lists at most: one request each
 constexpr size_t kMaxMediaFolders = 100;
-// the task that collects a folder with its subfolders; PSRAM
+// a playlist of the media library comes within this
+constexpr TickType_t kPlaylistTimeout = pdMS_TO_TICKS(15000);
+constexpr TickType_t kPlaylistPoll = pdMS_TO_TICKS(50);
+constexpr const char *kMediaScheme = "media-source://";
+// the task that collects a folder with its subfolders or a playlist of the media library; PSRAM
 constexpr uint32_t kWalkStack = 8192;
 
 struct Stored {
@@ -278,6 +282,49 @@ memory::Vector<Item> collect_sd(const memory::String &folder)
 }
 #endif
 
+// The entries of the media library's playlist `id`, downloaded as a file that plays (blocks the
+// calling task): a path relative to the playlist's folder is an id of the library, an address
+// streams as it is.
+bool read_media_playlist(const memory::String &id, memory::Vector<Item> &items)
+{
+    auto ring = std::make_shared<core::ByteRing>(kMaxPlaylist);
+    if (!ring->valid() || !hass::stream_media(id, ring)) {
+        return false;
+    }
+    memory::String text;
+    const TickType_t start = xTaskGetTickCount();
+    char buffer[512];
+    while (!ring->ended() && text.size() < kMaxPlaylist && xTaskGetTickCount() - start < kPlaylistTimeout) {
+        const size_t got = ring->read(reinterpret_cast<uint8_t *>(buffer), sizeof(buffer));
+        if (got == 0) {
+            vTaskDelay(kPlaylistPoll);
+        }
+        text.append(buffer, got);
+    }
+    const bool failed = ring->failed() || text.empty();
+    ring->cancel();
+    if (failed) {
+        ESP_LOGW(kTag, "%s: cannot be read", id.c_str());
+        return false;
+    }
+    // "media-source://media_source/local/music/x.m3u": the folder without the scheme, which the
+    // parser would take for a path; it comes back in front of each path
+    std::string_view folder(id);
+    if (folder.rfind(kMediaScheme, 0) == 0) {
+        folder.remove_prefix(std::strlen(kMediaScheme));
+    }
+    const size_t slash = folder.find_last_of('/');
+    folder = slash == std::string_view::npos ? std::string_view() : folder.substr(0, slash);
+    for (const auto &entry : formats::parse_m3u(text, folder)) {
+        Item item;
+        item.origin = entry.address ? Origin::Address : Origin::Media;
+        item.location = entry.address ? entry.location : kMediaScheme + entry.location;
+        item.title = entry.title.empty() ? name_of(entry.location) : entry.title;
+        items.push_back(std::move(item));
+    }
+    return !items.empty();
+}
+
 memory::Vector<Item> collect_media(const memory::String &folder)
 {
     TreeLimits limits;
@@ -293,18 +340,20 @@ memory::Vector<Item> collect_media(const memory::String &folder)
                 return false;
             }
             for (const core::MediaItem &entry : list.items) {
-                if (!entry.folder && !playable_media(entry)) {
+                const bool playlist = is_media_playlist(entry);
+                if (!entry.folder && !playlist && !playable_media(entry)) {
                     continue;
                 }
                 TreeEntry one;
                 one.id = entry.id;
                 one.name = entry.title;
                 one.dir = entry.folder;
+                one.playlist = playlist;
                 out.push_back(std::move(one));
             }
             return true;
         },
-        [](const memory::String &, memory::Vector<Item> &) { return false; },
+        [](const memory::String &id, memory::Vector<Item> &out) { return read_media_playlist(id, out); },
         [](const TreeEntry &entry) {
             Item item;
             item.origin = Origin::Media;
@@ -316,20 +365,38 @@ memory::Vector<Item> collect_media(const memory::String &folder)
         limits);
 }
 
+// what the walk task collects
+enum class Walked : uint8_t { SdFolder, MediaFolder, MediaPlaylist };
+
 struct Walk {
-    bool media;
+    Walked what;
     memory::String folder;
     uint32_t serial;
 };
 
+memory::Vector<Item> collect(const Walk &walk)
+{
+    memory::Vector<Item> items;
+    switch (walk.what) {
+    case Walked::SdFolder:
+#if CONFIG_HC_SDCARD
+        items = collect_sd(walk.folder);
+#endif
+        break;
+    case Walked::MediaFolder:
+        items = collect_media(walk.folder);
+        break;
+    case Walked::MediaPlaylist:
+        read_media_playlist(walk.folder, items);
+        break;
+    }
+    return items;
+}
+
 void walk_task(void *arg)
 {
     std::unique_ptr<Walk> walk(static_cast<Walk *>(arg));
-#if CONFIG_HC_SDCARD
-    memory::Vector<Item> items = walk->media ? collect_media(walk->folder) : collect_sd(walk->folder);
-#else
-    memory::Vector<Item> items = collect_media(walk->folder);
-#endif
+    memory::Vector<Item> items = collect(*walk);
     {
         std::lock_guard lock(g_mutex);
         if (walk->serial == g_walk) {
@@ -351,9 +418,9 @@ void walk_task(void *arg)
     vTaskDeleteWithCaps(nullptr);
 }
 
-bool start_walk(bool media, std::string_view folder, std::string_view title)
+bool start_walk(Walked what, std::string_view folder, std::string_view title)
 {
-    auto *walk = new Walk{media, memory::String(folder), 0};
+    auto *walk = new Walk{what, memory::String(folder), 0};
     {
         std::lock_guard lock(g_mutex);
         walk->serial = ++g_walk;
@@ -416,6 +483,15 @@ bool playable_media(const core::MediaItem &item)
     return item.type == "audio/mpeg" || item.type == "audio/mp3" || has_extension(item.title.c_str(), ".mp3");
 }
 
+bool is_media_playlist(const core::MediaItem &item)
+{
+    if (item.folder || !item.playable) {
+        return false;
+    }
+    // audio/x-mpegurl, audio/mpegurl, application/vnd.apple.mpegurl
+    return item.type.find("mpegurl") != memory::String::npos || is_playlist(item.title.c_str());
+}
+
 bool play_folder(const char *path, std::string_view title)
 {
 #if CONFIG_HC_SDCARD
@@ -431,7 +507,7 @@ bool play_folder(const char *path, std::string_view title)
     while (!folder.empty() && folder.back() == '/') {
         folder.remove_suffix(1);
     }
-    return start_walk(false, folder, title);
+    return start_walk(Walked::SdFolder, folder, title);
 #else
     (void)path;
     (void)title;
@@ -441,7 +517,12 @@ bool play_folder(const char *path, std::string_view title)
 
 bool play_media_folder(std::string_view id, std::string_view title)
 {
-    return start_walk(true, id, title);
+    return start_walk(Walked::MediaFolder, id, title);
+}
+
+bool play_media_playlist(std::string_view id, std::string_view title)
+{
+    return start_walk(Walked::MediaPlaylist, id, title);
 }
 
 bool play_file(const char *path)

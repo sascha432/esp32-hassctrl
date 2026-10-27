@@ -93,6 +93,11 @@ bool play_media_folder(std::string_view id, std::string_view title)
 
 void play_media(const hc::core::MediaList &folder, size_t index)
 {
+    // a playlist plays its entries
+    if (index < folder.items.size() && hc::player::is_media_playlist(folder.items[index])) {
+        hc::player::play_media_playlist(folder.items[index].id, folder.items[index].title);
+        return;
+    }
     hc::memory::Vector<hc::player::Item> items;
     size_t start = 0;
     for (size_t i = 0; i < folder.items.size(); i++) {

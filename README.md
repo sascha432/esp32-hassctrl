@@ -59,8 +59,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 - File manager in Settings, System, SD card: folders, new folder, rename/move, delete; rename/move in the web UI too.
   Names in natural order (2 before 10).
 - Media player that plays on in the background (`CONFIG_HC_UI_PLAYER`, boards with MP3): Home Assistant's media
-  library (a media tile) streamed while it plays, the card's folders and playlists (`.m3u`), a folder's ▶ plays it
-  with all its subfolders (a folder's playlist in place of its files); title, artist and cover
+  library (a media tile) streamed while it plays, the card's folders, playlists (`.m3u`) on the card
+  and in the library, a folder's ▶ plays it with all its subfolders (a folder's playlist in place of its files); title, artist and cover
   from the tags, next, previous, shuffle, repeat, seek, LED-style spectrum analyser; alarms and Home Assistant's
   sounds pause it, a play symbol in the status bar opens it.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor

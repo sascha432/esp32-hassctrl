@@ -15,6 +15,8 @@ Added
 
 Fixed
 
+* A playlist (`.m3u`, `.m3u8`) in Home Assistant's media library plays in the media browser and
+  under a folder's ▶; before, only the card's playlists did and the library's row was grey.
 * A folder's ▶ and the media browser (or the web editor's folder picker) no longer cancel each
   other's requests to Home Assistant: a request on its way is answered first, newer ones wait.
 * Stop while a folder is still collected cancels it; play/pause, next and previous wait for it.

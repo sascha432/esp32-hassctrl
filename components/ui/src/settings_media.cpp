@@ -4,7 +4,7 @@
 // starts and the furthest `..` goes; without one the top shows two folders, "Home Assistant" and
 // "SD card" (only the library on a device without the card). A tap on a folder opens it,
 // its ▶ plays it with all its subfolders (hc/player/tree.hpp); a tap on a file plays the folder's
-// files from there on (an SD playlist: its entries) and opens the player. The folder that was open
+// files from there on (a playlist: its entries) and opens the player. The folder that was open
 // stays open for the next time; the folders of the library come from Home Assistant one at a time
 // (Backend::media_browse) and arrive through the dashboard's events, the card's are read at once.
 // A folder of the library seen while the browser is open shows again at once, where it was
@@ -20,6 +20,7 @@
 #include <cstring>
 #include <memory>
 #include <new>
+#include <strings.h>
 
 #include "hc/core/natural.hpp"
 #include "overlay.hpp"
@@ -391,9 +392,25 @@ void on_item_play(lv_event_t *event)
     }
 }
 
-// an MP3, the player's format; a radio station of the library may be one too
+// a playlist of the library (audio/x-mpegurl, .m3u, .m3u8), as player::is_media_playlist
+bool media_playlist(const core::MediaItem &item)
+{
+    if (item.folder || !item.playable) {
+        return false;
+    }
+    if (item.type.find("mpegurl") != memory::String::npos) {
+        return true;
+    }
+    const char *dot = std::strrchr(item.title.c_str(), '.');
+    return dot != nullptr && (strcasecmp(dot, ".m3u") == 0 || strcasecmp(dot, ".m3u8") == 0);
+}
+
+// an MP3, the player's format, or a playlist; a radio station of the library may be an MP3 too
 bool playable(const core::MediaItem &item)
 {
+    if (media_playlist(item)) {
+        return true;
+    }
     if (item.folder || !item.playable) {
         return false;
     }
@@ -440,7 +457,11 @@ void hass_rows(lv_obj_t *col)
         const bool plays = playable(item);
         char text[160];
         std::snprintf(text, sizeof(text), "%s  %s",
-                      item.folder ? LV_SYMBOL_DIRECTORY : plays ? LV_SYMBOL_AUDIO : LV_SYMBOL_FILE, item.title.c_str());
+                      item.folder             ? LV_SYMBOL_DIRECTORY
+                      : media_playlist(item) ? LV_SYMBOL_LIST
+                      : plays                ? LV_SYMBOL_AUDIO
+                                             : LV_SYMBOL_FILE,
+                      item.title.c_str());
         lv_obj_t *row = item.folder ? folder_row(col, text, on_item, on_item_play, static_cast<int>(i))
                                     : t::row(col, text, "", false, plays ? on_item : nullptr,
                                              as_data(static_cast<int>(i)));
