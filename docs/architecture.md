@@ -1244,7 +1244,7 @@ from the relays: the device tells Home Assistant. It turns the toggle helper
 off; the user creates the helper (Settings, Devices, Helpers, Toggle), nothing is configured on the
 device. No words of a language: a template binary sensor of device class motion on the helper (a UI
 helper of Home Assistant) shows Detected / Clear in HA's language. The JC4880P443C: GPIO 34 of the expansion header, active low; its kitchen variant a radar on
-GPIO 49, active high. Setup in Home
+GPIO 49, active high, its hallway variant a motion sensor on GPIO 28, active high. Setup in Home
 Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
 
 * **Pin**: an input with the internal pull toward the level that means clear (pull-down for an

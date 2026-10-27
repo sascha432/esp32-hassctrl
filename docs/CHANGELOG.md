@@ -7,6 +7,12 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-10-27
+
+Added
+
+* Variant `jc4880p443c.hallway`: motion sensor on GPIO 28, active high.
+
 ### 2026-10-26
 
 Added

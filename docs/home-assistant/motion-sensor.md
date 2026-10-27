@@ -1,8 +1,8 @@
 # Motion sensor helper
 
 How to set up Home Assistant for the motion sensor of a panel: a PIR or radar on a GPIO of the
-board (the JC4880P443C: GPIO 34 of the expansion header, its kitchen variant a radar on GPIO 49;
-another board through `motion_gpio` in its
+board (the JC4880P443C: GPIO 34 of the expansion header, its kitchen variant a radar on GPIO 49,
+its hallway variant a motion sensor on GPIO 28; another board through `motion_gpio` in its
 variant, [adding-a-board.md](../adding-a-board.md) "Variants"). The panel does not create an entity
 of its own: it turns a toggle helper that you create, `input_boolean.<device>_motion`, on while it
 sees motion and off when it is clear (docs/architecture.md section 9.7b). Nothing is configured on
