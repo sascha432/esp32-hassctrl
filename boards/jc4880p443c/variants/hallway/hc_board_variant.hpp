@@ -1,6 +1,6 @@
-// The JC4880P443C in the hallway (COM15): camera and microphone, the development console and the
-// FPS / CPU overlay on (the board's defaults), a motion sensor on GPIO 28 of the expansion header;
-// no vibration motor or relay. A copy of components/board/src/variant/hc_board_variant.hpp
+// The JC4880P443C in the hallway (COM15): camera and microphone, a motion sensor on GPIO 28 of the
+// expansion header; no vibration motor or relay; no development console or FPS / CPU overlay
+// (sdkconfig.defaults, 2026-10-27). A copy of components/board/src/variant/hc_board_variant.hpp
 // (docs/adding-a-board.md "Variants"); built as jc4880p443c.hallway.
 #pragma once
 

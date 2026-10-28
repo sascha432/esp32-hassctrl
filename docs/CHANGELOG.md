@@ -21,6 +21,10 @@ Fixed
   other's requests to Home Assistant: a request on its way is answered first, newer ones wait.
 * Stop while a folder is still collected cancels it; play/pause, next and previous wait for it.
 
+Removed
+
+* Variant `jc4880p443c.hallway`: no development console and no FPS / CPU overlay.
+
 ### 2026-10-26
 
 Added

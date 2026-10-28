@@ -1,0 +1,4 @@
+# the hallway variant of the JC4880P443C: no FPS / CPU overlay in the corner, as the kitchen variant
+# CONFIG_LV_USE_PERF_MONITOR is not set
+# no development console: no commands on the serial port (screenshot, tap, factory reset ...)
+# CONFIG_HC_DEV_CONSOLE is not set

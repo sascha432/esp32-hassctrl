@@ -1136,6 +1136,8 @@ Your report of the first version (2026-10-09):
       `c6 update <url>`; updated to 3.0.9 with the new `c6 update slot` (image written to ota_1
       over USB, Wi-Fi off): versions match, Wi-Fi and Home Assistant connect on the first try.
 - [x] Hallway variant: motion sensor on GPIO 28, active high (2026-10-27). Tested and working (you).
+- [x] Hallway variant without the development console and the FPS / CPU overlay (2026-10-27, your
+      request), as the kitchen variant.
 - [x] SD card (2026-10-23, your request): `components/sdcard`, `CONFIG_HC_SDCARD` (default on, only
       boards that `select HC_BOARD_HAS_SDCARD`, the JC4880P443C). Off, `jc4880p443c.mic` is the
       same as before in every section of `idf.py size` (3,062,597 bytes); on, +54 KB. Tested on
