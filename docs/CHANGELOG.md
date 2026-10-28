@@ -7,6 +7,13 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-10-28
+
+Added
+
+* Docs: the range of an RCWL-0516 radar is set with a resistor on its R-GN pad (50-500 kOhm), found
+  with a trimmer; the hallway's has 350 kOhm (devices/JC4880P443C).
+
 ### 2026-10-27
 
 Added

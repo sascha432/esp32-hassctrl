@@ -1631,6 +1631,11 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       panel subscribes `{{ states('input_boolean.<device>_motion') }}`: `unknown` is missing (log once, web UI
       Home Assistant page "Motion helper"), a new helper gets the state at once. Host test `protocol_motion`;
       WT32 built and flashed, status empty without a sensor (the console's `motion` needs one).
+- [x] Hallway radar range (your report 2026-10-28): its sensitivity swings, from 20 cm of movement
+      at 1 m to millimetres at 3 m, for a while only 5 cm at the side; the firmware passed every edge
+      on. You: a trimmer on R-GN to find the value (useful range 50-500 kOhm, devices/JC4880P443C):
+      50 kOhm about 10 cm, 350 kOhm quite a bit of movement at 3 m. Done: 350 kOhm, installed for
+      good (you, 2026-10-28); no firmware change.
 
 ## Touch (2026-10-17)
 
