@@ -53,7 +53,10 @@ Not planned: BLE provisioning, a dashboard in the web browser, a remote debug pr
   `sdkconfig.<app>`, then the `sdkconfig.defaults` of a variant (section 8, "Variants") when the
   build is for one (`<board>.<variant>`, build directory `build/<board>.<variant>/<app>`).
 * One ESP-IDF project builds both applications: `HC_APP=main` or `HC_APP=recovery` excludes the
-  other application's top-level component (section 9.5).
+  other application's top-level component (section 9.5). The version is `PROJECT_VER` in the root
+  `CMakeLists.txt`; the build time is the app descriptor's `__DATE__`/`__TIME__`, which the root
+  `CMakeLists.txt` recompiles with every build (the IDF alone only does it after a dependency
+  changed). `platform::build_time()` formats it for the boot log, `/api/status` and the System pages.
 * FreeRTOS tick 1 ms (`CONFIG_FREERTOS_HZ=1000`, `sdkconfig.main`). esp_lvgl_port sleeps at
   least 5 ms between `lv_timer_handler()` calls; at the default 100 Hz that is 0 ticks, so the
   LVGL task only yielded and starved IDLE0 (task watchdog) whenever its flush did not block, as

@@ -249,6 +249,7 @@ Built system(lv_obj_t *content)
     t::row(col, "Device", device.name, false, nullptr);
     t::row(col, "Board", device.board, false, nullptr);
     t::row(col, "Firmware", device.firmware, false, nullptr);
+    t::row(col, "Built", device.built, false, nullptr);
     g_system_uptime = t::row(col, "Uptime", "", false, nullptr);
     g_system_memory = t::row(col, "Free memory", "", false, nullptr);
 #if CONFIG_HC_SDCARD

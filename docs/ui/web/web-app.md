@@ -254,7 +254,9 @@ Paths are relative to the card; `..`, a backslash and control characters are ref
 Measured on the JC4880P443C (2026-10-23): 5 MB upload 4.2 s, download 10.9 s (the TCP send
 buffer of 5760 bytes limits it), format of 32 GB 2.5 s.
 
-**System.** Firmware and file system updates are uploaded here, see section 5. The
+**System.** The Device card shows the firmware version and its build time (`device.built` of
+`/api/status`, "2026-10-27 12:34", the building machine's local time), uptime and free memory.
+Firmware and file system updates are uploaded here, see section 5. The
 backup card sits above the update card, so the backup is seen before an update.
 
 Backup: one YAML file with the sections `network`, `display`, `sound`, `alarm`,
@@ -284,7 +286,8 @@ shows every section, commented out.
 | hassctrl-1a2b            [Wi-Fi] [HA]  [=] |
 +--------------------------------------------+
 | System                                     |
-|  Firmware  0.1.0      Uptime  3 d 4 h      |
+|  Firmware  0.1.0   Built  2026-10-27 12:34 |
+|  Uptime  3 d 4 h                           |
 |  Free memory  internal 84 KB, PSRAM 7 MB   |
 | +--------------------------------------+   |
 | | Backup (no passwords, no token)      |   |

@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "hc/network/network.hpp"
 #include "hc/platform/storage.hpp"
+#include "hc/platform/system_info.hpp"
 #if CONFIG_HC_SDCARD
 #include "hc/sdcard/sdcard.hpp"
 #endif
@@ -235,6 +236,8 @@ esp_err_t get_status(httpd_req_t *req)
     namespace net = hc::network;
     const net::Status wifi = net::status();
     const auto &fs = hc::platform::storage_status();
+    char built[24];
+    hc::platform::build_time(built, sizeof(built));
 
     char buffer[1024];
     JsonWriter json(buffer, sizeof(buffer));
@@ -242,6 +245,7 @@ esp_err_t get_status(httpd_req_t *req)
         .begin_object("device")
         .string("name", g_device_name)
         .string("firmware", esp_app_get_description()->version)
+        .string("built", built)
         .number("uptime_s", esp_timer_get_time() / 1000000)
         .number("heap_internal_kb", heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024)
         .number("heap_psram_kb", heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024)

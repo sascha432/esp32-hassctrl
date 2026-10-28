@@ -60,6 +60,7 @@ struct DeviceInfo {
     char name[24];
     char board[24];
     char firmware[32];
+    char built[24]; // "2026-10-27 12:34", the build time of the firmware
     uint32_t uptime_s;
     uint32_t heap_internal_kb;
     uint32_t heap_psram_kb;

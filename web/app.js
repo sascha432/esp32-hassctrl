@@ -1175,7 +1175,7 @@ const views = {
     const recovery = u.app === "recovery";
     render(`<h1>System</h1>` +
       card("Device", facts([
-        ["Firmware", esc(s.device.firmware)], ["Uptime", duration(s.device.uptime_s)],
+        ["Firmware", esc(s.device.firmware)], ["Built", esc(s.device.built)], ["Uptime", duration(s.device.uptime_s)],
         ["Free memory", `${s.device.heap_internal_kb} KB internal, ${s.device.heap_psram_kb} KB PSRAM`],
         ["Firmware update", u.firmware_direct ? "direct" : "through the recovery app"],
       ])) +

@@ -1,6 +1,8 @@
 #include "hc/platform/system_info.hpp"
 
 #include <cinttypes>
+#include <cstdio>
+#include <cstring>
 
 #include "esp_app_desc.h"
 #include "esp_chip_info.h"
@@ -63,10 +65,36 @@ const char *reset_reason_text(esp_reset_reason_t reason)
 
 } // namespace
 
+bool build_time(char *out, size_t size)
+{
+    const esp_app_desc_t *app = esp_app_get_description();
+    // __DATE__ is "Oct 27 2026" (the day padded with a space), __TIME__ "12:34:56"
+    static constexpr char kMonths[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    char month[4] = {};
+    unsigned day = 0;
+    unsigned year = 0;
+    unsigned hour = 0;
+    unsigned minute = 0;
+    const char *found = nullptr;
+    if (std::sscanf(app->date, "%3s %u %u", month, &day, &year) == 3 &&
+        std::sscanf(app->time, "%u:%u", &hour, &minute) == 2) {
+        found = std::strstr(kMonths, month);
+    }
+    if (found == nullptr) {
+        std::snprintf(out, size, "%s %s", app->date, app->time);
+        return false;
+    }
+    const unsigned mon = static_cast<unsigned>(found - kMonths) / 3 + 1;
+    std::snprintf(out, size, "%04u-%02u-%02u %02u:%02u", year, mon, day, hour, minute);
+    return true;
+}
+
 void log_system_info()
 {
     const esp_app_desc_t *app = esp_app_get_description();
-    ESP_LOGI(kTag, "%s %s, ESP-IDF %s", app->project_name, app->version, app->idf_ver);
+    char built[24];
+    build_time(built, sizeof(built));
+    ESP_LOGI(kTag, "%s %s built %s, ESP-IDF %s", app->project_name, app->version, built, app->idf_ver);
 
     esp_chip_info_t chip{};
     esp_chip_info(&chip);

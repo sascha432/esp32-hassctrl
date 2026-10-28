@@ -150,7 +150,8 @@ def main() -> None:
     check("HttpOnly" in cookie_header and "SameSite=Strict" in cookie_header, "the session cookie is HttpOnly and SameSite=Strict",
           cookie_header)
     status, s, _ = c.request("GET", "/api/status")
-    check(status == 200 and "device" in s and "wifi" in s, "GET /api/status", f"heap {s.get('device', {}).get('heap_internal_kb')} KB")
+    check(status == 200 and "device" in s and "wifi" in s and s["device"].get("built"), "GET /api/status",
+          f"heap {s.get('device', {}).get('heap_internal_kb')} KB, built {s.get('device', {}).get('built')}")
     heap_before = s["device"]["heap_internal_kb"] if status == 200 else 0
     status, w, _ = c.request("GET", "/api/wifi")
     check(status == 200 and "saved" in w, "GET /api/wifi", f"{len(w.get('saved', []))} saved")

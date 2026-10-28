@@ -11,10 +11,13 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 Added
 
+* Build time next to the firmware version on the System pages (web UI, Settings on the device) and
+  in `/api/status` (`device.built`); every build stamps it, not only a full build.
 * Variant `jc4880p443c.hallway`: motion sensor on GPIO 28, active high.
 
 Fixed
 
+* The Windows simulator builds again (`strings.h` of the media page is not on MSVC).
 * A playlist (`.m3u`, `.m3u8`) in Home Assistant's media library plays in the media browser and
   under a folder's ▶; before, only the card's playlists did and the library's row was grey.
 * A folder's ▶ and the media browser (or the web editor's folder picker) no longer cancel each

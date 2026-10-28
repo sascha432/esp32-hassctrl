@@ -695,6 +695,7 @@ void device_info(DeviceInfo &out)
     copy(out.name, std::string(kDeviceName));
     copy(out.board, g_board);
     copy(out.firmware, std::string("0.1.0-sim"));
+    copy(out.built, std::string("2026-10-27 12:34"));
     out.uptime_s = (lv_tick_get() - g.boot_tick) / 1000;
     out.heap_internal_kb = 142;
     out.heap_psram_kb = 3012;

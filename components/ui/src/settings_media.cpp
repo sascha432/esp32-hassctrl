@@ -20,7 +20,6 @@
 #include <cstring>
 #include <memory>
 #include <new>
-#include <strings.h>
 
 #include "hc/core/natural.hpp"
 #include "overlay.hpp"
@@ -392,6 +391,18 @@ void on_item_play(lv_event_t *event)
     }
 }
 
+// strcasecmp is not on MSVC (the simulator)
+bool same_nocase(const char *a, const char *b)
+{
+    for (;; ++a, ++b) {
+        const int ca = std::tolower(static_cast<unsigned char>(*a));
+        const int cb = std::tolower(static_cast<unsigned char>(*b));
+        if (ca != cb || ca == 0) {
+            return ca == cb;
+        }
+    }
+}
+
 // a playlist of the library (audio/x-mpegurl, .m3u, .m3u8), as player::is_media_playlist
 bool media_playlist(const core::MediaItem &item)
 {
@@ -402,7 +413,7 @@ bool media_playlist(const core::MediaItem &item)
         return true;
     }
     const char *dot = std::strrchr(item.title.c_str(), '.');
-    return dot != nullptr && (strcasecmp(dot, ".m3u") == 0 || strcasecmp(dot, ".m3u8") == 0);
+    return dot != nullptr && (same_nocase(dot, ".m3u") || same_nocase(dot, ".m3u8"));
 }
 
 // an MP3, the player's format, or a playlist; a radio station of the library may be an MP3 too

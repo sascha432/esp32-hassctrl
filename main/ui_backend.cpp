@@ -21,6 +21,7 @@
 #include "hc/network/network.hpp"
 #include "hc/platform/device.hpp"
 #include "hc/platform/settings.hpp"
+#include "hc/platform/system_info.hpp"
 #include "hc/platform/time_sync.hpp"
 #if CONFIG_HC_SDCARD
 #include "hc/sdcard/sdcard.hpp"
@@ -269,6 +270,7 @@ void device_info(hc::ui::DeviceInfo &out)
         copy(out.board, board.name);
     }
     copy(out.firmware, esp_app_get_description()->version);
+    hc::platform::build_time(out.built, sizeof(out.built));
     out.uptime_s = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
     out.heap_internal_kb = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);
     out.heap_psram_kb = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);

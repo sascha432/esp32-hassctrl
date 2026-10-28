@@ -49,3 +49,18 @@ foreach(name IN LISTS hc_components)
         target_compile_options(${lib} PRIVATE -Werror=double-promotion)
     endif()
 endforeach()
+
+# The app descriptor (esp_app_desc_t) carries __DATE__ and __TIME__, but the IDF only recompiles it
+# when one of its dependencies changes, so an incremental build would keep the stamp of an older
+# build. The command below has an output that is never created, so it runs with every build and
+# touches the stamp; esp_app_desc.c depends on the stamp and is compiled again, and the date and time
+# in the image, in the boot log and on the System pages are those of the build.
+set(hc_app_desc_stamp "${CMAKE_BINARY_DIR}/app_desc.stamp")
+add_custom_command(OUTPUT "${hc_app_desc_stamp}" "${CMAKE_BINARY_DIR}/app_desc.always"
+    COMMAND ${CMAKE_COMMAND} -E touch "${hc_app_desc_stamp}"
+    COMMENT "Stamping the app descriptor with the build time"
+    VERBATIM)
+add_custom_target(hc_app_desc_stamp DEPENDS "${hc_app_desc_stamp}")
+add_dependencies(__idf_esp_app_format hc_app_desc_stamp)
+set_source_files_properties("$ENV{IDF_PATH}/components/esp_app_format/esp_app_desc.c"
+    TARGET_DIRECTORY __idf_esp_app_format PROPERTIES OBJECT_DEPENDS "${hc_app_desc_stamp}")

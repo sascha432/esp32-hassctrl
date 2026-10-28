@@ -78,7 +78,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 - Status, Home Assistant (URL, token checked before it is stored, connection test), Wi-Fi, hotspot, camera, time (zone and SNTP servers), the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
-  a debug mode and a width to drag, SD card (files, upload, download from a URL, mount, format behind the password), system (backup export and import, password change, updates, restart, factory reset). Plain HTTP
+  a debug mode and a width to drag, SD card (files, upload, download from a URL, mount, format behind the password), system (firmware version and build time, backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.
 
 **Updates and recovery**
