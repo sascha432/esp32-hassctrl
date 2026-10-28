@@ -12,6 +12,7 @@
 #include "hc/hass/hass.hpp"
 #include "hc/player/player.hpp"
 #include "lvgl.h"
+#include "ui_sound.hpp"
 
 // LVGL's lodepng (CONFIG_LV_USE_PNG, selected by CONFIG_HC_UI_PLAYER): C, and its header declares
 // C++ wrappers besides, so the two functions are declared here
@@ -71,6 +72,102 @@ hc::core::Pixels decode_png(const uint8_t *png, size_t size, uint32_t &width, ui
     height = h;
     return pixels;
 }
+
+const char *state_name(hc::ui::PlayerState state)
+{
+    switch (state) {
+    case hc::ui::PlayerState::Idle:
+        return "idle";
+    case hc::ui::PlayerState::Playing:
+        return "playing";
+    case hc::ui::PlayerState::Paused:
+        return "paused";
+    case hc::ui::PlayerState::Failed:
+        return "failed";
+    case hc::ui::PlayerState::Buffering:
+        return "buffering";
+    case hc::ui::PlayerState::Interrupted:
+        return "interrupted";
+    }
+    return "idle";
+}
+
+void web_status(hc::webserver::PlayerStatus &out)
+{
+    hc::ui::PlayerInfo info{};
+    ui_player::info(info);
+    hc::ui::SoundSettings sound{};
+    ui_sound::sound_settings(sound);
+    out.state = state_name(info.state);
+    out.position_ms = info.position_ms;
+    out.duration_ms = info.duration_ms;
+    out.index = info.index;
+    out.count = info.count;
+    out.shuffle = info.shuffle;
+    out.repeat = info.repeat == hc::ui::PlayerRepeat::All ? "all" : info.repeat == hc::ui::PlayerRepeat::One ? "one" : "off";
+    out.volume = sound.volume;
+    std::snprintf(out.title, sizeof(out.title), "%s", info.title);
+    std::snprintf(out.artist, sizeof(out.artist), "%s", info.artist);
+    std::snprintf(out.album, sizeof(out.album), "%s", info.album);
+    std::snprintf(out.error, sizeof(out.error), "%s", info.error);
+    out.error_serial = info.error_serial;
+    out.cover_serial = info.cover_serial;
+}
+
+void web_command(hc::webserver::PlayerCommand command)
+{
+    switch (command) {
+    case hc::webserver::PlayerCommand::Toggle:
+        hc::player::toggle();
+        break;
+    case hc::webserver::PlayerCommand::Next:
+        hc::player::next();
+        break;
+    case hc::webserver::PlayerCommand::Previous:
+        hc::player::previous();
+        break;
+    case hc::webserver::PlayerCommand::Stop:
+        hc::player::stop();
+        break;
+    }
+}
+
+// as the Sound page sets it: stored after 10 s (docs/architecture.md section 9.3)
+void web_set_volume(uint8_t volume)
+{
+    hc::ui::SoundSettings sound{};
+    ui_sound::sound_settings(sound);
+    sound.volume = volume;
+    ui_sound::set_sound_settings(sound);
+}
+
+char *web_cover(size_t &length, char *mime, size_t mime_size)
+{
+    uint32_t serial = 0;
+    const auto tags = hc::player::tags(serial);
+    if (!hc::player::active() || !tags || !tags->cover.data || tags->cover.size == 0) {
+        return nullptr;
+    }
+    char *data = static_cast<char *>(hc::memory::allocate_large(tags->cover.size));
+    if (data == nullptr) {
+        return nullptr;
+    }
+    std::memcpy(data, tags->cover.data.get(), tags->cover.size);
+    length = tags->cover.size;
+    std::snprintf(mime, mime_size, "%s", tags->cover.mime.c_str());
+    return data;
+}
+
+const hc::webserver::PlayerAccess kWebAccess{
+    .status = web_status,
+    .upcoming = hc::player::upcoming,
+    .command = web_command,
+    .seek = hc::player::seek,
+    .set_shuffle = hc::player::set_shuffle,
+    .set_repeat = [](uint8_t repeat) { hc::player::set_repeat(static_cast<hc::player::Repeat>(repeat)); },
+    .set_volume = web_set_volume,
+    .cover = web_cover,
+};
 
 } // namespace
 
@@ -229,6 +326,11 @@ bool cover(uint16_t size, hc::core::Image &out)
 void browse(std::string_view id, uint32_t generation)
 {
     hc::hass::browse_media(id, kBrowseTimeoutMs, generation);
+}
+
+const hc::webserver::PlayerAccess &web_access()
+{
+    return kWebAccess;
 }
 
 } // namespace ui_player

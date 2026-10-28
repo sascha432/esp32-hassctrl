@@ -6,6 +6,9 @@ board built with CONFIG_HC_AUDIO_MP3, the sounds of sounds/ (docs/architecture.m
     python tools/build_fs.py <board> -p COM9         and write it to the board over serial, keeping
                                                      the board's own files (the dashboard)
     python tools/build_fs.py <board> -p COM9 --fresh the same without keeping anything
+    python tools/build_fs.py <board> --device 192.168.0.233
+                                                     and upload it over the network, keeping
+                                                     the device's own files the same way
 
 <board> is the name given to tools/build.py, a variant included (wt32_sc01.kitchen). The web files
 are built by tools/build_web.py first (build/<board>/fs/web: the pages of options the firmware
@@ -18,7 +21,10 @@ firmware is built first. Upload it on the System page of the web UI, or with too
 
 The image replaces the whole partition. With -p the partition of the board is read first and
 every file outside /www and /sounds (dashboard.json) goes into the new image, so a web UI update keeps the
-dashboard. An upload through the web UI or update.py does not: export the dashboard first.
+dashboard. With --device the same files come from the device's /api/fs/files.zip (login as
+tools/update.py: --user, --password or HC_PASSWORD), and the image goes up as with update.py; a
+file the device could not read stops it, nothing is uploaded. An upload through the web UI or
+`update.py ... filesystem --fresh` keeps nothing: export the dashboard first.
 The web UI belongs to the firmware: the dashboard editor copies rules of the firmware, so a
 firmware with a change to the dashboard goes onto a device together with its web image.
 
@@ -33,6 +39,7 @@ import gzip
 import hashlib
 import io
 import os
+import zipfile
 import re
 import shutil
 import subprocess
@@ -183,12 +190,44 @@ def keep_device_files(port: str, out_dir: Path, root: Path) -> list[str]:
     return kept
 
 
+def keep_files_over_network(device, root: Path) -> list[str]:
+    """Copies every file of the device's /api/fs/files.zip outside www/ and sounds/ into root."""
+    with device.opener.open(device.base + "/api/fs/files.zip", timeout=120) as response:
+        archive = zipfile.ZipFile(io.BytesIO(response.read()))
+    names = [n for n in archive.namelist() if not n.endswith("/")]
+    # the archive names what it could not read (or that the file system did not mount) in this note
+    if "unreadable.txt" in names:
+        fail("the device could not read all of its files, nothing uploaded:\n"
+             + archive.read("unreadable.txt").decode(errors="replace"))
+    kept = []
+    for name in sorted(names):
+        if name.split("/")[0] in FIRMWARE_DIRS:
+            continue
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(archive.read(name))
+        kept.append(name)
+    return kept
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("board", help="the name given to tools/build.py, a variant included (wt32_sc01.kitchen)")
     parser.add_argument("-p", "--port", help="write the image to the board over this serial port")
-    parser.add_argument("--fresh", action="store_true", help="with -p: do not keep the board's own files")
+    parser.add_argument("--device", help="upload the image over the network to this address or host name")
+    parser.add_argument("--user", default="admin", help="with --device: the web UI login")
+    parser.add_argument("--password", help="with --device: else HC_PASSWORD or asked for")
+    parser.add_argument("--fresh", action="store_true", help="with -p or --device: do not keep the board's own files")
     args = parser.parse_args()
+    if args.port and args.device:
+        fail("-p or --device, not both")
+    device = None
+    if args.device:
+        sys.path.insert(0, str(ROOT / "tools"))
+        import update
+
+        device = update.Device(args.device)
+        update.login(device, args.user, args.password)
 
     sdkconfig_path = firmware_sdkconfig(args.board)
     sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
@@ -203,6 +242,9 @@ def main() -> None:
     if args.port and not args.fresh:
         for name in keep_device_files(args.port, out_dir, root):
             print(f"  kept from the board: {name}")
+    if device is not None and not args.fresh:
+        for name in keep_files_over_network(device, root):
+            print(f"  kept from the device: {name}")
     total = sum(z for _, _, z in files)
     for name, plain, zipped in files:
         print(f"  {name:32} {plain / 1024:7.1f} KB  gzip {zipped / 1024:6.1f} KB")
@@ -215,6 +257,13 @@ def main() -> None:
 
     if args.port:
         parttool(args.port, "write_partition", "--partition-name", "storage", "--input", str(image))
+    if device is not None:
+        print(f"uploading {image.stat().st_size // 1024} KB ...")
+        status, answer = device.request("/api/update/filesystem", data=image.read_bytes(), timeout=300,
+                                        content_type="application/octet-stream")
+        if status != 200:
+            fail(f"upload failed: {answer.get('error', status)}")
+        print("build_fs.py: uploaded")
 
 
 if __name__ == "__main__":

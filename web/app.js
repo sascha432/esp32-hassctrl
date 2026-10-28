@@ -96,6 +96,9 @@ const menuPages = [
   // #if CONFIG_HC_BOARD_HAS_CAMERA
   ["camera", "Camera"],
   // #endif
+  // #if CONFIG_HC_UI_PLAYER
+  ["player", "Player"],
+  // #endif
   ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"],
   // #if CONFIG_HC_SDCARD
   ["sd", "SD card"],
@@ -126,6 +129,9 @@ async function updateHeader() {
   // only a firmware with the SD card (CONFIG_HC_SDCARD) reports it
   const sd = $('#menu-pages a[data-page="sd"]');
   if (sd) sd.hidden = !s.sd;
+  // the recovery app has no player
+  const player = $('#menu-pages a[data-page="player"]');
+  if (player) player.hidden = !s.player;
   document.title = s.device.name;
   const icon = $("#icon-wifi");
   icon.innerHTML = wifiIcon;
@@ -699,6 +705,139 @@ const views = {
       };
     };
     draw();
+  },
+  // #endif
+
+  // #if CONFIG_HC_UI_PLAYER
+  // The media player of the device, as its Player page on the screen shows it (docs/ui/web/web-app.md
+  // section 4): what plays, the buttons, the volume and what comes next. The music starts on the device.
+  async player() {
+    render(`<h1>Player</h1><div id="player">Loading ...</div>`);
+    let p;
+    try {
+      p = await api("/api/player");
+    } catch (e) {
+      if (e.status !== 404) throw e;
+      render(`<h1>Player</h1>${card("Player", '<p class="text-body-secondary mb-0">Not in the recovery app. Start the firmware (System).</p>')}`);
+      return;
+    }
+    const svg = (path) => `<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="${path}"/></svg>`;
+    const icons = {
+      play: svg("M4 2.5v11l9.5-5.5z"),
+      pause: svg("M3.5 2h3v12h-3zm6 0h3v12h-3z"),
+      previous: svg("M2.5 2h2v12h-2zm11 0v12L5 8z"),
+      next: svg("M11.5 2h2v12h-2zM2.5 2v12L11 8z"),
+      stop: svg("M3 3h10v10H3z"),
+    };
+    const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+    const states = { paused: "Paused", buffering: "Loading ...", interrupted: "Interrupted by a sound", failed: "Could not play" };
+    $("#player").innerHTML = card("Now playing", `
+        <div class="player-head mb-3">
+          <div class="player-cover"><img id="player-cover" alt="" hidden><span id="player-no-cover">&#9835;</span></div>
+          <div class="min-w-0">
+            <div id="player-title" class="fs-5 fw-semibold text-break"></div>
+            <div id="player-tags" class="text-body-secondary text-break"></div>
+            <div id="player-state" class="small text-body-secondary"></div>
+          </div>
+        </div>
+        <div class="d-flex justify-content-between small text-body-secondary"><span id="player-at"></span><span id="player-length"></span></div>
+        <input id="player-seek" type="range" class="form-range mb-2" min="0" max="1000" value="0" aria-label="Position">
+        <div class="d-flex justify-content-center gap-2 mb-3">
+          <button id="player-previous" class="btn btn-outline-secondary" type="button" title="Previous">${icons.previous}</button>
+          <button id="player-toggle" class="btn btn-primary px-4" type="button" title="Play / pause">${icons.play}</button>
+          <button id="player-next" class="btn btn-outline-secondary" type="button" title="Next">${icons.next}</button>
+          <button id="player-stop" class="btn btn-outline-secondary" type="button" title="Stop">${icons.stop}</button>
+        </div>
+        <div class="d-flex justify-content-center gap-2 mb-3">
+          <button id="player-shuffle" class="btn btn-sm btn-outline-secondary" type="button">Shuffle</button>
+          <button id="player-repeat" class="btn btn-sm btn-outline-secondary" type="button">Repeat</button>
+        </div>
+        <label class="form-label" for="player-volume">Volume <span id="player-volume-value" class="text-body-secondary"></span></label>
+        <input id="player-volume" type="range" class="form-range" min="0" max="100" aria-label="Volume">`) +
+      `<div id="player-next-card"></div>` +
+      `<p class="small text-body-secondary">The music starts on the device: a media tile of the dashboard, or the SD card's file manager.</p>`;
+    // a slider that is being moved is not set by the next answer
+    const held = new Set();
+    for (const id of ["player-seek", "player-volume"]) {
+      const slider = $("#" + id);
+      slider.onpointerdown = () => held.add(id);
+      slider.oninput = () => {
+        held.add(id);
+        if (id === "player-volume") $("#player-volume-value").textContent = slider.value;
+        else $("#player-at").textContent = clock(slider.value * p.duration_ms / 1000);
+      };
+    }
+    const send = (form) => api("/api/player", form).then((answer) => { p = answer; draw(); });
+    const button = (id, form) => ($("#" + id).onclick = (e) => busy(e.currentTarget, () => send(form())));
+    button("player-toggle", () => ({ action: "toggle" }));
+    button("player-previous", () => ({ action: "previous" }));
+    button("player-next", () => ({ action: "next" }));
+    button("player-stop", () => ({ action: "stop" }));
+    button("player-shuffle", () => ({ shuffle: p.shuffle ? "0" : "1" }));
+    button("player-repeat", () => ({ repeat: { off: "all", all: "one", one: "off" }[p.repeat] }));
+    $("#player-seek").onchange = (e) => {
+      held.delete("player-seek");
+      if (p.duration_ms) send({ seek: Math.round(e.target.value * p.duration_ms / 1000) }).catch((err) => toast(err.message, "danger"));
+    };
+    $("#player-volume").onchange = (e) => {
+      held.delete("player-volume");
+      send({ volume: e.target.value }).catch((err) => toast(err.message, "danger"));
+    };
+    let errorSerial = p.error_serial;
+    let coverSerial = -1;
+    let upcoming = null;
+    const draw = () => {
+      const loaded = p.count > 0 || p.state === "buffering";
+      $("#player-title").textContent = loaded && p.title ? p.title : "Nothing queued";
+      $("#player-tags").textContent = [p.artist, p.album].filter(Boolean).join(" \u00b7 ");
+      $("#player-state").textContent = [loaded ? states[p.state] : "", p.count > 1 ? `${p.index + 1} of ${p.count}` : ""]
+        .filter(Boolean).join(" \u00b7 ");
+      const playing = ["playing", "buffering", "interrupted"].includes(p.state);
+      $("#player-toggle").innerHTML = playing ? icons.pause : icons.play;
+      $("#player-toggle").title = playing ? "Pause" : "Play";
+      for (const id of ["player-toggle", "player-previous", "player-next", "player-stop"]) $("#" + id).disabled = p.count === 0;
+      $("#player-shuffle").classList.toggle("btn-primary", p.shuffle);
+      $("#player-shuffle").classList.toggle("btn-outline-secondary", !p.shuffle);
+      $("#player-repeat").textContent = { off: "Repeat", all: "Repeat all", one: "Repeat one" }[p.repeat];
+      $("#player-repeat").classList.toggle("btn-primary", p.repeat !== "off");
+      $("#player-repeat").classList.toggle("btn-outline-secondary", p.repeat === "off");
+      const seek = $("#player-seek");
+      seek.disabled = !p.duration_ms;
+      if (!held.has("player-seek")) {
+        seek.value = p.duration_ms ? Math.round(p.position_ms * 1000 / p.duration_ms) : 0;
+        $("#player-at").textContent = loaded ? clock(p.position_ms) : "";
+      }
+      $("#player-length").textContent = p.duration_ms ? clock(p.duration_ms) : "";
+      if (!held.has("player-volume")) {
+        $("#player-volume").value = p.volume;
+        $("#player-volume-value").textContent = p.volume;
+      }
+      if (p.cover_serial !== coverSerial) {
+        coverSerial = p.cover_serial;
+        const img = $("#player-cover");
+        img.hidden = true;
+        $("#player-no-cover").hidden = false;
+        if (coverSerial) {
+          img.onload = () => { img.hidden = false; $("#player-no-cover").hidden = true; };
+          img.src = `/api/player/cover?s=${coverSerial}`;
+        }
+      }
+      // the list again only when it changed: the poll every second keeps it as it is
+      const next = JSON.stringify([p.index, p.next]);
+      if (next !== upcoming) {
+        upcoming = next;
+        const left = p.repeat === "off" ? p.count - p.index - 1 : p.count - 1;
+        $("#player-next-card").innerHTML = p.next.length ? card("Up next", `<ol class="player-next mb-0">${p.next.map((title, i) =>
+          `<li value="${(p.index + 1 + i) % p.count + 1}">${esc(title)}</li>`).join("")}</ol>` +
+          (left > p.next.length ? `<div class="small text-body-secondary mt-2">and ${left - p.next.length} more</div>` : "")) : "";
+      }
+      if (p.error_serial !== errorSerial) {
+        errorSerial = p.error_serial;
+        if (p.error) toast(p.error, "warning");
+      }
+    };
+    draw();
+    refresh(async () => { p = await api("/api/player"); draw(); }, 1000);
   },
   // #endif
 

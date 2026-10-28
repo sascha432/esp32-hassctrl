@@ -1361,6 +1361,36 @@ ui/lvgl/lvgl-settings.md section 3 (Media).
       wants an 8 KB stack, ESP_ERR_NO_MEM), and the web UI's download of a card file answers
       "no memory"; the upload works.
 
+## Web Player page (2026-10-27)
+
+Your request: a Player page in the web UI with play/pause, previous, next, volume, the title and
+the songs that come next of a playlist; a mirror of the screen's Player page (your choice
+2026-10-27), not a remote for Home Assistant's `media_player`. Design: ui/web/web-app.md section
+4.2, architecture.md section 9.6.
+
+- [x] `GET/POST /api/player`, `GET /api/player/cover` (`api_player.cpp`, `webserver::PlayerAccess`
+      filled in `main/ui_player.cpp`), `"player"` in `/api/status`; the volume through the Sound
+      settings (stored after 10 s). Host test for `Queue::upcoming` (repeat off, all, one, shuffled).
+- [x] On the hallway P4 (OTA, 2026-10-27): firmware confirmed, `tools/test_web.py` 88 of 88 with
+      the player's checks.
+- [x] `tools/build_fs.py <board> --device <address>`: the web image over the network keeping the
+      device's own files (an `update.py` file system upload wiped the hallway's dashboard;
+      `update.py ... filesystem` needs `--fresh` now).
+- [ ] On the hallway P4 (OTA): a folder or playlist from a media tile, the page's title, cover,
+      up next, buttons, seek, shuffle/repeat, volume against Settings, Sound.
+- [ ] Your check in the browser, phone and desktop, light and dark.
+- [ ] An update while music played (your report 2026-10-27, hallway P4): noise, the screen
+      flickered, unplugged, the update rolled back. Now the player stops when an update starts
+      (`ota::set_on_start`). The screen flickers during every upload also without music (your
+      report 2026-10-27, hallway P4, only while the image is written, not after): a problem of its
+      own. The kitchen P4 flickers the same way during a firmware upload (2026-10-27): two units,
+      two supplies, so not a brownout or weak power; the flash writes against the MIPI-DSI panel's
+      frame buffer in PSRAM. Accepted for now (your call, it only shows during an update); cause
+      to find on the test P4 (COM11, serial) some time.
+- [x] The hallway's file system after the unplug: wrong names in the listing, `dashboard.json`
+      and `Timing.mp3` read 0 bytes. Rewritten with a fresh image, the dashboard imported again
+      from its export (11 pages, 94 tiles), checked after a restart.
+
 ## Vibration (2026-10-09)
 
 Component `vibration` (docs/architecture.md section 9.7): a motor on the P4's GPIO 28, a pulse

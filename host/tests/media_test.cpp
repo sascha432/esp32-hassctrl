@@ -324,6 +324,38 @@ TEST(player_queue_shuffle)
     CHECK(queue.position() == static_cast<size_t>(playing[0] - 'a'));
 }
 
+TEST(player_queue_upcoming)
+{
+    const auto upcoming = [](const player::Queue &queue, size_t max, player::Repeat repeat) {
+        const player::Item *out[8];
+        std::string names;
+        const size_t count = queue.upcoming(out, max, repeat);
+        for (size_t i = 0; i < count; i++) {
+            names += out[i]->location.c_str();
+        }
+        return names;
+    };
+    player::Queue queue;
+    CHECK(upcoming(queue, 8, player::Repeat::All).empty());
+    queue.set(items(4), 1, false, 1);
+    CHECK(upcoming(queue, 8, player::Repeat::Off) == "cd");
+    // on from the first, up to the one before the current one
+    CHECK(upcoming(queue, 8, player::Repeat::All) == "cda");
+    CHECK(upcoming(queue, 8, player::Repeat::One) == "cda");
+    CHECK(upcoming(queue, 2, player::Repeat::All) == "cd");
+    queue.next(player::Repeat::Off);
+    queue.next(player::Repeat::Off);
+    CHECK(upcoming(queue, 8, player::Repeat::Off).empty());
+    // shuffled: the play order
+    queue.set(items(6), 2, true, 777);
+    std::string order;
+    while (queue.next(player::Repeat::Off)) {
+        order += queue.current()->location.c_str();
+    }
+    queue.set(items(6), 2, true, 777);
+    CHECK(upcoming(queue, 8, player::Repeat::Off) == order);
+}
+
 TEST(natural_order)
 {
     using core::natural_less;

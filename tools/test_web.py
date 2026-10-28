@@ -126,6 +126,12 @@ def main() -> None:
     check(status in (401, 404), "GET /api/hass without login is 401", str(status))
     status, _, _ = c.request("POST", "/api/hass", form={"url": "http://x", "token": "y"})
     check(status in (401, 404), "POST /api/hass without login is refused", str(status))
+    # the player's routes (CONFIG_HC_UI_PLAYER; unknown paths without it)
+    for path in ["/api/player", "/api/player/cover"]:
+        status, _, _ = c.request("GET", path)
+        check(status in (401, 404), f"GET {path} without login is refused", str(status))
+    status, _, _ = c.request("POST", "/api/player", form={"action": "toggle"})
+    check(status in (401, 404, 405), "POST /api/player without login is refused", str(status))
     status, answer, _ = c.request("POST", "/api/setup/user", form={"username": "intruder", "password": "12345678"})
     check(status == 403, "a second login cannot be created", f"{status} {answer}")
 
@@ -215,6 +221,24 @@ def main() -> None:
         status, again, _ = c.request("GET", "/api/hass")
         check(status == 200 and again.get("url") == ha.get("url"), "the refused requests changed nothing",
               str(again.get("url")))
+
+    # the player: read and wrong values only, nothing starts or stops
+    status, player, _ = c.request("GET", "/api/player")
+    if status == 404:
+        print("  (no player: /api/player skipped)")
+    else:
+        check(status == 200 and {"state", "title", "volume", "index", "count", "repeat", "next"} <= set(player),
+              "GET /api/player", f"{player.get('state')} {player.get('count')} queued")
+        check(isinstance(player.get("next"), list) and len(player["next"]) <= 20, "up next is a list of at most 20",
+              str(player.get("next")))
+        for form, name in [({"action": "dance"}, "an unknown action"), ({"volume": "101"}, "volume 101"),
+                           ({"volume": "x"}, "a volume that is no number"), ({"repeat": "twice"}, "repeat twice"),
+                           ({"shuffle": "yes"}, "shuffle yes"), ({"seek": "-5"}, "a negative seek")]:
+            status, answer, _ = c.request("POST", "/api/player", form=form)
+            check(status == 400, f"POST /api/player {name} is refused", f"{status} {answer.get('error', '')}")
+        status, again, _ = c.request("GET", "/api/player")
+        check(status == 200 and again.get("volume") == player.get("volume"), "the refused requests changed nothing",
+              str(again.get("volume")))
 
     conn = http.client.HTTPConnection(args.device, timeout=60)
     conn.request("GET", "/api/fs/files.zip", headers={"Cookie": c.cookie})

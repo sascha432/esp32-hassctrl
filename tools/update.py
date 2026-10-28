@@ -2,7 +2,10 @@
 """Updates a device over the network (docs/ui/web/web-app.md section 5).
 
     python tools/update.py <device> firmware <image.bin> [--user admin] [--password ...]
-    python tools/update.py <device> filesystem <image.bin> ...
+    python tools/update.py <device> filesystem <image.bin> --fresh ...
+
+A file system image replaces every file of the device, the dashboard too: update.py takes one
+only with --fresh. tools/build_fs.py <board> --device <device> keeps the device's own files.
 
 <device> is an address or host name (192.168.0.206, hassctrl-1a2b.local). The password is asked
 for when it is not given and the device has a login (also from HC_PASSWORD). On a 4 MB board the
@@ -96,7 +99,11 @@ def main() -> None:
     parser.add_argument("image")
     parser.add_argument("--user", default="admin")
     parser.add_argument("--password")
+    parser.add_argument("--fresh", action="store_true", help="filesystem: replace every file, the dashboard too")
     args = parser.parse_args()
+    if args.target == "filesystem" and not args.fresh:
+        sys.exit("a file system image replaces every file of the device, the dashboard too: "
+                 f"python tools/build_fs.py <board> --device {args.device} keeps them (--fresh here replaces them)")
 
     image = open(args.image, "rb").read()
     device = Device(args.device)

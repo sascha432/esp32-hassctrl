@@ -13,11 +13,20 @@ Added
 
 * Build time next to the firmware version on the System pages (web UI, Settings on the device) and
   in `/api/status` (`device.built`); every build stamps it, not only a full build.
+* Player page in the web UI: the device's player with cover, play/pause, previous, next, stop,
+  seek, shuffle, repeat, volume and the songs that come next (`/api/player`).
 * Variant `jc4880p443c.hallway`: motion sensor on GPIO 28, active high.
+
+Changed
+
+* `tools/build_fs.py <board> --device <address>` uploads the web image over the network and keeps
+  the device's own files (the dashboard); `update.py ... filesystem` needs `--fresh` now.
 
 Fixed
 
 * The Windows simulator builds again (`strings.h` of the media page is not on MSVC).
+* A firmware or file system update stops the music first; while it played, the update made the
+  speaker crackle and the screen flicker.
 * A playlist (`.m3u`, `.m3u8`) in Home Assistant's media library plays in the media browser and
   under a folder's ▶; before, only the card's playlists did and the library's row was grey.
 * A folder's ▶ and the media browser (or the web editor's folder picker) no longer cancel each

@@ -46,3 +46,13 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 .app-grip:hover::after { background: var(--bs-secondary-color); }
 .app-log .log-E { color: var(--bs-danger-text-emphasis); }
 .app-log .log-W { color: var(--bs-warning-text-emphasis); }
+
+/* the Player page: the cover beside the title, like the screen's */
+.player-head { display: flex; gap: 1rem; align-items: center; }
+.player-cover { width: 96px; height: 96px; flex-shrink: 0; border-radius: var(--bs-border-radius); overflow: hidden;
+  background: var(--bs-tertiary-bg); display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; color: var(--bs-secondary-color); }
+.player-cover img { width: 100%; height: 100%; object-fit: cover; }
+.player-next { padding-left: 2rem; }
+.player-next li { overflow-wrap: anywhere; }
+.min-w-0 { min-width: 0; }

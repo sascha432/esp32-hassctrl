@@ -14,6 +14,7 @@ struct HassAccess;
 struct DashboardAccess;
 struct BackupAccess;
 struct CameraAccess;
+struct PlayerAccess;
 }
 
 namespace hc::webserver::detail {
@@ -65,6 +66,8 @@ void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *das
 void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, const char *device_name);
 // nullptr: no routes
 void register_camera_routes(httpd_handle_t server, const CameraAccess *camera);
+// nullptr: no routes
+void register_player_routes(httpd_handle_t server, const PlayerAccess *player);
 // nothing without the clock (the recovery app)
 void register_time_routes(httpd_handle_t server, bool time);
 #if CONFIG_HC_SDCARD

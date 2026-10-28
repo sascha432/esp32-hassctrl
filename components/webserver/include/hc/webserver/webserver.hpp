@@ -180,6 +180,50 @@ struct CameraAccess {
     bool (*set_stream)(const CameraStream &stream, const char *password, char *error, size_t error_size);
 };
 
+// The media player as the web UI's Player page sees it (docs/ui/web/web-app.md section 4, Player),
+// the same one the screen's Player page shows.
+struct PlayerStatus {
+    // idle, playing, paused, failed, buffering, interrupted
+    const char *state;
+    uint32_t position_ms;
+    uint32_t duration_ms; // 0 while it is not known
+    // the item in the queue (0-based) and how many there are; 0: nothing queued
+    uint16_t index;
+    uint16_t count;
+    bool shuffle;
+    // off, all, one
+    const char *repeat;
+    uint8_t volume; // 0 to 100
+    char title[96];
+    char artist[64];
+    char album[64];
+    // the last item that was skipped and why; the counter changes with every one
+    char error[96];
+    uint32_t error_serial;
+    // changes when the cover of what plays changes; 0: none
+    uint32_t cover_serial;
+};
+
+enum class PlayerCommand : uint8_t { Toggle, Next, Previous, Stop };
+
+// What the web server needs of the player, filled in `main` with CONFIG_HC_UI_PLAYER (nullptr:
+// no player, and no Player page).
+struct PlayerAccess {
+    void (*status)(PlayerStatus &out);
+    // the titles of up to `max` items that come next
+    memory::Vector<memory::String> (*upcoming)(size_t max);
+    void (*command)(PlayerCommand command);
+    void (*seek)(uint32_t ms);
+    void (*set_shuffle)(bool shuffle);
+    // 0 off, 1 all, 2 one
+    void (*set_repeat)(uint8_t repeat);
+    // the volume of the device, stored as the Sound page's
+    void (*set_volume)(uint8_t volume);
+    // the cover of the tags as it is in the file, in a buffer of the large heap (the web server
+    // frees it), its type in `mime` ("image/jpeg"); null without one
+    char *(*cover)(size_t &length, char *mime, size_t mime_size);
+};
+
 struct Config {
     const char *device_name;
     const HassAccess *hass = nullptr;
@@ -191,6 +235,7 @@ struct Config {
     // registers more routes on the server (an httpd_handle_t), before the files take the rest:
     // the camera's routes (components/camera); up to 2
     void (*add_routes)(void *server) = nullptr;
+    const PlayerAccess *player = nullptr;
 };
 
 // Starts the server and the DNS responder. The network component has to be started.

@@ -73,6 +73,11 @@ esp_err_t write(const void *data, size_t size);
 esp_err_t finish();
 void abort();
 
+// Called when an update starts (upload or download), in its task: the flash writes stop the cache
+// for a moment each, which starves what plays from PSRAM (the music's buffer: noise), so `main`
+// stops the player here. Set once before the web server starts; nullptr: nothing.
+void set_on_start(void (*on_start)(Target target));
+
 // Downloads the image from an http:// or https:// URL in a task of its own (public
 // certificates). ESP_ERR_INVALID_STATE while another update runs.
 esp_err_t start_download(Target target, const char *url);

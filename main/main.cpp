@@ -44,6 +44,7 @@
 #include "hc/memory/large.hpp"
 #include "hc/network/network.hpp"
 #include "hc/orientation/orientation.hpp"
+#include "hc/ota/ota.hpp"
 #include "hc/platform/device.hpp"
 #include "hc/platform/storage.hpp"
 #include "hc/motion/motion.hpp"
@@ -61,6 +62,7 @@
 #include "backup.hpp"
 #include "bench_mode.hpp"
 #include "ui_backend.hpp"
+#include "ui_player.hpp"
 #include "ui_sound.hpp"
 
 namespace {
@@ -671,6 +673,10 @@ extern "C" void app_main()
         if (hc::dashboard::start() != ESP_OK) {
             ESP_LOGE(kTag, "dashboard did not start");
         }
+#if CONFIG_HC_UI_PLAYER
+        // the music stops for an update: the flash writes starve its buffer in PSRAM
+        hc::ota::set_on_start([](hc::ota::Target) { hc::player::stop(); });
+#endif
         if (hc::webserver::start({.device_name = hc::platform::device_name(),
                                   .hass = &kHassAccess,
                                   .dashboard = &kDashboardAccess,
@@ -679,6 +685,9 @@ extern "C" void app_main()
 #if CONFIG_HC_BOARD_HAS_CAMERA
                                   .camera = hc::camera::available() ? &kCameraAccess : nullptr,
                                   .add_routes = hc::camera::register_routes,
+#endif
+#if CONFIG_HC_UI_PLAYER
+                                  .player = &ui_player::web_access(),
 #endif
                                   }) != ESP_OK) {
             ESP_LOGE(kTag, "web server did not start");

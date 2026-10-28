@@ -82,6 +82,10 @@ struct Status {
 };
 Status status();
 
+// The titles of up to `max` items that come after the current one (Queue::upcoming), as status()
+// names an item before its tags were read; none while a folder is collected.
+memory::Vector<memory::String> upcoming(size_t max);
+
 // something is loaded: playing, paused, waiting for its download or interrupted
 bool active();
 

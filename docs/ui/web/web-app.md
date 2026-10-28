@@ -1,6 +1,6 @@
 # Web app
 
-The setup, login, Status, Home Assistant, Wi-Fi, Hotspot, Camera, Dashboard, Logs and System
+The setup, login, Status, Home Assistant, Wi-Fi, Hotspot, Camera, Player, Dashboard, Logs and System
 pages in `web/`. The look, the page frame and how a page is built:
 [web-design.md](web-design.md). The dashboard editor: [web-dashboard-editor.md](web-dashboard-editor.md).
 The built-in recovery page and the recovery app: [web-recovery.md](web-recovery.md).
@@ -18,6 +18,8 @@ Main pages                after login
   Hotspot                 on or off, name, password, new password
   Camera                  only with a camera: the web stream (on, size, frame rate, quality,
                           login) and its addresses
+  Player                  only with the media player: what plays, play/pause, previous, next,
+                          stop, seek, shuffle, repeat, volume, the songs that come next
   Dashboard               areas and tiles editor, YAML import (with includes) and export,
                           validation errors
   Time                    the clock, time zone (Home Assistant's or fixed), two SNTP servers
@@ -332,6 +334,62 @@ removes the login and the stream goes off.
   (not the web UI login), so a player or Home Assistant's MJPEG camera can open them:
   `http://user:password@<device>/api/camera.mjpg`. Plain HTTP: the login crosses the network
   readable.
+
+### 4.2 Player
+
+**Player page** (in the menu only when `/api/status` says `"player": true`; not in the web image of
+a firmware without `CONFIG_HC_UI_PLAYER`, `tools/build_web.py`): the device's media player as its
+Player page on the screen shows it (docs/ui/lvgl/lvgl-settings.md section 3, docs/architecture.md
+section 9.6), both act on the same queue. The music starts on the device (a media tile, the SD
+card's file manager); the page has no browser of its own. It asks for the state every second.
+
+```
++--------------------------------------------+
+| Player                                     |
+| +----------------------------------------+ |
+| | Now playing                            | |
+| | +------+  Engel                        | |
+| | |cover |  Rammstein · Sehnsucht        | |
+| | +------+  3 of 12                      | |
+| | 1:12                              4:24 | |
+| | ========o----------------------------- | |
+| |       [|<]  [ > ]  [>|]  [ ■ ]         | |
+| |       [Shuffle]  [Repeat all]          | |
+| | Volume 50                              | |
+| | ==============o----------------------- | |
+| +----------------------------------------+ |
+| +----------------------------------------+ |
+| | Up next                                | |
+| |  4. Du hast                            | |
+| |  5. Bück dich                          | |
+| |  ...                                   | |
+| | and 2 more                             | |
+| +----------------------------------------+ |
++--------------------------------------------+
+```
+
+* The cover of the tags (a music note without one), the title (the tags', else the list's or the
+  file's name), artist and album, the state (Paused, Loading ..., Interrupted by a sound, Could
+  not play) and the place in the queue. "Nothing queued" while there is no queue; the buttons are
+  then greyed out.
+* The position slider seeks when it is let go; the volume slider sets the device's volume when it
+  is let go, the same one as Settings, Sound (stored after 10 s). A slider that is held is not set
+  by the next answer.
+* Shuffle and Repeat (off, all, one; a tap goes on to the next) are highlighted while on.
+* "Up next": the next 20 songs in the play order (shuffled when shuffle is on, from the first again
+  after the last with repeat), numbered by their place in the queue, "and N more" past them; hidden
+  when nothing comes. Before a song's tags are read its title is the list's (the file name, a
+  playlist's `#EXTINF`).
+* A song that is skipped (it cannot be played) shows its message as a toast.
+
+* `GET /api/player` (web UI login): `{"state": "idle"|"playing"|"paused"|"failed"|"buffering"|"interrupted",
+  "position_ms", "duration_ms", "index", "count", "shuffle", "repeat": "off"|"all"|"one", "volume",
+  "title", "artist", "album", "error", "error_serial", "cover_serial", "next": [title, ...]}`.
+* `POST /api/player` with any of `action=toggle|next|previous|stop`, `seek=<ms>`, `shuffle=1|0`,
+  `repeat=off|all|one`, `volume=0..100`; answers like GET, 400 with `error` for a wrong value.
+* `GET /api/player/cover`: the cover as it is in the file (JPEG or PNG), 404 without one; the
+  page asks again when `cover_serial` changes.
+* All 404 without the player (the recovery app).
 
 ## 5. Firmware update
 

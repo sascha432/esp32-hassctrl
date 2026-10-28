@@ -63,6 +63,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   and in the library, a folder's ▶ plays it with all its subfolders (a folder's playlist in place of its files); title, artist and cover
   from the tags, next, previous, shuffle, repeat, seek, LED-style spectrum analyser; alarms and Home Assistant's
   sounds pause it, a play symbol in the status bar opens it.
+- Player page in the web UI: what plays with its cover, play/pause, previous, next, stop, seek, shuffle, repeat, volume
+  and the songs that come next.
 - Local GPIO switch: relays switched from Home Assistant. Local GPIO sensor: a motion sensor
   reported to Home Assistant, held on for 1 to 60 min after the last motion; the web UI shows a missing helper. Both found by the device's name, no setup (see "Supported hardware").
 
@@ -247,13 +249,14 @@ The web pages are in `web/` (plain HTML, CSS and JavaScript, Bootstrap 5.3 CSS i
 firmware lacks (`// #if CONFIG_HC_SDCARD` blocks in `app.js`), keeps only the Bootstrap rules the
 pages use and minifies JS and CSS into `build/<board>/fs/web/`; `tools/build_fs.py` gzips that into
 `/www`, sized for the board's "storage" partition (about 50 KB in all). Upload it on the System
-page, with `tools/update.py`, or over serial with `python tools/build_fs.py <board> -p COM9`.
+page, over the network with `python tools/build_fs.py <board> --device <address>`, or over serial with
+`python tools/build_fs.py <board> -p COM9`.
 Without the image the device serves its built-in page; `/recovery` always serves that page.
 
 The image replaces the whole partition, where the dashboard (`/fs/dashboard.json`) lives too.
-Over serial, `build_fs.py` reads the board's partition first and keeps every file outside `/www`
-(`--fresh` keeps nothing). An upload on the System page or with `update.py` does not: export the
-dashboard first (Dashboard, Import & export) and import it afterwards. A dashboard of format
+`build_fs.py` reads the board's partition first (`-p`, serial) or its files (`--device`, the
+network) and keeps every file outside `/www` and `/sounds` (`--fresh` keeps nothing). An upload on
+the System page or with `update.py ... filesystem --fresh` does not: export the dashboard first (Dashboard, Import & export) and import it afterwards. A dashboard of format
 version 1 (a firmware before 2026-10-14) is converted once with `python tools/convert_dashboard.py`
 before the import.
 
@@ -265,8 +268,10 @@ boards and waits for the new firmware:
 
 ```powershell
 python tools/update.py 192.168.0.206 firmware build/ttgo_t4/main/hassctrl.bin
-python tools/update.py 192.168.0.206 filesystem build/ttgo_t4/fs/storage.bin
+python tools/build_fs.py ttgo_t4 --device 192.168.0.206
 ```
+
+`update.py ... filesystem <image> --fresh` uploads an image as it is and replaces every file.
 
 The password is asked for, or taken from `HC_PASSWORD`.
 

@@ -58,6 +58,7 @@ Job g_job;
 // whether ota_0 holds a complete, valid image: -1 not checked yet. Checking reads the whole image,
 // so it is done once and again after an update.
 int g_firmware_valid = -1;
+void (*g_on_start)(Target) = nullptr;
 Status g_status{State::Idle, Target::Firmware, 0, 0, {}};
 portMUX_TYPE g_status_lock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -159,6 +160,9 @@ esp_err_t start_job(Target target, size_t size, State state, bool reserved = fal
                     static_cast<unsigned>(size / 1024), static_cast<unsigned>(g_job.partition->size / 1024));
     }
     ESP_LOGI(kTag, "%s update to '%s', %u bytes", target_name(target), g_job.partition->label, static_cast<unsigned>(size));
+    if (g_on_start != nullptr) {
+        g_on_start(target);
+    }
     return ESP_OK;
 }
 
@@ -332,6 +336,11 @@ void download_task(void *arg)
 }
 
 } // namespace
+
+void set_on_start(void (*on_start)(Target target))
+{
+    g_on_start = on_start;
+}
 
 Info info()
 {

@@ -7,7 +7,7 @@ if(CONFIG_HC_BOARD_HAS_CAMERA)
 endif()
 # the benchmark mode's dashboard and the version of its data (docs/benchmark.md)
 idf_component_register(SRCS ${srcs}
-                       PRIV_REQUIRES app_update audio camera config console esp_mm dashboard esp_app_format esp_timer board hass heap memory light_sensor logbuf devconsole esp_event frame_display motion network orientation platform player relay sample_backend sdcard touch_input ui uidebug vibration webserver
+                       PRIV_REQUIRES app_update audio camera config console esp_mm dashboard esp_app_format esp_timer board hass heap memory light_sensor logbuf devconsole esp_event frame_display motion network orientation ota platform player relay sample_backend sdcard touch_input ui uidebug vibration webserver
                        EMBED_TXTFILES "${PROJECT_DIR}/bench/dashboard/hass.yaml" "${PROJECT_DIR}/bench/VERSION")
 
 # LVGL allocates from PSRAM (main/lvgl/hc_lv_mem.h). Its Kconfig only names the header, so the

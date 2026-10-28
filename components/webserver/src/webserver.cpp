@@ -37,6 +37,7 @@ constexpr size_t kChunkSize = 1024;
 const char *g_device_name = "";
 const HassAccess *g_hass = nullptr;
 const CameraAccess *g_camera = nullptr;
+const PlayerAccess *g_player = nullptr;
 uint32_t g_hotspot_ip = 0; // network byte order
 char g_hotspot_host[16] = {};
 char g_local_host[40] = {};
@@ -270,7 +271,8 @@ esp_err_t get_status(httpd_req_t *req)
         .number("used_kb", fs.fs_used / 1024)
         .number("total_kb", fs.fs_total / 1024)
         .end_object()
-        .boolean("camera", g_camera != nullptr);
+        .boolean("camera", g_camera != nullptr)
+        .boolean("player", g_player != nullptr);
 #if CONFIG_HC_SDCARD
     // the SD card page shows with this object
     const hc::sdcard::Status sd = hc::sdcard::status();
@@ -354,13 +356,14 @@ esp_err_t start(const Config &config)
     g_device_name = config.device_name;
     g_hass = config.hass;
     g_camera = config.camera;
+    g_player = config.player;
     ESP_RETURN_ON_ERROR(detail::auth::init(), kTag, "login");
     std::snprintf(g_local_host, sizeof(g_local_host), "%s.local", config.device_name);
     prepare_portal();
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.uri_match_fn = httpd_uri_match_wildcard;
-    server_config.max_uri_handlers = 56;
+    server_config.max_uri_handlers = 60;
 #if CONFIG_HC_SDCARD
     server_config.max_uri_handlers += detail::kSdRoutes;
 #endif
@@ -392,6 +395,7 @@ esp_err_t start(const Config &config)
     detail::register_dashboard_routes(server, config.dashboard);
     detail::register_backup_routes(server, config.backup, config.device_name);
     detail::register_camera_routes(server, config.camera);
+    detail::register_player_routes(server, config.player);
     detail::register_time_routes(server, config.time);
 #if CONFIG_HC_SDCARD
     detail::register_sd_routes(server);

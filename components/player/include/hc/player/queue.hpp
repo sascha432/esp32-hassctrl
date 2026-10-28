@@ -60,6 +60,10 @@ public:
     // Shuffles the items after the current one, or puts them back in order, the current one staying.
     void set_shuffle(bool shuffle, uint32_t seed);
 
+    // Up to `max` of the items after the current one in the play order, the way next() goes: with
+    // repeat all or one on from the first after the last, up to the one before the current one.
+    size_t upcoming(const Item **out, size_t max, Repeat repeat) const;
+
 private:
     memory::Vector<Item> items_;
     // the play order: indices into items_

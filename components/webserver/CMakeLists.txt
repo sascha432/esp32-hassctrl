@@ -11,6 +11,7 @@ idf_component_register(SRCS ${srcs}
                             "src/api_files.cpp"
                             "src/api_hass.cpp"
                             "src/api_log.cpp"
+                            "src/api_player.cpp"
                             "src/api_session.cpp"
                             "src/api_time.cpp"
                             "src/api_update.cpp"

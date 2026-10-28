@@ -681,6 +681,22 @@ Status status()
     return out;
 }
 
+memory::Vector<memory::String> upcoming(size_t max)
+{
+    memory::Vector<memory::String> titles;
+    std::lock_guard lock(g_mutex);
+    if (!g_collecting.empty() || max == 0) {
+        return titles;
+    }
+    memory::Vector<const Item *> items(max);
+    items.resize(g_queue.upcoming(items.data(), max, g_repeat));
+    titles.reserve(items.size());
+    for (const Item *item : items) {
+        titles.push_back(item->title.empty() ? name_of(item->location) : item->title);
+    }
+    return titles;
+}
+
 bool active()
 {
     const audio::MediaState state = audio::media_status().state;

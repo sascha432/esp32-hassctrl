@@ -126,4 +126,15 @@ void Queue::set_shuffle(bool shuffle, uint32_t seed)
     }
 }
 
+size_t Queue::upcoming(const Item **out, size_t max, Repeat repeat) const
+{
+    const size_t size = order_.size();
+    const size_t left = repeat == Repeat::Off ? (size > at_ ? size - at_ - 1 : 0) : (size > 0 ? size - 1 : 0);
+    const size_t count = left < max ? left : max;
+    for (size_t i = 0; i < count; i++) {
+        out[i] = &items_[order_[(at_ + 1 + i) % size]];
+    }
+    return count;
+}
+
 } // namespace hc::player
