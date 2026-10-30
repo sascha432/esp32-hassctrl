@@ -18,6 +18,7 @@
 #include "hc/board/board.hpp"
 #include "hc/config/dashboard.hpp"
 #include "hc/memory/large.hpp"
+#include "hc/platform/restart.hpp"
 #include "hc/sample/sample_hass.hpp"
 #include "hc/sample/stub_backend.hpp"
 #include "hc/ui/bench.hpp"
@@ -110,7 +111,7 @@ int cmd_bench(int argc, char **argv)
         std::fflush(stdout);
         s_request = kRequest;
         vTaskDelay(pdMS_TO_TICKS(100));
-        esp_restart();
+        hc::platform::restart();
     }
     if (std::strcmp(verb, "run") != 0) {
         std::printf("benchmark mode %s, data version %.*s, scenes version %d\n", g.active ? "on" : "off",
@@ -200,7 +201,7 @@ const hc::ui::Backend &backend()
             hc::sample::backend().set_backlight(percent);
             hc::board::set_backlight(percent);
         };
-        b.restart = esp_restart;
+        b.restart = [] { hc::platform::restart(); };
         return b;
     }();
     return backend;

@@ -36,6 +36,7 @@
 #include "hc/light_sensor/light_sensor.hpp"
 #include "hc/network/coprocessor.hpp"
 #include "hc/network/network.hpp"
+#include "hc/platform/restart.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/storage.hpp"
 #include "hc/touch_input/touch_input.hpp"
@@ -241,7 +242,7 @@ int cmd_c6(int argc, char **argv)
         std::printf("done, restarting\n");
         fflush(stdout);
         vTaskDelay(pdMS_TO_TICKS(500));
-        esp_restart();
+        hc::platform::restart();
         return 0;
     }
     return usage("c6 [version|update <http url>|update slot]");
@@ -415,7 +416,7 @@ int cmd_login_reset(int argc, char **argv)
 
 int cmd_restart(int, char **)
 {
-    esp_restart();
+    hc::platform::restart();
     return 0;
 }
 
@@ -1314,7 +1315,7 @@ int cmd_factory_reset(int argc, char **argv)
     if (check(hc::platform::erase_all_settings()) != 0) {
         return 1;
     }
-    esp_restart();
+    hc::platform::restart();
     return 0;
 }
 

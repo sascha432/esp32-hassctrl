@@ -20,6 +20,7 @@
 #include "hc/motion/motion.hpp"
 #include "hc/network/network.hpp"
 #include "hc/platform/device.hpp"
+#include "hc/platform/restart.hpp"
 #include "hc/platform/settings.hpp"
 #include "hc/platform/system_info.hpp"
 #include "hc/platform/time_sync.hpp"
@@ -686,11 +687,11 @@ const hc::ui::Backend g_backend{
     .local_time = local_time,
     .web_address = web_address,
     .reset_web_login = [] { hc::webserver::reset_login(); },
-    .restart = [] { esp_restart(); },
+    .restart = [] { hc::platform::restart(); },
     .factory_reset =
         [] {
             hc::platform::erase_all_settings();
-            esp_restart();
+            hc::platform::restart();
         },
     .hint_seen = hint_seen,
     .set_hint_seen = set_hint_seen,

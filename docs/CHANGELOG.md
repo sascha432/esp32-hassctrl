@@ -11,6 +11,8 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 Fixed
 
+* A restart that hangs in a shutdown step ends anyway: `platform::restart()` arms the RTC watchdog
+  for 5 s, the next start reports a watchdog reset.
 * JC3248W535: no more "alloc failed ... caps 0x8" when a card file starts (a 1 KB SD bounce
   buffer from the mount); `sd get` works (its stack in PSRAM).
 

@@ -1380,17 +1380,19 @@ the songs that come next of a playlist; a mirror of the screen's Player page (yo
 - [x] `tools/build_fs.py <board> --device <address>`: the web image over the network keeping the
       device's own files (an `update.py` file system upload wiped the hallway's dashboard;
       `update.py ... filesystem` needs `--fresh` now).
-- [ ] On the hallway P4 (OTA): a folder or playlist from a media tile, the page's title, cover,
-      up next, buttons, seek, shuffle/repeat, volume against Settings, Sound.
-- [ ] Your check in the browser, phone and desktop, light and dark.
+- [x] On the hallway P4 (OTA): a folder or playlist from a media tile, the page's title, cover,
+      up next, buttons, seek, shuffle/repeat, volume against Settings, Sound (working, you 2026-10-30).
+- [x] Your check in the browser, phone and desktop, light and dark (working, you 2026-10-30).
 - [ ] An update while music played (your report 2026-10-27, hallway P4): noise, the screen
       flickered, unplugged, the update rolled back. Now the player stops when an update starts
       (`ota::set_on_start`). The screen flickers during every upload also without music (your
       report 2026-10-27, hallway P4, only while the image is written, not after): a problem of its
       own. The kitchen P4 flickers the same way during a firmware upload (2026-10-27): two units,
-      two supplies, so not a brownout or weak power; the flash writes against the MIPI-DSI panel's
-      frame buffer in PSRAM. Accepted for now (your call, it only shows during an update); cause
-      to find on the test P4 (COM11, serial) some time.
+      two supplies, so not a brownout or weak power. Cause known (you, 2026-10-30): the flash cache
+      is off while the image is written, the DSI interrupt that restarts the panel's DMA cannot run;
+      the recovery app's cyan flicker, fixed there with `CONFIG_LCD_DSI_ISR_CACHE_SAFE` (see Recovery
+      app above). The main firmware keeps it off, it would need esp_lvgl_port's DSI callback in
+      IRAM. Accepted for now (your call, it only shows during an update).
 - [x] The hallway's file system after the unplug: wrong names in the listing, `dashboard.json`
       and `Timing.mp3` read 0 bytes. Rewritten with a fresh image, the dashboard imported again
       from its export (11 pages, 94 tiles), checked after a restart.
@@ -1642,9 +1644,9 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       good (you, 2026-10-28); no firmware change.
 - [x] Hallway radar stuck on (your report 2026-10-29): a DECT phone 20 cm away kept it triggered,
       50 cm is fine. RF into the module, no firmware change; noted in devices/JC4880P443C.
-- [ ] Motion sensor switch (2026-10-29, your request): Settings, Display, "Motion sensor" (on by default,
+- [x] Motion sensor switch (2026-10-29, your request): Settings, Display, "Motion sensor" (on by default,
       backup `motion_sensor`); off, the sensor reads clear, the helper goes off, no wake, the two motion rows
-      are hidden. To check on the test P4 (COM11).
+      are hidden. Tested and working (you, 2026-10-30).
 
 ## Touch (2026-10-17)
 
@@ -2186,22 +2188,26 @@ Not built yet (placeholders in the code or the documentation):
       enough for a lux table. Instead a simple two-point setup for the automatic brightness: the light
       where the display is at its minimum, and the light where it is at 100 %. Built and flashed on the WT32 2026-10-10 (Display page: "Lowest brightness at" /
       "Full brightness at", tap in the room's light; defaults 0 and 350 lx; in the backup). Confirmed by you 2026-10-10.
-- [ ] Wi-Fi modem sleep while the screen is off (built 2026-10-23, `network::set_power_save` from
+- [x] Wi-Fi modem sleep while the screen is off (built 2026-10-23, `network::set_power_save` from
       `main`'s backlight). JC3248W535 (2026-10-23): on with the screen off, off with the waking tap
-      (log `modem sleep on/off`); 120 → 93 mA with the screen off (measured by you). Open: the tiles
-      current right after waking, the alarm and a `hassctrl_say` with the screen off.
-- [ ] **Console `restart` did not restart once** (JC3248W535, 2026-10-25, the firmware with 10 KB free):
+      (log `modem sleep on/off`); 120 → 93 mA with the screen off (measured by you). Checked
+      2026-10-30 on the JC3248W535: a say with the screen off fetched its MP3 as fast as with the
+      screen on (32 KB in 101 ms, a new text 23 KB in 639 ms; screen on 218-1114 ms); a ringing
+      alarm (`sound ring`) wakes the screen and turns modem sleep off within 1 s. No current
+      measurement after waking (your call): the log shows modem sleep off with the wake.
+- [x] **Console `restart` did not restart once** (JC3248W535, 2026-10-25, the firmware with 10 KB free):
       the log showed the Wi-Fi driver stopping (`run -> init`, `flush txq`), then hass kept trying to
       connect ("Host is unreachable") for 40 s and the board stayed up until esptool reset it. A
       shutdown handler after the Wi-Fi stop (backlight, pending settings) or `esp_restart` itself
-      waited; not seen again with 42 KB free. Watch for it.
-- [ ] **Web downloads at 20-35 KB/s on the JC3248W535** (2026-10-25). Not the RAM: with 42 KB internal
-      and 34 KB DMA free an SD file (4 MB of an MP3, `GET /api/sd/file`) comes at 22-24 KB/s without
-      a break, `/api/fs/files.zip` (LittleFS, no card) at 34 KB/s, a 16 KB static file at 125 KB/s;
-      modem sleep off (ping 7 ms; with it on, 45-113 ms, half the speed). All of them go through
-      `httpd_resp_send_chunk`; suspects are lwIP's send buffer (`TCP_SND_BUF` 5760) with the
-      client's delayed ACKs, and Nagle on the chunk headers. Not measured on the other boards yet
-      (WT32 not on COM9, the test P4's console did not answer).
+      waited; not seen again with 42 KB free. Fixed 2026-10-30: `platform::restart()` arms the RTC
+      watchdog for 5 s before `esp_restart()`, every restart goes through it; a test handler that
+      never returned reset the JC3248W535 after 4.8 s (`RTCWDT_SYS_RST`), a normal restart takes
+      0.2 s. A watchdog reset at a start means a shutdown handler waited: find which.
+- [x] **Web downloads at 20-35 KB/s on the JC3248W535** (2026-10-25). Not the firmware
+      (2026-10-30): the bench's access points lose the board's A-MPDU aggregates, receiving is fast
+      (uploads 340-440 KB/s); with A-MPDU TX off for a test an SD file came at 160-200 KB/s. No
+      firmware change (a network's problem, not one for the firmware to work around); TCP_NODELAY
+      and a 4x send buffer did not help.
 - [x] **JC3248W535 internal RAM** (2026-10-25): 10 KB free with Home Assistant connected (DMA 2 KB; the
       SD driver read sector by sector, the player ran dry, `sd get` and web downloads failed). Measured
       per start step: 210 KB after boot, console 15 KB, LVGL 50 KB (40 KB bands, 7 KB task stack),

@@ -18,6 +18,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hc/board/board.hpp"
+#include "hc/platform/restart.hpp"
 #include "hc/platform/storage.hpp"
 
 namespace hc::ota {
@@ -511,11 +512,11 @@ esp_err_t restart_into_firmware(uint32_t delay_ms)
 void restart_later(uint32_t delay_ms)
 {
     esp_timer_create_args_t args{};
-    args.callback = [](void *) { esp_restart(); };
+    args.callback = [](void *) { hc::platform::restart(); };
     args.name = "restart";
     esp_timer_handle_t timer = nullptr;
     if (esp_timer_create(&args, &timer) != ESP_OK || esp_timer_start_once(timer, delay_ms * 1000ull) != ESP_OK) {
-        esp_restart();
+        hc::platform::restart();
     }
 }
 
