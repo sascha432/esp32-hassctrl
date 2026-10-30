@@ -5,8 +5,13 @@ CONFIG_HC_BOARD_WT32_SC01=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/4mb.csv"
+# XMC XM25QH32 (flash ID 0x20 0x4016) on an ESP32-D0WD v1.0: QIO at 80 MHz, PSRAM at 80 MHz too
+# (needs the flash at 80 MHz)
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
 CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_80M=y
 
 # SPI panel: RGB565 high byte first (hc::board::Info::swap_bytes). LVGL 8 only; with LVGL 9 this
 # becomes esp_lvgl_port's swap_bytes flag.

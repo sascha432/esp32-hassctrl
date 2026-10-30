@@ -1984,10 +1984,10 @@ JC4880P443C; what is left of the bring-up is listed in the "Step" sections above
       in the flash cache, [benchmark.md](benchmark.md) section 6; found 2026-10-17). Measure render
       changes on the JC3248W535 or the P4; or find which LVGL functions to pin in IRAM so the
       WT32 stays steady.
-- [ ] WT32-SC01: flash and PSRAM run at ESP-IDF's defaults, DIO 40 MHz and 40 MHz
-      ([benchmark.md](benchmark.md) section 6). Proposal: QIO and 80 MHz for both in
-      `boards/wt32_sc01/sdkconfig.defaults` (the WROVER-B's flash and PSRAM should take it; check
-      its chip revision and flash ID first), then compare with `wt32_sc01-lvgl8.4-same.json`.
+- [x] WT32-SC01: flash and PSRAM ran at ESP-IDF's defaults, DIO 40 MHz and 40 MHz
+      ([benchmark.md](benchmark.md) sections 6 and 7). Done 2026-10-30: QIO and 80 MHz for both in
+      `boards/wt32_sc01/sdkconfig.defaults` (ESP32-D0WD v1.0, XMC flash 0x20 0x4016, PSRAM test
+      passes); frame times halved on one source (main redraw 135.6 -> 62.5 ms), faster by eye too.
       The JC3248W535 stays at 80/80: 120 MHz flash does not go with its octal PSRAM (found 2026-10-17).
 - [x] Files over the 600 lines of architecture.md section 11 (found 2026-10-17). Done:
       `hass.cpp` 1,827 -> 1,625, the stored configuration and token test moved to `config.cpp`,

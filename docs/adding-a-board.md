@@ -34,7 +34,7 @@ from kfc_fw's LovyanGFX configuration) and note where they came from.
 
 | File | Content |
 | --- | --- |
-| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 13), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, options for the flash chip if the boot log asks for them |
+| `boards/<name>/sdkconfig.defaults` | `CONFIG_IDF_TARGET`, `CONFIG_HC_BOARD_<NAME>=y`, `CONFIG_HC_BOARD_BRING_UP=y` (until step 13), flash size, partition table (`partitions/4mb.csv` or `16mb.csv`), PSRAM, `CONFIG_LV_COLOR_16_SWAP=y` for SPI panels with LVGL 8, flash and PSRAM mode and speed (QIO, 80 MHz where the chips take it; ESP-IDF's DIO 40 MHz halves the frame rate, benchmark.md section 6), options for the flash chip if the boot log asks for them |
 | `components/board/Kconfig` | a `HC_BOARD_<NAME>` entry in the board choice, `depends on IDF_TARGET_...` |
 | `components/board/CMakeLists.txt` | `if(CONFIG_HC_BOARD_<NAME>)` adds `boards/<name>/<name>.cpp` |
 | `components/board/boards/<name>/<name>.cpp` | `Info`, `init()` and the backlight functions, like the existing boards |

@@ -132,12 +132,15 @@ time of a scene differed between the runs.
 
   | Board | Flash | PSRAM | CPU |
   | --- | --- | --- | --- |
-  | WT32-SC01 (ESP32) | DIO, 40 MHz (ESP-IDF's default) | quad, 40 MHz | 240 MHz |
+  | WT32-SC01 (ESP32) | QIO, 80 MHz | quad, 80 MHz | 240 MHz |
   | JC3248W535 (ESP32-S3) | QIO, 80 MHz | octal, 80 MHz | 240 MHz |
   | JC4880P443C (ESP32-P4) | QIO, 80 MHz | hex, 200 MHz | 400 MHz |
 
-  The WT32 reads its code at a quarter of the speed the others have, which may also be why its
-  times depend on the build; QIO at 80 MHz is open ([TODO.md](TODO.md)). Flash at 120 MHz on the
+  Until 2026-10-30 the WT32 ran at ESP-IDF's defaults, DIO 40 MHz flash and 40 MHz PSRAM, a
+  quarter of the others' flash speed; QIO at 80 MHz for both halved its frame times (section 7).
+  Its flash (XMC XM25QH32, ID 0x20 0x4016) and PSRAM take it, and the PSRAM test at boot passes.
+  The flash mode is in the bootloader: after a change, flash the recovery app (it brings the
+  bootloader) and then the main firmware. The build spread above was measured at 40 MHz. Flash at 120 MHz on the
   JC3248W535 does not build: its octal PSRAM runs in DDR, so at 80 MHz the MSPI core clock both
   share is 160 MHz while 120 MHz flash needs 240 MHz (`mspi_timing_tuning_configs.h` asserts they
   match). Only octal PSRAM at 120 MHz would match it, an experimental setting that ESP-IDF says
@@ -156,6 +159,7 @@ runs each; ms per frame (`total`, `render`, `flush` are medians).
 | `<board>-lvgl8.4-same.json` | LVGL 8.4 with the hand-drawn clock, the firmware as it is (the tables below) |
 | `<board>-lvgl9.6.json` | the same source on LVGL 9.6 (section 8) |
 | `wt32_sc01-lvgl8.4-clock.json`, `wt32_sc01-check-same.json` | WT32 builds of the build spread above |
+| `wt32_sc01-dio40.json`, `wt32_sc01-qio80.json` | WT32, one source (2026-10-30): flash DIO 40 MHz and PSRAM 40 MHz, then QIO 80 MHz and 80 MHz |
 
 The hand-drawn clock face (instead of `lv_meter`) costs 4.7 instead of 22 ms a tick on the WT32
 and 0.7 instead of 0.8 ms on the P4. Everything else is the same as the baseline within 2 % on the
@@ -163,6 +167,18 @@ JC3248W535 and the P4, but for the P4's weather panel redraw (78 to 60 ms, not e
 change).
 
 ### WT32-SC01 (ESP32, SPI, 480x320)
+
+Measured with flash DIO 40 MHz and PSRAM 40 MHz. Since 2026-10-30 the WT32 runs at QIO 80 MHz
+and 80 MHz, which halves the times (`wt32_sc01-dio40.json` against `wt32_sc01-qio80.json`, one
+source):
+
+| Scene | total med, 40 MHz | total med, 80 MHz | fps, 40 / 80 MHz |
+| --- | --- | --- | --- |
+| `main_redraw` | 135.64 | 62.54 | 7.0 / 14.8 |
+| `dense_redraw` | 193.87 | 88.29 | 5.0 / 10.7 |
+| `light_panel_redraw` | 79.97 | 36.41 | 11.5 / 24.1 |
+| `weather_panel_redraw` | 170.40 | 72.87 | 5.6 / 12.8 |
+| `pending_runner` | 7.34 | 3.12 | 72.5 / 99.0 |
 
 | Scene | fps | total med | total p95 | render med | flush med | pixels/frame |
 | --- | --- | --- | --- | --- | --- | --- |

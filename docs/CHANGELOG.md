@@ -7,6 +7,15 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-10-30
+
+Changed
+
+* WT32-SC01: flash QIO at 80 MHz and PSRAM at 80 MHz (were DIO 40/40); frame times halved. Flash
+  the recovery app once for the new bootloader (docs/benchmark.md section 6).
+* Docs: the replacement WT32-SC01 has an 8 MB PSRAM chip, of which the ESP32 maps 4 MB
+  (devices/WT32-SC01).
+
 ### 2026-10-29
 
 Added
