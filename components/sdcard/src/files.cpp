@@ -32,7 +32,7 @@ Result below_root(const char *relative, char *out)
 
 } // namespace
 
-Result list(const char *dir, bool (*add)(const Entry &entry, void *context), void *context)
+Result list(const char *dir, bool (*add)(const Entry &entry, void *context), void *context, bool sizes)
 {
     if (!mounted()) {
         return Result::NoCard;
@@ -47,11 +47,17 @@ Result list(const char *dir, bool (*add)(const Entry &entry, void *context), voi
     }
     char entry_path[kMaxPath + 256];
     while (const dirent *entry = readdir(handle)) {
-        std::snprintf(entry_path, sizeof(entry_path), "%s/%s", path, entry->d_name);
-        struct stat info {};
-        stat(entry_path, &info);
-        const bool is_dir = S_ISDIR(info.st_mode);
-        if (!add({entry->d_name, is_dir ? 0 : static_cast<uint64_t>(info.st_size), is_dir}, context)) {
+        // FAT's readdir says folder or file; stat() searches the folder again for the size
+        bool is_dir = entry->d_type == DT_DIR;
+        uint64_t size = 0;
+        if (sizes || entry->d_type == DT_UNKNOWN) {
+            std::snprintf(entry_path, sizeof(entry_path), "%s/%s", path, entry->d_name);
+            struct stat info {};
+            stat(entry_path, &info);
+            is_dir = S_ISDIR(info.st_mode);
+            size = is_dir ? 0 : static_cast<uint64_t>(info.st_size);
+        }
+        if (!add({entry->d_name, size, is_dir}, context)) {
             break;
         }
     }

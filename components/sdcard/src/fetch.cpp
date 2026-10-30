@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "esp_crt_bundle.h"
+#include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -23,7 +24,7 @@ constexpr const char *kTag = "sdcard";
 constexpr size_t kUrlSize = 257;
 constexpr int kMaxRedirects = 5;
 constexpr size_t kBufferSize = 4096;
-// TLS needs the larger stack
+// TLS needs the larger stack; PSRAM, the JC3248W535 has no 8 KB of internal RAM to spare
 constexpr uint32_t kStackSize = 8192;
 
 struct Job {
@@ -148,7 +149,7 @@ void fetch_task(void *arg)
     auto *job = static_cast<Job *>(arg);
     download(*job);
     delete job;
-    vTaskDelete(nullptr);
+    vTaskDeleteWithCaps(nullptr);
 }
 
 } // namespace
@@ -181,7 +182,7 @@ esp_err_t fetch_start(const char *url, const char *path)
         delete job;
         return ESP_ERR_INVALID_STATE;
     }
-    if (xTaskCreate(fetch_task, "sd_fetch", kStackSize, job, 5, nullptr) != pdPASS) {
+    if (xTaskCreateWithCaps(fetch_task, "sd_fetch", kStackSize, job, 5, nullptr, MALLOC_CAP_SPIRAM) != pdPASS) {
         delete job;
         taskENTER_CRITICAL(&g_status_lock);
         g_status.state = FetchState::Idle;

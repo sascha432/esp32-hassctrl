@@ -675,6 +675,8 @@ const hc::ui::Backend g_backend{
     .player_spectrum = ui_player::spectrum,
     .player_supports = ui_player::supports,
     .player_is_playlist = ui_player::is_playlist,
+    .player_plays_media = ui_player::plays_media,
+    .player_is_media_playlist = ui_player::is_media_playlist,
     .player_cover = ui_player::cover,
     .media_browse = ui_player::browse,
 #endif

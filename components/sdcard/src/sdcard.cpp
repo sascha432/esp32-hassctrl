@@ -5,6 +5,7 @@
 
 #include "driver/sdmmc_host.h"
 #include "esp_check.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_vfs_fat.h"
@@ -29,6 +30,15 @@ constexpr int kMaxFiles = 4;
 // the cluster size of format(): large clusters for sound and recording files
 constexpr size_t kAllocationUnit = 32 * 1024;
 constexpr uint32_t kStatusWaitMs = 20;
+#if !SOC_SDMMC_PSRAM_DMA_CAPABLE
+// The SDMMC DMA takes internal RAM only (the ESP32-S3): a read into PSRAM (FAT's sector caches,
+// the player's buffers) goes through this bounce buffer, taken with the mount. Without it ESP-IDF
+// allocated one per transfer, 8 KB first and half of it until one fit: an "alloc failed" for each
+// try on the JC3248W535, whose DMA memory is short. Two sectors per transfer.
+constexpr size_t kBounceSize = 1024;
+constexpr size_t kBounceAlign = 4;
+void *g_bounce = nullptr;
+#endif
 
 StaticSemaphore_t g_lock_buffer;
 SemaphoreHandle_t g_lock = nullptr;
@@ -51,6 +61,14 @@ esp_vfs_fat_mount_config_t mount_config(bool format)
     return config;
 }
 
+void free_bounce()
+{
+#if !SOC_SDMMC_PSRAM_DMA_CAPABLE
+    heap_caps_free(g_bounce);
+    g_bounce = nullptr;
+#endif
+}
+
 // ESP_FAIL from the mount is the FAT (none, or damaged); the other errors come from the card
 esp_err_t mount_locked(bool format)
 {
@@ -64,11 +82,17 @@ esp_err_t mount_locked(bool format)
     host.slot = SDMMC_HOST_SLOT_0;
     host.max_freq_khz = kMaxClockKhz;
     host.pwr_ctrl_handle = g_power;
+#if !SOC_SDMMC_PSRAM_DMA_CAPABLE
+    // none: ESP-IDF allocates one per transfer as before
+    g_bounce = heap_caps_aligned_alloc(kBounceAlign, kBounceSize, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    host.dma_aligned_buffer = g_bounce;
+#endif
     const esp_vfs_fat_mount_config_t config = mount_config(format);
     const int64_t started = esp_timer_get_time();
     const esp_err_t err = esp_vfs_fat_sdmmc_mount(kMountPoint, &host, &g_slot, &config, &g_card);
     if (err != ESP_OK) {
         g_card = nullptr;
+        free_bounce();
         g_state = err == ESP_FAIL ? State::Unformatted : State::NoCard;
         if (g_state == State::Unformatted) {
             ESP_LOGW(kTag, "the card has no FAT that mounts: format it in the web UI");
@@ -99,6 +123,7 @@ esp_err_t unmount_locked(State state)
     // removes slot 0 only: the controller stays while the C6's slot uses it
     const esp_err_t err = esp_vfs_fat_sdcard_unmount(kMountPoint, g_card);
     g_card = nullptr;
+    free_bounce();
     g_state = state;
     return err;
 }

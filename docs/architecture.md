@@ -849,14 +849,16 @@ different major version on the two chips is a mismatch.
     recording (`sdcard::save_recording`: `/sd/recordings/rec-<date>-<time>.wav`, from the LVGL
     task in 45 ms or from the console), the web UI page (ui/web/web-app.md section 4, SD card:
     list, streamed upload and download, delete, folders, rename/move, a download from a URL in a
-    task of its own like the OTA download, format), the screen's file manager (Settings, System,
+    task of its own like the OTA download (8 KB stack in PSRAM), format), the screen's file manager (Settings, System,
     SD card; ui/lvgl/lvgl-settings.md section 3) and its player (section 9.6), console `sd`.
   * **One set of file operations** (`sdcard::list`, `remove`, `make_dir`, `rename`, `files.cpp`)
     for the web UI, the screen (through `ui::Backend::sd_*`, `main/ui_files.cpp`) and the
     console: paths relative to the card through `make_path`, the root never removed or renamed,
     a rename never over a name that exists (FatFs would refuse it too) nor a folder into itself.
     The screen lists on the LVGL task (a folder of a few hundred entries in a few ms), up to 200
-    entries into a buffer that lives as long as the page.
+    entries into a buffer that lives as long as the page. The player's lists (a folder's walk, a
+    tapped file's folder) ask for no sizes: the folder flag comes from `readdir`'s `d_type`,
+    without a `stat()` per entry, which on FAT searches the folder again (n² for a folder).
   * Free space: FAT counts it once after mounting (a full FAT scan on a card without FSInfo),
     then keeps it. `status()` waits at most 20 ms for the lock, so the screen and the web server
     do not wait for a format.
@@ -868,7 +870,10 @@ different major version on the two chips is a mismatch.
     `FATFS_ALLOC_PREFER_ALIGNED_WORK_BUFFERS=y`, `FATFS_PER_FILE_CACHE=y`, `FATFS_USE_DYN_BUFFERS=y`.
     The volume's work buffer, the table of open files (`max_files` = 4) and each file's sector
     cache are in PSRAM; the P4's PSRAM is DMA-capable, so the SDMMC controller reads and writes
-    them directly. Long names on the heap (the default), UTF-8 names
+    them directly. The S3's SDMMC DMA takes internal RAM only: a read into PSRAM goes through a
+    1 KB bounce buffer taken with the mount (`host.dma_aligned_buffer`); without it ESP-IDF
+    allocated one per transfer, 8 KB first and halving, and logged a failed allocation for each
+    try when the DMA memory was short (JC3248W535). Long names on the heap (the default), UTF-8 names
     (`CONFIG_FATFS_API_ENCODING_UTF_8`, the JC4880P443C's `sdkconfig.defaults`).
   * Other boards (not built): the TTGO T4's slot is on SPI (CS 13, MOSI 15, SCK 14, MISO 2, a
     strapping pin that needs the card's pullup); the WT32-SC01 has none.
@@ -877,7 +882,7 @@ different major version on the two chips is a mismatch.
 
 | Component | Responsibility |
 | --- | --- |
-| `platform` | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP with two servers (the web UI's Time page, else pool.ntp.org and time.cloudflare.com; a change restarts SNTP) and the time zone (`time_sync.cpp`; the zone's name from Home Assistant unless a name or a POSIX rule is fixed on the Time page, its POSIX rule from the zone table of `core`) |
+| `platform` | boot log, both NVS partitions, LittleFS at `/fs`, the settings class for the settings NVS, the device name (`hassctrl-` and the last two MAC bytes), SNTP with two servers (the web UI's Time page, else pool.ntp.org and time.cloudflare.com; a change restarts SNTP) and the time zone (`time_sync.cpp`; the zone's name from Home Assistant unless a name or a POSIX rule is fixed on the Time page, its POSIX rule from the zone table of `core`); `restart()` for every restart of the firmware: `esp_restart()` with the RTC watchdog armed for 5 s, so a shutdown handler that waits cannot keep the board up |
 | `network` | station and AP state machine of sections 9.1 and 9.2, up to 5 stored networks, the hotspot password, scan results, stored in the settings NVS. One task owns the driver and the state; commands are queued, readers get copies (`status()`); a change listener exists but `main` passes none. Files: `network.cpp` (the state, the task, start), `station.cpp` (scan, connect, retry, roam), `commands.cpp` (the saved networks), `api.cpp` (the calls of other tasks), shared through `task.hpp`. The network choice is plain C++ (`selection.cpp`) for host tests. mDNS (`espressif/mdns`): the device answers as `<device name>.local` and announces `_http._tcp`, in both apps |
 | `webserver` | captive portal DNS and redirect, the status API and the built-in page, the setup pages for the phone path, login with the web UI username and password, Home Assistant URL and token, the time zone and SNTP servers (`api_time.cpp`, main firmware only: `Config::time`), the backup export and import (one YAML file; the sections come from a table filled in `main`, each with write, check and apply, so the web server depends on none of their owners), logs. Serves the web files from LittleFS, with a recovery page compiled in that works without the file system ([ui/web/web-recovery.md](ui/web/web-recovery.md)). The dashboard API (`/api/dashboard`: read and write with the revision, YAML import and export) through the `dashboard` component. The Player page's API (`/api/player`, `api_player.cpp`) through `webserver::PlayerAccess`, filled in `main/ui_player.cpp` |
 | `ui` | plain LVGL, no ESP-IDF drivers. Settings (quick settings, Wi-Fi, hotspot, Home Assistant, display, sound, camera, alarm, system), the pull-down zone and the alert strip on `lv_layer_top`, the dashboard with its tiles, panels and edit mode. Everything it needs from the firmware comes through `hc::ui::Backend`, a table of functions that `main/ui_backend.cpp` fills from `network`, `board`, `platform` and `webserver`. The first setup is a sequence of the same pages |
@@ -1101,7 +1106,9 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   playlist of the library (`audio/x-mpegurl`, `.m3u`, `.m3u8`; `player::play_media_playlist`)
   is downloaded by the folder task below with `hass::stream_media` into a 64 KB ring (15 s at
   most): its paths are relative to the playlist's folder and become `media-source://` ids, its
-  addresses stream as they are.
+  addresses stream as they are. What the player takes is one rule, `player/src/kinds.cpp` (host
+  tested): the walk, a tapped file's queue, and the icons of the media browser and the file
+  manager (through `Backend::player_supports`, `player_plays_media`, ...).
   * **A folder with its subfolders** (the play button of a folder in the media browser,
     `player::play_folder` / `play_media_folder`, console `player folder`): `player/src/tree.cpp`
     (host tested) walks depth first, each folder's files before its subfolders, both in the

@@ -292,6 +292,16 @@ bool is_playlist(const char *name)
     return hc::player::is_playlist(name);
 }
 
+bool plays_media(const hc::core::MediaItem &item)
+{
+    return hc::player::playable_media(item);
+}
+
+bool is_media_playlist(const hc::core::MediaItem &item)
+{
+    return hc::player::is_media_playlist(item);
+}
+
 bool cover(uint16_t size, hc::core::Image &out)
 {
     uint32_t serial = 0;

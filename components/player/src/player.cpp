@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
-#include <strings.h>
 
 #include "esp_log.h"
 #include "esp_random.h"
@@ -171,13 +170,6 @@ void on_ended(bool failed)
     }
 }
 
-bool has_extension(const char *name, const char *extension)
-{
-    const size_t length = std::strlen(name);
-    const size_t wanted = std::strlen(extension);
-    return length > wanted && strcasecmp(name + length - wanted, extension) == 0;
-}
-
 #if CONFIG_HC_SDCARD
 struct FolderList {
     memory::Vector<Item> items;
@@ -269,7 +261,7 @@ memory::Vector<Item> collect_sd(const memory::String &folder)
         folder,
         [](const memory::String &id, memory::Vector<TreeEntry> &out) {
             TreeList list{&out, &id};
-            return sdcard::list(id.c_str(), add_tree_entry, &list) == sdcard::Result::Ok;
+            return sdcard::list(id.c_str(), add_tree_entry, &list, false) == sdcard::Result::Ok;
         },
         [](const memory::String &id, memory::Vector<Item> &out) { return read_playlist(id.c_str(), out); },
         [](const TreeEntry &entry) {
@@ -465,33 +457,6 @@ void play(memory::Vector<Item> items, size_t index)
     start_from_current();
 }
 
-bool playable(const char *name)
-{
-    return has_extension(name, ".mp3") || has_extension(name, ".wav") || is_playlist(name);
-}
-
-bool is_playlist(const char *name)
-{
-    return has_extension(name, ".m3u") || has_extension(name, ".m3u8");
-}
-
-bool playable_media(const core::MediaItem &item)
-{
-    if (item.folder || !item.playable) {
-        return false;
-    }
-    return item.type == "audio/mpeg" || item.type == "audio/mp3" || has_extension(item.title.c_str(), ".mp3");
-}
-
-bool is_media_playlist(const core::MediaItem &item)
-{
-    if (item.folder || !item.playable) {
-        return false;
-    }
-    // audio/x-mpegurl, audio/mpegurl, application/vnd.apple.mpegurl
-    return item.type.find("mpegurl") != memory::String::npos || is_playlist(item.title.c_str());
-}
-
 bool play_folder(const char *path, std::string_view title)
 {
 #if CONFIG_HC_SDCARD
@@ -535,7 +500,7 @@ bool play_file(const char *path)
     const size_t slash = relative.find_last_of('/');
     const memory::String folder(slash == std::string_view::npos ? std::string_view() : relative.substr(0, slash));
     FolderList list{.items = {}, .folder = folder.c_str()};
-    if (sdcard::list(folder.c_str(), add_file, &list) != sdcard::Result::Ok) {
+    if (sdcard::list(folder.c_str(), add_file, &list, false) != sdcard::Result::Ok) {
         return false;
     }
     // in the order of the names, as the file manager shows them

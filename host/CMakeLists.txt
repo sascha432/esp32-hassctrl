@@ -76,6 +76,7 @@ add_executable(hc_tests
     ${HC_ROOT}/components/network/src/merge.cpp
     ${HC_ROOT}/components/network/src/selection.cpp
     ${HC_ROOT}/components/player/src/queue.cpp
+    ${HC_ROOT}/components/player/src/kinds.cpp
     ${HC_ROOT}/components/player/src/tree.cpp
 )
 target_include_directories(hc_tests PRIVATE

@@ -32,6 +32,8 @@ void info(hc::ui::PlayerInfo &out);
 bool spectrum(float *bands, size_t count);
 bool supports(const char *name);
 bool is_playlist(const char *name);
+bool plays_media(const hc::core::MediaItem &item);
+bool is_media_playlist(const hc::core::MediaItem &item);
 bool cover(uint16_t size, hc::core::Image &out);
 void browse(std::string_view id, uint32_t generation);
 // the web UI's Player page (docs/ui/web/web-app.md section 4)

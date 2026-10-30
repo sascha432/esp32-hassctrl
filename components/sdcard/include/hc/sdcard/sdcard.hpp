@@ -90,8 +90,9 @@ struct Entry {
 };
 
 // Every entry of the folder `dir` ("" is the root), in the order of the FAT; `add` returns false
-// to stop.
-Result list(const char *dir, bool (*add)(const Entry &entry, void *context), void *context);
+// to stop. Without `sizes` every size is 0: no stat() per entry, which on FAT searches the folder
+// again (a large folder's list goes from n² to n).
+Result list(const char *dir, bool (*add)(const Entry &entry, void *context), void *context, bool sizes = true);
 // a file, or an empty folder
 Result remove(const char *path);
 Result make_dir(const char *path);

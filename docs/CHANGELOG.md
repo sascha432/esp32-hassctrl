@@ -9,8 +9,15 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ### 2026-10-30
 
+Fixed
+
+* JC3248W535: no more "alloc failed ... caps 0x8" when a card file starts (a 1 KB SD bounce
+  buffer from the mount); `sd get` works (its stack in PSRAM).
+
 Changed
 
+* Media browser: a library folder held once (cache and page share it); folder play lists the card
+  without a stat per entry; the browser's icons and the walk use one rule (`player/src/kinds.cpp`).
 * WT32-SC01: flash QIO at 80 MHz and PSRAM at 80 MHz (were DIO 40/40); frame times halved. Flash
   the recovery app once for the new bootloader (docs/benchmark.md section 6).
 * Docs: the replacement WT32-SC01 has an 8 MB PSRAM chip, of which the ESP32 maps 4 MB

@@ -1345,21 +1345,25 @@ ui/lvgl/lvgl-settings.md section 3 (Media).
       Assistant lists it as `audio/x-mpegurl`): it plays now, paths relative to it as library
       ids, addresses as streams. Your check on the screen with `music/playlists/...Radio
       Station...m3u`; a radio stream that is not MP3 (AAC) still does not play.
-- [ ] Media browser memory: a folder of the library seen is held twice (the cache in
-      `settings_media.cpp` copies it, the page keeps its own), up to 8 cached; keep one copy
-      (the page shows a cached entry) or cache without the `type` string.
-- [ ] Walk of the card: `sdcard::list` calls `stat()` per entry, which on FAT scans the folder
-      again (n² per folder); the walk needs only the folder flag, which `readdir` gives in
-      `d_type`. A list without the stat would make `player folder` on a big card linear.
-- [ ] The browser's own `playable()` and `media_playlist()` (`settings_media.cpp`) repeat
-      `player::playable_media` and `is_media_playlist`; one rule, over the backend, so a row's
-      play icon and the walk agree.
-- [ ] JC3248W535: playing an MP3 from the card logs `alloc failed: 2048 bytes, caps 0x8` (DMA:
-      3 KB free, largest 2 KB; internal 10 KB free) on every start, also a single file; it plays
-      on. Seen 2026-10-25, not caused by the folder play; DMA memory for the card's reads is short.
-      Also short of internal RAM there (10 KB free, largest 7.5 KB): `sd get` fails (its task
-      wants an 8 KB stack, ESP_ERR_NO_MEM), and the web UI's download of a card file answers
-      "no memory"; the upload works.
+- [x] Media browser memory: a folder of the library seen was held twice (the cache and the
+      page); now one copy in PSRAM, shared (`shared_ptr`). Simulator: a cached folder reopened
+      shows at once.
+- [x] Walk of the card: `sdcard::list(..., sizes = false)` takes the folder flag from `d_type`,
+      no `stat()` per entry; the walk and a tapped file's folder use it. JC3248W535: `player
+      folder /` collected 34 items.
+- [x] One rule for what plays: `player/src/kinds.cpp` (host tested), the browser asks it through
+      `Backend::player_plays_media` / `player_is_media_playlist`; the simulator's stub uses it too.
+- [x] JC3248W535: `alloc failed: 2048 bytes, caps 0x8` on every start from the card: ESP-IDF's
+      per-transfer DMA bounce buffer (8 KB first, halving). Now a 1 KB one taken with the mount;
+      no failed allocation on a single file or a folder (2026-10-30, COM10). Internal RAM is 38 KB
+      free since 3b7a03b; `sd get` (http and https) works with its stack in PSRAM.
+- [ ] JC3248W535: the web UI's download of a card file answered "no memory" (2026-10-25, 10 KB
+      internal free then; it falls back to a PSRAM buffer since). Your check in the web UI.
+- [x] JC3248W535: an MP3 with a large cover (`music/pvz_music.mp3`, 796 KB PNG) counts about 140
+      DMA underruns at its start, a file with a small cover 2; steady play none. Not a gap: the
+      whole tag is read before the first frame (`Mp3Source::fill`), the channel sends zeros
+      meanwhile (140 x 128 frames = 0.4 s of silence before the music). Not the bounce buffer
+      (4 KB measured the same). No change.
 
 ## Web Player page (2026-10-27)
 

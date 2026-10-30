@@ -8,14 +8,14 @@
 // stays open for the next time; the folders of the library come from Home Assistant one at a time
 // (Backend::media_browse) and arrive through the dashboard's events, the card's are read at once.
 // A folder of the library seen while the browser is open shows again at once, where it was
-// scrolled to, and is asked for again quietly: the page is built again only if it changed.
+// scrolled to, and is asked for again quietly: the page is built again only if it changed. The
+// page and the cache share one copy of a folder (PSRAM).
 
 #include "settings_pages.hpp"
 
 #if CONFIG_HC_UI_PLAYER
 
 #include <algorithm>
-#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -56,10 +56,13 @@ struct Level {
     memory::String title;
 };
 
+// a folder of the library, shared by the page and the cache
+using List = std::shared_ptr<const core::MediaList>;
+
 // a folder of the library seen, by the id it was asked for with
 struct Cached {
     memory::String id;
-    core::MediaList list;
+    List list;
     lv_coord_t scroll_y = 0;
 };
 
@@ -69,8 +72,8 @@ struct Media {
     // the folders opened below the top (empty: the top). Filled only when a folder opens: a
     // static that allocates would take the large heap before main sets it up.
     memory::Vector<Level> path;
-    // the library's folder of the last answer, and the request on its way
-    core::MediaList list;
+    // the library's folder of the last answer (nullptr: none), and the request on its way
+    List list;
     bool loaded = false;
     bool loading = false;
     uint32_t loading_since = 0;
@@ -90,6 +93,18 @@ struct Media {
     lv_obj_t *content = nullptr;
 };
 Media g;
+
+List make_list(core::MediaList list)
+{
+    return std::allocate_shared<core::MediaList>(memory::LargeAllocator<core::MediaList>(), std::move(list));
+}
+
+// the folder of the last answer, empty before one came
+const core::MediaList &shown()
+{
+    static const core::MediaList kNone;
+    return g.list ? *g.list : kNone;
+}
 
 #if CONFIG_HC_SDCARD
 // the entries of the card's folder shown, for the rows' callbacks; freed with the page
@@ -155,7 +170,7 @@ Cached *find_cached(const memory::String &id)
 }
 
 // the folder shown came: kept as the last used, the oldest goes
-void store(const core::MediaList &list)
+void store(const List &list)
 {
     memory::String id;
     if (!hass_folder(id)) {
@@ -240,8 +255,9 @@ void check_answer()
     if (g.loading && lv_tick_get() - g.loading_since >= kAnswerMs) {
         g.loading = false;
         g.loaded = true;
-        g.list = {};
-        g.list.error = "Home Assistant did not answer";
+        core::MediaList failed;
+        failed.error = "Home Assistant did not answer";
+        g.list = make_list(std::move(failed));
         // a late answer is not taken
         g.generation++;
         reload();
@@ -371,85 +387,50 @@ void top_rows(lv_obj_t *col)
 void on_item(lv_event_t *event)
 {
     const auto index = static_cast<size_t>(from_data(event));
-    if (!tap_ok() || g.loading || index >= g.list.items.size()) {
+    if (!tap_ok() || g.loading || index >= shown().items.size()) {
         return;
     }
-    const core::MediaItem &item = g.list.items[index];
+    // the folder stays while it plays: open_level replaces g.list
+    const List list = g.list;
+    const core::MediaItem &item = list->items[index];
     if (item.folder) {
         open_level(Level{Source::Hass, item.id, item.title});
         return;
     }
-    be().player_play_media(g.list, index);
+    be().player_play_media(*list, index);
     push(Page::Player);
 }
 
 void on_item_play(lv_event_t *event)
 {
     const auto index = static_cast<size_t>(from_data(event));
-    if (tap_ok() && !g.loading && index < g.list.items.size()) {
-        play_folder(Source::Hass, g.list.items[index].id, g.list.items[index].title.c_str());
+    if (tap_ok() && !g.loading && index < shown().items.size()) {
+        const List list = g.list;
+        play_folder(Source::Hass, list->items[index].id, list->items[index].title.c_str());
     }
 }
 
-// strcasecmp is not on MSVC (the simulator)
-bool same_nocase(const char *a, const char *b)
-{
-    for (;; ++a, ++b) {
-        const int ca = std::tolower(static_cast<unsigned char>(*a));
-        const int cb = std::tolower(static_cast<unsigned char>(*b));
-        if (ca != cb || ca == 0) {
-            return ca == cb;
-        }
-    }
-}
-
-// a playlist of the library (audio/x-mpegurl, .m3u, .m3u8), as player::is_media_playlist
+// the player's rule (player::playable_media, is_media_playlist), so the row and the walk agree
 bool media_playlist(const core::MediaItem &item)
 {
-    if (item.folder || !item.playable) {
-        return false;
-    }
-    if (item.type.find("mpegurl") != memory::String::npos) {
-        return true;
-    }
-    const char *dot = std::strrchr(item.title.c_str(), '.');
-    return dot != nullptr && (same_nocase(dot, ".m3u") || same_nocase(dot, ".m3u8"));
+    return be().player_is_media_playlist(item);
 }
 
-// an MP3, the player's format, or a playlist; a radio station of the library may be an MP3 too
 bool playable(const core::MediaItem &item)
 {
-    if (media_playlist(item)) {
-        return true;
-    }
-    if (item.folder || !item.playable) {
-        return false;
-    }
-    if (item.type == "audio/mpeg" || item.type == "audio/mp3") {
-        return true;
-    }
-    const size_t length = item.title.size();
-    if (length <= 4) {
-        return false;
-    }
-    const char *extension = item.title.c_str() + length - 4;
-    for (size_t i = 0; i < 4; i++) {
-        if (std::tolower(static_cast<unsigned char>(extension[i])) != ".mp3"[i]) {
-            return false;
-        }
-    }
-    return true;
+    return media_playlist(item) || be().player_plays_media(item);
 }
 
 void hass_rows(lv_obj_t *col)
 {
+    const core::MediaList &list = shown();
     if (g.loading) {
         text_block(col, "Loading ...", t::kTextMuted);
         return;
     }
-    if (!g.list.error.empty()) {
+    if (!list.error.empty()) {
         char text[160];
-        std::snprintf(text, sizeof(text), LV_SYMBOL_WARNING "  %s", g.list.error.c_str());
+        std::snprintf(text, sizeof(text), LV_SYMBOL_WARNING "  %s", list.error.c_str());
         text_block(col, text, t::kAlert);
         lv_obj_t *buttons = button_row(col);
         t::button(buttons, LV_SYMBOL_REFRESH "  Again", [](lv_event_t *) {
@@ -458,13 +439,13 @@ void hass_rows(lv_obj_t *col)
         });
         return;
     }
-    if (g.list.items.empty()) {
+    if (list.items.empty()) {
         text_block(col, "This folder is empty.", t::kTextMuted);
         return;
     }
-    const size_t shown = std::min(g.list.items.size(), kMaxShown);
+    const size_t shown = std::min(list.items.size(), kMaxShown);
     for (size_t i = 0; i < shown; i++) {
-        const core::MediaItem &item = g.list.items[i];
+        const core::MediaItem &item = list.items[i];
         const bool plays = playable(item);
         char text[160];
         std::snprintf(text, sizeof(text), "%s  %s",
@@ -478,9 +459,9 @@ void hass_rows(lv_obj_t *col)
                                              as_data(static_cast<int>(i)));
         wide_name(row, text, !item.folder && !plays);
     }
-    if (g.list.items.size() > shown) {
+    if (list.items.size() > shown) {
         char text[48];
-        std::snprintf(text, sizeof(text), "%u more not shown", static_cast<unsigned>(g.list.items.size() - shown));
+        std::snprintf(text, sizeof(text), "%u more not shown", static_cast<unsigned>(list.items.size() - shown));
         text_block(col, text, t::kTextMuted);
     }
 }
@@ -613,7 +594,7 @@ void media_open(const char *folder)
     }
     g.folder = start;
     g.path.clear();
-    g.list = {};
+    g.list.reset();
     g.cache.clear();
     g.loaded = false;
     g.loading = false;
@@ -636,21 +617,25 @@ void on_media_list(core::MediaList list)
     g.loading = false;
     g.refreshing = false;
     g.loaded = true;
-    if (list.error.empty()) {
-        store(list);
-    } else if (quiet) {
+    if (!list.error.empty() && quiet) {
         // the cached rows stay
         return;
     }
-    if (quiet && same(list, g.list)) {
+    if (quiet && same(list, shown())) {
+        // the cached copy shown is current: the last used now
+        store(g.list);
         return;
+    }
+    List shared = make_list(std::move(list));
+    if (shared->error.empty()) {
+        store(shared);
     }
     if (quiet && g.shown) {
         // built again where it is; the old rows take no taps until then
         g.scroll_y = lv_obj_get_scroll_y(g.content);
         g.changing = true;
     }
-    g.list = std::move(list);
+    g.list = std::move(shared);
     if (g.shown) {
         reload();
     }
@@ -721,8 +706,8 @@ Built media_page(lv_obj_t *content)
         LV_EVENT_DELETE, nullptr);
     // the folder's name; the library's own title once it came
     const char *title = !g.path.empty() ? g.path.back().title.c_str() : g.folder.empty() ? "Media" : folder_title();
-    if (in_folder && source == Source::Hass && !id.empty() && g.loaded && !g.list.title.empty()) {
-        title = g.list.title.c_str();
+    if (in_folder && source == Source::Hass && !id.empty() && g.loaded && !shown().title.empty()) {
+        title = shown().title.c_str();
     }
     return {title, check_answer};
 }

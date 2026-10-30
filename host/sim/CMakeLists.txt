@@ -76,6 +76,7 @@ add_library(hc_dashboard STATIC
     ${HC_ROOT}/components/formats/src/json_writer.cpp
     ${HC_ROOT}/components/formats/src/yaml.cpp
     ${HC_ROOT}/components/memory/src/large.cpp
+    ${HC_ROOT}/components/player/src/kinds.cpp
     ${HC_ROOT}/components/player/src/tree.cpp
 )
 target_include_directories(hc_dashboard PUBLIC

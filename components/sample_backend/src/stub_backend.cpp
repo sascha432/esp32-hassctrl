@@ -13,6 +13,7 @@
 #include "hc/ui/ui.hpp"
 #include "lvgl.h"
 #include "hc/core/natural.hpp"
+#include "hc/player/kinds.hpp"
 #include "hc/player/tree.hpp"
 #include "hc/sample/sample_hass.hpp"
 
@@ -1007,19 +1008,12 @@ std::string title_of(const std::string &name)
 
 bool player_supports(const char *name)
 {
-    const size_t length = std::strlen(name);
-    auto ends = [&](const char *extension) {
-        const size_t n = std::strlen(extension);
-        return length > n && std::strcmp(name + length - n, extension) == 0;
-    };
-    return ends(".mp3") || ends(".wav") || ends(".m3u") || ends(".m3u8");
+    return hc::player::playable(name);
 }
 
 bool player_is_playlist(const char *name)
 {
-    const size_t length = std::strlen(name);
-    return (length > 4 && std::strcmp(name + length - 4, ".m3u") == 0) ||
-           (length > 5 && std::strcmp(name + length - 5, ".m3u8") == 0);
+    return hc::player::is_playlist(name);
 }
 
 #if CONFIG_HC_SDCARD
@@ -1126,13 +1120,15 @@ bool player_play_media_folder(std::string_view id, std::string_view)
                 return false;
             }
             for (const hc::core::MediaItem &item : list.items) {
-                if (!item.folder && (!item.playable || item.type != "audio/mpeg")) {
+                const bool playlist = hc::player::is_media_playlist(item);
+                if (!item.folder && !playlist && !hc::player::playable_media(item)) {
                     continue;
                 }
                 hc::player::TreeEntry entry;
                 entry.id = item.id;
                 entry.name = item.title;
                 entry.dir = item.folder;
+                entry.playlist = playlist;
                 out.push_back(std::move(entry));
             }
             return true;
@@ -1162,7 +1158,7 @@ void player_play_media(const hc::core::MediaList &folder, size_t index)
     size_t start = 0;
     for (size_t i = 0; i < folder.items.size(); i++) {
         const hc::core::MediaItem &item = folder.items[i];
-        if (item.folder || !item.playable) {
+        if (!hc::player::playable_media(item)) {
             continue;
         }
         if (i == index) {
@@ -1397,6 +1393,8 @@ const hc::ui::Backend kBackend{
     .player_spectrum = player_spectrum,
     .player_supports = player_supports,
     .player_is_playlist = player_is_playlist,
+    .player_plays_media = hc::player::playable_media,
+    .player_is_media_playlist = hc::player::is_media_playlist,
     .player_cover = player_cover,
     .media_browse = browse_media,
 #endif

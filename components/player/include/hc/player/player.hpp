@@ -18,6 +18,7 @@
 #include "hc/audio/audio.hpp"
 #include "hc/core/entity.hpp"
 #include "hc/formats/mp3_tags.hpp"
+#include "hc/player/kinds.hpp"
 #include "hc/player/queue.hpp"
 
 namespace hc::player {
@@ -42,14 +43,6 @@ bool play_media_folder(std::string_view id, std::string_view title);
 // The media library's playlist `id` (is_media_playlist), downloaded by the same task as a folder:
 // a path in it is relative to the playlist's folder, an address streams. False when it cannot start.
 bool play_media_playlist(std::string_view id, std::string_view title);
-
-// the name is a file the player plays: .mp3, .wav, or a playlist
-bool playable(const char *name);
-bool is_playlist(const char *name);
-// an entry of the media library the player plays: an MP3
-bool playable_media(const core::MediaItem &item);
-// an entry of the media library that is a playlist (audio/x-mpegurl, .m3u, .m3u8)
-bool is_media_playlist(const core::MediaItem &item);
 
 void pause(bool pause);
 // Playing <-> paused; a queue that ended or was stopped starts its item again.

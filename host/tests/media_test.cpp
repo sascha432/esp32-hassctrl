@@ -3,6 +3,7 @@
 // components/formats/src/m3u.cpp: the player's playlists.
 // components/player/src/queue.cpp: the order of the player's queue.
 // components/player/src/tree.cpp: a folder with its subfolders (the play button of a folder).
+// components/player/src/kinds.cpp: what the player takes, the rule of the walk and the browser.
 // components/core/src/natural.cpp: the order of names, numbers by value.
 
 #include <algorithm>
@@ -15,6 +16,7 @@
 #include "hc/core/natural.hpp"
 #include "hc/formats/m3u.hpp"
 #include "hc/formats/mp3_tags.hpp"
+#include "hc/player/kinds.hpp"
 #include "hc/player/queue.hpp"
 #include "hc/player/tree.hpp"
 
@@ -469,4 +471,34 @@ TEST(player_tree_order)
     tree.listed.clear();
     CHECK_STR(locations(tree.collect("music", limits)).c_str(), "music/A.mp3 music/b.mp3 music/Broken/w.mp3");
     CHECK(tree.listed.size() == 2);
+}
+
+TEST(player_kinds)
+{
+    CHECK(player::playable("music/a.MP3"));
+    CHECK(player::playable("b.wav"));
+    CHECK(player::playable("c.m3u8"));
+    CHECK(!player::playable("cover.jpg"));
+    CHECK(!player::playable(".mp3x"));
+    CHECK(player::is_playlist("Radio.M3U"));
+    CHECK(!player::is_playlist("a.mp3"));
+
+    auto item = [](const char *title, const char *type, bool folder = false, bool playable = true) {
+        core::MediaItem out;
+        out.title = title;
+        out.type = type;
+        out.folder = folder;
+        out.playable = playable;
+        return out;
+    };
+    // an MP3 by its type or name; a playlist by its type or name; not a folder, not one HA cannot play
+    CHECK(player::playable_media(item("Engel", "audio/mpeg")));
+    CHECK(player::playable_media(item("Engel.mp3", "audio/unknown")));
+    CHECK(!player::playable_media(item("Song.flac", "audio/flac")));
+    CHECK(!player::playable_media(item("Engel.mp3", "audio/mpeg", false, false)));
+    CHECK(!player::playable_media(item("music", "directory", true)));
+    CHECK(player::is_media_playlist(item("Radio", "audio/x-mpegurl")));
+    CHECK(player::is_media_playlist(item("Radio Station.m3u", "")));
+    CHECK(!player::is_media_playlist(item("Radio Station.m3u", "", false, false)));
+    CHECK(!player::playable_media(item("Radio", "audio/x-mpegurl")));
 }

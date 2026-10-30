@@ -418,6 +418,10 @@ struct Backend {
     // the file manager: the player takes the file (MP3, WAV, a playlist); a playlist
     bool (*player_supports)(const char *name);
     bool (*player_is_playlist)(const char *name);
+    // the media browser, the same rule as the walk of a folder: an entry of the library the player
+    // plays (an MP3), one that is a playlist
+    bool (*player_plays_media)(const core::MediaItem &item);
+    bool (*player_is_media_playlist)(const core::MediaItem &item);
     // The cover of what plays, `size` x `size` in the display's pixel format (the middle of a
     // picture of another shape); false without one. Decoded on the calling task, once its
     // cover_serial changed.
