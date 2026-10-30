@@ -107,6 +107,9 @@ struct DisplaySettings {
     // Home Assistant's motion helper stays on this long after the sensor's last motion,
     // 60 to 3600 s (only with a motion sensor; hc::motion::set_hold_s)
     uint32_t motion_hold_s;
+    // the motion sensor is used; off it reads clear: no wake, the helper is off (only with a
+    // motion sensor; hc::motion::set_enabled). Last, so the blob grows (main/ui_backend.cpp).
+    bool motion_enabled;
 };
 
 // Settings, Sound. The UI plays the touch sounds; the backend stores the settings and sets the

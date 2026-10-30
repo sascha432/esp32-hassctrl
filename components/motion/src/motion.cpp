@@ -24,6 +24,7 @@ struct State {
     volatile bool occupied = false;
     volatile bool detected = false;
     volatile uint32_t hold_s = kDefaultHoldS;
+    volatile bool enabled = true;
     bool started = false;
     // the last sample with motion (esp_timer_get_time)
     int64_t last_motion_us = 0;
@@ -42,7 +43,8 @@ bool read_occupied()
 
 void on_timer(void *)
 {
-    const bool level = read_occupied();
+    const bool enabled = g.enabled;
+    const bool level = enabled && read_occupied();
     if (level == g.last_level) {
         if (g.samples < kStableSamples) {
             g.samples++;
@@ -64,7 +66,7 @@ void on_timer(void *)
         g.last_motion_us = now_us;
     }
     const bool detected =
-        level || (g.started && g.detected && now_us - g.last_motion_us < static_cast<int64_t>(g.hold_s) * 1000000);
+        level || (enabled && g.started && g.detected && now_us - g.last_motion_us < static_cast<int64_t>(g.hold_s) * 1000000);
     if (g.started && detected == g.detected) {
         return;
     }
@@ -125,6 +127,19 @@ void set_hold_s(uint32_t seconds)
 uint32_t hold_s()
 {
     return g.hold_s;
+}
+
+void set_enabled(bool enabled)
+{
+    if (enabled != g.enabled) {
+        ESP_LOGI(kTag, "sensor %s", enabled ? "on" : "off");
+    }
+    g.enabled = enabled;
+}
+
+bool enabled()
+{
+    return g.enabled;
 }
 
 int gpio()

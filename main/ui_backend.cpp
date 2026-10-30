@@ -63,7 +63,22 @@ constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
                                                    .light_min_lux = 0.0f,
                                                    .light_max_lux = 350.0f,
                                                    .wake_on_motion = true,
-                                                   .motion_hold_s = hc::motion::kDefaultHoldS};
+                                                   .motion_hold_s = hc::motion::kDefaultHoldS,
+                                                   .motion_enabled = true};
+// The layout before the motion sensor's switch.
+struct DisplaySettingsV6 {
+    uint8_t brightness;
+    uint8_t dim_brightness;
+    uint16_t dim_after_s;
+    uint32_t off_after_s;
+    bool auto_brightness;
+    uint8_t rotation;
+    bool rotation_locked;
+    float light_min_lux;
+    float light_max_lux;
+    bool wake_on_motion;
+    uint32_t motion_hold_s;
+};
 // The layout before the motion hold.
 struct DisplaySettingsV5 {
     uint8_t brightness;
@@ -120,6 +135,8 @@ static_assert(sizeof(DisplaySettingsV4) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV4) != sizeof(DisplaySettingsV3));
 static_assert(sizeof(DisplaySettingsV5) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV5) != sizeof(DisplaySettingsV4));
+static_assert(sizeof(DisplaySettingsV6) != sizeof(hc::ui::DisplaySettings));
+static_assert(sizeof(DisplaySettingsV6) != sizeof(DisplaySettingsV5));
 
 // a stored value of any version into the current settings; false when it is none of them
 bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplaySettings &out)
@@ -128,8 +145,9 @@ bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplayS
         std::memcpy(&out, data, size);
         return true;
     }
-    if (size == sizeof(DisplaySettingsV5)) {
-        // the motion hold keeps its default
+    if (size == sizeof(DisplaySettingsV6) || size == sizeof(DisplaySettingsV5)) {
+        // the start of the current layout: the motion sensor's switch (and the motion hold) keep
+        // their defaults
         std::memcpy(&out, data, size);
         return true;
     }
@@ -347,6 +365,7 @@ void display_settings(hc::ui::DisplaySettings &out)
             g_display = stored;
         }
         hc::motion::set_hold_s(g_display.motion_hold_s);
+        hc::motion::set_enabled(g_display.motion_enabled);
     }
     out = g_display;
 }
@@ -356,6 +375,7 @@ void set_display_settings(const hc::ui::DisplaySettings &settings)
     g_display = settings;
     g_display_loaded = true;
     hc::motion::set_hold_s(g_display.motion_hold_s);
+    hc::motion::set_enabled(g_display.motion_enabled);
     hc::platform::set_blob_later(kUiNamespace, kDisplayKey, &g_display, sizeof(g_display));
 }
 

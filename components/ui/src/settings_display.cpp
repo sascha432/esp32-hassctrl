@@ -1,5 +1,5 @@
 // Settings, Display (docs/ui/lvgl/lvgl-settings.md section 3): brightness, the automatic brightness
-// of a light sensor, the idle times, wake on motion and the rotation. The brightness slider is also
+// of a light sensor, the idle times, the motion sensor and the rotation. The brightness slider is also
 // on quick settings (brightness_card()).
 
 #include <cmath>
@@ -311,9 +311,19 @@ Built display_page(lv_obj_t *content)
         changed.off_after_s = static_cast<uint32_t>(seconds);
         store(changed);
     });
-    // only with a motion sensor
+    // only with a motion sensor; off, its other rows go
     bool occupied = false;
-    if (backend().motion(occupied)) {
+    const bool has_motion = backend().motion(occupied);
+    if (has_motion) {
+        lv_obj_t *sensor = t::row(col, "Motion sensor", "", false, nullptr);
+        t::toggle(sensor, s.motion_enabled, [](lv_event_t *event) {
+            DisplaySettings changed = display_settings();
+            changed.motion_enabled = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
+            store(changed);
+            reload();
+        });
+    }
+    if (has_motion && s.motion_enabled) {
         lv_obj_t *motion = t::row(col, "Wake on motion", "", false, nullptr);
         t::toggle(motion, s.wake_on_motion, [](lv_event_t *event) {
             DisplaySettings changed = display_settings();
@@ -328,6 +338,9 @@ Built display_page(lv_obj_t *content)
         text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it. Wake on motion: "
                         "motion wakes it too and keeps it on while the sensor sees someone. Motion hold: Home "
                         "Assistant sees \"Detected\" until the sensor saw nobody for this long.");
+    } else if (has_motion) {
+        text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it. The motion sensor is "
+                        "off: it does not wake the screen and Home Assistant sees \"Clear\".");
     } else {
         text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it.");
     }

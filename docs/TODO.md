@@ -1636,6 +1636,11 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       on. You: a trimmer on R-GN to find the value (useful range 50-500 kOhm, devices/JC4880P443C):
       50 kOhm about 10 cm, 350 kOhm quite a bit of movement at 3 m. Done: 350 kOhm, installed for
       good (you, 2026-10-28); no firmware change.
+- [x] Hallway radar stuck on (your report 2026-10-29): a DECT phone 20 cm away kept it triggered,
+      50 cm is fine. RF into the module, no firmware change; noted in devices/JC4880P443C.
+- [ ] Motion sensor switch (2026-10-29, your request): Settings, Display, "Motion sensor" (on by default,
+      backup `motion_sensor`); off, the sensor reads clear, the helper goes off, no wake, the two motion rows
+      are hidden. To check on the test P4 (COM11).
 
 ## Touch (2026-10-17)
 

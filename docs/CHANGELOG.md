@@ -7,6 +7,16 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-10-29
+
+Added
+
+* Settings, Display: "Motion sensor" switch (boards with one, on by default, backup
+  `motion_sensor`); off, the screen ignores motion and Home Assistant's helper stays off.
+* Docs: a DECT phone within 20 cm keeps the hallway radar triggered; keep radio sources 50 cm
+  away (devices/JC4880P443C).
+* Docs: a DECT phone closer than 50 cm keeps an RCWL-0516 radar triggered (devices/JC4880P443C).
+
 ### 2026-10-28
 
 Added

@@ -1314,7 +1314,13 @@ Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
   the wake-up blocker, and it stays on while the sensor sees motion. Its own time stamp, not LVGL's
   activity, so Settings still close after their time without a touch. The display settings blob
   grew to its fifth layout (older ones are converted, `wake_on_motion` keeps the default), with the
-  motion hold to its sixth (`motion_hold_s` keeps the default).
+  motion hold to its sixth (`motion_hold_s` keeps the default), with the sensor's switch to its
+  seventh (`motion_enabled`, at the end, keeps the default).
+* **Motion sensor** on or off (Settings, Display, `DisplaySettings::motion_enabled`, on by
+  default, backup `motion_sensor`): `ui_backend` hands it to `motion::set_enabled` with the hold
+  time. Off, the timer reads the pin as clear and ends the hold at once: the handler gets "clear"
+  (the helper goes off), `motion::occupied` stays false (no wake), Settings hide the two motion
+  rows. Console `motion status` says on or off.
 
 ### 9.8 Camera
 

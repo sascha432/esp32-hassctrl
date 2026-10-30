@@ -103,7 +103,8 @@ default 5 min. It keeps a PIR that resets after 1-2 s from switching the helper 
 time, and it is the "off delay" of anything that uses the helper.
 
 The screen's own wake on motion (Settings → Display) is local and does not need the helper or
-Home Assistant.
+Home Assistant. Settings → Display → "Motion sensor" off stops both: the panel turns the helper off
+and leaves it off until the switch is on again.
 
 ## 6. A binary sensor with the motion device class (recommended)
 

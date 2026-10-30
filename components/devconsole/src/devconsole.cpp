@@ -1169,8 +1169,9 @@ int cmd_motion(int argc, char **argv)
         return 1;
     }
     if (argc == 1 || std::strcmp(argv[1], "status") == 0) {
-        std::printf("sensor on GPIO %d, active %s: %s; Home Assistant: %s (hold %lu s)\n", hc::motion::gpio(),
-                    hc::motion::active_high() ? "high" : "low", hc::motion::occupied() ? "motion" : "none",
+        std::printf("sensor on GPIO %d, active %s, %s: %s; Home Assistant: %s (hold %lu s)\n", hc::motion::gpio(),
+                    hc::motion::active_high() ? "high" : "low", hc::motion::enabled() ? "on" : "off",
+                    hc::motion::occupied() ? "motion" : "none",
                     hc::motion::detected() ? "detected" : "clear", static_cast<unsigned long>(hc::motion::hold_s()));
         return 0;
     }

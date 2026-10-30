@@ -40,6 +40,11 @@ bool detected();
 void set_hold_s(uint32_t seconds);
 uint32_t hold_s();
 
+// Off, the sensor reads clear (the pin is ignored, the hold ends at once): the handler gets
+// "clear" and stays quiet until it is on again. Any time, also before start; on by default.
+void set_enabled(bool enabled);
+bool enabled();
+
 // The GPIO of the sensor, -1 without one.
 int gpio();
 
