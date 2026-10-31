@@ -42,7 +42,7 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 | text value | `kTextValue` | `#c8d4dd` | values in rows, paragraphs |
 | text label | `kTextLabel` | `#7fa8c9` | labels, captions, the `>` of a row, off icons, the dots of the other pages at 50 % (`kText` for the shown page; lvgl-dashboard.md section 9) |
 | text muted | `kTextMuted` | `#4d6274` | disabled, hints |
-| active | `kActive` | `#ff8000` | on state, pressed buttons, slider fill, switch on |
+| active | `kActive` | `#ff8000` | on state, pressed buttons, slider fill, switch on; a pressed active tile is 30 % darker |
 | alert | `kAlert` | `#ff8000` | notes and status lines |
 | error | `kError` | `#ff0000` | errors, destructive buttons |
 | lock unlocked / locked / jammed | `kLockUnlocked`, `kLockLocked`, `kLockJammed` | `#4caf50`, `#ff8000`, `#ff0000` | the lock's tile, panel and timeline |

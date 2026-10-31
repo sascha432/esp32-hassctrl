@@ -291,6 +291,10 @@ void apply_look(View &view, const Look &look)
 {
     const uint32_t background = look.active ? look.color : look.unavailable ? t::kCardAlt : t::kCard;
     lv_obj_set_style_bg_color(view.card, t::color(background), 0);
+    // pressed while active: a darker shade of the fill, not the grey of an idle tile
+    lv_obj_set_style_bg_color(view.card,
+                              look.active ? lv_color_darken(t::color(look.color), LV_OPA_30) : t::color(t::kBorder),
+                              LV_STATE_PRESSED);
     lv_obj_set_style_border_color(view.card, t::color(look.active ? look.color : t::kBorder), 0);
     runner::set(view.card, look.pending);
     set_color(view.icon, look.active ? t::kText : t::kTextLabel);

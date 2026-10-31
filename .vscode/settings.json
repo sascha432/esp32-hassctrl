@@ -1,3 +1,6 @@
 {
-    "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf"
+    "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/wt32_sc01/main/compile_commands.json",
+    "C_Cpp.default.cppStandard": "gnu++23",
+    "C_Cpp.default.cStandard": "gnu23"
 }

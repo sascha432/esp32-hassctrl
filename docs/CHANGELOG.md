@@ -7,6 +7,12 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-10-31
+
+Changed
+
+* A pressed tile that is on turns a darker shade of its color (was the grey of an idle tile).
+
 ### 2026-10-30
 
 Fixed
