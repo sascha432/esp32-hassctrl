@@ -9,6 +9,21 @@
 
   The shell state does not persist between tool calls, so every call starts with the `.` line.
 - Boards and ports: see README.md ("Flash") and docs/TODO.md. Flash the board under test after a change.
+- **Serial ports: never `serial.Serial("COMx", ...)`.** That asserts DTR and RTS, and closing it
+  again (the script ends) resets the ESP32-S3 on COM10 (USB-Serial/JTAG), losing its live state.
+  Every ad-hoc script opens the port with both lines released, like `tools/screenshot.py`:
+
+  ```python
+  s = serial.Serial()
+  s.port, s.baudrate, s.timeout = "COM10", 115200, 0.2
+  s.dtr = False
+  s.rts = False
+  s.open()
+  ```
+
+  Tested 2026-11-01 against the uptime in `/api/status`: the plain form reset it 3 of 3 times on close,
+  the released form 0 of 5. The chip keeps its USB connection through the reset, so a missing boot
+  banner or a COM port that stays put proves nothing; check the uptime.
 - **Icon list changed** (`components/core/src/icons.cpp`, `UI_GLYPHS` in `tools/build_icons.py`): run `python tools/build_icons.py`
   (fonts of ui and `web/icons.svg`), commit the generated files with the change, flash firmware and web image.
 - **Feature list with every change.** `README.md` starts with the list of features. A feature that
