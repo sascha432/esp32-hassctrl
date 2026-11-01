@@ -7,6 +7,13 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-01
+
+Added
+
+* Settings, Display: "Wi-Fi power save" switch (on by default, backup `wifi_power_save`); off,
+  the Wi-Fi stays awake while the screen is off.
+
 ### 2026-10-31
 
 Fixed

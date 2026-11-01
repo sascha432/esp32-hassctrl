@@ -778,6 +778,9 @@ different major version on the two chips is a mismatch.
   (`WIFI_PS_MIN_MODEM`, `network::set_power_save`) and off again with the first step of the
   fade up; Home Assistant's updates and the web UI are slower then, nobody looks at the screen.
   JC3248W535 with the screen off: 120 mA without, 93 mA with modem sleep (2026-10-23).
+  Settings, Display, "Wi-Fi power save" (`DisplaySettings::wifi_power_save`, on by default,
+  backup `wifi_power_save`) off keeps modem sleep off with the screen off too, for a web UI or
+  Home Assistant that should answer at once.
 
 ### 9.3 Storage
 
@@ -1328,7 +1331,8 @@ Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
   activity, so Settings still close after their time without a touch. The display settings blob
   grew to its fifth layout (older ones are converted, `wake_on_motion` keeps the default), with the
   motion hold to its sixth (`motion_hold_s` keeps the default), with the sensor's switch to its
-  seventh (`motion_enabled`, at the end, keeps the default).
+  seventh (`motion_enabled`, at the end, keeps the default), with Wi-Fi power save to its eighth
+  (`wifi_power_save`, `alignas(4)` so it does not sit in the seventh's padding, keeps the default).
 * **Motion sensor** on or off (Settings, Display, `DisplaySettings::motion_enabled`, on by
   default, backup `motion_sensor`): `ui_backend` hands it to `motion::set_enabled` with the hold
   time. Off, the timer reads the pin as clear and ends the hold at once: the handler gets "clear"

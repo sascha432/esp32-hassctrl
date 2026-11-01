@@ -65,7 +65,23 @@ constexpr hc::ui::DisplaySettings kDisplayDefaults{.brightness = 100,
                                                    .light_max_lux = 350.0f,
                                                    .wake_on_motion = true,
                                                    .motion_hold_s = hc::motion::kDefaultHoldS,
-                                                   .motion_enabled = true};
+                                                   .motion_enabled = true,
+                                                   .wifi_power_save = true};
+// The layout before the Wi-Fi power save switch.
+struct DisplaySettingsV7 {
+    uint8_t brightness;
+    uint8_t dim_brightness;
+    uint16_t dim_after_s;
+    uint32_t off_after_s;
+    bool auto_brightness;
+    uint8_t rotation;
+    bool rotation_locked;
+    float light_min_lux;
+    float light_max_lux;
+    bool wake_on_motion;
+    uint32_t motion_hold_s;
+    bool motion_enabled;
+};
 // The layout before the motion sensor's switch.
 struct DisplaySettingsV6 {
     uint8_t brightness;
@@ -138,6 +154,8 @@ static_assert(sizeof(DisplaySettingsV5) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV5) != sizeof(DisplaySettingsV4));
 static_assert(sizeof(DisplaySettingsV6) != sizeof(hc::ui::DisplaySettings));
 static_assert(sizeof(DisplaySettingsV6) != sizeof(DisplaySettingsV5));
+static_assert(sizeof(DisplaySettingsV7) != sizeof(hc::ui::DisplaySettings));
+static_assert(sizeof(DisplaySettingsV7) != sizeof(DisplaySettingsV6));
 
 // a stored value of any version into the current settings; false when it is none of them
 bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplaySettings &out)
@@ -146,9 +164,9 @@ bool convert_display_settings(const uint8_t *data, size_t size, hc::ui::DisplayS
         std::memcpy(&out, data, size);
         return true;
     }
-    if (size == sizeof(DisplaySettingsV6) || size == sizeof(DisplaySettingsV5)) {
-        // the start of the current layout: the motion sensor's switch (and the motion hold) keep
-        // their defaults
+    if (size == sizeof(DisplaySettingsV7) || size == sizeof(DisplaySettingsV6) || size == sizeof(DisplaySettingsV5)) {
+        // the start of the current layout: Wi-Fi power save (the motion sensor's switch, the
+        // motion hold) keep their defaults
         std::memcpy(&out, data, size);
         return true;
     }
@@ -390,13 +408,15 @@ bool motion(bool &occupied)
 }
 
 // The UI turns the backlight to 0 only when the screen is off (power.hpp): the Wi-Fi modem
-// sleeps then, and wakes with the screen (docs/architecture.md section 9.2).
+// sleeps then, unless Settings turned that off, and wakes with the screen (docs/architecture.md
+// section 9.2).
 void set_backlight(uint8_t percent)
 {
     static bool sleeping = false;
     hc::board::set_backlight(percent);
-    if ((percent == 0) != sleeping && net::set_power_save(percent == 0) == ESP_OK) {
-        sleeping = percent == 0;
+    const bool sleep = percent == 0 && g_display.wifi_power_save;
+    if (sleep != sleeping && net::set_power_save(sleep) == ESP_OK) {
+        sleeping = sleep;
     }
 }
 
