@@ -1,6 +1,7 @@
 // components/hass_protocol: the template of a page, the decoding of its results, the messages.
 // components/core/src/entity.cpp: the store and the display texts.
 
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -8,6 +9,7 @@
 #include "check.hpp"
 #include "hc/core/entity.hpp"
 #include "hc/core/pending.hpp"
+#include "hc/formats/json_writer.hpp"
 #include "hc/hass_protocol/protocol.hpp"
 
 using namespace hc;
@@ -1006,6 +1008,20 @@ TEST(core_mjpeg_part_header)
     CHECK(!mjpeg_content_length("--frame", length));
 }
 
+TEST(utf8_valid)
+{
+    auto valid = [](const char *text) { return formats::valid_utf8(text, std::strlen(text)); };
+    CHECK(valid(""));
+    CHECK(valid("plain"));
+    CHECK(valid("Tr\xc3\xa4nen \xe2\x82\xac \xf0\x9f\x8c\x8a"));
+    CHECK(!valid("\x1f\x8b\x08"));     // gzip
+    CHECK(!valid("\xc3"));             // cut off
+    CHECK(!valid("\xc3\x28"));         // no continuation
+    CHECK(!valid("\xc0\xaf"));         // overlong "/"
+    CHECK(!valid("\xed\xa0\x80"));     // surrogate
+    CHECK(!valid("\xf4\x90\x80\x80")); // above U+10FFFF
+}
+
 TEST(protocol_media_source)
 {
     Json top(cJSON_Parse(browse_media_message(4, "").c_str()));
@@ -1018,6 +1034,9 @@ TEST(protocol_media_source)
     Json resolve(cJSON_Parse(resolve_media_message(6, "media-source://media_source/local/a.mp3").c_str()));
     CHECK_STR(cJSON_GetStringValue(cJSON_GetObjectItem(resolve.get(), "type")), "media_source/resolve_media");
     CHECK(cJSON_GetObjectItem(resolve.get(), "id")->valueint == 6);
+    // an id that is not UTF-8 (a gzipped playlist read as text): no message
+    CHECK(resolve_media_message(7, "media-source://camera/\x8b").empty());
+    CHECK(!browse_media_message(8, "media-source://media_source/local/Tr\xc3\xa4nen").empty());
 
     // as Home Assistant 2026.10 answers for a folder of the local media
     Json answer(cJSON_Parse(R"({"title":"music","media_class":"directory","media_content_type":"",
@@ -1039,6 +1058,7 @@ TEST(protocol_media_source)
     CHECK_STR(list.items[1].type.c_str(), "audio/mpeg");
     CHECK(list.items[1].playable);
     CHECK(!list.items[1].folder);
+    CHECK_STR(list.items[1].media_class.c_str(), "music");
     Json empty(cJSON_Parse(R"({"title":"empty","can_expand":true})"));
     REQUIRE(decode_browse_media(empty.get(), list, error));
     CHECK(list.items.empty());

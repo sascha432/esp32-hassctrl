@@ -24,6 +24,12 @@ bool has_extension(const char *name, const char *extension)
     return true;
 }
 
+// a camera's stream (HLS, application/vnd.apple.mpegurl) or a picture: never audio
+bool picture_or_video(const core::MediaItem &item)
+{
+    return item.media_class == "video" || item.media_class == "image";
+}
+
 } // namespace
 
 bool playable(const char *name)
@@ -38,7 +44,7 @@ bool is_playlist(const char *name)
 
 bool playable_media(const core::MediaItem &item)
 {
-    if (item.folder || !item.playable) {
+    if (item.folder || !item.playable || picture_or_video(item)) {
         return false;
     }
     return item.type == "audio/mpeg" || item.type == "audio/mp3" || has_extension(item.title.c_str(), ".mp3");
@@ -46,7 +52,7 @@ bool playable_media(const core::MediaItem &item)
 
 bool is_media_playlist(const core::MediaItem &item)
 {
-    if (item.folder || !item.playable) {
+    if (item.folder || !item.playable || picture_or_video(item)) {
         return false;
     }
     // audio/x-mpegurl, audio/mpegurl, application/vnd.apple.mpegurl

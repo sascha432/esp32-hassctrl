@@ -151,4 +151,45 @@ JsonWriter &JsonWriter::null(const char *name)
     return *this;
 }
 
+bool valid_utf8(const char *text, size_t length)
+{
+    const auto *p = reinterpret_cast<const unsigned char *>(text);
+    for (size_t i = 0; i < length;) {
+        const unsigned char c = p[i];
+        size_t more;
+        uint32_t code;
+        if (c < 0x80) {
+            i++;
+            continue;
+        } else if ((c & 0xe0) == 0xc0) {
+            more = 1;
+            code = c & 0x1f;
+        } else if ((c & 0xf0) == 0xe0) {
+            more = 2;
+            code = c & 0x0f;
+        } else if ((c & 0xf8) == 0xf0) {
+            more = 3;
+            code = c & 0x07;
+        } else {
+            return false;
+        }
+        if (length - i <= more) {
+            return false;
+        }
+        for (size_t k = 1; k <= more; k++) {
+            if ((p[i + k] & 0xc0) != 0x80) {
+                return false;
+            }
+            code = (code << 6) | (p[i + k] & 0x3f);
+        }
+        // the shortest form only, no surrogates, nothing above U+10FFFF
+        constexpr uint32_t kSmallest[] = {0, 0x80, 0x800, 0x10000};
+        if (code < kSmallest[more] || (code >= 0xd800 && code <= 0xdfff) || code > 0x10ffff) {
+            return false;
+        }
+        i += more + 1;
+    }
+    return true;
+}
+
 } // namespace hc::formats

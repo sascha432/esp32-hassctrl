@@ -286,6 +286,7 @@ struct MediaItem {
     memory::String type;  // media_content_type: "audio/mpeg", "directory", ...
     bool folder = false;  // can_expand
     bool playable = false; // can_play
+    memory::String media_class; // "music", "video" (a camera's HLS stream), "image", "directory", ...
 };
 
 // A folder of the media library; `generation` is the one of the request, the UI drops the

@@ -106,7 +106,7 @@ bool parse_entity_details(std::string_view json, core::EntityDetails &out);
 
 // Home Assistant's media library (Media in its sidebar, docs/architecture.md section 9.6), browsed
 // by the player: {"id":4,"type":"media_source/browse_media","media_content_id":"media-source://..."},
-// without the id the top of the library.
+// without the id the top of the library. Empty when the id is not UTF-8 (no message to send).
 memory::String browse_media_message(uint32_t id, std::string_view media_id);
 
 // The `result` of that request: the folder's title and its children in HA's order. False with
@@ -114,7 +114,8 @@ memory::String browse_media_message(uint32_t id, std::string_view media_id);
 bool decode_browse_media(const cJSON *result, core::MediaList &out, memory::String &error);
 
 // {"id":5,"type":"media_source/resolve_media","media_content_id":"media-source://..."}: the
-// address of a file to play, signed by Home Assistant for a short while (authSig).
+// address of a file to play, signed by Home Assistant for a short while (authSig). Empty as
+// browse_media_message.
 memory::String resolve_media_message(uint32_t id, std::string_view media_id);
 
 // The `result` of that request ({"url": "/media/local/x.mp3?authSig=...", "mime_type":

@@ -1108,7 +1108,13 @@ NS4168 amplifier (I2S in, no setup), the JC4880P443C an ES8311 codec with an amp
   most): its paths are relative to the playlist's folder and become `media-source://` ids, its
   addresses stream as they are. What the player takes is one rule, `player/src/kinds.cpp` (host
   tested): the walk, a tapped file's queue, and the icons of the media browser and the file
-  manager (through `Backend::player_supports`, `player_plays_media`, ...).
+  manager (through `Backend::player_supports`, `player_plays_media`, ...). An entry whose
+  `media_class` is `video` or `image` never plays: a camera's HLS stream has a playlist's type
+  (`application/vnd.apple.mpegurl`) but is video. A download whose answer has a
+  `Content-Encoding` is refused at once, without the tries of a broken connection: Home Assistant
+  gzips the HLS playlists of its cameras whatever the request asks (`stream/hls.py`), the files
+  of the library come as they are. A media id that is not UTF-8 is not sent
+  (`formats::valid_utf8`): Home Assistant closes the WebSocket on such a message.
   * **A folder with its subfolders** (the play button of a folder in the media browser,
     `player::play_folder` / `play_media_folder`, console `player folder`): `player/src/tree.cpp`
     (host tested) walks depth first, each folder's files before its subfolders, both in the

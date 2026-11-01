@@ -12,6 +12,10 @@
 
 namespace hc::formats {
 
+// JSON is UTF-8 (RFC 8259): a string that is not, binary read as text, is no value to write.
+// Overlong forms and surrogates count as invalid.
+bool valid_utf8(const char *text, size_t length);
+
 class JsonWriter {
 public:
     JsonWriter(char *buffer, size_t size);

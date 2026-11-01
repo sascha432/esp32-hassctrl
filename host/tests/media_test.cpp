@@ -501,4 +501,16 @@ TEST(player_kinds)
     CHECK(player::is_media_playlist(item("Radio Station.m3u", "")));
     CHECK(!player::is_media_playlist(item("Radio Station.m3u", "", false, false)));
     CHECK(!player::playable_media(item("Radio", "audio/x-mpegurl")));
+    // a camera's HLS stream has a playlist's type, its class says video; a picture never plays
+    core::MediaItem camera = item("BalconyCam", "application/vnd.apple.mpegurl");
+    CHECK(player::is_media_playlist(camera));
+    camera.media_class = "video";
+    CHECK(!player::is_media_playlist(camera));
+    CHECK(!player::playable_media(camera));
+    core::MediaItem picture = item("garden.mp3", "audio/mpeg");
+    picture.media_class = "image";
+    CHECK(!player::playable_media(picture));
+    core::MediaItem song = item("Engel", "audio/mpeg");
+    song.media_class = "music";
+    CHECK(player::playable_media(song));
 }

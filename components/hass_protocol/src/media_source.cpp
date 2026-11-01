@@ -24,6 +24,9 @@ memory::String write(Body body)
 
 memory::String media_message(uint32_t id, const char *type, std::string_view media_id)
 {
+    if (!formats::valid_utf8(media_id.data(), media_id.size())) {
+        return {};
+    }
     return write([&](JsonWriter &w) {
         w.begin_object().number("id", id).string("type", type);
         if (!media_id.empty()) {
@@ -76,6 +79,7 @@ bool decode_browse_media(const cJSON *result, core::MediaList &out, memory::Stri
         item.type = text(child, "media_content_type");
         item.folder = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(child, "can_expand"));
         item.playable = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(child, "can_play"));
+        item.media_class = text(child, "media_class");
         out.items.push_back(std::move(item));
     }
     return true;

@@ -9,6 +9,12 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ### 2026-10-31
 
+Fixed
+
+* Playing a media folder with cameras no longer drops the Home Assistant connection: camera
+  streams (media class video) are not played, compressed answers are refused, ids that are not
+  UTF-8 are not sent; the connection log shows TLS fields only after a transport error.
+
 Changed
 
 * A pressed tile that is on turns a darker shade of its color (was the grey of an idle tile).

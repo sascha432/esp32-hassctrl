@@ -898,11 +898,17 @@ bool media_folder(std::string_view id, hc::core::MediaList &media)
     }
     const std::string base = "media-source://media_source/local";
     auto folder = [&](const std::string &title, const std::string &item_id) {
-        media.items.push_back({hc::memory::String(item_id.c_str()), hc::memory::String(title.c_str()), "", true, false});
+        media.items.push_back({hc::memory::String(item_id.c_str()), hc::memory::String(title.c_str()), "", true, false,
+                               "directory"});
     };
+    // the class as Home Assistant gives it: by the type's first part
     auto file = [&](const std::string &title, const std::string &type) {
+        const char *media_class = type.starts_with("image/")   ? "image"
+                                  : type.starts_with("video/") ? "video"
+                                                               : "music";
         media.items.push_back({hc::memory::String((std::string(id) + "/" + title).c_str()),
-                              hc::memory::String(title.c_str()), hc::memory::String(type.c_str()), false, true});
+                              hc::memory::String(title.c_str()), hc::memory::String(type.c_str()), false, true,
+                              media_class});
     };
     if (id.empty()) {
         media.title = "Media sources";
@@ -913,9 +919,14 @@ bool media_folder(std::string_view id, hc::core::MediaList &media)
         media.title = "My media";
         folder("music", base + "/music");
         media.items.push_back({hc::memory::String((base + "/doorbell.mp3").c_str()), "doorbell.mp3", "audio/mpeg",
-                              false, true});
+                              false, true, "music"});
         media.items.push_back({hc::memory::String((base + "/garden.jpg").c_str()), "garden.jpg", "image/jpeg", false,
-                              true});
+                              true, "image"});
+    } else if (id == "media-source://camera") {
+        // a camera's HLS stream: a playlist's type, the class video (not played)
+        media.title = "Camera";
+        media.items.push_back({"media-source://camera/camera.balcony", "Balcony", "application/vnd.apple.mpegurl", false,
+                              true, "video"});
     } else if (id == base + "/music") {
         media.title = "music";
         folder("Pelagial", base + "/music/Pelagial");

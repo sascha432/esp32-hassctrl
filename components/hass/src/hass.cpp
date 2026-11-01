@@ -279,9 +279,14 @@ void describe(const Event &event, bool trusted, char *out, size_t size)
 {
     const esp_websocket_error_codes_t &e = event.error;
     const int status = e.esp_ws_handshake_status_code;
-    ESP_LOGW(kTag, "connection problem: HTTP %d, errno %d, close code %d, TLS error %s (stack -0x%x, certificate flags 0x%x)",
-             status, e.esp_transport_sock_errno, event.close_code, esp_err_to_name(e.esp_tls_last_esp_err),
-             static_cast<unsigned>(-e.esp_tls_stack_err), static_cast<unsigned>(e.esp_tls_cert_verify_flags));
+    if (e.error_type == WEBSOCKET_ERROR_TYPE_TCP_TRANSPORT) {
+        ESP_LOGW(kTag, "connection problem: HTTP %d, errno %d, TLS error %s (stack -0x%x, certificate flags 0x%x)",
+                 status, e.esp_transport_sock_errno, esp_err_to_name(e.esp_tls_last_esp_err),
+                 static_cast<unsigned>(-e.esp_tls_stack_err), static_cast<unsigned>(e.esp_tls_cert_verify_flags));
+    } else {
+        ESP_LOGW(kTag, "connection problem: HTTP %d, error type %d, close code %d", status, e.error_type,
+                 event.close_code);
+    }
     // a web server that is not Home Assistant: it does not know /api/websocket or the upgrade
     if (status == 400 || status == 404 || status == 405) {
         std::snprintf(out, size, "no Home Assistant at this address (HTTP %d)", status);
@@ -407,7 +412,15 @@ void on_websocket_event(void *arg, esp_event_base_t, int32_t id, void *event_dat
         // the first one ends the connection, the task drops the others by their generation
         Event event{.type = EventType::Closed, .generation = c.generation};
         if (d != nullptr) {
-            event.error = d->error_handle;
+            // the client fills the TLS and socket fields only for a transport error; after a close
+            // or a pong timeout they are what its stack held
+            const esp_websocket_error_codes_t &e = d->error_handle;
+            if (e.error_type == WEBSOCKET_ERROR_TYPE_TCP_TRANSPORT) {
+                event.error = e;
+            } else {
+                event.error.error_type = e.error_type;
+                event.error.esp_ws_handshake_status_code = e.esp_ws_handshake_status_code;
+            }
             event.close_code = d->close_status_code;
         }
         // the handshake ran in this task
@@ -697,6 +710,11 @@ void send_media(MediaState &m, MediaRequest request)
     m.deadline = m.request.deadline;
     const memory::String message = m.request.resolve ? hass_protocol::resolve_media_message(m.id, m.request.media_id)
                                                      : hass_protocol::browse_media_message(m.id, m.request.media_id);
+    if (message.empty()) {
+        m.id = 0;
+        media_done(m, "the id is not valid text (UTF-8)");
+        return;
+    }
     if (!send_text(message)) {
         m.id = 0;
         media_done(m, "the request could not be sent");

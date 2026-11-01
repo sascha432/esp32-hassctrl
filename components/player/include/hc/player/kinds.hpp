@@ -13,7 +13,8 @@ bool playable(const char *name);
 bool is_playlist(const char *name);
 // an entry of the media library the player plays: an MP3
 bool playable_media(const core::MediaItem &item);
-// an entry of the media library that is a playlist (audio/x-mpegurl, .m3u, .m3u8)
+// an entry of the media library that is a playlist (audio/x-mpegurl, .m3u, .m3u8); not a camera's
+// HLS stream, which has the same type but the media class video
 bool is_media_playlist(const core::MediaItem &item);
 
 } // namespace hc::player

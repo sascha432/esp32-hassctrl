@@ -1345,6 +1345,13 @@ ui/lvgl/lvgl-settings.md section 3 (Media).
       Assistant lists it as `audio/x-mpegurl`): it plays now, paths relative to it as library
       ids, addresses as streams. Your check on the screen with `music/playlists/...Radio
       Station...m3u`; a radio stream that is not MP3 (AAC) still does not play.
+- [x] Cameras in the media library (your report 2026-10-31, JC3248W535): ▶ of the top took the
+      cameras' HLS streams for playlists, parsed Home Assistant's gzipped answer as text and sent
+      the garbage as an id, Home Assistant closed the connection. Now `media_class` video/image
+      never plays, a `Content-Encoding` answer is refused, an id that is not UTF-8 is not sent;
+      the connection log no longer shows the client's stale TLS fields after a close. JC3248W535
+      over serial: `player folder media-source://camera` has nothing to play, a camera played
+      directly fails once with "compressed", the connection stays.
 - [x] Media browser memory: a folder of the library seen was held twice (the cache and the
       page); now one copy in PSRAM, shared (`shared_ptr`). Simulator: a cached folder reopened
       shows at once.

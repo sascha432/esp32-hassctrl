@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <strings.h>
 
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
@@ -53,6 +54,10 @@ struct Job {
     // the address of the file once known, and whether it gets the token
     memory::String address;
     bool authorize = false;
+    // the answer has a Content-Encoding (gzip): the player takes the bytes as they are, so the file
+    // is refused, without the tries of a broken connection
+    bool encoded = false;
+    bool refused = false;
     uint8_t buffer[kReadSize];
 };
 
@@ -80,6 +85,17 @@ struct Client {
         }
     }
 };
+
+// The answer's headers: Home Assistant gzips the HLS playlists of its cameras whatever the request
+// asks (stream/hls.py); a file of the media library comes as it is.
+esp_err_t on_http_event(esp_http_client_event_t *event)
+{
+    if (event->event_id == HTTP_EVENT_ON_HEADER && strcasecmp(event->header_key, "Content-Encoding") == 0 &&
+        strcasecmp(event->header_value, "identity") != 0) {
+        static_cast<Job *>(event->user_data)->encoded = true;
+    }
+    return ESP_OK;
+}
 
 // The address of the file: a media-source:// id resolved, a path of Home Assistant, or an
 // address as it is. False when there is none.
@@ -121,6 +137,9 @@ bool open_address(Job &job, Client &c, uint32_t offset, bool authorize)
         config.crt_bundle_attach = detail::tls_attach;
         config.buffer_size_tx = 1024;
         config.user_agent = "hassctrl";
+        config.event_handler = on_http_event;
+        config.user_data = &job;
+        job.encoded = false;
         c.handle = esp_http_client_init(&config);
         if (c.handle == nullptr) {
             return false;
@@ -146,6 +165,11 @@ bool open_address(Job &job, Client &c, uint32_t offset, bool authorize)
             }
             url = job.location;
             continue;
+        }
+        if (job.encoded && (status == 200 || status == 206)) {
+            ESP_LOGW(kTag, "compressed (Content-Encoding), not played: %.80s", url.c_str());
+            job.refused = true;
+            return false;
         }
         if (status == 206) {
             // the rest of the file from `offset`
@@ -229,7 +253,10 @@ void task(void *arg)
         if (!open) {
             open = connect(*job, c, offset);
             if (!open) {
-                if (++retries > kRetries) {
+                if (job->refused) {
+                    ring.finish(true);
+                    complete = true;
+                } else if (++retries > kRetries) {
                     ESP_LOGW(kTag, "given up after %d tries", kRetries);
                     ring.finish(true);
                     complete = true;
