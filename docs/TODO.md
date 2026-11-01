@@ -1404,6 +1404,15 @@ the songs that come next of a playlist; a mirror of the screen's Player page (yo
 - [x] The hallway's file system after the unplug: wrong names in the listing, `dashboard.json`
       and `Timing.mp3` read 0 bytes. Rewritten with a fresh image, the dashboard imported again
       from its export (11 pages, 94 tiles), checked after a restart.
+- [x] **Pause took 6 to 15 s** (your report 2026-10-31, JC3248W535, a 98-song playlist): the cover
+      (327 KB JPEG) went out on the server's only task, at about 22 KB/s while music plays; the pause
+      waited behind it, on page open and after every song change. The cover goes out on a task of its
+      own now (`get_cover`, at most 2, else as before). Measured with a 796 KB PNG being read: pause
+      0.2-0.6 s, the poll under 1 s. Your check in the browser is open.
+- [ ] Sends while music plays are slow on the JC3248W535: the 796 KB cover took 35 s (about 22 KB/s,
+      100-150 KB/s for the web files without music), a 20-byte answer 1-2 s. Cause not looked at.
+- [ ] The answer to a POST shows the state before the audio task took the command (toggle paused,
+      the answer said "playing"); the next poll is right, 1 s later.
 
 ## Vibration (2026-10-09)
 

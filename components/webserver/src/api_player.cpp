@@ -7,13 +7,17 @@
 //   POST /api/player        any of action=toggle|next|previous|stop, seek=ms, shuffle=1|0,
 //                           repeat=off|all|one, volume=0..100; answers like GET
 //   GET  /api/player/cover  the cover of what plays as it is in the file (JPEG or PNG); 404
-//                           without one
+//                           without one; sent on a task of its own (get_cover)
 //
 // Only with the player (Config::player).
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 
+#include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "hc/memory/large.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "http_util.hpp"
@@ -26,6 +30,12 @@ const PlayerAccess *g_player = nullptr;
 
 // the titles of the up next list
 constexpr size_t kUpcoming = 20;
+// the covers sent on tasks of their own (get_cover), the task's stack (PSRAM) and priority (the
+// server's)
+constexpr int kMaxCoverSends = 2;
+constexpr uint32_t kCoverStack = 4096;
+constexpr UBaseType_t kCoverPriority = 5;
+std::atomic<int> g_cover_sends{0};
 
 void write_status(JsonWriter &json, const PlayerStatus &s, const memory::Vector<memory::String> &next)
 {
@@ -131,11 +141,8 @@ esp_err_t post_player(httpd_req_t *req)
     return send_status(req);
 }
 
-esp_err_t get_cover(httpd_req_t *req)
+esp_err_t send_cover(httpd_req_t *req)
 {
-    if (!require_login(req)) {
-        return ESP_OK;
-    }
     char mime[32] = {};
     size_t length = 0;
     char *data = g_player->cover(length, mime, sizeof(mime));
@@ -148,6 +155,41 @@ esp_err_t get_cover(httpd_req_t *req)
     const esp_err_t err = httpd_resp_send(req, data, static_cast<ssize_t>(length));
     memory::release_large(data);
     return err;
+}
+
+void cover_task(void *arg)
+{
+    auto *req = static_cast<httpd_req_t *>(arg);
+    send_cover(req);
+    httpd_req_async_handler_complete(req);
+    g_cover_sends.fetch_sub(1);
+    vTaskDeleteWithCaps(nullptr);
+}
+
+// A cover is up to some 100s of KB and the server has one task: sent there, it held a pause
+// pressed meanwhile for 6 to 15 s (2026-10-31, 327 KB at about 100 KB/s while music downloads).
+// It goes out on a task of its own; with kMaxCoverSends under way, on the server's task.
+esp_err_t get_cover(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    if (g_cover_sends.fetch_add(1) >= kMaxCoverSends) {
+        g_cover_sends.fetch_sub(1);
+        return send_cover(req);
+    }
+    httpd_req_t *copy = nullptr;
+    if (httpd_req_async_handler_begin(req, &copy) != ESP_OK) {
+        g_cover_sends.fetch_sub(1);
+        return send_cover(req);
+    }
+    if (xTaskCreateWithCaps(cover_task, "web_cover", kCoverStack, copy, kCoverPriority, nullptr, MALLOC_CAP_SPIRAM) !=
+        pdPASS) {
+        httpd_req_async_handler_complete(copy);
+        g_cover_sends.fetch_sub(1);
+        return send_cover(req);
+    }
+    return ESP_OK;
 }
 
 } // namespace
