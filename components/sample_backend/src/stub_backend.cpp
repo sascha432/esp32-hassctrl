@@ -60,8 +60,7 @@ constexpr DisplaySettings kDisplayDefaults{.brightness = 100,
                                            .light_max_lux = 350.0f,
                                            .wake_on_motion = true,
                                            .motion_hold_s = 300,
-                                           .motion_enabled = true,
-                                           .wifi_power_save = true};
+                                           .motion_enabled = true};
 
 enum class Sta : uint8_t { NoNetworks, Scanning, Connecting, Connected, WaitingToRetry };
 enum class Hass : uint8_t { NotSetUp, Connected, TokenRejected, Disconnected };

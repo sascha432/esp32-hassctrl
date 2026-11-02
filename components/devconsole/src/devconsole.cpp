@@ -104,6 +104,15 @@ void print_status()
         std::printf("error:   %s\n", s.error);
     }
     std::printf("policy:  %s\n", s.policy == net::Policy::EnteredOrder ? "entered order" : "strongest signal");
+    if (s.modem_sleep) {
+        std::printf("modem:   sleeps\n");
+    } else if (s.awake_holds != 0) {
+        const auto held = [&s](net::AwakeHold hold) { return (s.awake_holds & static_cast<uint8_t>(hold)) != 0; };
+        std::printf("modem:   awake, held by%s%s%s\n", held(net::AwakeHold::Screen) ? " screen" : "",
+                    held(net::AwakeHold::Sound) ? " sound" : "", held(net::AwakeHold::Web) ? " web" : "");
+    } else {
+        std::printf("modem:   awake, sleeps in %lu s\n", static_cast<unsigned long>(s.modem_sleep_in_s));
+    }
     std::printf("hotspot: %s, '%s', password %s, %u clients", s.hotspot_on ? "on" : "off", s.hotspot_ssid,
                 s.hotspot_password, s.hotspot_clients);
     if (s.hotspot_off_in_s != 0) {

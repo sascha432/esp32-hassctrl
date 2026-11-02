@@ -11,13 +11,15 @@
 // `period_ms` of the topic the answer is built again and sent when its hash differs from the last
 // one sent. A session whose login ended (logout, "log out everywhere", a new password, expiry) is
 // closed. Everything here runs on the server's task: the handler, the close callback and the tick
-// (httpd_queue_work), so nothing is locked.
+// (httpd_queue_work), so nothing is locked. While a tab follows a page (a topic, not a hidden tab)
+// the Wi-Fi stays awake (network::AwakeHold::Web, docs/architecture.md section 9.2).
 
 #include <cstring>
 
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "hc/network/network.hpp"
 
 #include "auth.hpp"
 #include "http_util.hpp"
@@ -104,10 +106,24 @@ Client *free_slot()
     return nullptr;
 }
 
+// the Wi-Fi's hold while any tab follows a page
+void update_web_hold()
+{
+    static bool held = false;
+    bool following = false;
+    for (const Client &client : g_clients) {
+        following = following || (client.used && client.topic >= 0);
+    }
+    if (following != held && network::hold_awake(network::AwakeHold::Web, following) == ESP_OK) {
+        held = following;
+    }
+}
+
 void drop(Client &client)
 {
     httpd_sess_trigger_close(g_server, client.fd);
     client = Client{};
+    update_web_hold();
 }
 
 // false when the frame could not be sent: the session is closed then
@@ -211,6 +227,7 @@ esp_err_t handle_live(httpd_req_t *req)
             client->topic = static_cast<int>(i);
         }
     }
+    update_web_hold();
     if (client->topic < 0) {
         if (path[0] != 0) {
             ESP_LOGD(kTag, "live %d: no topic %s", fd, path);
@@ -263,6 +280,7 @@ void live_forget(int fd)
 {
     if (Client *client = find(fd)) {
         *client = Client{};
+        update_web_hold();
     }
 }
 

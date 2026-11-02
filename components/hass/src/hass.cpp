@@ -191,6 +191,7 @@ Status g_status{};
 char g_token[kTokenSize] = {};
 // set before start(), read by the task
 SoundPlayer g_sound_player = nullptr;
+void (*g_sound_coming)() = nullptr;
 RelayHandler g_relay_handler = nullptr;
 
 // The task's events, created with the first use: the UI subscribes its page before start() when
@@ -1835,11 +1836,23 @@ SoundPlayer sound_player()
     return g_sound_player;
 }
 
+void sound_coming()
+{
+    if (g_sound_coming != nullptr) {
+        g_sound_coming();
+    }
+}
+
 } // namespace detail
 
 void set_sound_player(SoundPlayer player)
 {
     g_sound_player = player;
+}
+
+void set_sound_coming(void (*coming)())
+{
+    g_sound_coming = coming;
 }
 
 void set_relay_handler(RelayHandler handler)

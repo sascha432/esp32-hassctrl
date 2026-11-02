@@ -7,12 +7,14 @@
 // goes through the overrides here, which note the time; a timer closes what has been silent for
 // kIdleMs. Not the live socket (silent while nothing changes, TCP keep-alive finds a dead one) and
 // not a long response on its own task (it sends, and the server must not close its socket).
+// Every byte a browser sends is activity for the Wi-Fi's modem sleep (network::wake_activity).
 
 #include <atomic>
 #include <cerrno>
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "hc/network/network.hpp"
 #include "hc/webserver/async.hpp"
 #include "lwip/sockets.h"
 
@@ -71,6 +73,7 @@ int receive(httpd_handle_t, int fd, char *buffer, size_t length, int flags)
     }
     if (n > 0) {
         touch(fd);
+        network::wake_activity();
     }
     return n;
 }

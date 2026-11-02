@@ -108,11 +108,8 @@ struct DisplaySettings {
     // 60 to 3600 s (only with a motion sensor; hc::motion::set_hold_s)
     uint32_t motion_hold_s;
     // the motion sensor is used; off it reads clear: no wake, the helper is off (only with a
-    // motion sensor; hc::motion::set_enabled)
+    // motion sensor; hc::motion::set_enabled). Last, so the blob grows (main/ui_backend.cpp).
     bool motion_enabled;
-    // Wi-Fi modem sleep while the screen is off. Last, so the blob grows (main/ui_backend.cpp);
-    // aligned, a plain bool would sit in the padding of the layout before it and not grow it.
-    alignas(4) bool wifi_power_save;
 };
 
 // Settings, Sound. The UI plays the touch sounds; the backend stores the settings and sets the

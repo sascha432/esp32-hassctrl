@@ -23,13 +23,13 @@ Removed
 
 Added
 
-* Settings, Display: "Wi-Fi power save" switch (on by default, backup `wifi_power_save`); off,
-  the Wi-Fi stays awake while the screen is off.
 * Web UI: pages follow their state on one WebSocket (`/api/live`) instead of asking every 1-5 s
   (not in the recovery app); a hidden tab gets only a heartbeat every 10 s.
 
 Changed
 
+* Wi-Fi modem sleep 5 min after the screen went off and the last web request; a shown web page,
+  music, a message or the alarm keep it awake (was: at once with the screen off).
 * Web server: a session silent for 30 s is closed; SD downloads and uploads, `files.zip`, the
   cover and camera streams run on tasks of their own, other pages answer meanwhile.
 * The captive portal's DNS listens only while the hotspot is on.

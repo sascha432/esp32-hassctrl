@@ -52,6 +52,8 @@ void frame_taken();
 
 // the player of set_sound_player(), nullptr: none
 SoundPlayer sound_player();
+// the callback of set_sound_coming, if any
+void sound_coming();
 
 // fetches and plays a sound of the hassctrl_say event (say.cpp); a newer one replaces it
 void start_say(hass_protocol::Say say);

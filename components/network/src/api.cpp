@@ -163,9 +163,22 @@ esp_err_t new_hotspot_password()
     return command(MsgType::NewHotspotPassword);
 }
 
-esp_err_t set_power_save(bool on)
+esp_err_t hold_awake(AwakeHold hold, bool on)
 {
-    return command(MsgType::PowerSave, 0, on ? 1 : 0);
+    return command(MsgType::Hold, static_cast<uint8_t>(hold), on ? 1 : 0);
+}
+
+void wake_activity()
+{
+    g_activity_at.store(xTaskGetTickCount());
+    // only a sleeping modem needs the task at once; one message is enough until it woke
+    if (g_modem_sleep.load() && !g_wake_posted.exchange(true) && g_queue != nullptr) {
+        Msg msg{};
+        msg.type = MsgType::Activity;
+        if (xQueueSend(g_queue, &msg, 0) != pdTRUE) {
+            g_wake_posted.store(false);
+        }
+    }
 }
 
 const char *state_name(StaState state)

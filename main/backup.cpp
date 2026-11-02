@@ -207,7 +207,6 @@ void write_display(backup::Writer &out)
     out.boolean("wake_on_motion", s.wake_on_motion);
     out.number("motion_hold_s", static_cast<long>(s.motion_hold_s));
     out.boolean("motion_sensor", s.motion_enabled);
-    out.boolean("wifi_power_save", s.wifi_power_save);
 }
 
 void read_display(const Node &value, bool apply, backup::Report &report)
@@ -239,7 +238,6 @@ void read_display(const Node &value, bool apply, backup::Report &report)
     fields.boolean("wake_on_motion", s.wake_on_motion);
     fields.number("motion_hold_s", hc::motion::kMinHoldS, hc::motion::kMaxHoldS, s.motion_hold_s);
     fields.boolean("motion_sensor", s.motion_enabled);
-    fields.boolean("wifi_power_save", s.wifi_power_save);
     fields.finish();
     if (apply) {
         ui_backend().set_display_settings(s);

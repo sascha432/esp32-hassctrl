@@ -259,6 +259,8 @@ void write_status(JsonWriter &json)
         .string("ip", wifi.ip)
         .number("rssi", wifi.rssi)
         .number("channel", wifi.channel)
+        // Wi-Fi modem sleep (docs/architecture.md section 9.2); a page that is shown holds it off
+        .boolean("modem_sleep", wifi.modem_sleep)
         .string("error", wifi.error)
         .number("saved", wifi.saved_count)
         .end_object()
@@ -422,17 +424,17 @@ esp_err_t start(const Config &config)
     detail::register_update_routes(server);
     detail::register_file_routes(server);
     detail::register_log_routes(server);
-    detail::register_hass_routes(server, config.hass);
-    detail::register_dashboard_routes(server, config.dashboard);
 #if CONFIG_HC_WEB_FIRMWARE_ROUTES
     // the firmware's pages (not in the recovery app, sdkconfig.recovery)
+    detail::register_hass_routes(server, config.hass);
+    detail::register_dashboard_routes(server, config.dashboard);
     detail::register_backup_routes(server, config.backup, config.device_name);
     detail::register_camera_routes(server, config.camera);
     detail::register_player_routes(server, config.player);
     detail::register_time_routes(server, config.time);
+#endif
 #if CONFIG_HC_SDCARD
     detail::register_sd_routes(server);
-#endif
 #endif
     if (config.add_routes != nullptr) {
         config.add_routes(server);

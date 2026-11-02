@@ -94,7 +94,6 @@
 #  motion_sensor: true      # false: the motion sensor is not used (reads clear, the helper stays off)
 #  wake_on_motion: true     # a motion sensor wakes the screen and keeps it on
 #  motion_hold_s: 300       # 60 to 3600: Home Assistant's motion helper stays on this long after the last motion
-#  wifi_power_save: true    # Wi-Fi modem sleep while the screen is off (less power, slower answers)
 
 # Sounds and vibration, on boards that have them.
 #

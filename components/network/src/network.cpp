@@ -37,6 +37,9 @@ QueueHandle_t g_queue = nullptr;
 // set by the shutdown handler: the disconnect of a restart is not a lost connection
 volatile bool g_restarting = false;
 SemaphoreHandle_t g_lock = nullptr;
+std::atomic<TickType_t> g_activity_at{0};
+std::atomic<bool> g_modem_sleep{false};
+std::atomic<bool> g_wake_posted{false};
 
 // copies for other tasks, guarded by g_lock
 Status g_status{};
@@ -228,15 +231,18 @@ void handle(const Msg &msg)
         }
         ESP_LOGI(kTag, "new hotspot password");
         break;
-    case MsgType::PowerSave: {
-        const esp_err_t err = esp_wifi_set_ps(msg.value != 0 ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
-        if (err == ESP_OK) {
-            ESP_LOGI(kTag, "modem sleep %s", msg.value != 0 ? "on" : "off");
-        } else {
-            ESP_LOGW(kTag, "modem sleep %s: %s", msg.value != 0 ? "on" : "off", esp_err_to_name(err));
+    case MsgType::Hold:
+        if (msg.value != 0) {
+            t.awake_holds |= msg.index;
+        } else if ((t.awake_holds & msg.index) != 0) {
+            t.awake_holds &= static_cast<uint8_t>(~msg.index);
+            // the delay counts from the end of the hold
+            g_activity_at.store(now());
         }
         break;
-    }
+    case MsgType::Activity:
+        g_wake_posted.store(false);
+        break;
     case MsgType::Import: {
         const ImportJob &job = *static_cast<const ImportJob *>(msg.data);
         cmd_import(job);
@@ -252,6 +258,31 @@ void handle(const Msg &msg)
     }
 }
 
+// Modem sleep while no hold is on and kModemSleepDelayS have passed since the last activity
+// (docs/architecture.md section 9.2).
+void update_modem_sleep()
+{
+    const TickType_t delay = pdMS_TO_TICKS(kModemSleepDelayS * 1000);
+    const int32_t since = static_cast<int32_t>(now() - g_activity_at.load());
+    const bool idle = t.awake_holds == 0 && since >= static_cast<int32_t>(delay);
+    t.status.awake_holds = t.awake_holds;
+    t.status.modem_sleep_in_s = t.awake_holds != 0 || idle ? 0
+                                : static_cast<uint32_t>(static_cast<int32_t>(delay) - std::max<int32_t>(since, 0)) *
+                                      portTICK_PERIOD_MS / 1000;
+    if (idle == t.modem_sleep) {
+        return;
+    }
+    const esp_err_t err = esp_wifi_set_ps(idle ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "modem sleep %s: %s", idle ? "on" : "off", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(kTag, "modem sleep %s", idle ? "on" : "off");
+    t.modem_sleep = idle;
+    t.status.modem_sleep = idle;
+    g_modem_sleep.store(idle);
+}
+
 void handle_timers()
 {
     if (t.status.state == StaState::WaitingToRetry && reached(t.retry_at)) {
@@ -265,6 +296,7 @@ void handle_timers()
         ESP_LOGI(kTag, "setup hotspot time is over");
     }
     update_hotspot();
+    update_modem_sleep();
 }
 
 // the time until the next timer, at most a second (keeps the countdown in the status current)
@@ -403,8 +435,8 @@ esp_err_t start(const char *device_name, Listener listener, void *context)
                         "task");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), kTag, "wifi start");
     // No modem sleep while the screen is on: with it every packet waits for the next beacon (ping
-    // 18 to 200 ms, single web requests up to seconds on the T4). set_power_save() turns it on
-    // while the screen is off.
+    // 18 to 200 ms, single web requests up to seconds on the T4). update_modem_sleep() turns it
+    // on when nothing holds the Wi-Fi awake.
     esp_wifi_set_ps(WIFI_PS_NONE);
     ESP_LOGI(kTag, "%u saved networks, hotspot '%s' %s", t.stored.count, device_name,
              t.status.hotspot_on ? "on" : "off");

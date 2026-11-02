@@ -65,6 +65,11 @@ esp_err_t start(const Config &config);
 // start() succeeded
 bool running();
 
+// Called on the audio task when an alarm, an announcement or music (not paused) starts and when
+// the last of them ends; not for the touch sounds. Quick: post and return. Set before start().
+using Busy = void (*)(bool busy);
+void set_busy(Busy callback);
+
 // Percent of full scale on a perceptual curve; 0 mutes every sound except an alarm.
 void set_volume(uint8_t percent);
 uint8_t volume();

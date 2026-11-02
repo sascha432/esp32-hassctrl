@@ -117,6 +117,7 @@ i2s_chan_handle_t g_channel = nullptr;
 i2s_chan_handle_t g_rx = nullptr;
 Config g_config{};
 QueueHandle_t g_queue = nullptr;
+Busy g_busy = nullptr;
 TaskHandle_t g_task = nullptr;
 std::atomic<uint8_t> g_volume{50};
 // the volume as a factor in Q15 (32768 = full scale)
@@ -255,6 +256,13 @@ public:
     bool active() const
     {
         return sound_ != nullptr || (has_media() && !paused_);
+    }
+
+    // what set_busy() reports: an alarm, an announcement or music that is not paused, not the
+    // touch sounds (they play with the screen on, which holds the Wi-Fi anyway)
+    bool busy() const
+    {
+        return (sound_ != nullptr && (alarm_ || announcement_)) || (has_media() && !paused_);
     }
 
     // only music that waits for its download: the task looks again a little later
@@ -655,7 +663,14 @@ void audio_task(void *)
     if (g_config.keep_running) {
         player.run(kSampleRate);
     }
+    bool busy = false;
     for (;;) {
+        if (player.busy() != busy) {
+            busy = !busy;
+            if (g_busy != nullptr) {
+                g_busy(busy);
+            }
+        }
         // playing: only look for a newer sound; music waiting for its download: look again soon;
         // idle: wait for one, the channel stops meanwhile (or runs on, Config::keep_running)
         const TickType_t idle = g_config.keep_running ? portMAX_DELAY : kIdleStop;
@@ -896,6 +911,11 @@ esp_err_t start(const Config &config)
 bool running()
 {
     return g_queue != nullptr;
+}
+
+void set_busy(Busy callback)
+{
+    g_busy = callback;
 }
 
 void set_volume(uint8_t percent)

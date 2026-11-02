@@ -338,6 +338,7 @@ void start_say(hass_protocol::Say say)
     std::lock_guard lock(g_mutex);
     // empty: no new sound, only a task for the one that waits (the end of task())
     if (!say.message.empty() || !say.url.empty()) {
+        sound_coming();
         g_next = std::move(say);
         g_wanted++;
     }

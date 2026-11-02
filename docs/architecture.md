@@ -772,15 +772,20 @@ different major version on the two chips is a mismatch.
   second attempt always worked). A network saved without a password makes the driver look for an
   open network; against a secured one that ends in reason 210, shown as "the network needs a
   password, add it again". Passwords of 1 to 7 characters are refused when a network is saved.
-* Wi-Fi power save is off while the screen is on: with modem sleep every packet waits for the
-  next beacon (ping 107 ms average, single requests up to seconds on the T4), without it 19 ms.
-  While the screen is off (backlight 0, `ui/src/power.hpp`) `main` turns modem sleep on
-  (`WIFI_PS_MIN_MODEM`, `network::set_power_save`) and off again with the first step of the
-  fade up; Home Assistant's updates and the web UI are slower then, nobody looks at the screen.
-  JC3248W535 with the screen off: 120 mA without, 93 mA with modem sleep (2026-10-23).
-  Settings, Display, "Wi-Fi power save" (`DisplaySettings::wifi_power_save`, on by default,
-  backup `wifi_power_save`) off keeps modem sleep off with the screen off too, for a web UI or
-  Home Assistant that should answer at once.
+* Modem sleep (`WIFI_PS_MIN_MODEM`): every packet waits for the next beacon (ping 107 ms
+  average, single requests up to seconds on the T4), without it 19 ms. JC3248W535 with the
+  screen off: 120 mA without, 93 mA with modem sleep (2026-10-23). The network task turns it on
+  when nothing holds the Wi-Fi awake and `network::kModemSleepDelayS` (5 min) have passed since
+  the last activity, and off at once when either changes. Holds (`network::hold_awake`): the
+  screen is on (`main`'s backlight: off at 0, on with the first step of the fade up), an alarm,
+  an announcement or music plays (`audio::set_busy`, not the touch sounds, not paused music), a
+  browser tab follows a page on the live socket (`live.cpp`; a hidden tab does not). Activity
+  (`network::wake_activity`, an atomic time stamp, a message only while the modem sleeps): every
+  byte a browser sends to the web server (`idle.cpp`'s receive), a `hassctrl_say` event before its
+  download (`hass::set_sound_coming`), and the end of a hold. So the screen going off starts the
+  5 min, and a request in the night wakes the Wi-Fi for the next 5 min. Home Assistant's own
+  traffic is no activity: with the screen off its updates are slower, nobody looks. Console
+  `wifi status` (line `modem:`) and `/api/status` (`wifi.modem_sleep`) show the state.
 
 ### 9.3 Storage
 
@@ -1337,8 +1342,8 @@ Assistant: [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md).
   activity, so Settings still close after their time without a touch. The display settings blob
   grew to its fifth layout (older ones are converted, `wake_on_motion` keeps the default), with the
   motion hold to its sixth (`motion_hold_s` keeps the default), with the sensor's switch to its
-  seventh (`motion_enabled`, at the end, keeps the default), with Wi-Fi power save to its eighth
-  (`wifi_power_save`, `alignas(4)` so it does not sit in the seventh's padding, keeps the default).
+  seventh (`motion_enabled`, at the end, keeps the default). The eighth layout (a Wi-Fi power save
+  switch, 2026-11-01, gone the same day) is read with its switch dropped.
 * **Motion sensor** on or off (Settings, Display, `DisplaySettings::motion_enabled`, on by
   default, backup `motion_sensor`): `ui_backend` hands it to `motion::set_enabled` with the hold
   time. Off, the timer reads the pin as clear and ends the hold at once: the handler gets "clear"

@@ -23,7 +23,8 @@
 //     successful connection of the setup, and whenever the user turned it on. It never opens by
 //     itself when the Wi-Fi fails (touch is a requirement, Settings is the recovery path).
 //   * The hotspot password is generated on the first boot: 8 digits and 2 lowercase letters.
-//   * Modem sleep only while the screen is off (set_power_save).
+//   * Modem sleep only while nothing holds the Wi-Fi awake (the screen, a sound, a web page;
+//     hold_awake) and kModemSleepDelayS after the last activity (wake_activity).
 
 #include <cstddef>
 #include <cstdint>
@@ -80,6 +81,10 @@ struct Status {
     bool hotspot_enabled;
     // the task runs and the saved networks are loaded (before: saved_count says nothing)
     bool ready;
+    // modem sleep is on; the holds (AwakeHold bits) and, with none, the seconds until it sleeps
+    bool modem_sleep;
+    uint8_t awake_holds;
+    uint32_t modem_sleep_in_s;
 };
 
 struct ScanEntry {
@@ -156,8 +161,19 @@ esp_err_t force_hotspot(bool on);
 esp_err_t set_hotspot(bool on);
 esp_err_t new_hotspot_password();
 // Modem sleep (WIFI_PS_MIN_MODEM): the radio sleeps between the router's beacons, every packet
-// waits up to one beacon interval. Off from the start; `main` turns it on while the screen is off.
-esp_err_t set_power_save(bool on);
+// waits up to one beacon interval. On only while no hold is on and kModemSleepDelayS have passed
+// since the last activity; a released hold counts as activity. Off from the start, with the
+// screen's hold on.
+constexpr uint32_t kModemSleepDelayS = 300;
+enum class AwakeHold : uint8_t {
+    Screen = 1, // the screen is on
+    Sound = 2,  // a sound or music plays
+    Web = 4,    // a browser tab shows a page of the web UI
+};
+esp_err_t hold_awake(AwakeHold hold, bool on);
+// From any task, cheap (a web request's every receive): restarts the delay, and wakes the modem
+// at once when it sleeps.
+void wake_activity();
 
 const char *state_name(StaState state);
 

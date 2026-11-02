@@ -227,6 +227,9 @@ size_t discover(Found *out, size_t max, uint32_t timeout_ms);
 // on its way. Set before start(); without a player the event is not subscribed.
 using SoundPlayer = void (*)(uint8_t *mp3, size_t size);
 void set_sound_player(SoundPlayer player);
+// Called when such a sound comes, before its download (on the task of the connection: quick).
+// Set before start(); nullptr: none.
+void set_sound_coming(void (*coming)());
 
 // What the event does, without it (the console): `message` spoken by the tts entity `engine` in
 // `language` (empty: the engine's), or the MP3 at `url` (a path of Home Assistant or an address).

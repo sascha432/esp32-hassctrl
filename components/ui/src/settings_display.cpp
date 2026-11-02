@@ -1,5 +1,5 @@
 // Settings, Display (docs/ui/lvgl/lvgl-settings.md section 3): brightness, the automatic brightness
-// of a light sensor, the idle times, the motion sensor, Wi-Fi power save and the rotation. The brightness slider is also
+// of a light sensor, the idle times, the motion sensor and the rotation. The brightness slider is also
 // on quick settings (brightness_card()).
 
 #include <cmath>
@@ -344,14 +344,6 @@ Built display_page(lv_obj_t *content)
     } else {
         text_block(col, "A touch wakes the screen; when it was off, that touch only wakes it.");
     }
-    lv_obj_t *wifi = t::row(col, "Wi-Fi power save", "", false, nullptr);
-    t::toggle(wifi, s.wifi_power_save, [](lv_event_t *event) {
-        DisplaySettings changed = display_settings();
-        changed.wifi_power_save = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
-        store(changed);
-    });
-    text_block(col, "Wi-Fi power save: while the screen is off the Wi-Fi sleeps between the router's beacons. "
-                    "It uses less power, Home Assistant and the web UI answer slower then.");
 
     // Rotation: one row. With the sensor in charge it locks the rotation; locked or without a
     // sensor it opens the popup that turns the screen.

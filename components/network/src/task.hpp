@@ -5,6 +5,7 @@
 // the network task touches `t`; other tasks read the copies under g_lock.
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 
 #include "esp_netif.h"
@@ -36,7 +37,10 @@ enum class MsgType : uint8_t {
     Hotspot,
     NewHotspotPassword,
     ForceHotspot,
-    PowerSave,
+    // hold_awake: `index` the AwakeHold bit, `value` on
+    Hold,
+    // wake_activity while the modem sleeps
+    Activity,
     Import,
     WifiEvent,
     GotIp,
@@ -116,6 +120,9 @@ struct Task {
     TickType_t connect_started = 0;
     // the next connection scan tries this saved network first, once (add_network connect_now)
     int prefer = -1;
+    // what keeps the modem awake (AwakeHold bits); the screen is on at the start
+    uint8_t awake_holds = static_cast<uint8_t>(AwakeHold::Screen);
+    bool modem_sleep = false;
     Candidate switch_to{};
     wifi_ap_record_t records[kMaxScan];
 };
@@ -126,6 +133,11 @@ extern QueueHandle_t g_queue;
 // set by the shutdown handler: the disconnect of a restart is not a lost connection
 extern volatile bool g_restarting;
 extern SemaphoreHandle_t g_lock;
+// wake_activity from any task: the tick of the last activity, the modem sleeps now (written by
+// the task), an Activity message is on its way
+extern std::atomic<TickType_t> g_activity_at;
+extern std::atomic<bool> g_modem_sleep;
+extern std::atomic<bool> g_wake_posted;
 
 // copies for other tasks, guarded by g_lock
 extern Status g_status;

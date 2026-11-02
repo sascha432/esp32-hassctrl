@@ -228,8 +228,8 @@ Step 4 is done in increments. Running on the T4 since 2026-10-06:
 - The built-in page has the setup forms (Wi-Fi, create login), the login form and log out.
 - **Wi-Fi power save off**: with modem sleep the ping took 18 to 200 ms (107 ms average) and
   single requests up to seconds; without it 19 ms average and 70 to 140 ms per request. Since
-  2026-10-23 modem sleep is on while the screen is off; since 2026-11-01 a switch in Settings,
-  Display ("Wi-Fi power save") can keep it off.
+  2026-10-23 modem sleep is on while the screen is off; since 2026-11-01 only 5 min after the
+  screen went off and the last web request, and never while a web page is shown or sound plays.
 - SNTP starts with the network (pool.ntp.org), needed for the token expiry.
 - Console: `login-reset yes` removes the web UI login (setup mode again).
 
@@ -2264,9 +2264,18 @@ Not built yet (placeholders in the code or the documentation):
       screen on (32 KB in 101 ms, a new text 23 KB in 639 ms; screen on 218-1114 ms); a ringing
       alarm (`sound ring`) wakes the screen and turns modem sleep off within 1 s. No current
       measurement after waking (your call): the log shows modem sleep off with the wake.
-- [x] Settings, Display, "Wi-Fi power save" switch (built 2026-11-01). JC3248W535 (2026-11-01):
-      the stored settings converted (times kept, switch on); on, `modem sleep on` at screen off and
-      `off` with the waking tap; off, no `modem sleep` line at screen off or wake.
+- [x] ~~Settings, Display, "Wi-Fi power save" switch~~ (built 2026-11-01, removed the same day by
+      your decision: replaced by the rule below; the eighth display blob is read, switch dropped).
+- [x] **Modem sleep decoupled from the screen** (your request 2026-11-01, docs/architecture.md
+      section 9.2): holds (screen on, sound or music, a web page shown on the live socket), 5 min
+      after the last activity (a web request's bytes, screen off, a hold's end, a `hassctrl_say`
+      event). JC3248W535 (2026-11-01): display settings kept through the update; `modem sleep on`
+      5 min after the screen went off (ping 107 ms average); one GET woke it at once (7 ms); a
+      live socket following a page holds it, hidden or closed starts the 5 min; `sound alarm`
+      holds, `sound stop` starts the 5 min; a say restarts them; `test_web.py` 108 of 108.
+      Music (2026-11-02, volume 2 %): SD playlist holds, pause and stop release; the media
+      library streamed with the screen off: held by sound 7 min over two song changes, no new
+      underruns, the 5 min started with `player stop`.
 - [x] **Console `restart` did not restart once** (JC3248W535, 2026-10-25, the firmware with 10 KB free):
       the log showed the Wi-Fi driver stopping (`run -> init`, `flush txq`), then hass kept trying to
       connect ("Host is unreachable") for 40 s and the board stayed up until esptool reset it. A

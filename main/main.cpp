@@ -197,6 +197,8 @@ void start_audio(const hc::board::Info &board)
                                    .codec_log_mic = codec != nullptr ? codec->log_mic : nullptr,
 #endif
                                    .keep_running = board.audio_always_on};
+    // a sound or music keeps the Wi-Fi awake while it plays (docs/architecture.md section 9.2)
+    hc::audio::set_busy([](bool playing) { hc::network::hold_awake(hc::network::AwakeHold::Sound, playing); });
     if (hc::audio::start(config) != ESP_OK) {
         ESP_LOGW(kTag, "audio output did not start");
         return;
@@ -208,6 +210,8 @@ void start_audio(const hc::board::Info &board)
 #if CONFIG_HC_AUDIO_MP3
     // the sounds of Home Assistant's hassctrl_say event (before hass::start)
     hc::hass::set_sound_player(hc::audio::play_mp3);
+    // its download runs at full speed: the Wi-Fi wakes with the event
+    hc::hass::set_sound_coming(hc::network::wake_activity);
 #endif
 #if CONFIG_HC_UI_PLAYER
     hc::player::start();
