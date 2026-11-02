@@ -41,6 +41,7 @@ struct State {
     lv_obj_t *content = nullptr;
     lv_timer_t *timer = nullptr;
     pages::Refresh refresh = nullptr;
+    pages::Back back = nullptr;
     Entry stack[kMaxDepth];
     int depth = 0;
     bool form_dirty = false;
@@ -94,9 +95,12 @@ void on_tick(lv_timer_t *)
     }
 }
 
-// `<` leaves a page; with unsaved input it asks first
+// `<` leaves a page (a page with steps of its own goes one back first); with unsaved input it asks
 void leave()
 {
+    if (g.back != nullptr && g.back()) {
+        return;
+    }
     if (!g.form_dirty) {
         pop();
         return;
@@ -118,6 +122,7 @@ void show_top()
     g.keep_open = false;
     const pages::Built built = pages::build(top.page, g.content, top.text, top.index);
     g.refresh = built.refresh;
+    g.back = built.back;
     t::line_text(g.title, built.title);
 }
 
@@ -339,6 +344,7 @@ void close()
     lv_timer_del(g.timer);
     g.timer = nullptr;
     g.refresh = nullptr;
+    g.back = nullptr;
     // the Settings screen is deleted when the animation is done
     if (g.return_to != nullptr) {
         lv_scr_load_anim(g.return_to, LV_SCR_LOAD_ANIM_MOVE_RIGHT, kAnimationMs, 0, true);

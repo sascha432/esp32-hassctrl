@@ -7,6 +7,13 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-02
+
+Changed
+
+* Media browser: `<` in a subfolder goes up a folder like "..", back to the dashboard only from
+  the tile's folder.
+
 ### 2026-11-01
 
 Added

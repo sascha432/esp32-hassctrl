@@ -709,7 +709,16 @@ Built media_page(lv_obj_t *content)
     if (in_folder && source == Source::Hass && !id.empty() && g.loaded && !shown().title.empty()) {
         title = shown().title.c_str();
     }
-    return {title, check_answer};
+    // `<` in a folder goes up as `..` does
+    return {title, check_answer, [] {
+                if (g.path.empty()) {
+                    return false;
+                }
+                if (tap_ok()) {
+                    go_up();
+                }
+                return true;
+            }};
 }
 
 } // namespace hc::ui::settings::pages

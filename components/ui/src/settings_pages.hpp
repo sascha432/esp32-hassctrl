@@ -10,10 +10,13 @@
 namespace hc::ui::settings::pages {
 
 using Refresh = void (*)();
+// `<` of the bar on the page: true when the page took it (a step back inside it), false leaves it
+using Back = bool (*)();
 
 struct Built {
     const char *title;
     Refresh refresh;
+    Back back = nullptr;
 };
 
 Built build(Page page, lv_obj_t *content, const char *text, int index);
