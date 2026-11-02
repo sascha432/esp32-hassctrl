@@ -13,7 +13,9 @@
 //   POST /api/sd/format          confirm=yes and password (the login's, again): erases the card
 //
 // Paths are relative to the card and go through sdcard::make_path (no ".."); list, delete, mkdir
-// and rename are sdcard's (the screen's file manager uses them too).
+// and rename are sdcard's (the screen's file manager uses them too). A file's download and upload
+// run on a task of their own (hc/webserver/async.hpp), so the other pages keep their answers
+// meanwhile; its stack is in PSRAM, nothing of the flash is read.
 
 #include <cstdio>
 #include <cstdlib>
@@ -28,6 +30,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hc/sdcard/sdcard.hpp"
+#include "hc/webserver/async.hpp"
 
 #include "auth.hpp"
 #include "http_util.hpp"
@@ -42,7 +45,10 @@ constexpr size_t kReadChunk = 16384;
 constexpr size_t kDmaAlign = 64;
 // a path, URL-encoded: up to three characters per byte
 constexpr size_t kQuerySize = 3 * sdcard::kMaxPath + 16;
+// an upload that stops ends after 3 receive timeouts of 5 s in a row
 constexpr int kMaxTimeouts = 3;
+// the stack of a download's or an upload's task: the paths, FATFS and the send
+constexpr uint32_t kTransferStack = 6144;
 constexpr uint32_t kFailedPasswordDelayMs = 1000;
 
 // the decoded value of `key` in the query string
@@ -93,17 +99,13 @@ esp_err_t send_done(httpd_req_t *req, const char *key)
     return send_json(req, json);
 }
 
-esp_err_t get_sd(httpd_req_t *req)
+// GET /api/sd, pushed on the live socket as well
+void write_sd(JsonWriter &json)
 {
-    if (!require_login(req)) {
-        return ESP_OK;
-    }
     const sdcard::Status s = sdcard::status();
     const sdcard::FetchStatus f = sdcard::fetch_status();
     // the path without the mount point, as the web UI names it
     const size_t prefix = std::strlen(sdcard::kMountPoint) + 1;
-    char buffer[512];
-    JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .string("state", sdcard::state_name(s.state))
         .number("total_kb", static_cast<int64_t>(s.total_bytes / 1024))
@@ -118,7 +120,14 @@ esp_err_t get_sd(httpd_req_t *req)
         .string("error", f.error)
         .end_object()
         .end_object();
-    return send_json(req, json);
+}
+
+esp_err_t get_sd(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    return send_state(req, write_sd);
 }
 
 // the HTTP answer to what sdcard's file functions said
@@ -201,10 +210,12 @@ esp_err_t get_list(httpd_req_t *req)
     return ESP_OK;
 }
 
-esp_err_t get_file(httpd_req_t *req)
+esp_err_t send_file(httpd_req_t *req)
 {
-    if (!require_login(req) || !mounted(req)) {
-        return ESP_OK;
+    // the card stays mounted while the file goes out (unmount and format wait for it)
+    const sdcard::Use use;
+    if (!use.held()) {
+        return send_error(req, "409 Conflict", "no SD card mounted");
     }
     char path[sdcard::kMaxPath];
     if (!request_path(req, nullptr, "path", path)) {
@@ -246,11 +257,23 @@ esp_err_t get_file(httpd_req_t *req)
     return ESP_OK;
 }
 
-// the body as it comes in, into <path>.part; an older file of the name is replaced at the end
-esp_err_t post_file(httpd_req_t *req)
+esp_err_t get_file(httpd_req_t *req)
 {
     if (!require_login(req) || !mounted(req)) {
         return ESP_OK;
+    }
+    if (run_async(req, [](httpd_req_t *copy) { send_file(copy); }, AsyncStack::Psram, kTransferStack)) {
+        return ESP_OK;
+    }
+    return send_file(req);
+}
+
+// the body as it comes in, into <path>.part; an older file of the name is replaced at the end
+esp_err_t receive_file(httpd_req_t *req)
+{
+    const sdcard::Use use;
+    if (!use.held()) {
+        return send_error(req, "409 Conflict", "no SD card mounted");
     }
     char path[sdcard::kMaxPath];
     if (!request_path(req, nullptr, "path", path) || std::strcmp(path, sdcard::kMountPoint) == 0 ||
@@ -309,6 +332,17 @@ esp_err_t post_file(httpd_req_t *req)
     JsonWriter json(buffer, sizeof(buffer));
     json.begin_object().boolean("saved", true).number("size", static_cast<int64_t>(req->content_len)).end_object();
     return send_json(req, json);
+}
+
+esp_err_t post_file(httpd_req_t *req)
+{
+    if (!require_login(req) || !mounted(req)) {
+        return ESP_OK;
+    }
+    if (run_async(req, [](httpd_req_t *copy) { receive_file(copy); }, AsyncStack::Psram, kTransferStack)) {
+        return ESP_OK;
+    }
+    return receive_file(req);
 }
 
 // the form value `key` of the body, relative to the card
@@ -397,7 +431,11 @@ esp_err_t post_mount(httpd_req_t *req)
         if (sdcard::fetch_status().state == sdcard::FetchState::Running) {
             return send_error(req, "409 Conflict", "a download runs");
         }
-        return sdcard::unmount() == ESP_OK ? get_sd(req) : send_error(req, "500 Internal Server Error", "unmount failed");
+        const esp_err_t err = sdcard::unmount();
+        if (err == ESP_ERR_INVALID_STATE) {
+            return send_error(req, "409 Conflict", "a file on the card is being sent or received");
+        }
+        return err == ESP_OK ? get_sd(req) : send_error(req, "500 Internal Server Error", "unmount failed");
     }
     if (std::strcmp(action, "mount") != 0) {
         return send_error(req, "400 Bad Request", "action=mount|unmount required");
@@ -453,6 +491,9 @@ esp_err_t post_format(httpd_req_t *req)
     if (err == ESP_ERR_NOT_FOUND) {
         return send_error(req, "404 Not Found", "no card answers");
     }
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_error(req, "409 Conflict", "a file on the card is being sent or received");
+    }
     if (err != ESP_OK) {
         return send_error(req, "500 Internal Server Error", "the card could not be formatted");
     }
@@ -463,17 +504,18 @@ esp_err_t post_format(httpd_req_t *req)
 
 void register_sd_routes(httpd_handle_t server)
 {
+    add_live_topic("/api/sd", 2000, write_sd);
     const httpd_uri_t routes[] = {
-        {.uri = "/api/sd", .method = HTTP_GET, .handler = get_sd, .user_ctx = nullptr},
-        {.uri = "/api/sd/list", .method = HTTP_GET, .handler = get_list, .user_ctx = nullptr},
-        {.uri = "/api/sd/file", .method = HTTP_GET, .handler = get_file, .user_ctx = nullptr},
-        {.uri = "/api/sd/file", .method = HTTP_POST, .handler = post_file, .user_ctx = nullptr},
-        {.uri = "/api/sd/delete", .method = HTTP_POST, .handler = post_delete, .user_ctx = nullptr},
-        {.uri = "/api/sd/mkdir", .method = HTTP_POST, .handler = post_mkdir, .user_ctx = nullptr},
-        {.uri = "/api/sd/rename", .method = HTTP_POST, .handler = post_rename, .user_ctx = nullptr},
-        {.uri = "/api/sd/fetch", .method = HTTP_POST, .handler = post_fetch, .user_ctx = nullptr},
-        {.uri = "/api/sd/mount", .method = HTTP_POST, .handler = post_mount, .user_ctx = nullptr},
-        {.uri = "/api/sd/format", .method = HTTP_POST, .handler = post_format, .user_ctx = nullptr},
+        route("/api/sd", HTTP_GET, get_sd),
+        route("/api/sd/list", HTTP_GET, get_list),
+        route("/api/sd/file", HTTP_GET, get_file),
+        route("/api/sd/file", HTTP_POST, post_file),
+        route("/api/sd/delete", HTTP_POST, post_delete),
+        route("/api/sd/mkdir", HTTP_POST, post_mkdir),
+        route("/api/sd/rename", HTTP_POST, post_rename),
+        route("/api/sd/fetch", HTTP_POST, post_fetch),
+        route("/api/sd/mount", HTTP_POST, post_mount),
+        route("/api/sd/format", HTTP_POST, post_format),
     };
     static_assert(std::size(routes) == kSdRoutes);
     for (const auto &route : routes) {

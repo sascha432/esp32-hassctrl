@@ -33,6 +33,12 @@ using detail::JsonWriter;
 constexpr const char *kTag = "web";
 constexpr const char *kWebRoot = "/www";
 constexpr size_t kChunkSize = 1024;
+// the web app's live socket (live.cpp); the recovery app has no WebSocket support
+#if CONFIG_HTTPD_WS_SUPPORT
+constexpr bool kLiveSocket = true;
+#else
+constexpr bool kLiveSocket = false;
+#endif
 
 const char *g_device_name = "";
 const HassAccess *g_hass = nullptr;
@@ -229,19 +235,15 @@ const char *fs_state_name(hc::platform::FsState state)
     return "?";
 }
 
-esp_err_t get_status(httpd_req_t *req)
+// GET /api/status, pushed on the live socket as well
+void write_status(JsonWriter &json)
 {
-    if (!detail::require_login(req)) {
-        return ESP_OK;
-    }
     namespace net = hc::network;
     const net::Status wifi = net::status();
     const auto &fs = hc::platform::storage_status();
     char built[24];
     hc::platform::build_time(built, sizeof(built));
 
-    char buffer[1024];
-    JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .begin_object("device")
         .string("name", g_device_name)
@@ -272,7 +274,9 @@ esp_err_t get_status(httpd_req_t *req)
         .number("total_kb", fs.fs_total / 1024)
         .end_object()
         .boolean("camera", g_camera != nullptr)
-        .boolean("player", g_player != nullptr);
+        .boolean("player", g_player != nullptr)
+        // the web app's live socket (not in the recovery app)
+        .boolean("live", kLiveSocket);
 #if CONFIG_HC_SDCARD
     // the SD card page shows with this object
     const hc::sdcard::Status sd = hc::sdcard::status();
@@ -293,7 +297,14 @@ esp_err_t get_status(httpd_req_t *req)
             .end_object();
     }
     json.end_object();
-    return detail::send_json(req, json);
+}
+
+esp_err_t get_status(httpd_req_t *req)
+{
+    if (!detail::require_login(req)) {
+        return ESP_OK;
+    }
+    return detail::send_state(req, write_status);
 }
 
 // with the path in the log (httpd_resp_send_err's own warning does not name it)
@@ -367,10 +378,28 @@ esp_err_t start(const Config &config)
 #if CONFIG_HC_SDCARD
     server_config.max_uri_handlers += detail::kSdRoutes;
 #endif
-    // browsers keep connections open; with all sessions taken the oldest is closed (LRU). Sessions
-    // + 2 of the server + the captive DNS must stay within CONFIG_LWIP_MAX_SOCKETS (16).
-    server_config.max_open_sockets = 12;
+    // Browsers keep connections open; with all sessions taken the oldest is closed (LRU). That only
+    // works while lwIP still has a socket for the new one: the server checks its own sessions,
+    // not lwIP's sockets, and a failed accept (ENFILE) closes nothing (2026-10-31: 11 sessions,
+    // the sockets of the device's clients took the rest, no browser got in until Wi-Fi dropped).
+    // Sessions + 3 of the server (listen, control, message) + the captive DNS + the clients of the
+    // device (Home Assistant, up to 3 media workers, music, a spoken message, an update or SD
+    // download) must stay within CONFIG_LWIP_MAX_SOCKETS.
+    constexpr int kSessions = 12;
+    constexpr int kClients = 7;
+    static_assert(kSessions + 3 + 1 + kClients <= CONFIG_LWIP_MAX_SOCKETS, "lwIP sockets for the web server");
+    server_config.max_open_sockets = kSessions;
     server_config.lru_purge_enable = true;
+    // a session silent for 30 s is closed (idle.cpp)
+    server_config.open_fn = detail::open_session;
+    server_config.close_fn = detail::close_session;
+    // The live socket is silent while nothing changes, so the idle close leaves it; a browser that
+    // went away without closing it (a laptop that sleeps) is found by TCP keep-alive: 30 s of
+    // silence, then 3 unanswered probes 5 s apart.
+    server_config.keep_alive_enable = true;
+    server_config.keep_alive_idle = 30;
+    server_config.keep_alive_interval = 5;
+    server_config.keep_alive_count = 3;
     // the dashboard import parses on this stack
     server_config.stack_size = 8192;
     // A browser sends every cookie it holds for the address, also those of a device that had the
@@ -381,11 +410,13 @@ esp_err_t start(const Config &config)
     ESP_RETURN_ON_ERROR(httpd_start(&server, &server_config), kTag, "start");
 
     const httpd_uri_t routes[] = {
-        {.uri = "/api/status", .method = HTTP_GET, .handler = get_status, .user_ctx = nullptr},
+        route("/api/status", HTTP_GET, get_status),
         // last: everything else
-        {.uri = "/*", .method = HTTP_GET, .handler = get_any, .user_ctx = nullptr},
+        route("/*", HTTP_GET, get_any),
     };
     // the API first: "/*" takes everything that is left
+    detail::add_live_topic("/api/status", 3000, write_status);
+    detail::register_live_routes(server);
     detail::register_session_routes(server);
     detail::register_wifi_routes(server);
     detail::register_update_routes(server);
@@ -407,6 +438,7 @@ esp_err_t start(const Config &config)
         ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &route), kTag, "route %s", route.uri);
     }
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
+    detail::start_idle_close(server);
 
     if (g_hotspot_ip != 0) {
         ESP_RETURN_ON_ERROR(detail::start_captive_dns(g_hotspot_ip), kTag, "dns");

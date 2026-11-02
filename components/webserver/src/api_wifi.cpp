@@ -33,20 +33,16 @@ namespace {
 
 namespace net = hc::network;
 
-esp_err_t get_wifi(httpd_req_t *req)
+// GET /api/wifi, pushed on the live socket as well
+void write_wifi(JsonWriter &json)
 {
-    if (!require_login(req)) {
-        return ESP_OK;
-    }
     // scratch of the web server's task, too large for its stack; in PSRAM (EXT_RAM_BSS_ATTR), it is
-    // only touched while the page loads
-    static EXT_RAM_BSS_ATTR char buffer[2560];
+    // only touched while the page is open
     static EXT_RAM_BSS_ATTR net::SavedNetworkInfo saved[net::kMaxNetworks];
     static EXT_RAM_BSS_ATTR net::ScanEntry scan[20];
     const size_t saved_count = net::saved_networks(saved, net::kMaxNetworks);
     const size_t scan_count = net::last_scan(scan, 20);
 
-    JsonWriter json(buffer, sizeof(buffer));
     json.begin_object();
     json.begin_array("saved");
     for (size_t i = 0; i < saved_count; i++) {
@@ -69,7 +65,14 @@ esp_err_t get_wifi(httpd_req_t *req)
     json.end_array();
     json.string("policy", net::status().policy == net::Policy::StrongestSignal ? "strongest" : "order");
     json.end_object();
-    return send_json(req, json);
+}
+
+esp_err_t get_wifi(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    return send_state(req, write_wifi);
 }
 
 esp_err_t send_ok(httpd_req_t *req)
@@ -147,14 +150,10 @@ esp_err_t post_reconnect(httpd_req_t *req)
     return send_ok(req);
 }
 
-esp_err_t get_hotspot(httpd_req_t *req)
+// GET /api/hotspot, pushed on the live socket as well
+void write_hotspot(JsonWriter &json)
 {
-    if (!require_login(req)) {
-        return ESP_OK;
-    }
     const net::Status s = net::status();
-    char buffer[192];
-    JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .boolean("on", s.hotspot_on)
         .boolean("kept_on", s.hotspot_enabled)
@@ -163,7 +162,14 @@ esp_err_t get_hotspot(httpd_req_t *req)
         .number("clients", s.hotspot_clients)
         .number("off_in_s", s.hotspot_off_in_s)
         .end_object();
-    return send_json(req, json);
+}
+
+esp_err_t get_hotspot(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    return send_state(req, write_hotspot);
 }
 
 esp_err_t post_hotspot(httpd_req_t *req)
@@ -231,17 +237,19 @@ esp_err_t post_add(httpd_req_t *req)
 
 void register_wifi_routes(httpd_handle_t server)
 {
+    add_live_topic("/api/wifi", 1000, write_wifi);
+    add_live_topic("/api/hotspot", 1000, write_hotspot);
     const httpd_uri_t routes[] = {
-        {.uri = "/api/wifi", .method = HTTP_GET, .handler = get_wifi, .user_ctx = nullptr},
-        {.uri = "/api/wifi/scan", .method = HTTP_POST, .handler = post_scan, .user_ctx = nullptr},
-        {.uri = "/api/wifi/add", .method = HTTP_POST, .handler = post_add, .user_ctx = nullptr},
-        {.uri = "/api/wifi/remove", .method = HTTP_POST, .handler = post_remove, .user_ctx = nullptr},
-        {.uri = "/api/wifi/move", .method = HTTP_POST, .handler = post_move, .user_ctx = nullptr},
-        {.uri = "/api/wifi/policy", .method = HTTP_POST, .handler = post_policy, .user_ctx = nullptr},
-        {.uri = "/api/wifi/reconnect", .method = HTTP_POST, .handler = post_reconnect, .user_ctx = nullptr},
-        {.uri = "/api/hotspot", .method = HTTP_GET, .handler = get_hotspot, .user_ctx = nullptr},
-        {.uri = "/api/hotspot", .method = HTTP_POST, .handler = post_hotspot, .user_ctx = nullptr},
-        {.uri = "/api/hotspot/password", .method = HTTP_POST, .handler = post_hotspot_password, .user_ctx = nullptr},
+        route("/api/wifi", HTTP_GET, get_wifi),
+        route("/api/wifi/scan", HTTP_POST, post_scan),
+        route("/api/wifi/add", HTTP_POST, post_add),
+        route("/api/wifi/remove", HTTP_POST, post_remove),
+        route("/api/wifi/move", HTTP_POST, post_move),
+        route("/api/wifi/policy", HTTP_POST, post_policy),
+        route("/api/wifi/reconnect", HTTP_POST, post_reconnect),
+        route("/api/hotspot", HTTP_GET, get_hotspot),
+        route("/api/hotspot", HTTP_POST, post_hotspot),
+        route("/api/hotspot/password", HTTP_POST, post_hotspot_password),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

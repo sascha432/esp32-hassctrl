@@ -69,9 +69,9 @@ esp_err_t get_log_text(httpd_req_t *req)
 void register_log_routes(httpd_handle_t server)
 {
     const httpd_uri_t routes[] = {
-        {.uri = "/api/log", .method = HTTP_GET, .handler = get_log, .user_ctx = nullptr},
-        {.uri = "/api/log", .method = HTTP_POST, .handler = post_log, .user_ctx = nullptr},
-        {.uri = "/api/log.txt", .method = HTTP_GET, .handler = get_log_text, .user_ctx = nullptr},
+        route("/api/log", HTTP_GET, get_log),
+        route("/api/log", HTTP_POST, post_log),
+        route("/api/log.txt", HTTP_GET, get_log_text),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

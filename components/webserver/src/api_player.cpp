@@ -7,18 +7,15 @@
 //   POST /api/player        any of action=toggle|next|previous|stop, seek=ms, shuffle=1|0,
 //                           repeat=off|all|one, volume=0..100; answers like GET
 //   GET  /api/player/cover  the cover of what plays as it is in the file (JPEG or PNG); 404
-//                           without one; sent on a task of its own (get_cover)
+//                           without one; sent on a task of its own (hc/webserver/async.hpp)
 //
 // Only with the player (Config::player).
 
-#include <atomic>
 #include <cstdlib>
 #include <cstring>
 
-#include "esp_heap_caps.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "hc/memory/large.hpp"
+#include "hc/webserver/async.hpp"
 #include "hc/webserver/webserver.hpp"
 #include "http_util.hpp"
 
@@ -30,12 +27,8 @@ const PlayerAccess *g_player = nullptr;
 
 // the titles of the up next list
 constexpr size_t kUpcoming = 20;
-// the covers sent on tasks of their own (get_cover), the task's stack (PSRAM) and priority (the
-// server's)
-constexpr int kMaxCoverSends = 2;
+// the stack of the cover's task (PSRAM: the cover is a copy in PSRAM, no flash is read)
 constexpr uint32_t kCoverStack = 4096;
-constexpr UBaseType_t kCoverPriority = 5;
-std::atomic<int> g_cover_sends{0};
 
 void write_status(JsonWriter &json, const PlayerStatus &s, const memory::Vector<memory::String> &next)
 {
@@ -61,18 +54,17 @@ void write_status(JsonWriter &json, const PlayerStatus &s, const memory::Vector<
     json.end_array().end_object();
 }
 
-esp_err_t send_status(httpd_req_t *req)
+// GET /api/player, pushed on the live socket as well
+void write_player(JsonWriter &json)
 {
     PlayerStatus s{};
     g_player->status(s);
-    const memory::Vector<memory::String> next = g_player->upcoming(kUpcoming);
-    // the titles have no limit: measured first
-    JsonWriter measure(nullptr, 0);
-    write_status(measure, s, next);
-    memory::Vector<char> buffer(measure.needed() + 1);
-    JsonWriter json(buffer.data(), buffer.size());
-    write_status(json, s, next);
-    return send_json(req, json);
+    write_status(json, s, g_player->upcoming(kUpcoming));
+}
+
+esp_err_t send_status(httpd_req_t *req)
+{
+    return send_state(req, write_player);
 }
 
 esp_err_t get_player(httpd_req_t *req)
@@ -157,39 +149,17 @@ esp_err_t send_cover(httpd_req_t *req)
     return err;
 }
 
-void cover_task(void *arg)
-{
-    auto *req = static_cast<httpd_req_t *>(arg);
-    send_cover(req);
-    httpd_req_async_handler_complete(req);
-    g_cover_sends.fetch_sub(1);
-    vTaskDeleteWithCaps(nullptr);
-}
-
-// A cover is up to some 100s of KB and the server has one task: sent there, it held a pause
-// pressed meanwhile for 6 to 15 s (2026-10-31, 327 KB at about 100 KB/s while music downloads).
-// It goes out on a task of its own; with kMaxCoverSends under way, on the server's task.
+// A cover is up to some 100s of KB: sent on the server's task, it held a pause pressed meanwhile
+// for 6 to 15 s (2026-10-31, 327 KB at about 100 KB/s while music downloads).
 esp_err_t get_cover(httpd_req_t *req)
 {
     if (!require_login(req)) {
         return ESP_OK;
     }
-    if (g_cover_sends.fetch_add(1) >= kMaxCoverSends) {
-        g_cover_sends.fetch_sub(1);
-        return send_cover(req);
+    if (run_async(req, [](httpd_req_t *copy) { send_cover(copy); }, AsyncStack::Psram, kCoverStack)) {
+        return ESP_OK;
     }
-    httpd_req_t *copy = nullptr;
-    if (httpd_req_async_handler_begin(req, &copy) != ESP_OK) {
-        g_cover_sends.fetch_sub(1);
-        return send_cover(req);
-    }
-    if (xTaskCreateWithCaps(cover_task, "web_cover", kCoverStack, copy, kCoverPriority, nullptr, MALLOC_CAP_SPIRAM) !=
-        pdPASS) {
-        httpd_req_async_handler_complete(copy);
-        g_cover_sends.fetch_sub(1);
-        return send_cover(req);
-    }
-    return ESP_OK;
+    return send_cover(req);
 }
 
 } // namespace
@@ -200,10 +170,11 @@ void register_player_routes(httpd_handle_t server, const PlayerAccess *player)
     if (player == nullptr) {
         return;
     }
+    add_live_topic("/api/player", 1000, write_player);
     const httpd_uri_t routes[] = {
-        {.uri = "/api/player", .method = HTTP_GET, .handler = get_player, .user_ctx = nullptr},
-        {.uri = "/api/player", .method = HTTP_POST, .handler = post_player, .user_ctx = nullptr},
-        {.uri = "/api/player/cover", .method = HTTP_GET, .handler = get_cover, .user_ctx = nullptr},
+        route("/api/player", HTTP_GET, get_player),
+        route("/api/player", HTTP_POST, post_player),
+        route("/api/player/cover", HTTP_GET, get_cover),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

@@ -41,12 +41,11 @@ const HassAccess *g_hass = nullptr;
 // a token of up to 512 characters and an address of 128, form encoded
 constexpr size_t kBodySize = 2048;
 
-esp_err_t send_status(httpd_req_t *req)
+// GET /api/hass, pushed on the live socket as well
+void write_hass(JsonWriter &json)
 {
     HassStatus status{};
     g_hass->status(status);
-    char buffer[768];
-    JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .string("state", status.state)
         .string("url", status.url)
@@ -60,7 +59,11 @@ esp_err_t send_status(httpd_req_t *req)
         .string("motion_helper", status.motion_helper != nullptr ? status.motion_helper : "")
         .string("motion_entity", status.motion_entity)
         .end_object();
-    return send_json(req, json);
+}
+
+esp_err_t send_status(httpd_req_t *req)
+{
+    return send_state(req, write_hass);
 }
 
 esp_err_t get_hass(httpd_req_t *req)
@@ -252,15 +255,16 @@ void register_hass_routes(httpd_handle_t server, const HassAccess *hass)
         return;
     }
     g_hass = hass;
+    add_live_topic("/api/hass", 2000, write_hass);
     const httpd_uri_t routes[] = {
-        {.uri = "/api/hass", .method = HTTP_GET, .handler = get_hass, .user_ctx = nullptr},
-        {.uri = "/api/hass", .method = HTTP_POST, .handler = post_hass, .user_ctx = nullptr},
-        {.uri = "/api/hass/reconnect", .method = HTTP_POST, .handler = post_reconnect, .user_ctx = nullptr},
-        {.uri = "/api/hass/certificate", .method = HTTP_POST, .handler = post_certificate, .user_ctx = nullptr},
-        {.uri = "/api/hass/discover", .method = HTTP_GET, .handler = get_discover, .user_ctx = nullptr},
-        {.uri = "/api/hass/entities", .method = HTTP_GET, .handler = get_entities, .user_ctx = nullptr},
-        {.uri = "/api/hass/entity", .method = HTTP_GET, .handler = get_entity, .user_ctx = nullptr},
-        {.uri = "/api/hass/media", .method = HTTP_GET, .handler = get_media, .user_ctx = nullptr},
+        route("/api/hass", HTTP_GET, get_hass),
+        route("/api/hass", HTTP_POST, post_hass),
+        route("/api/hass/reconnect", HTTP_POST, post_reconnect),
+        route("/api/hass/certificate", HTTP_POST, post_certificate),
+        route("/api/hass/discover", HTTP_GET, get_discover),
+        route("/api/hass/entities", HTTP_GET, get_entities),
+        route("/api/hass/entity", HTTP_GET, get_entity),
+        route("/api/hass/media", HTTP_GET, get_media),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

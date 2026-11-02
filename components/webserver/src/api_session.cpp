@@ -122,8 +122,15 @@ esp_err_t post_login(httpd_req_t *req)
     return send_json(req, json);
 }
 
+// The cookie goes, and the live socket of the browser with it (the token itself stays valid until
+// it expires). After "log out everywhere" or a new password the live sockets end on their next
+// tick: their tokens no longer check (live.cpp).
 esp_err_t post_logout(httpd_req_t *req)
 {
+    char token[auth::kTokenSize];
+    if (session_token(req, token)) {
+        live_close_token(token);
+    }
     clear_session_cookie(req);
     char buffer[32];
     JsonWriter json(buffer, sizeof(buffer));
@@ -195,12 +202,12 @@ esp_err_t post_password(httpd_req_t *req)
 void register_session_routes(httpd_handle_t server)
 {
     const httpd_uri_t routes[] = {
-        {.uri = "/api/session", .method = HTTP_GET, .handler = get_session, .user_ctx = nullptr},
-        {.uri = "/api/setup/user", .method = HTTP_POST, .handler = post_setup_user, .user_ctx = nullptr},
-        {.uri = "/api/login", .method = HTTP_POST, .handler = post_login, .user_ctx = nullptr},
-        {.uri = "/api/logout", .method = HTTP_POST, .handler = post_logout, .user_ctx = nullptr},
-        {.uri = "/api/logout-all", .method = HTTP_POST, .handler = post_logout_all, .user_ctx = nullptr},
-        {.uri = "/api/password", .method = HTTP_POST, .handler = post_password, .user_ctx = nullptr},
+        route("/api/session", HTTP_GET, get_session),
+        route("/api/setup/user", HTTP_POST, post_setup_user),
+        route("/api/login", HTTP_POST, post_login),
+        route("/api/logout", HTTP_POST, post_logout),
+        route("/api/logout-all", HTTP_POST, post_logout_all),
+        route("/api/password", HTTP_POST, post_password),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

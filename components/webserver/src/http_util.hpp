@@ -7,7 +7,11 @@
 
 #include "esp_http_server.h"
 #include "hc/formats/json_writer.hpp"
+#include "hc/memory/large.hpp"
+#include "hc/webserver/route.hpp"
 #include "sdkconfig.h"
+
+#include "auth.hpp"
 
 namespace hc::webserver {
 struct HassAccess;
@@ -27,8 +31,8 @@ constexpr const char *kSessionCookie = "hc_session";
 bool read_body(httpd_req_t *req, char *out, size_t size);
 
 // The whole request body in a buffer of the large heap (memory::release_large), terminated; null
-// when it is empty, larger than `limit` or the client stalls (the server has one task, one
-// receive timeout ends the request).
+// when it is empty, larger than `limit` or the client stalls (one receive timeout, 5 s: a form
+// arrives at once).
 char *read_large_body(httpd_req_t *req, size_t limit, size_t &length);
 
 // the value of `key` in the query string, false when it is not there
@@ -46,8 +50,38 @@ esp_err_t send_json(httpd_req_t *req, const JsonWriter &json);
 // {"error": message} with an HTTP status such as "401 Unauthorized"
 esp_err_t send_error(httpd_req_t *req, const char *status, const char *message);
 
+// The answer of a GET that the live socket pushes as well (live.cpp): writes the whole state,
+// called once to measure and once to write (twice more if the state grew in between).
+using StateWriter = void (*)(JsonWriter &json);
+// the state's JSON in `buffer`, its length; 0 when it kept growing
+size_t build_state(StateWriter write, memory::Vector<char> &buffer);
+esp_err_t send_state(httpd_req_t *req, StateWriter write);
+
 // Setup mode (no login yet) or a valid session cookie. Sends 401 and returns false otherwise.
 bool require_login(httpd_req_t *req);
+// the token of the session cookie, false without one
+bool session_token(httpd_req_t *req, char (&token)[auth::kTokenSize]);
+
+// ------------------------------------------------------------------------- sessions (idle.cpp)
+
+// The server's open_fn and close_fn: the time of every session's last byte, sent or received; a
+// session silent for 30 s is closed (start_idle_close), the live socket and a long response on a
+// task of its own (async.hpp) excepted.
+esp_err_t open_session(httpd_handle_t server, int fd);
+void close_session(httpd_handle_t server, int fd);
+void start_idle_close(httpd_handle_t server);
+
+// ------------------------------------------------------------------- live socket (live.cpp)
+
+// GET /api/live, the WebSocket of the web app: it sends the path of a GET it wants to follow,
+// the server pushes that answer whenever it changes (checked every `period_ms`). Topics are added
+// by the route files, before or after start_live.
+void add_live_topic(const char *path, uint32_t period_ms, StateWriter write);
+void register_live_routes(httpd_handle_t server);
+// the session closed: its subscription goes (close_session)
+void live_forget(int fd);
+// closes the live sockets of the session with this token (a logout)
+void live_close_token(const char *token);
 
 // a session cookie for the user; `remember` makes it last 90 days
 bool set_session_cookie(httpd_req_t *req, const char *username, bool remember);

@@ -59,11 +59,30 @@ void describe(const Status &status, char *out, size_t size);
 // Mounts the card once more (after unmount, or a card put in later). ESP_ERR_NOT_FOUND: no card,
 // ESP_ERR_INVALID_STATE: it has no FAT.
 esp_err_t mount();
+// ESP_ERR_INVALID_STATE while a file is in use (Use)
 esp_err_t unmount();
 
 // Erases the card and writes an empty FAT (the web UI asks for the password first). Also for a
-// card without one. Mounted afterwards.
+// card without one. Mounted afterwards. ESP_ERR_INVALID_STATE while a file is in use (Use).
 esp_err_t format();
+
+// A file kept open for a while by another task (the web server's download and upload): unmount and
+// format refuse while one is held, instead of taking the card from under a transfer in the SDMMC
+// driver (2026-11-01: a crash in sdmmc_ll_stop_dma). held() is false when no card is mounted.
+class Use {
+public:
+    Use();
+    ~Use();
+    Use(const Use &) = delete;
+    Use &operator=(const Use &) = delete;
+    bool held() const
+    {
+        return _held;
+    }
+
+private:
+    bool _held;
+};
 
 // "/sd/<relative>" in `out` (kMaxPath) for a path from the web UI or the console: relative to the
 // card, '/' between names, no "..", no backslash, no control characters. A leading '/' is taken

@@ -16,11 +16,14 @@ idf_component_register(SRCS ${srcs}
                             "src/api_time.cpp"
                             "src/api_update.cpp"
                             "src/api_wifi.cpp"
+                            "src/async.cpp"
                             "src/auth.cpp"
                             "src/builtin_page.cpp"
                             "src/captive_dns.cpp"
                             "src/http_util.cpp"
+                            "src/idle.cpp"
+                            "src/live.cpp"
                             "src/webserver.cpp"
                        INCLUDE_DIRS "include"
-                       REQUIRES memory
-                       PRIV_REQUIRES core esp_app_format esp_http_server esp_netif esp_timer formats logbuf lwip mbedtls network ota platform sdcard)
+                       REQUIRES esp_http_server memory
+                       PRIV_REQUIRES core esp_app_format esp_netif esp_timer formats logbuf lwip mbedtls network ota platform sdcard)

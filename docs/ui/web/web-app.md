@@ -77,7 +77,8 @@ the device is now reachable:
 ```
 
 When the device joins the home network, the phone may lose the hotspot for a moment
-(accepted). The page keeps polling and shows the result as soon as the phone is back. The hotspot
+(accepted). The page follows the state on the live socket (section 4.3), which comes back by
+itself, and shows the result as soon as the phone is back. The hotspot
 stays on for 15 minutes after the setup with the same password, so there is no hurry.
 
 If the screen and a phone submit setup data at the same time, the first submission wins and the
@@ -131,7 +132,8 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 
 * The connection card shows the state (not set up, waiting for Wi-Fi, connecting, connected,
   token rejected, disconnected with the seconds to the next try), the problem in words, the
-  address, Home Assistant's version and how long it is connected. It refreshes every 2 s. "Try
+  address, Home Assistant's version and how long it is connected. It follows the connection live
+(section 4.3, checked every 2 s). "Try
   now" after a rejected token or while disconnected.
 * `Search` asks the network for `_home-assistant._tcp` (mDNS, 2 s; it runs by itself while no
   address is set). Home Assistant announces its own address (`internal_url`), its name and its
@@ -180,7 +182,7 @@ Code: `components/hass`, `api_hass.cpp`, the `ha` view of `web/app.js`.
 ```
 
 **Time.** The card "Clock" (the local time or "not set", the time zone in use with "fixed" or
-"Home Assistant's", the POSIX rule in use, how long ago a server last answered; refreshed every second) and the form
+"Home Assistant's", the POSIX rule in use, how long ago a server last answered; live, checked every second) and the form
 "Settings": the time zone ("From Home Assistant" first, with Home Assistant's zone, the default;
 then the IANA names of the firmware grouped by region; last "Custom rule (POSIX TZ)", a text
 field for a rule such as `CET-1CEST,M3.5.0,M10.5.0/3`, for a zone or a change the list does not
@@ -241,7 +243,7 @@ such page, `tools/build_web.py`). Code: `components/sdcard`, `api_sd.cpp`, the `
   saved recordings are in `recordings`.
 * **Download from a URL**: an `http://` or `https://` address (the IDF certificate bundle, up to 5
   redirects) and a file name in the folder shown (empty: the URL's last part); the device
-  downloads it in the background, the card shows the progress, one download at a time.
+  downloads it in the background, the card shows the progress (live), one download at a time.
 * **Format**: the login's password again and a question; erases the card and writes one FAT over
   all of it. A wrong password waits a second and is answered 400 (the session stays). In setup
   mode (no login) confirm alone.
@@ -254,7 +256,10 @@ API, login required: `GET /api/sd` (state, `total_kb`, `free_kb`, name, `clock_k
 `POST /api/sd/mount` (`action=mount|unmount`), `POST /api/sd/format` (`confirm=yes`, `password`).
 Paths are relative to the card; `..`, a backslash and control characters are refused (400).
 Measured on the JC4880P443C (2026-10-23): 5 MB upload 4.2 s, download 10.9 s (the TCP send
-buffer of 5760 bytes limits it), format of 32 GB 2.5 s.
+buffer of 5760 bytes limits it), format of 32 GB 2.5 s. A file's download and upload run on a task
+of their own (section 4.3): the other pages keep answering meanwhile. While one runs, Unmount and
+Format answer 409 ("a file on the card is being sent or received"): the card is not taken from
+under the transfer.
 
 **System.** The Device card shows the firmware version and its build time (`device.built` of
 `/api/status`, "2026-10-27 12:34", the building machine's local time), uptime and free memory.
@@ -341,7 +346,8 @@ removes the login and the stream goes off.
 a firmware without `CONFIG_HC_UI_PLAYER`, `tools/build_web.py`): the device's media player as its
 Player page on the screen shows it (docs/ui/lvgl/lvgl-settings.md section 3, docs/architecture.md
 section 9.6), both act on the same queue. The music starts on the device (a media tile, the SD
-card's file manager); the page has no browser of its own. It asks for the state every second.
+card's file manager); the page has no browser of its own. It follows the state on the live socket
+(section 4.3, checked every second).
 
 ```
 +--------------------------------------------+
@@ -390,6 +396,44 @@ card's file manager); the page has no browser of its own. It asks for the state 
 * `GET /api/player/cover`: the cover as it is in the file (JPEG or PNG), 404 without one; the
   page asks again when `cover_serial` changes.
 * All 404 without the player (the recovery app).
+
+### 4.3 Live updates and sessions
+
+A page that shows a state which changes (Status, the setup's last step, Wi-Fi, Hotspot, Home
+Assistant, Time, Player, SD card) loads it once with its GET and then follows it on **one
+WebSocket per tab**, `GET /api/live` (`components/webserver/src/live.cpp`, `live()` in
+`web/app.js`). No page asks every few seconds any more.
+
+* The browser sends a text frame with the path of the GET it shows (`/api/player`), an empty frame
+  for none: on a page change and while the tab is hidden. The device answers with
+  `{"path": "/api/player", "state": <the GET's answer>}` at once, then again whenever the answer
+  changes. It looks every second for Player, Time, Wi-Fi and Hotspot, every 2 s for Home Assistant
+  and the SD card, every 3 s for Status. The page drops a frame whose path is not its own (one still
+  on its way after a page change).
+* The login is checked before the handshake (401 without it) and on every check afterwards: a
+  logout closes the socket of its browser, "Log out everywhere", a new password or an expired
+  session close every socket of that login.
+* The device sends `{}` after 10 s without a frame (also to a hidden tab). The browser sends nothing
+  while it follows a page, so a socket that died without a close (the device restarted, the laptop
+  slept) is found that way: after 25 s without a frame the app opens a new one. A socket that
+  closes is opened again after 1, 2, 4 ... 10 s and asks for its path again. At most 8 live sockets.
+* The recovery app has no WebSocket support (its partition is full): `/api/status` says
+  `"live": false` there, and `live()` asks with the GET every 3 s instead (not while the tab is
+  hidden, not while the last one waits).
+
+The device's sessions (`components/webserver/src/idle.cpp`): a connection the browser keeps open
+after a request is closed by the device after **30 s without a byte** either way, so browsers that
+went away without closing theirs (a laptop that sleeps, a phone that leaves the network) do not
+pile up. Not the live socket (silent while nothing changes; TCP keep-alive finds a dead one: 30 s,
+then 3 probes 5 s apart) and not a long response. 12 sessions; with all taken the least recently
+used one is closed for a new client (2026-10-31: before the session budget fit the sockets, 11
+abandoned sessions locked the web UI out).
+
+Long responses run on a task of their own (`hc/webserver/async.hpp`), so they do not hold the other
+requests: the SD card's file download and upload, `files.zip`, the Player's cover and the camera's
+MJPEG stream. At most 3 at once; a fourth runs as before, on the server's task (a fourth stream
+gets 503). Firmware and file system uploads stay on the server's task (a flash write stops the
+cache anyway).
 
 ## 5. Firmware update
 

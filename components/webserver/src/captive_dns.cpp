@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "hc/network/network.hpp"
 #include "lwip/sockets.h"
 
 namespace hc::webserver::detail {
@@ -18,6 +19,8 @@ constexpr uint16_t kTypeA = 1;
 constexpr uint16_t kClassIn = 1;
 // short, so a phone asks again once it is on another network
 constexpr uint32_t kTtlSeconds = 10;
+// how often the task looks whether the hotspot is on
+constexpr int kCheckSeconds = 1;
 
 uint32_t g_address = 0;
 
@@ -84,24 +87,45 @@ size_t answer(uint8_t *packet, size_t length)
     return pos + 16;
 }
 
-void task(void *)
+// the socket on port 53, -1 when it cannot listen
+int open_socket()
 {
     const int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     sockaddr_in local{};
     local.sin_family = AF_INET;
     local.sin_port = htons(kPort);
     local.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (sock < 0 || bind(sock, reinterpret_cast<sockaddr *>(&local), sizeof(local)) != 0) {
+    // the task looks at the hotspot between two packets
+    const timeval timeout{.tv_sec = kCheckSeconds, .tv_usec = 0};
+    if (sock < 0 || bind(sock, reinterpret_cast<sockaddr *>(&local), sizeof(local)) != 0 ||
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0) {
         ESP_LOGE(kTag, "cannot listen on port %u", kPort);
         if (sock >= 0) {
             close(sock);
         }
-        vTaskDelete(nullptr);
-        return;
+        return -1;
     }
+    return sock;
+}
 
+// The socket is open only while the hotspot is on: in station mode it would hold one of lwIP's
+// sockets for nothing (docs/architecture.md section 9.4).
+void task(void *)
+{
+    int sock = -1;
     uint8_t packet[kMaxPacket];
     for (;;) {
+        const bool hotspot = network::status().hotspot_on;
+        if (hotspot && sock < 0) {
+            sock = open_socket();
+        } else if (!hotspot && sock >= 0) {
+            close(sock);
+            sock = -1;
+        }
+        if (sock < 0) {
+            vTaskDelay(pdMS_TO_TICKS(kCheckSeconds * 1000));
+            continue;
+        }
         sockaddr_in from{};
         socklen_t from_length = sizeof(from);
         const int received =

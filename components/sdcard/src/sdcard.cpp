@@ -46,6 +46,8 @@ sd_pwr_ctrl_handle_t g_power = nullptr;
 sdmmc_slot_config_t g_slot{};
 sdmmc_card_t *g_card = nullptr;
 State g_state = State::Off;
+// the files in use (Use), under g_lock
+int g_users = 0;
 
 struct Lock {
     Lock() { xSemaphoreTake(g_lock, portMAX_DELAY); }
@@ -234,6 +236,9 @@ esp_err_t unmount()
         return ESP_ERR_INVALID_STATE;
     }
     Lock lock;
+    if (g_users > 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
     return unmount_locked(State::Unmounted);
 }
 
@@ -243,6 +248,9 @@ esp_err_t format()
         return ESP_ERR_INVALID_STATE;
     }
     Lock lock;
+    if (g_users > 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
     const int64_t started = esp_timer_get_time();
     esp_err_t err = ESP_OK;
     if (g_card != nullptr) {
@@ -258,6 +266,26 @@ esp_err_t format()
         ESP_LOGE(kTag, "format failed: %s", esp_err_to_name(err));
     }
     return err;
+}
+
+Use::Use() : _held(false)
+{
+    if (g_lock == nullptr) {
+        return;
+    }
+    Lock lock;
+    if (g_state == State::Mounted) {
+        g_users++;
+        _held = true;
+    }
+}
+
+Use::~Use()
+{
+    if (_held) {
+        Lock lock;
+        g_users--;
+    }
 }
 
 bool make_path(const char *relative, char *out, size_t size)

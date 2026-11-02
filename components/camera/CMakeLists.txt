@@ -12,7 +12,7 @@ idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS ${priv_include_dirs}
                        REQUIRES esp_driver_i2c
-                       PRIV_REQUIRES console core esp_http_server esp_driver_gpio esp_driver_jpeg esp_timer freertos mbedtls platform)
+                       PRIV_REQUIRES console core esp_http_server esp_driver_gpio esp_driver_jpeg esp_timer freertos mbedtls platform webserver)
 
 if(CONFIG_CAMERA_OV02C10_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
     # esp_cam_sensor finds the detect function in a linker section; keep its object file

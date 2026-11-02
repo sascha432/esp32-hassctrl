@@ -8,7 +8,8 @@
 // central directory at the end lists them all. Nothing larger than one read buffer is held in RAM
 // besides the list of entries. Files that cannot be opened or read to the end are named in
 // unreadable.txt inside the archive. With a file system that does not mount, the archive holds
-// only that note.
+// only that note. It is sent on a task of its own (hc/webserver/async.hpp), with its stack in
+// internal RAM: LittleFS reads the flash.
 
 #include <algorithm>
 #include <cstdio>
@@ -19,6 +20,7 @@
 
 #include "esp_rom_crc.h"
 #include "hc/platform/storage.hpp"
+#include "hc/webserver/async.hpp"
 
 #include "http_util.hpp"
 
@@ -30,6 +32,8 @@ constexpr size_t kBufferSize = 4096;
 constexpr size_t kMaxEntries = 256;
 constexpr size_t kMaxPath = 160;
 constexpr size_t kMaxNotes = 2048;
+// the task's stack: LittleFS, the directory walk (its paths on the heap) and the send
+constexpr uint32_t kZipStack = 5120;
 
 struct Entry {
     char name[kMaxPath]; // relative to /fs, no leading slash
@@ -38,7 +42,7 @@ struct Entry {
     uint32_t offset; // of its local header in the archive
 };
 
-// The archive being sent. One at a time: the web server has one task.
+// the archive being sent
 struct Zip {
     httpd_req_t *req = nullptr;
     Entry *entries = nullptr;
@@ -228,11 +232,8 @@ void finish(Zip &zip)
     send(zip, end, sizeof(end));
 }
 
-esp_err_t get_files_zip(httpd_req_t *req)
+esp_err_t send_zip(httpd_req_t *req)
 {
-    if (!require_login(req)) {
-        return ESP_OK;
-    }
     Zip zip;
     zip.req = req;
     zip.entries = static_cast<Entry *>(std::calloc(kMaxEntries, sizeof(Entry)));
@@ -270,6 +271,17 @@ esp_err_t get_files_zip(httpd_req_t *req)
     return ESP_OK;
 }
 
+esp_err_t get_files_zip(httpd_req_t *req)
+{
+    if (!require_login(req)) {
+        return ESP_OK;
+    }
+    if (run_async(req, [](httpd_req_t *copy) { send_zip(copy); }, AsyncStack::Internal, kZipStack)) {
+        return ESP_OK;
+    }
+    return send_zip(req);
+}
+
 esp_err_t post_format(httpd_req_t *req)
 {
     if (!require_login(req)) {
@@ -295,8 +307,8 @@ esp_err_t post_format(httpd_req_t *req)
 void register_file_routes(httpd_handle_t server)
 {
     const httpd_uri_t routes[] = {
-        {.uri = "/api/fs/files.zip", .method = HTTP_GET, .handler = get_files_zip, .user_ctx = nullptr},
-        {.uri = "/api/fs/format", .method = HTTP_POST, .handler = post_format, .user_ctx = nullptr},
+        route("/api/fs/files.zip", HTTP_GET, get_files_zip),
+        route("/api/fs/format", HTTP_POST, post_format),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

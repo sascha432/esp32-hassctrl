@@ -267,11 +267,11 @@ void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *das
     }
     g_dashboard = dashboard;
     const httpd_uri_t routes[] = {
-        {.uri = "/api/dashboard", .method = HTTP_GET, .handler = get_dashboard, .user_ctx = nullptr},
-        {.uri = "/api/dashboard", .method = HTTP_POST, .handler = post_dashboard, .user_ctx = nullptr},
-        {.uri = "/api/dashboard.yaml", .method = HTTP_GET, .handler = get_dashboard_yaml, .user_ctx = nullptr},
-        {.uri = "/api/dashboard/import", .method = HTTP_POST, .handler = post_import, .user_ctx = nullptr},
-        {.uri = "/api/dashboard/editor", .method = HTTP_GET, .handler = get_editor, .user_ctx = nullptr},
+        route("/api/dashboard", HTTP_GET, get_dashboard),
+        route("/api/dashboard", HTTP_POST, post_dashboard),
+        route("/api/dashboard.yaml", HTTP_GET, get_dashboard_yaml),
+        route("/api/dashboard/import", HTTP_POST, post_import),
+        route("/api/dashboard/editor", HTTP_GET, get_editor),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

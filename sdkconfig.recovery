@@ -19,3 +19,8 @@ CONFIG_MBEDTLS_TLS_CLIENT_ONLY=y
 # No SD card in the recovery app (the main firmware's CONFIG_HC_SDCARD): the webserver requires the
 # sdcard component, which would offer it here as well.
 # CONFIG_HC_SDCARD is not set
+
+# Size: no WebSocket in the recovery app (the web app's live socket, components/webserver/src/
+# live.cpp); its pages ask for their state instead. The 1 MB factory partition is full.
+# CONFIG_HTTPD_WS_SUPPORT is not set
+# CONFIG_HTTPD_WS_PRE_HANDSHAKE_CB_SUPPORT is not set

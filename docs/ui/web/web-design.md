@@ -120,7 +120,7 @@ Helpers of `app.js`:
 | `facts(rows)` | a two-column list of names and values (`dl.facts`) |
 | `busy(button, action)` | disables the button while `action` runs; an error becomes a red toast |
 | `toast(text, kind)` | a short message at the bottom center for 4 s (`success`, `danger`, `warning`, `secondary`) |
-| `refresh(action, ms)` | repeats `action` while the page is shown (2 to 5 s for live states); stopped on every route change |
+| `live(path, onData)` | follows the GET `path` on the live socket (web-app.md section 4.3): `onData` gets the answer whenever it changes; paused while the tab is hidden, stopped on every route change (`liveStop`) |
 | `esc(value)` | escapes a text for HTML |
 | `go(name)` | goes to a page |
 | `loadScript(src)` | loads a script once, for a large page that only some users open (`dashboard.js`) |

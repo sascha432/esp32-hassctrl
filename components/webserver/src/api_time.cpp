@@ -25,7 +25,8 @@ namespace hc::webserver::detail {
 
 namespace {
 
-esp_err_t send_settings(httpd_req_t *req)
+// GET /api/time, pushed on the live socket as well
+void write_time(JsonWriter &json)
 {
     const std::time_t now = std::time(nullptr);
     const bool synced = platform::time_synced();
@@ -45,8 +46,6 @@ esp_err_t send_settings(httpd_req_t *req)
     platform::hass_time_zone(hass, sizeof(hass));
     const platform::TimeServers servers = platform::time_servers();
 
-    char buffer[768];
-    JsonWriter json(buffer, sizeof(buffer));
     json.begin_object()
         .boolean("synced", synced)
         .number("now", static_cast<int64_t>(synced ? now : 0))
@@ -65,7 +64,11 @@ esp_err_t send_settings(httpd_req_t *req)
         json.string(nullptr, name);
     }
     json.end_array().end_object();
-    return send_json(req, json);
+}
+
+esp_err_t send_settings(httpd_req_t *req)
+{
+    return send_state(req, write_time);
 }
 
 esp_err_t get_time(httpd_req_t *req)
@@ -164,10 +167,11 @@ void register_time_routes(httpd_handle_t server, bool time)
     if (!time) {
         return;
     }
+    add_live_topic("/api/time", 1000, write_time);
     const httpd_uri_t routes[] = {
-        {.uri = "/api/time", .method = HTTP_GET, .handler = get_time, .user_ctx = nullptr},
-        {.uri = "/api/time", .method = HTTP_POST, .handler = post_time, .user_ctx = nullptr},
-        {.uri = "/api/time/zones", .method = HTTP_GET, .handler = get_zones, .user_ctx = nullptr},
+        route("/api/time", HTTP_GET, get_time),
+        route("/api/time", HTTP_POST, post_time),
+        route("/api/time/zones", HTTP_GET, get_zones),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

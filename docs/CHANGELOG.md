@@ -13,16 +13,31 @@ Added
 
 * Settings, Display: "Wi-Fi power save" switch (on by default, backup `wifi_power_save`); off,
   the Wi-Fi stays awake while the screen is off.
+* Web UI: pages follow their state on one WebSocket (`/api/live`) instead of asking every 1-5 s
+  (not in the recovery app); a hidden tab gets only a heartbeat every 10 s.
+
+Changed
+
+* Web server: a session silent for 30 s is closed; SD downloads and uploads, `files.zip`, the
+  cover and camera streams run on tasks of their own, other pages answer meanwhile.
+* The captive portal's DNS listens only while the hotspot is on.
+* SD card: Unmount and Format answer 409 while a file is sent or received over the web.
 
 ### 2026-10-31
 
 Fixed
 
+* Web UI no longer locks out after hours with a page open: 24 lwIP sockets, so the oldest web
+  session can always make room, and TCP keep-alive on web sessions (`test_web.py` checks it).
 * Web Player: pause and next answer at once; the cover is sent on a task of its own (a 327 KB
   cover held the pause for up to 15 s).
 * Playing a media folder with cameras no longer drops the Home Assistant connection: camera
   streams (media class video) are not played, compressed answers are refused, ids that are not
   UTF-8 are not sent; the connection log shows TLS fields only after a transport error.
+
+Added
+
+* Console: `sockets` lists lwIP's sockets with both ends.
 
 Changed
 

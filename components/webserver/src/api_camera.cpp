@@ -112,8 +112,8 @@ void register_camera_routes(httpd_handle_t server, const CameraAccess *camera)
         return;
     }
     const httpd_uri_t routes[] = {
-        {.uri = "/api/camera", .method = HTTP_GET, .handler = get_camera, .user_ctx = nullptr},
-        {.uri = "/api/camera", .method = HTTP_POST, .handler = post_camera, .user_ctx = nullptr},
+        webserver::route("/api/camera", HTTP_GET, get_camera),
+        webserver::route("/api/camera", HTTP_POST, post_camera),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

@@ -1407,12 +1407,13 @@ the songs that come next of a playlist; a mirror of the screen's Player page (yo
 - [x] **Pause took 6 to 15 s** (your report 2026-10-31, JC3248W535, a 98-song playlist): the cover
       (327 KB JPEG) went out on the server's only task, at about 22 KB/s while music plays; the pause
       waited behind it, on page open and after every song change. The cover goes out on a task of its
-      own now (`get_cover`, at most 2, else as before). Measured with a 796 KB PNG being read: pause
+      own now (`get_cover`; since 2026-11-01 through `run_async` of `hc/webserver/async.hpp`, at most 3
+      long responses, else as before). Measured with a 796 KB PNG being read: pause
       0.2-0.6 s, the poll under 1 s. Your check in the browser is open.
 - [ ] Sends while music plays are slow on the JC3248W535: the 796 KB cover took 35 s (about 22 KB/s,
       100-150 KB/s for the web files without music), a 20-byte answer 1-2 s. Cause not looked at.
 - [ ] The answer to a POST shows the state before the audio task took the command (toggle paused,
-      the answer said "playing"); the next poll is right, 1 s later.
+      the answer said "playing"); the next push of the live socket is right, within 1 s.
 
 ## Vibration (2026-10-09)
 
@@ -1713,6 +1714,47 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       without `Accept-Encoding: gzip` (your choice, 2026-10-14; `send_file` in webserver.cpp).
 - [x] ETag (2026-10-23, your request): one id per web image (`/www/etag` from `build_fs.py`), an
       `If-None-Match` with it gets 304, so a page load no longer downloads every file again.
+- [x] **Web UI unreachable, the screen and Home Assistant fine** (your report 2026-10-31, JC3248W535,
+      the Player page left open for hours): every accept failed with error 23 (ENFILE) until Wi-Fi
+      dropped and closed 11 sessions. Connections the browser had given up without closing stayed
+      open on the device; LRU purge never ran because it counts the server's 12 sessions, and lwIP's
+      16 sockets were gone first (httpd takes 3, the captive DNS 1, Home Assistant and media the
+      rest). Reproduced with `idle_connections_test` in `tools/test_web.py` (20 idle connections: 10
+      answered, a new client refused). Fixed 2026-10-31: 24 sockets and TCP connections, a
+      `static_assert` on sessions + server + clients, TCP keep-alive on the sessions (30 s, 3 probes
+      5 s apart); 20, 30 and 40 idle connections pass. Console `sockets` lists them.
+      Then the way other devices do it (your request, 2026-11-01; docs/ui/web/web-app.md section
+      4.3): a session silent for 30 s is closed (`idle.cpp`); the pages follow their state on one
+      WebSocket per tab (`/api/live`, `live.cpp`) instead of asking every 1-5 s, the `sleep()`s after
+      Wi-Fi, hotspot and SD actions are gone; long responses (SD download and upload, `files.zip`,
+      cover, MJPEG) run on tasks of their own (`async.hpp`, one helper for the cover's and the
+      camera's own copies); the captive DNS socket is open only while the hotspot is on (4 of 24
+      sockets in use at rest). Tested 2026-11-01 on the JC3248W535: `test_web.py` 106 of 106 (new:
+      silent sessions closed after 30 s, a busy one kept; live socket 401 without login, pushes,
+      stop, no idle close, logout closes it; the API answers in 0.5-1 s while two `files.zip` or an
+      SD file are sent, which take 6-12 s on this board's slow Wi-Fi); headless Edge: every live
+      page one GET and then pushes, a hidden tab no frames, the Wi-Fi list redrawn 0.5 s after a
+      move; internal RAM 45 KB free. Not tested: a client that vanishes without FIN (no firewall
+      rights on the bench PC); keep-alive is set on every session.
+      Found on the way and fixed (2026-11-01): an SD unmount while a web download read the card
+      crashed the board (1 of 4 tries, `LoadProhibited` in `sdmmc_ll_stop_dma` under `f_read`; on the
+      server's task the unmount used to wait behind the download). `sdcard::Use`: unmount and format
+      answer 409 while a web transfer holds the card (6 of 6 tries refused, the file whole; in
+      `test_web.py`, 108 of 108 with the heartbeat check). A page stood still 35-45 s after a device restart (its socket
+      looked open): the device sends `{}` after 10 s without a frame, the app opens a new socket
+      after 25 s of silence (back after 27 s, no polling). Soak 25 min on the Player page: one GET,
+      1 session at rest (the live socket). WT32-SC01 (COM9, no SD card, no player) 2026-11-01:
+      `test_web.py` 80 of 80, 57 KB internal free, 4 of 24 sockets at rest.
+- [ ] **Recovery app too large for the 4 MB layout** (found 2026-11-01): the WT32-SC01's
+      `factory` (1088 KB) is overflowed by 23.6 KB, the TTGO T4's by 11 KB. Already 21.7 KB over on
+      the commit before this work (fbb671e, measured in a worktree); the web server changes add
+      1.9 KB (the WebSocket is left out of the recovery app, sdkconfig.recovery). ESP-IDF only warns,
+      the image does not fit. Your call: the layout (2026-10-17: stays) or what leaves the recovery app.
+- [ ] **SD unmount while music plays from the card**: the audio component keeps the song's file
+      open (`mp3_source.cpp`) and does not know `sdcard::Use`, so an unmount then is the same
+      crash as the web download's (not tried). Suggestion: the player takes an `sdcard::Use` while
+      it plays a file of the card (it knows the origin), or the screen's and the web's Unmount stop
+      the player first.
 
 - [x] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
       argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Cause:

@@ -2,8 +2,8 @@
 //
 // A JPEG of the newest frame from the P4's JPEG encoder, made at most once per frame (and size and
 // quality) and shared by all readers; at half size the frame is shrunk by the CPU first. An MJPEG
-// stream runs in its own task (httpd_req_async_handler_begin), so the web server's single task
-// stays free, and sends at most the stream's frame rate. Both routes answer 404 while the stream
+// stream runs on a task of its own (hc/webserver/async.hpp) and sends at most the stream's frame
+// rate. Both routes answer 404 while the stream
 // is off and ask for the stream's login (HTTP Basic auth).
 
 #include <atomic>
@@ -21,6 +21,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hc/core/image.hpp"
+#include "hc/webserver/async.hpp"
+#include "hc/webserver/route.hpp"
 #include "mbedtls/base64.h"
 
 namespace hc::camera {
@@ -28,6 +30,8 @@ namespace {
 
 constexpr const char *kTag = "camera";
 constexpr int kMaxStreams = 2;
+// the stream task's stack, internal RAM (the JPEG encoder's driver)
+constexpr uint32_t kStreamStack = 4096;
 constexpr int kSettleFrames = 15; // half a second at 30 fps
 
 // "Basic " and base64 of "username:password"
@@ -178,9 +182,8 @@ esp_err_t get_snapshot(httpd_req_t *req)
 
 std::atomic<int> g_streams{0};
 
-void stream_task(void *arg)
+void send_stream(httpd_req_t *req)
 {
-    auto *req = static_cast<httpd_req_t *>(arg);
     httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=frame");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     acquire();
@@ -215,9 +218,7 @@ void stream_task(void *arg)
     }
     release();
     ESP_LOGI(kTag, "stream ended after %u frames", static_cast<unsigned>(frames));
-    httpd_req_async_handler_complete(req);
     g_streams--;
-    vTaskDelete(nullptr);
 }
 
 esp_err_t get_stream(httpd_req_t *req)
@@ -230,15 +231,11 @@ esp_err_t get_stream(httpd_req_t *req)
         httpd_resp_set_status(req, "503 Service Unavailable");
         return httpd_resp_sendstr(req, "too many streams\n");
     }
-    httpd_req_t *copy = nullptr;
-    if (httpd_req_async_handler_begin(req, &copy) != ESP_OK) {
+    // never on the server's task: a stream lasts as long as the client watches
+    if (!webserver::run_async(req, send_stream, webserver::AsyncStack::Internal, kStreamStack)) {
         g_streams--;
-        return ESP_FAIL;
-    }
-    if (xTaskCreate(stream_task, "cam_stream", 4096, copy, 4, nullptr) != pdPASS) {
-        httpd_req_async_handler_complete(copy);
-        g_streams--;
-        return ESP_FAIL;
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "busy, try again\n");
     }
     return ESP_OK;
 }
@@ -272,8 +269,8 @@ void register_routes(void *server)
         return;
     }
     const httpd_uri_t routes[] = {
-        {.uri = "/api/camera.jpg", .method = HTTP_GET, .handler = get_snapshot, .user_ctx = nullptr},
-        {.uri = "/api/camera.mjpg", .method = HTTP_GET, .handler = get_stream, .user_ctx = nullptr},
+        webserver::route("/api/camera.jpg", HTTP_GET, get_snapshot),
+        webserver::route("/api/camera.mjpg", HTTP_GET, get_stream),
     };
     for (const auto &route : routes) {
         if (httpd_register_uri_handler(static_cast<httpd_handle_t>(server), &route) != ESP_OK) {

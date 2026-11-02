@@ -46,22 +46,20 @@ bool decode(const char *in, size_t length, char *out, size_t size)
     return true;
 }
 
-// the token of the session cookie, false without one
+} // namespace
+
 bool session_token(httpd_req_t *req, char (&token)[auth::kTokenSize])
 {
     size_t size = sizeof(token);
     return httpd_req_get_cookie_val(req, kSessionCookie, token, &size) == ESP_OK;
 }
 
-} // namespace
-
 bool read_body(httpd_req_t *req, char *out, size_t size)
 {
     if (req->content_len >= size) {
         return false;
     }
-    // A form arrives at once. The server has one task: a client that announces a body and stalls
-    // would block every other request, so one receive timeout (5 s) ends the request.
+    // a form arrives at once: one receive timeout (5 s) ends a client that announced one and stalls
     size_t received = 0;
     while (received < req->content_len) {
         const int n = httpd_req_recv(req, out + received, req->content_len - received);
@@ -137,6 +135,32 @@ esp_err_t send_json(httpd_req_t *req, const JsonWriter &json)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, json.c_str(), static_cast<ssize_t>(json.length()));
+}
+
+size_t build_state(StateWriter write, memory::Vector<char> &buffer)
+{
+    // the first pass measures (an empty buffer); a state that grew before the next one gets room
+    for (int pass = 0; pass < 4; pass++) {
+        JsonWriter json(buffer.data(), buffer.size());
+        write(json);
+        if (json.ok() && !buffer.empty()) {
+            return json.length();
+        }
+        buffer.resize(json.needed() + 64);
+    }
+    return 0;
+}
+
+esp_err_t send_state(httpd_req_t *req, StateWriter write)
+{
+    memory::Vector<char> buffer;
+    const size_t length = build_state(write, buffer);
+    if (length == 0) {
+        return send_error(req, "500 Internal Server Error", "answer too long");
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, buffer.data(), static_cast<ssize_t>(length));
 }
 
 esp_err_t send_error(httpd_req_t *req, const char *status, const char *message)

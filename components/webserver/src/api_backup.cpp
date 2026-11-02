@@ -108,8 +108,8 @@ void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, c
     g_backup = backup;
     g_device_name = device_name;
     const httpd_uri_t routes[] = {
-        {.uri = "/api/backup.yaml", .method = HTTP_GET, .handler = get_backup, .user_ctx = nullptr},
-        {.uri = "/api/backup/import", .method = HTTP_POST, .handler = post_import, .user_ctx = nullptr},
+        route("/api/backup.yaml", HTTP_GET, get_backup),
+        route("/api/backup/import", HTTP_POST, post_import),
     };
     for (const auto &route : routes) {
         httpd_register_uri_handler(server, &route);

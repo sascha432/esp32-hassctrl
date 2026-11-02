@@ -35,10 +35,17 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN=y
 # name. About 700 bytes of heap during the handshake.
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
 
-# Sockets: browsers keep up to 6 connections per host open, a phone and a PC together more than
-# the default 10 sockets (httpd 2 + its sessions, the captive portal DNS). 16 sockets, 12 of them
-# web server sessions (components/webserver).
-CONFIG_LWIP_MAX_SOCKETS=16
+# Sockets: browsers keep up to 6 connections per host open, a phone and a PC together 12 web
+# server sessions; httpd itself takes 3, the captive portal DNS 1, the device's own clients up to 7
+# (components/webserver/src/webserver.cpp checks the sum). TCP connections the same, or
+# connections past 16 are refused although a socket is free.
+CONFIG_LWIP_MAX_SOCKETS=24
+CONFIG_LWIP_MAX_ACTIVE_TCP=24
+
+# The web app's live socket (components/webserver/src/live.cpp): a WebSocket, the login checked
+# before the handshake.
+CONFIG_HTTPD_WS_SUPPORT=y
+CONFIG_HTTPD_WS_PRE_HANDSHAKE_CB_SUPPORT=y
 
 # SNTP (components/platform/src/time_sync.cpp): two servers, and the first request as soon as the
 # station has an address, without the random delay of up to 5 s

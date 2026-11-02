@@ -52,6 +52,7 @@
 #include "freertos/task.h"
 #include "hc/webserver/webserver.hpp"
 #include "linenoise/linenoise.h"
+#include "lwip/sockets.h"
 
 #if CONFIG_LIBC_PICOLIBC
 // linenoise reads and writes the stdio streams of its task through these (esp_console's own REPL
@@ -444,6 +445,60 @@ int cmd_mem(int, char **)
         std::printf("%-15s %5u KB %5u KB\n", row.name, static_cast<unsigned>(info.total_free_bytes / 1024),
                     static_cast<unsigned>(info.largest_free_block / 1024));
     }
+    return 0;
+}
+
+// "a.b.c.d:port" of an IPv4 address or one mapped into IPv6 (the web server listens on IPv6)
+void format_address(const sockaddr_storage &address, char *text, size_t size)
+{
+    in_addr ip{};
+    uint16_t port = 0;
+    if (address.ss_family == AF_INET6) {
+        const auto &v6 = reinterpret_cast<const sockaddr_in6 &>(address);
+        ip.s_addr = v6.sin6_addr.un.u32_addr[3];
+        port = v6.sin6_port;
+    } else {
+        const auto &v4 = reinterpret_cast<const sockaddr_in &>(address);
+        ip = v4.sin_addr;
+        port = v4.sin_port;
+    }
+    char ip_text[16];
+    inet_ntoa_r(ip, ip_text, sizeof(ip_text));
+    std::snprintf(text, size, "%s:%u", ip_text, ntohs(port));
+}
+
+// Every socket of lwIP (CONFIG_LWIP_MAX_SOCKETS): its kind, own and other end, "keepalive" when
+// TCP keep-alive is on. Shows who holds them when the web server cannot accept (ENFILE).
+int cmd_sockets(int, char **)
+{
+    int used = 0;
+    for (int fd = LWIP_SOCKET_OFFSET; fd < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; ++fd) {
+        int type = 0;
+        socklen_t length = sizeof(type);
+        if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &length) != 0) {
+            continue;
+        }
+        ++used;
+        int listening = 0;
+        length = sizeof(listening);
+        getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &listening, &length);
+        int keepalive = 0;
+        length = sizeof(keepalive);
+        getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, &length);
+        sockaddr_storage own{};
+        sockaddr_storage peer{};
+        socklen_t own_length = sizeof(own);
+        socklen_t peer_length = sizeof(peer);
+        getsockname(fd, reinterpret_cast<sockaddr *>(&own), &own_length);
+        const bool connected = getpeername(fd, reinterpret_cast<sockaddr *>(&peer), &peer_length) == 0;
+        char own_text[24];
+        char peer_text[24];
+        format_address(own, own_text, sizeof(own_text));
+        format_address(peer, peer_text, sizeof(peer_text));
+        std::printf("%2d %s %-21s %-21s%s\n", fd, type == SOCK_STREAM ? "tcp" : type == SOCK_DGRAM ? "udp" : "raw", own_text,
+                    listening != 0 ? "listening" : connected ? peer_text : "", keepalive != 0 ? " keepalive" : "");
+    }
+    std::printf("%d of %d sockets in use\n", used, CONFIG_LWIP_MAX_SOCKETS);
     return 0;
 }
 
@@ -1396,6 +1451,7 @@ void register_commands()
         "[version|update <http url>|update slot]", cmd_c6);
     add("fs", "file system status", nullptr, cmd_fs);
     add("mem", "free memory: internal, DMA, PSRAM", nullptr, cmd_mem);
+    add("sockets", "the sockets of lwIP: kind, own and other end", nullptr, cmd_sockets);
     add("restart", "restart the device", nullptr, cmd_restart);
     add("reboot", "restart the device", nullptr, cmd_restart);
     add("login-reset", "remove the web UI login", "yes", cmd_login_reset);
