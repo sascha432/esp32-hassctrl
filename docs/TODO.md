@@ -1176,8 +1176,8 @@ Your report of the first version (2026-10-09):
 - [x] SD card on the JC3248W535 (2026-10-25, your request): the SPI-wired slot as SDMMC 1 bit
       (CLK 12, CMD 11, D0 13, D3 10 held high); a 512 MB card mounted at 40 MHz, `sd ls` lists it. Working (your
       check); the kitchen P4 with the changed driver works too (2026-10-25).
-- [ ] SD card on the TTGO T4: SPI slot on the ESP32 (SPI host, not built). A card put in while the device runs needs `sd mount` or the web UI (no
-      card detect on the JC4880P443C).
+- [ ] SD card on the TTGO T4: SPI slot on the ESP32 (SPI host, not built). A card is put in with the device off (no card
+      detect, mounted at boot).
 - [ ] Microphone hiss: a quiet room comes up to about -46 dBFS under Auto gain (54 dB ceiling),
       audible in pauses; normal for this MEMS class. Try the ES8311's noise gate (automute,
       REG18 bit 6, REG1A) with its threshold just above the room, or a lower ALC ceiling (48 dB).
@@ -1757,11 +1757,14 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       `test_web.py` 62 of 62 (`/api/time`, dashboard, player, camera, backup 404; the test now skips the
       live socket where `/api/status` says `"live": false` and takes 405 for `POST /api/hass`), main
       firmware 108 of 108. WT32 and T4 built, not flashed.
-- [ ] **SD unmount while music plays from the card**: the audio component keeps the song's file
-      open (`mp3_source.cpp`) and does not know `sdcard::Use`, so an unmount then is the same
-      crash as the web download's (not tried). Suggestion: the player takes an `sdcard::Use` while
-      it plays a file of the card (it knows the origin), or the screen's and the web's Unmount stop
-      the player first.
+- [x] ~~**SD unmount while music plays from the card**~~: gone with the unmount (2026-11-02, your
+      choice): the card is mounted at boot and stays; Mount and Unmount left the web UI, the API
+      (`/api/sd/mount`) and the console. `sdcard::Use` stays for Format. JC3248W535 (COM10): card
+      mounted at boot, `sd unmount` gives the usage, `POST /api/sd/mount` 405, `test_web.py` 107 of 107.
+- [ ] **SD format while music plays from the card**: the audio component keeps the song's file
+      open (`mp3_source.cpp`) and does not know `sdcard::Use`; a format then rewrites the FAT under
+      it (not tried; it needs the password and a question first). Suggestion: the player takes an
+      `sdcard::Use` while it plays a file of the card, or Format stops the player first.
 
 - [x] **ESP-IDF 6.1 bug**: `otatool.py write_ota_partition` fails with "unexpected keyword
       argument 'input'". `tools/build.py` writes ota_0 with `parttool.py` instead. Cause:

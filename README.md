@@ -54,7 +54,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   MP3 with the event `hassctrl_say` ([guide](docs/home-assistant/say.md)).
 - The camera of a board (ESP32-P4): preview and picture settings on the screen, an MJPEG stream
   and JPEG snapshots on the web, behind a login.
-- SD card (JC4880P443C, JC3248W535): FAT at `/sd`, mounted at boot or from the web UI, alarm sounds from
+- SD card (JC4880P443C, JC3248W535): FAT at `/sd`, mounted at boot (change a card with the device off), alarm sounds from
   `sounds/alarms` on it, the microphone's recording saved as WAV; not in the firmware without `CONFIG_HC_SDCARD`.
 - File manager in Settings, System, SD card: folders, new folder, rename/move, delete; rename/move in the web UI too.
   Names in natural order (2 before 10).
@@ -80,7 +80,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 
 - Status, Home Assistant (URL, token checked before it is stored, connection test), Wi-Fi, hotspot, camera, time (zone and SNTP servers), the dashboard
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
-  a debug mode and a width to drag, SD card (files, upload, download from a URL, mount, format behind the password), system (firmware version and build time, backup export and import, password change, updates, restart, factory reset). Plain HTTP
+  a debug mode and a width to drag, SD card (files, upload, download from a URL, format behind the password), system (firmware version and build time, backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.
 - Pages update live over one WebSocket per tab; downloads and uploads do not hold the other pages.
 

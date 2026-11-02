@@ -98,12 +98,6 @@ int cmd_sd(int argc, char **argv)
     if (std::strcmp(argv[1], "mv") == 0 && argc == 4) {
         return done(rename(argv[2], argv[3]));
     }
-    if (std::strcmp(argv[1], "mount") == 0 && argc == 2) {
-        return result(mount());
-    }
-    if (std::strcmp(argv[1], "unmount") == 0 && argc == 2) {
-        return result(unmount());
-    }
     if (std::strcmp(argv[1], "format") == 0 && argc == 3 && std::strcmp(argv[2], "yes") == 0) {
         return result(format());
     }
@@ -116,7 +110,7 @@ int cmd_sd(int argc, char **argv)
         std::printf("downloading, `sd` shows the progress\n");
         return 0;
     }
-    std::printf("usage: sd [ls [<dir>]|rm <path>|mkdir <path>|mv <from> <to>|mount|unmount|format yes|get <url> <path>]\n");
+    std::printf("usage: sd [ls [<dir>]|rm <path>|mkdir <path>|mv <from> <to>|format yes|get <url> <path>]\n");
     return 1;
 }
 
@@ -126,8 +120,8 @@ void register_console()
 {
     esp_console_cmd_t command{};
     command.command = "sd";
-    command.help = "SD card: status, list a directory, delete, make a folder, rename or move, mount, unmount, format (erases it), download a URL";
-    command.hint = "[ls [<dir>]|rm <path>|mkdir <path>|mv <from> <to>|mount|unmount|format yes|get <url> <path>]";
+    command.help = "SD card: status, list a directory, delete, make a folder, rename or move, format (erases it), download a URL";
+    command.hint = "[ls [<dir>]|rm <path>|mkdir <path>|mv <from> <to>|format yes|get <url> <path>]";
     command.func = cmd_sd;
     esp_console_cmd_register(&command);
 }

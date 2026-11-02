@@ -14,6 +14,11 @@ Changed
 * Media browser: `<` in a subfolder goes up a folder like "..", back to the dashboard only from
   the tile's folder.
 
+Removed
+
+* SD card: Mount and Unmount (web UI, `/api/sd/mount`, console `sd`); the card is mounted at boot,
+  change it with the device off.
+
 ### 2026-11-01
 
 Added

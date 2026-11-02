@@ -1269,12 +1269,8 @@ const views = {
     const fileUrl = (path) => "/api/sd/file?path=" + encodeURIComponent(path);
     render(`<h1>SD card</h1>` +
       card("Card", `<p class="mb-2" id="sd-state">...</p>
-        <div class="d-flex gap-2 flex-wrap">
-          <button id="sd-mount" class="btn btn-outline-secondary" type="button">Mount</button>
-          <button id="sd-unmount" class="btn btn-outline-secondary" type="button">Unmount</button>
-        </div>
-        <p class="small text-body-secondary mt-2 mb-0">The slot has no card detection: mount a card put in
-          while the device runs, unmount one before taking it out.</p>`) +
+        <p class="small text-body-secondary mb-0">The slot has no card detection: put a card in or take it
+          out with the device off, it is mounted when the device starts.</p>`) +
       card("Files", `<nav class="mb-2" id="sd-path"></nav>
         <div class="list-group mb-3" id="sd-list"></div>
         <label class="form-label" for="sd-file">Upload into this folder</label>
@@ -1302,8 +1298,6 @@ const views = {
     const showState = (c) => {
       if (fetchDone) fetchDone(c);
       $("#sd-state").textContent = sdSpace(c) + (c.state === "mounted" ? `, ${c.name}, ${c.clock_khz / 1000} MHz` : "");
-      $("#sd-mount").hidden = c.state === "mounted";
-      $("#sd-unmount").hidden = c.state !== "mounted";
       const f = c.fetch;
       $("#sd-fetch-message").textContent = f.state === "running" ? `downloading ${f.path}: ${kib(f.done)}${f.total ? " of " + kib(f.total) : ""}`
         : f.state === "failed" ? `download failed: ${f.error}` : f.state === "done" ? `downloaded ${f.path}` : "";
@@ -1364,14 +1358,6 @@ const views = {
         }
       };
     }
-    $("#sd-mount").onclick = (e) => busy(e.target, async () => {
-      showState(await api("/api/sd/mount", { action: "mount" }));
-      await list();
-    });
-    $("#sd-unmount").onclick = (e) => busy(e.target, async () => {
-      showState(await api("/api/sd/mount", { action: "unmount" }));
-      $("#sd-list").innerHTML = '<div class="list-group-item text-body-secondary">no card mounted</div>';
-    });
     $("#sd-upload").onclick = (e) => busy(e.target, async () => {
       const files = [...$("#sd-file").files];
       if (!files.length) throw new Error("choose a file");

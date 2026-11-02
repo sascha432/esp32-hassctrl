@@ -266,9 +266,8 @@ CS as D3, held high); one on the ESP32 (the TTGO T4) is not built.
 - [ ] `Info::sd_clk_gpio`, `sd_cmd_gpio`, `sd_data_gpios` (four, or D0 and -1 for D1 and D2 for 1 bit, D3 the CS pin of an SPI slot),
       `sd_ldo_channel` (-1 for a card on the 3.3 V rail), all inside `#if CONFIG_HC_SDCARD`; the
       board's Kconfig choice entry gets `select HC_BOARD_HAS_SDCARD`.
-- [ ] The boot log shows `sdcard: <name> at /sd: .. free, .. kHz, .. ms`; console `sd`, `sd ls`,
-      `sd unmount`, `sd mount`. On a board whose Wi-Fi uses the other SDMMC slot (the P4's C6),
-      Wi-Fi stays up through both.
+- [ ] The boot log shows `sdcard: <name> at /sd: .. free, .. kHz, .. ms`; console `sd`, `sd ls`.
+      On a board whose Wi-Fi uses the other SDMMC slot (the P4's C6), Wi-Fi comes up beside it.
 - [ ] Web UI, SD card: upload a few MB, download it again and compare; `tools/test_web.py`.
 
 ## 13. Record the results

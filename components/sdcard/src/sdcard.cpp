@@ -114,22 +114,6 @@ esp_err_t mount_locked(bool format)
     return ESP_OK;
 }
 
-esp_err_t unmount_locked(State state)
-{
-    if (g_card == nullptr) {
-        if (g_state == State::Mounted) {
-            g_state = state;
-        }
-        return ESP_OK;
-    }
-    // removes slot 0 only: the controller stays while the C6's slot uses it
-    const esp_err_t err = esp_vfs_fat_sdcard_unmount(kMountPoint, g_card);
-    g_card = nullptr;
-    free_bounce();
-    g_state = state;
-    return err;
-}
-
 } // namespace
 
 esp_err_t start(const board::Info &board)
@@ -178,7 +162,7 @@ Status status()
     if (g_lock == nullptr) {
         return out;
     }
-    // the screen and the web server ask: while a format or a mount runs they get the state alone
+    // the screen and the web server ask: while a format runs they get the state alone
     if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(kStatusWaitMs)) != pdTRUE) {
         return out;
     }
@@ -203,8 +187,6 @@ const char *state_name(State state)
         return "not formatted";
     case State::Mounted:
         return "mounted";
-    case State::Unmounted:
-        return "unmounted";
     }
     return "?";
 }
@@ -219,27 +201,6 @@ void describe(const Status &status, char *out, size_t size)
     const double unit = gb ? 1e9 : 1e6;
     std::snprintf(out, size, "%.1f of %.1f %s free", static_cast<double>(status.free_bytes) / unit,
                   static_cast<double>(status.total_bytes) / unit, gb ? "GB" : "MB");
-}
-
-esp_err_t mount()
-{
-    if (g_lock == nullptr) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    Lock lock;
-    return mount_locked(false);
-}
-
-esp_err_t unmount()
-{
-    if (g_lock == nullptr) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    Lock lock;
-    if (g_users > 0) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    return unmount_locked(State::Unmounted);
 }
 
 esp_err_t format()

@@ -9,7 +9,6 @@
 //   POST /api/sd/mkdir           path
 //   POST /api/sd/rename          from, to: renames or moves a file or a folder
 //   POST /api/sd/fetch           url, path: downloads in the background (202), progress in /api/sd
-//   POST /api/sd/mount           action=mount|unmount
 //   POST /api/sd/format          confirm=yes and password (the login's, again): erases the card
 //
 // Paths are relative to the card and go through sdcard::make_path (no ".."); list, delete, mkdir
@@ -212,7 +211,7 @@ esp_err_t get_list(httpd_req_t *req)
 
 esp_err_t send_file(httpd_req_t *req)
 {
-    // the card stays mounted while the file goes out (unmount and format wait for it)
+    // format refuses while the file goes out
     const sdcard::Use use;
     if (!use.held()) {
         return send_error(req, "409 Conflict", "no SD card mounted");
@@ -417,39 +416,6 @@ esp_err_t post_fetch(httpd_req_t *req)
     return send_done(req, "downloading");
 }
 
-esp_err_t post_mount(httpd_req_t *req)
-{
-    if (!require_login(req)) {
-        return ESP_OK;
-    }
-    char body[32];
-    char action[12] = {};
-    if (!read_body(req, body, sizeof(body)) || !form_value(body, "action", action, sizeof(action))) {
-        return send_error(req, "400 Bad Request", "action=mount|unmount required");
-    }
-    if (std::strcmp(action, "unmount") == 0) {
-        if (sdcard::fetch_status().state == sdcard::FetchState::Running) {
-            return send_error(req, "409 Conflict", "a download runs");
-        }
-        const esp_err_t err = sdcard::unmount();
-        if (err == ESP_ERR_INVALID_STATE) {
-            return send_error(req, "409 Conflict", "a file on the card is being sent or received");
-        }
-        return err == ESP_OK ? get_sd(req) : send_error(req, "500 Internal Server Error", "unmount failed");
-    }
-    if (std::strcmp(action, "mount") != 0) {
-        return send_error(req, "400 Bad Request", "action=mount|unmount required");
-    }
-    const esp_err_t err = sdcard::mount();
-    if (err == ESP_ERR_NOT_FOUND) {
-        return send_error(req, "404 Not Found", "no card answers");
-    }
-    if (err == ESP_ERR_INVALID_STATE) {
-        return send_error(req, "409 Conflict", "the card is not formatted");
-    }
-    return err == ESP_OK ? get_sd(req) : send_error(req, "500 Internal Server Error", "mount failed");
-}
-
 // The login's password once more (as POST /api/password): a session left open in a browser does
 // not erase the card. In setup mode there is no password, confirm=yes alone.
 esp_err_t post_format(httpd_req_t *req)
@@ -514,7 +480,6 @@ void register_sd_routes(httpd_handle_t server)
         route("/api/sd/mkdir", HTTP_POST, post_mkdir),
         route("/api/sd/rename", HTTP_POST, post_rename),
         route("/api/sd/fetch", HTTP_POST, post_fetch),
-        route("/api/sd/mount", HTTP_POST, post_mount),
         route("/api/sd/format", HTTP_POST, post_format),
     };
     static_assert(std::size(routes) == kSdRoutes);

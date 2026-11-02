@@ -25,7 +25,7 @@ Main pages                after login
   Time                    the clock, time zone (Home Assistant's or fixed), two SNTP servers
   Logs                    view and filter, debug mode
   SD card                 only with a card slot: files, upload, rename/move, download from a
-                          URL, mount, format
+                          URL, format
   System                  backup (export and import), firmware and file system update,
                           restart, factory reset
 Recovery                  compiled into the firmware: login, update, format
@@ -232,8 +232,8 @@ such page, `tools/build_web.py`). Code: `components/sdcard`, `api_sd.cpp`, the `
 `web/app.js`. Cards:
 
 * **Card**: the space ("31.1 of 31.1 GB free", MB below 1 GB) or the state (no card, not
-  formatted, unmounted), the card's name and clock. Mount and Unmount: the slot has no card
-  detection, a card put in while the device runs is mounted here (or with `sd mount`).
+  formatted), the card's name and clock. The slot has no card detection: a card is put in or
+  taken out with the device off, it is mounted when the device starts.
 * **Files**: the folders of the card with a path to click back, a file is a download link, a
   folder opens; Rename (a prompt with the path on the card: another folder in front moves it
   there, never over a name that exists), Delete for a file or an empty folder (a question first),
@@ -253,12 +253,12 @@ API, login required: `GET /api/sd` (state, `total_kb`, `free_kb`, name, `clock_k
 `GET /api/sd/file?path=` (the file), `POST /api/sd/file?path=` (the body is the file),
 `POST /api/sd/delete` and `/api/sd/mkdir` (`path`), `POST /api/sd/rename` (`from`, `to`: 404 when
 `from` is missing, 409 when `to` exists, 400 for a folder into itself), `POST /api/sd/fetch` (`url`, `path`: 202),
-`POST /api/sd/mount` (`action=mount|unmount`), `POST /api/sd/format` (`confirm=yes`, `password`).
+`POST /api/sd/format` (`confirm=yes`, `password`).
 Paths are relative to the card; `..`, a backslash and control characters are refused (400).
 Measured on the JC4880P443C (2026-10-23): 5 MB upload 4.2 s, download 10.9 s (the TCP send
 buffer of 5760 bytes limits it), format of 32 GB 2.5 s. A file's download and upload run on a task
-of their own (section 4.3): the other pages keep answering meanwhile. While one runs, Unmount and
-Format answer 409 ("a file on the card is being sent or received"): the card is not taken from
+of their own (section 4.3): the other pages keep answering meanwhile. While one runs, Format
+answers 409 ("a file on the card is being sent or received"): the card is not taken from
 under the transfer.
 
 **System.** The Device card shows the firmware version and its build time (`device.built` of

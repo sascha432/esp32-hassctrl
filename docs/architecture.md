@@ -833,8 +833,7 @@ different major version on the two chips is a mismatch.
     slot 0 and its IO MUX pins. In IDF 6.1 `sdmmc_host_init()` returns the controller that exists
     and `sdmmc_host_deinit_slot()` removes it only with the last slot, so the card mounts at
     boot (after `board::init`, before the audio and the UI, which list its alarm sounds) whether
-    or not the C6 came first, and unmounting leaves Wi-Fi alone (an IDF error line "host
-    controller with slot registered" is that check, harmless).
+    or not the C6 came first.
   * Power: the JC4880P443C's card and pins are on LDO channel 4 (`sd_pwr_ctrl_new_on_chip_ldo`),
     3.3 V, through a switch that is always on (the LDO code is built only where the chip has
     one, `SOC_GP_LDO_SUPPORTED`). 40 MHz when the card takes it.
@@ -842,8 +841,10 @@ different major version on the two chips is a mismatch.
     CLK 12, MISO 13, 10k pullups, 3.3 V rail) and runs as SDMMC 1 bit through the ESP32-S3's GPIO
     matrix: CMD on MOSI, D0 on MISO. ESP-IDF leaves D3 alone in 1 bit mode, a low D3 at CMD0
     would select SPI mode, so `start()` drives the D3 given (CS) high. 40 MHz.
-  * **No card detect** on the JC4880P443C: mounted at boot, then by request (console `sd mount`,
-    the web UI's Mount); unmount before taking a card out. A card without a FAT, or with a FAT
+  * **No card detect**: the card is mounted once at boot and stays mounted; it is put in or
+    changed with the device off. There is no unmount at runtime (until 2026-11-02 there was: an
+    unmount under a running transfer crashed in the SDMMC driver, and the player keeps its song
+    open). A card without a FAT, or with a FAT
     that does not mount, is reported ("not formatted") and **never formatted by itself**; the web
     UI formats it after the login's password (one FAT over the whole card, 32 KB clusters).
   * Users: alarm sounds (`main/ui_sound.cpp`: the list merges `/fs/sounds/alarms` and
@@ -896,7 +897,7 @@ different major version on the two chips is a mismatch.
 | `audio` | I2S output to the board's amplifier, the volume, the touch sounds, MP3 files, the alarm sound and the music of the player with its spectrum and tags (section 9.6, `CONFIG_HC_AUDIO`) |
 | `player` | the media player's queue, independent of the screen: SD files, playlists and the media library, next, previous, shuffle, repeat (section 9.6, `CONFIG_HC_UI_PLAYER`) |
 | `vibration` | a vibration motor on a GPIO: a pulse when a finger touches a tap target, a pattern while the alarm rings (section 9.7, `CONFIG_HC_VIBRATION`) |
-| `sdcard` | the microSD card: FAT at `/sd` on SDMMC slot 0, mount, unmount, format, list, delete, rename/move, a download from a URL onto it, WAV files, console `sd` (section 9.3, `CONFIG_HC_SDCARD`). `sdcard::Use` marks a file kept open by another task (the web server's download and upload): unmount and format refuse while one is held |
+| `sdcard` | the microSD card: FAT at `/sd` on SDMMC slot 0, mounted at boot, format, list, delete, rename/move, a download from a URL onto it, WAV files, console `sd` (section 9.3, `CONFIG_HC_SDCARD`). `sdcard::Use` marks a file kept open by another task (the web server's download and upload): format refuses while one is held |
 | `camera` | the MIPI-CSI camera of the JC4880P443C: capture, its settings, the web stream (section 9.8, `CONFIG_HC_BOARD_HAS_CAMERA`) |
 | `touch_input` | the touch screen as LVGL's pointer, sampled by a task of its own (section 8) |
 | `orientation` | the MPU6050 on the board's I2C bus, the screen's rotation (section 8.1) |

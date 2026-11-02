@@ -3,14 +3,14 @@
 // The microSD card (docs/architecture.md section 9.3), compiled in with CONFIG_HC_SDCARD: FAT at
 // /sd on SDMMC slot 0, the pins from hc::board::Info::sd_*. The SDMMC controller is shared with
 // the ESP32-C6's SDIO link (esp_hosted, slot 1): ESP-IDF creates it once for both and removes it
-// with the last slot, so mounting and unmounting the card leave Wi-Fi alone.
+// with the last slot, so the card leaves Wi-Fi alone.
 //
-// The card is mounted at boot and on request (console `sd mount`, the web UI): the slot has no
-// card-detect pin, so a card put in later is not seen until then. A card without a FAT is
-// reported and only formatted on request, never by itself.
+// The card is mounted once at boot and stays mounted: the slot has no card-detect pin, a card is
+// put in or changed with the device off (a restart sees it). A card without a FAT is reported and
+// only formatted on request, never by itself.
 //
-// Files are read and written with the C library under kMountPoint, from any task; mount, unmount
-// and format take a lock and wait for each other.
+// Files are read and written with the C library under kMountPoint, from any task; format takes a
+// lock.
 
 #include <cstddef>
 #include <cstdint>
@@ -32,8 +32,6 @@ enum class State : uint8_t {
     // a card without a FAT (or a damaged one): format() makes it usable
     Unformatted,
     Mounted,
-    // unmounted on request
-    Unmounted,
 };
 
 struct Status {
@@ -56,19 +54,13 @@ const char *state_name(State state);
 // "7.4 of 29.0 GB free" (MB below 1 GB), or the state's name when no card is mounted
 void describe(const Status &status, char *out, size_t size);
 
-// Mounts the card once more (after unmount, or a card put in later). ESP_ERR_NOT_FOUND: no card,
-// ESP_ERR_INVALID_STATE: it has no FAT.
-esp_err_t mount();
-// ESP_ERR_INVALID_STATE while a file is in use (Use)
-esp_err_t unmount();
-
 // Erases the card and writes an empty FAT (the web UI asks for the password first). Also for a
 // card without one. Mounted afterwards. ESP_ERR_INVALID_STATE while a file is in use (Use).
 esp_err_t format();
 
-// A file kept open for a while by another task (the web server's download and upload): unmount and
-// format refuse while one is held, instead of taking the card from under a transfer in the SDMMC
-// driver (2026-11-01: a crash in sdmmc_ll_stop_dma). held() is false when no card is mounted.
+// A file kept open for a while by another task (the web server's download and upload): format
+// refuses while one is held, instead of taking the card from under a transfer in the SDMMC driver
+// (2026-11-01: an unmount did, a crash in sdmmc_ll_stop_dma). held() is false when no card is mounted.
 class Use {
 public:
     Use();
