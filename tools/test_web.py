@@ -385,7 +385,7 @@ def main() -> None:
     status, _, _ = c.request("GET", "/api/hass")
     check(status in (401, 404), "GET /api/hass without login is 401", str(status))
     status, _, _ = c.request("POST", "/api/hass", form={"url": "http://x", "token": "y"})
-    check(status in (401, 404), "POST /api/hass without login is refused", str(status))
+    check(status in (401, 404, 405), "POST /api/hass without login is refused", str(status))
     # the player's routes (CONFIG_HC_UI_PLAYER; unknown paths without it)
     for path in ["/api/player", "/api/player/cover"]:
         status, _, _ = c.request("GET", path)
@@ -549,7 +549,10 @@ def main() -> None:
     idle_connections_test(args.device)
     long_response_test(c, args.device, "sd" in s and s["sd"].get("state") == "mounted")
     idle_close_test(args.device)
-    live_test(args.device, c.cookie, args.user, password)
+    if s.get("live"):
+        live_test(args.device, c.cookie, args.user, password)
+    else:
+        print("  (no live socket, the recovery app: the live test skipped)")
 
     time.sleep(1)
     status, s, _ = c.request("GET", "/api/status")

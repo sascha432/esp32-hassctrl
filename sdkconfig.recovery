@@ -20,6 +20,14 @@ CONFIG_MBEDTLS_TLS_CLIENT_ONLY=y
 # sdcard component, which would offer it here as well.
 # CONFIG_HC_SDCARD is not set
 
+# Size: none of the firmware's page APIs (Home Assistant, dashboard, backup, camera, player, time);
+# the recovery app has none of them, and the time routes alone bring the time zone table and SNTP.
+# CONFIG_HC_WEB_FIRMWARE_ROUTES is not set
+
+# Size: a failed assert aborts with the backtrace but without its expression and file name
+# (about 25 KB of strings).
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y
+
 # Size: no WebSocket in the recovery app (the web app's live socket, components/webserver/src/
 # live.cpp); its pages ask for their state instead. The 1 MB factory partition is full.
 # CONFIG_HTTPD_WS_SUPPORT is not set

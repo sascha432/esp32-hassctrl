@@ -23,6 +23,11 @@ Changed
 * The captive portal's DNS listens only while the hotspot is on.
 * SD card: Unmount and Format answer 409 while a file is sent or received over the web.
 
+Fixed
+
+* Recovery app fits the 4 MB layout again (was 24 KB over): without the firmware's page APIs
+  (`CONFIG_HC_WEB_FIRMWARE_ROUTES`) and with silent asserts; WT32-SC01 78 KB free.
+
 ### 2026-10-31
 
 Fixed

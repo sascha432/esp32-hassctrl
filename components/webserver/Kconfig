@@ -1,0 +1,13 @@
+menu "hassctrl web server"
+
+    config HC_WEB_FIRMWARE_ROUTES
+        bool "API of the firmware's pages"
+        default y
+        help
+            The routes only the main firmware serves: Home Assistant, dashboard, backup, camera,
+            player and time (/api/hass, /api/dashboard, /api/backup, /api/camera, /api/player,
+            /api/time). Off in the recovery app (sdkconfig.recovery), which has none of these;
+            its web pages answer the 404 with "not in the recovery app". The time routes alone
+            bring the time zone table and SNTP into the image.
+
+endmenu

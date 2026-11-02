@@ -1745,11 +1745,18 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       after 25 s of silence (back after 27 s, no polling). Soak 25 min on the Player page: one GET,
       1 session at rest (the live socket). WT32-SC01 (COM9, no SD card, no player) 2026-11-01:
       `test_web.py` 80 of 80, 57 KB internal free, 4 of 24 sockets at rest.
-- [ ] **Recovery app too large for the 4 MB layout** (found 2026-11-01): the WT32-SC01's
+- [x] **Recovery app too large for the 4 MB layout** (found 2026-11-01): the WT32-SC01's
       `factory` (1088 KB) is overflowed by 23.6 KB, the TTGO T4's by 11 KB. Already 21.7 KB over on
       the commit before this work (fbb671e, measured in a worktree); the web server changes add
       1.9 KB (the WebSocket is left out of the recovery app, sdkconfig.recovery). ESP-IDF only warns,
-      the image does not fit. Your call: the layout (2026-10-17: stays) or what leaves the recovery app.
+      the image does not fit. Cause: every page API was linked though the recovery app registers
+      none; the Time page (2026-10-22) brought the time zone table, SNTP and libc's tz code. Fixed
+      2026-11-01 (your choice: routes and asserts; mDNS and mbedTLS stay): `CONFIG_HC_WEB_FIRMWARE_ROUTES`
+      off and silent asserts in `sdkconfig.recovery`. WT32 1010 KB (78 KB free), T4 998 KB (90 KB
+      free), JC3248W535 989 KB of 1.25 MB. Tested on the JC3248W535 only (your choice): recovery app
+      `test_web.py` 62 of 62 (`/api/time`, dashboard, player, camera, backup 404; the test now skips the
+      live socket where `/api/status` says `"live": false` and takes 405 for `POST /api/hass`), main
+      firmware 108 of 108. WT32 and T4 built, not flashed.
 - [ ] **SD unmount while music plays from the card**: the audio component keeps the song's file
       open (`mp3_source.cpp`) and does not know `sdcard::Use`, so an unmount then is the same
       crash as the web download's (not tried). Suggestion: the player takes an `sdcard::Use` while

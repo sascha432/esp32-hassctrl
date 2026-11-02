@@ -92,18 +92,20 @@ void register_wifi_routes(httpd_handle_t server);
 void register_update_routes(httpd_handle_t server);
 void register_file_routes(httpd_handle_t server);
 void register_log_routes(httpd_handle_t server);
-// nothing without a Home Assistant connection (the recovery app)
+#if CONFIG_HC_WEB_FIRMWARE_ROUTES
+// nothing without a Home Assistant connection
 void register_hass_routes(httpd_handle_t server, const HassAccess *hass);
-// nothing without a dashboard (the recovery app)
+// nothing without a dashboard
 void register_dashboard_routes(httpd_handle_t server, const DashboardAccess *dashboard);
-// nothing without a backup (the recovery app)
+// nothing without a backup
 void register_backup_routes(httpd_handle_t server, const BackupAccess *backup, const char *device_name);
 // nullptr: no routes
 void register_camera_routes(httpd_handle_t server, const CameraAccess *camera);
 // nullptr: no routes
 void register_player_routes(httpd_handle_t server, const PlayerAccess *player);
-// nothing without the clock (the recovery app)
+// nothing without the clock
 void register_time_routes(httpd_handle_t server, bool time);
+#endif
 #if CONFIG_HC_SDCARD
 // the SD card page (api_sd.cpp); the server makes room for kSdRoutes more handlers
 constexpr size_t kSdRoutes = 10;
