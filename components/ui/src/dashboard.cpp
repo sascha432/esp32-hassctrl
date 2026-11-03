@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 
+#include "alarm.hpp"
 #include "edit_mode.hpp"
 #include "entity_picker.hpp"
 #include "overlay.hpp"
@@ -454,6 +455,13 @@ void open_media(core::TileIndex tile)
     }
 #endif
     overlay::show(LV_SYMBOL_WARNING "  No media player on this device");
+}
+
+void open_alarm()
+{
+    if (alarm::available()) {
+        settings::open_alone(settings::Page::Alarm, g.screen);
+    }
 }
 
 void swiped(int direction)

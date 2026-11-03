@@ -148,6 +148,9 @@ void on_click(lv_event_t *event)
     case TileKind::Media:
         dashboard::open_media(view.tile);
         break;
+    case TileKind::Clock:
+        dashboard::open_alarm();
+        break;
     case TileKind::Switch:
     case TileKind::Light: {
         // a second tap within the window opens the panel with the timeline, a single one toggles

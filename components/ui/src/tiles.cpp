@@ -562,6 +562,8 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
 
     if (tile.kind == TileKind::Clock) {
         create_clock(view, tile, width, height);
+        // a tap opens the alarms
+        lv_obj_add_event_cb(view.card, on_click, LV_EVENT_CLICKED, &view);
         return;
     }
 

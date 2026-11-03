@@ -11,6 +11,7 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 Changed
 
+* Clock tile: a tap opens the Alarm page (`<` back to the dashboard).
 * Media browser: `<` in a subfolder goes up a folder like "..", back to the dashboard only from
   the tile's folder.
 

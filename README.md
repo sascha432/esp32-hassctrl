@@ -19,7 +19,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   thermostats, locks, timers, automations and scripts, sensors and binary sensors, cameras and weather, with
   Material Design icons.
 - Clock tiles, digital or analog (hands, ticks, rim), 24 or 12 h, seconds, date, in the device's
-  time zone or any IANA zone.
+  time zone or any IANA zone; a tap opens the alarms.
 - Media tiles open the media browser at a folder of Home Assistant's media library or the SD card
   (picked in the web editor), or at both tops.
 - Areas are pages of their own, nested as deep as needed, with a back tile or swipe navigation.

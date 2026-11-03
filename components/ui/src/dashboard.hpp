@@ -46,6 +46,9 @@ void back();
 // The media browser of the media `tile` (Settings' Media page alone: `<` comes back here); without
 // the player a message in the alert strip.
 void open_media(core::TileIndex tile);
+// Settings' Alarm page alone (`<` comes back here), for a tap on a clock tile; nothing without
+// an alarm (alarm::available())
+void open_alarm();
 // A swipe (swipe.hpp): `direction` -1 for a swipe right, which goes back on a swipe page (an
 // area with `swipe`); 1 for a swipe left, which does nothing.
 void swiped(int direction);
