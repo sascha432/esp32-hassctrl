@@ -24,6 +24,12 @@ Added
 * `tools/test_web_ui.py`: the web app in headless Edge (every page, the races above);
   `tools/test_web.py` checks a logout and `files.zip` with the server's work queue full.
 
+Changed
+
+* Web UI: the menu is an icon rail from 800 px and a tab bar with a More sheet on a phone, Wi-Fi's
+  state as a dot; the recovery app hides Home Assistant, Dashboard and Time. "Log out everywhere"
+  moved to System.
+
 ### 2026-11-02
 
 Changed

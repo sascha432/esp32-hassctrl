@@ -22,9 +22,9 @@ system has happened on earlier devices, mostly with the files still readable. So
   inside), `POST /api/fs/format` with `confirm=yes` erases the file system. Both need the login.
   The settings backup is in NVS and is exported by the web UI's System page, not here.
 * **In the recovery app**: the same rules, `/` serves the web UI from LittleFS when
-  it is there. Its Home Assistant and Dashboard pages say "not in the recovery app", the System
-  page has no Backup card; Status, Wi-Fi, Hotspot, Logs, update, files, format, restart and
-  factory reset work. "Start the firmware" is on the built-in page (`/recovery`) and on the System page (Restart and reset) when a firmware is in flash.
+  it is there. Its menu has no Home Assistant, Dashboard and Time (a link to them says "not in the
+  recovery app"), the System page has no Backup card; Status, Wi-Fi, Hotspot, Logs, update,
+  files, format, restart and factory reset work. "Start the firmware" is on the built-in page (`/recovery`) and on the System page (Restart and reset) when a firmware is in flash.
 * **No automatic format**: a LittleFS that fails to mount starts the recovery mode
   instead of being formatted, so files that are still readable can be exported first. Only a
   partition without any LittleFS (new device, leftovers of another firmware) is formatted.

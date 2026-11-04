@@ -52,17 +52,18 @@ changing a page. The pages themselves are in [web-app.md](web-app.md), the dashb
 * **Custom themes** (not built): one small CSS file that overrides Bootstrap's CSS
   variables, uploaded like the other web files.
 * Fonts: Bootstrap's system font stack, no web fonts.
-* Icons: small inline SVGs in `app.js` for the header (Wi-Fi, menu, lock); the MDI icons of the
+* Icons: small inline SVGs in `app.js`: the header (Wi-Fi, lock) and the menu (`navIcons`, 24 x 24
+  strokes in the text's color, one per page); the MDI icons of the
   dashboard from `web/icons.svg` (written by `tools/build_icons.py` with the screen's icon fonts),
   so an icon means the same on both.
 
 ## 3. Page frame
 
-A header with the device name, the state icons and the menu button, then the page title and cards.
+A header with the device name and the state icons, the menu, then the page title and cards.
 
 ```
 +--------------------------------------------+
-| hassctrl-1a2b            [Wi-Fi] [HA]  [=] |
+| hassctrl-1a2b                 [Wi-Fi] [HA] |
 +--------------------------------------------+
 | Page title                                 |
 |                                            |
@@ -75,38 +76,57 @@ A header with the device name, the state icons and the menu button, then the pag
 +--------------------------------------------+
 ```
 
-The menu opens over the page on phones. On screens of 800 px and wider it is a sidebar instead
-(`app.css`). It also holds the light, dark or automatic mode and the log out buttons.
+The menu is one list of entries (`menuGroups` in `app.js`), drawn two ways by `app.css`:
+
+* **From 800 px a rail** of 76 px at the left: per page an icon with a short name ("HA" for Home
+  Assistant), the three groups (Home, Network, Device) apart by a line, and at the bottom the
+  appearance (one button that goes Auto, Light, Dark) and Log out.
+* **On a phone a tab bar** at the bottom: Status, Dashboard, HA, Wi-Fi and More. More opens the
+  same list as a sheet over the page, with the group headings and the full names; choosing a page
+  closes it. More is the active tab on a page without a tab of its own. The page ends above the
+  bar, and toasts sit above it.
 
 ```
-+--------------------------------------------+
-| hassctrl-1a2b            [Wi-Fi] [HA]  [x] |
-+--------------------------------------------+
-|  Status                                    |
-|  Home Assistant                            |
-|  Wi-Fi                                     |
-|  Hotspot                                   |
-|  Camera                                    |
-|  Dashboard                                 |
-|  Logs                                      |
-|  System                                    |
-+--------------------------------------------+
-|  Light / dark / auto                       |
-|  Log out                                   |
-|  Log out everywhere                        |
-+--------------------------------------------+
+ 800 px and wider                           phone
++------+-----------------------------+      +--------------------------+
+| [#]  | Status                      |      | hassctrl-1a2b [Wi-Fi][HA]|
+|Dashbd|  +-----------------------+  |      +--------------------------+
+| (^)  |  | card                  |  |      | HOME                     |
+|  HA  |  +-----------------------+  |      |  [#] Dashboard           |
+|  ..  |                             |      |  (^) Home Assistant  ... |
+|------|                             |      | NETWORK                  |
+| Wi-Fi.|                            |      |  ...  (More's sheet)     |
+|  ..  |                             |      +--------------------------+
+|------|                             |      | ~~~  [#]  (^)  Wi-Fi. ...|
+|Status|                             |      |Status Dash HA Wi-Fi  More|
+|  ..  |                             |      +--------------------------+
+|------|                             |
+| Auto |                             |
+|Log out                             |
++------+-----------------------------+
 ```
 
+* The Wi-Fi entry (rail, sheet and tab) carries the connection's state as a dot: green connected,
+  yellow connecting or waiting, red an error; the header's Wi-Fi icon says the same with the
+  network in its title.
 * The state icons: Wi-Fi and `HA`, green when connected, yellow while connecting or waiting, red
   for an error, the problem in the title (tooltip). Refreshed with every page.
 * During the setup the header shows the step (`1 / 3`) instead of the icons and the menu.
-* A page that a board does not have (Camera) is hidden in the menu, decided by `/api/status`.
+* A page that a device does not have is hidden in the menu, and a group with no page left. The
+  entry names a key of `/api/status`: `hass` (Home Assistant, Dashboard and Time; not in the
+  recovery app, which shows Wi-Fi, Hotspot, Status, Logs and System only), `camera`, `player`,
+  `sd`. These entries start hidden and show with the first `/api/status`, so the menu does not
+  flicker. A page of a board option is
+  also left out of the web image (`// #if CONFIG_*`, section 2).
+* "Log out everywhere" is on the System page, in the Password card.
 
 ## 4. How a page is built
 
 `web/app.js` is one page; the views follow the hash (`#/wifi`). A new page is:
 
-1. an entry in `menuPages` (route name, menu text);
+1. an entry in its group of `menuGroups` (route name, menu text, the rail's short text, the
+   `/api/status` key it needs if any) and its icon in `navIcons`; a page for the phone's tab bar
+   also in `tabPages` (four at most, More is the fifth);
 2. a function in `views` that calls `render()` with the title and a placeholder, loads its data
    with `api()` and fills it in.
 

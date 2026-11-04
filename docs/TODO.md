@@ -1705,6 +1705,18 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       flashed on the test P4).
 - [ ] A file name with umlauts on the test P4's card, your check on the screen.
 
+## Web menu: rail and tab bar (2026-11-03)
+
+Design taken from pixeled (its commit 6d63c3f): one list of pages in three groups (Home, Network,
+Device), an icon rail from 800 px, on a phone a tab bar (Status, Dashboard, HA, Wi-Fi, More) with
+More's sheet; docs/ui/web/web-design.md section 3.
+
+- [x] Pages a device lacks (camera, player, SD card; HA, Dashboard and Time in the recovery
+      app) hidden from `/api/status`, a group with none left too; "Log out everywhere" on the System page.
+      Checked on the JC3248W535 in headless Edge at 1200 and 390 px, main firmware and recovery
+      app (Wi-Fi, Hotspot, Status, Logs, System; tabs Status, Wi-Fi, More; a link to HA says "not
+      in the recovery app"); your check of the recovery app: looks good (2026-11-03).
+
 ## Known issues
 
 - [x] **JC3248W535 boot loop with a camera tile on the main page** (your report 2026-10-21): it

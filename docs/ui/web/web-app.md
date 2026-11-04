@@ -103,7 +103,7 @@ other side is not told.
 * The cookie is a signed token holding the username and the expiry, so no session table is
   needed.
 * **Anything that changes ends all tokens**: the username, the password, or a counter
-  stored in NVS. The counter is increased by "log out everywhere" in the menu.
+  stored in NVS. The counter is increased by "Log out everywhere" on the System page (Password card).
 * **Change the password**: System, card "Password": the current password, the new one
   twice (8 to 64 characters). `POST /api/password` (`current`, `password`, the login of the
   session): a wrong current password waits 1 s and answers 400 (not 401, which would send the web
@@ -119,7 +119,7 @@ other side is not told.
   key, and either way every old token fails the check. The counter is kept out of the password
   hash itself, because the device stores only the hash: increasing a counter inside it would
   need the plain password. So "log out everywhere" works without asking for the password.
-* Failed logins are slowed down (1 s). Log out is in the menu.
+* Failed logins are slowed down (1 s). Log out is at the bottom of the menu.
 * PBKDF2-HMAC-SHA256 with 1000 iterations: 10000 took 5.3 s on the ESP32 (PSA crypto) and
   blocked the web server for every login; 1000 take about 0.4 s.
 

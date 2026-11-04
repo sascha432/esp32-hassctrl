@@ -191,34 +191,85 @@ const wifiIcon = '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentC
 
 // -------------------------------------------------------------------------------------- frame
 
-// the pages of a board option sit between `// #if CONFIG_*` markers (tools/build_web.py)
-const menuPages = [
-  ["status", "Status"], ["ha", "Home Assistant"], ["wifi", "Wi-Fi"], ["hotspot", "Hotspot"],
-  // #if CONFIG_HC_BOARD_HAS_CAMERA
-  ["camera", "Camera"],
-  // #endif
-  // #if CONFIG_HC_UI_PLAYER
-  ["player", "Player"],
-  // #endif
-  ["dashboard", "Dashboard"], ["time", "Time"], ["logs", "Logs"],
-  // #if CONFIG_HC_SDCARD
-  ["sd", "SD card"],
-  // #endif
-  ["system", "System"],
-];
+// Icons of the menu, 24 x 24 strokes in the text's color.
+const navIcons = {
+  dashboard: '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>',
+  ha: '<path d="M3 11l9-8 9 8M5 9.5V21h14V9.5"/><circle cx="12" cy="14" r="2"/><path d="M12 16v5"/>',
+  player: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/>',
+  camera: '<path d="M3 8h3l2-3h8l2 3h3v11H3z"/><circle cx="12" cy="13" r="3.5"/>',
+  wifi: '<path d="M2 9a16 16 0 0 1 20 0M5.5 12.5a11 11 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1"/>',
+  hotspot: '<circle cx="12" cy="12" r="2"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
+  status: '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  time: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  logs: '<path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/>',
+  sd: '<path d="M7 3h8l4 4v14H7zM10 3v4M13 3v4"/>',
+  system: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/>',
+  more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
+  light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/>',
+  dark: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  logout: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+};
+const navIcon = (name) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${navIcons[name]}</svg>`;
 
-function frame(loggedIn, step) {
-  $("#menu-button").hidden = !loggedIn;
-  $("#icon-wifi").hidden = !loggedIn;
-  $("#icon-ha").hidden = !loggedIn;
-  $("#step").hidden = !step;
-  $("#step").textContent = step || "";
-  if (!loggedIn) $("#menu").hidden = true;
-  $("#menu").classList.toggle("d-none", !loggedIn);
+// The menu in groups (web-design.md section 3): [route, menu text, rail text, the feature it needs].
+// A feature is a key of /api/status: "hass" (the main firmware's pages, not in the recovery app), "camera", "player", "sd".
+// From 800 px a rail of icons with the rail text, the groups apart by a line; on a phone the tab
+// bar below (tabPages and More) and More's sheet with every page. An entry whose feature the device
+// lacks is hidden, a group without a shown entry too. The pages of a board option sit between
+// `// #if CONFIG_*` markers (tools/build_web.py).
+const menuGroups = [
+  ["Home", [
+    ["dashboard", "Dashboard", "Dashboard", "hass"], ["ha", "Home Assistant", "HA", "hass"],
+    // #if CONFIG_HC_UI_PLAYER
+    ["player", "Player", "Player", "player"],
+    // #endif
+    // #if CONFIG_HC_BOARD_HAS_CAMERA
+    ["camera", "Camera", "Camera", "camera"],
+    // #endif
+  ]],
+  ["Network", [["wifi", "Wi-Fi", "Wi-Fi"], ["hotspot", "Hotspot", "Hotspot"]]],
+  ["Device", [
+    ["status", "Status", "Status"], ["time", "Time", "Time", "hass"], ["logs", "Logs", "Logs"],
+    // #if CONFIG_HC_SDCARD
+    ["sd", "SD card", "SD card", "sd"],
+    // #endif
+    ["system", "System", "System"],
+  ]],
+];
+const tabPages = ["status", "dashboard", "ha", "wifi"];
+
+// a menu entry: the icon, the rail's short text, the sheet's full one; a dot for a state (Wi-Fi)
+const navItem = ([page, title, short, feature]) => `<a class="app-nav-item" href="#/${page}" data-page="${page}"
+  ${feature ? `data-feature="${feature}" hidden` : ""} title="${esc(title)}">${navIcon(page)}<span class="app-nav-dot" hidden></span>
+  <span class="app-nav-short">${esc(short)}</span><span class="app-nav-long">${esc(title)}</span></a>`;
+
+// shows the entries of the features the device has (a key of /api/status that is there and not false)
+function showFeatures(s) {
+  for (const link of document.querySelectorAll("[data-feature]")) link.hidden = !s[link.dataset.feature];
+  for (const group of document.querySelectorAll("#menu-pages [data-group]")) {
+    group.hidden = ![...group.querySelectorAll("a")].some((link) => !link.hidden);
+  }
 }
 
-function closeMenuOnPhone() {
-  if (!matchMedia("(min-width: 800px)").matches) $("#menu").hidden = true;
+// the sheet of every page on a phone (More); from 800 px the rail is always there. More is the
+// active tab while the sheet is open and on a page that has no tab of its own.
+function openSheet(open) {
+  $("#menu").hidden = !open;
+  const page = location.hash.replace(/^#\/?/, "") || "status";
+  $("#tab-more").classList.toggle("active", open || !tabPages.includes(page));
+}
+
+function frame(loggedIn, step) {
+  $("#icon-wifi").hidden = !loggedIn;
+  $("#icon-ha").hidden = !loggedIn;
+  $("#tabbar").hidden = !loggedIn;
+  $("#step").hidden = !step;
+  $("#step").textContent = step || "";
+  if (!loggedIn) openSheet(false);
+  $("#menu").classList.toggle("d-none", !loggedIn);
+  document.body.classList.toggle("app-logged-in", loggedIn);
 }
 
 async function updateHeader() {
@@ -228,20 +279,17 @@ async function updateHeader() {
 // the device name, the menu entries of the board's options and the state icons, from /api/status
 function showHeader(s) {
   $("#device-name").textContent = s.device.name;
-  // only a board with a camera has the page (and the recovery app's status says no camera)
-  const camera = $('#menu-pages a[data-page="camera"]');
-  if (camera) camera.hidden = !s.camera;
-  // only a firmware with the SD card (CONFIG_HC_SDCARD) reports it
-  const sd = $('#menu-pages a[data-page="sd"]');
-  if (sd) sd.hidden = !s.sd;
-  // the recovery app has no player
-  const player = $('#menu-pages a[data-page="player"]');
-  if (player) player.hidden = !s.player;
+  showFeatures(s);
   document.title = s.device.name;
   const icon = $("#icon-wifi");
   icon.innerHTML = wifiIcon;
   icon.className = "state-icon " + (s.wifi.state === "connected" ? "ok" : s.wifi.error ? "error" : "warn");
   icon.title = s.wifi.state === "connected" ? `Wi-Fi: ${s.wifi.ssid}, ${s.wifi.rssi} dBm` : `Wi-Fi: ${s.wifi.error || s.wifi.state}`;
+  // the same state as a dot on the Wi-Fi entries of the rail, the sheet and the tab bar
+  for (const dot of document.querySelectorAll('[data-page="wifi"] .app-nav-dot')) {
+    dot.hidden = false;
+    dot.className = `app-nav-dot ${icon.className.split(" ")[1]}`;
+  }
   const ha = $("#icon-ha");
   if (s.hass && s.hass.state !== "not_set_up") {
     const [text] = hassStates[s.hass.state] || [s.hass.state];
@@ -289,9 +337,10 @@ async function route() {
   if (!session.logged_in) return loginPage(page);
   if (name === "setup-done") return setupDone(page);
   frame(true);
-  for (const link of document.querySelectorAll("#menu-pages a")) {
+  for (const link of document.querySelectorAll("#menu-pages a, #tabbar a")) {
     link.classList.toggle("active", link.dataset.page === name);
   }
+  openSheet(false);
   updateHeader().catch(() => {});
   await (views[name] || views.status)(page);
 }
@@ -1465,7 +1514,11 @@ const views = {
         <input id="pw-current" type="password" class="form-control mb-2" placeholder="Current password" autocomplete="current-password">
         <input id="pw-new" type="password" class="form-control mb-2" placeholder="New password, 8 to 64 characters" autocomplete="new-password">
         <input id="pw-repeat" type="password" class="form-control mb-2" placeholder="New password again" autocomplete="new-password">
-        <div class="d-flex justify-content-end"><button id="pw-go" class="btn btn-primary" type="button">Change password</button></div>`) : "") +
+        <div class="d-flex justify-content-end"><button id="pw-go" class="btn btn-primary" type="button">Change password</button></div>
+        <div class="d-flex justify-content-between align-items-center gap-2 border-top pt-3 mt-3">
+          <span class="small text-body-secondary">Ends the session of every browser, this one too.</span>
+          <button id="logout-all" class="btn btn-outline-secondary text-nowrap" type="button">Log out everywhere</button>
+        </div>`) : "") +
       card("Update", `
         <label class="form-label" for="fw-file">Firmware image</label>
         <input id="fw-file" type="file" class="form-control mb-2" accept=".bin">
@@ -1494,6 +1547,11 @@ const views = {
       $("#backup-import").onclick = (e) => busy(e.target, () => importBackup(false));
     }
     if ($("#pw-go")) {
+      $("#logout-all").onclick = (e) => busy(e.target, async () => {
+        if (!confirm("Log out on every browser and device?")) return;
+        await api("/api/logout-all", {}).catch(() => {});
+        go("login");
+      });
       $("#pw-go").onclick = (e) => busy(e.target, async () => {
         const current = $("#pw-current").value, password = $("#pw-new").value;
         if (password.length < 8 || password.length > 64) throw new Error("the new password needs 8 to 64 characters");
@@ -1666,30 +1724,34 @@ async function runUpdate(target) {
 
 // --------------------------------------------------------------------------------------- start
 
-$("#menu-pages").innerHTML = menuPages.map(([page, title]) =>
-  `<a class="list-group-item list-group-item-action" href="#/${page}" data-page="${page}">${esc(title)}</a>`).join("");
-$("#menu-pages").addEventListener("click", closeMenuOnPhone);
-$("#menu-button").onclick = () => ($("#menu").hidden = !$("#menu").hidden);
+// the entries of a feature stay hidden until /api/status says the device has it (no flicker)
+$("#menu-pages").innerHTML = menuGroups.map(([group, pages]) => `<div data-group="${esc(group)}" ${pages.some((p) => p[3]) ? "hidden" : ""}>
+  <div class="app-menu-heading">${esc(group)}</div>${pages.map(navItem).join("")}</div>`).join("");
+const allPages = menuGroups.flatMap(([, pages]) => pages);
+$("#tabbar").innerHTML = tabPages.map((page) => navItem(allPages.find((p) => p[0] === page))).join("") +
+  `<button id="tab-more" class="app-nav-item" type="button" aria-label="More pages">${navIcon("more")}<span class="app-nav-short">More</span></button>`;
+$("#tab-more").onclick = () => openSheet($("#menu").hidden);
 
-const theme = $("#theme");
-theme.value = localStorage.getItem("theme") || "auto";
+// the appearance: one button that goes Auto, Light, Dark
+const themes = { auto: "Auto", light: "Light", dark: "Dark" };
+let theme = localStorage.getItem("theme") || "auto";
 function applyTheme() {
-  const dark = theme.value === "dark" || (theme.value === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  const dark = theme === "dark" || (theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.setAttribute("data-bs-theme", dark ? "dark" : "light");
+  $("#theme").innerHTML = `${navIcon(theme)}<span class="app-nav-short">${themes[theme]}</span><span class="app-nav-long">Appearance: ${themes[theme]}</span>`;
+  $("#theme").title = `Appearance: ${themes[theme]} (click for the next)`;
 }
-theme.onchange = () => {
-  localStorage.setItem("theme", theme.value);
+$("#theme").onclick = () => {
+  theme = { auto: "light", light: "dark", dark: "auto" }[theme] || "auto";
+  localStorage.setItem("theme", theme);
   applyTheme();
 };
+applyTheme();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 
+$("#logout").innerHTML = `${navIcon("logout")}<span class="app-nav-short">Log out</span><span class="app-nav-long">Log out</span>`;
 $("#logout").onclick = async () => {
   await api("/api/logout", {}).catch(() => {});
-  go("login");
-};
-$("#logout-all").onclick = async () => {
-  if (!confirm("Log out on every browser and device?")) return;
-  await api("/api/logout-all", {}).catch(() => {});
   go("login");
 };
 

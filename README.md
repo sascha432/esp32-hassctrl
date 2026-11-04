@@ -82,6 +82,7 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   editor (preview per orientation, entity picker, YAML import with includes and export), logs with
   a debug mode and a width to drag, SD card (files, upload, download from a URL, format behind the password), system (firmware version and build time, backup export and import, password change, updates, restart, factory reset). Plain HTTP
   with a login.
+- Menu as an icon rail from 800 px, on a phone a tab bar (Status, Dashboard, HA, Wi-Fi, More); pages a board lacks are hidden.
 - Pages update live over one WebSocket per tab; downloads and uploads do not hold the other pages.
 
 **Updates and recovery**
