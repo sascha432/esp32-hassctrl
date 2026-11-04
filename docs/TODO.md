@@ -1590,6 +1590,19 @@ double tap starts or stops.
       (Home Assistant has no action that changes the default). Not kept on the device either (your
       choice, 2026-10-17).
 
+- [x] **Fixes ported from esp32-pixeled** (2026-11-03, JC3248W535), each reproduced by a test first.
+      A full work queue of the web server (6 slots; a trickled request holds the server's task while
+      the live timer fills it, `full_queue_test` in `tools/test_web.py`): a logout's close of its live
+      socket was lost (3 of 3 open, ESP-IDF logs "ctrl socket queue full"); now tried again each tick.
+      A long response without a task completed on the server's task and hung it for good (test build
+      with a files.zip stack that cannot fit: 503, then no answer while ping and console worked); now
+      the stack is checked first and the answer goes out on the server's task (10 of 10). Web UI
+      (`tools/test_web_ui.py`, headless Edge): a page left while loading took the next page's live
+      updates, an overtaken route drew its page over the newer one, a left dashboard mounted its
+      editor; each failed before, 20 of 20 three times after. Modem sleep stamp clamped (host test
+      over 60 days fails without it). `build_fs.py -p` reads a firmware-formatted partition (host
+      images). `tools/test_web.py` 102 of 102 on the final build.
+
 ## History buttons (2026-10-15)
 
 Your requests: a switch's history on a double tap, a history button in the light and the climate

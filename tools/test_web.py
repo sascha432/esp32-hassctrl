@@ -283,6 +283,93 @@ def live_test(device: str, cookie: str, user: str, password: str) -> None:
     live.close()
 
 
+def full_queue(device: str, cookie: str, live: "LiveSocket", requests: list[tuple[socket.socket, bytes]]) -> bytes:
+    """Sends `requests` on their connections at a moment the server's work queue is full.
+
+    The queue has 6 slots (CONFIG_LWIP_UDP_RECVMBOX_SIZE); a work item keeps its slot while it runs.
+    A body trickled in over 8 s keeps the server's task in one handler (POST /api/log with a bad
+    value: nothing changes) while the live socket's timer queues a tick every second and fills the
+    queue. The server then runs one tick, frees its slot, and reads the sessions in their order: the
+    live frame sent just before (its socket opened earlier, so read earlier) queues a tick and takes
+    that slot, the requests after it find the queue full. Returns the slow request's answer."""
+    slow = socket.create_connection((device, 80), timeout=30)
+    body = b"debug=x"
+    slow.sendall(b"POST /api/log HTTP/1.1\r\nHost: x\r\nCookie: " + cookie.encode()
+                 + b"\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: "
+                 + str(len(body)).encode() + b"\r\n\r\n" + body[:1])
+    for byte in body[1:-1]:
+        time.sleep(1.5)
+        slow.sendall(bytes([byte]))
+    live.send("/api/status")
+    for sock, request in requests:
+        sock.sendall(request)
+    time.sleep(0.5)
+    slow.sendall(body[-1:])
+    answer = read_answer(slow)
+    slow.close()
+    return answer
+
+
+def full_queue_test(device: str, cookie: str, user: str, password: str) -> None:
+    """A logout and a long response while the server's work queue is full (full_queue)."""
+    # the logout closes its live socket: the close is queued work, tried again until it fits
+    other = Client(device)
+    other.request("POST", "/api/login", form={"username": user, "password": password, "remember": "0"})
+    victim = LiveSocket(device, other.cookie)
+    victim.send("/api/status")
+    victim.receive(3)
+    taker = LiveSocket(device, cookie)
+    taker.send("/api/status")
+    taker.receive(3)
+    logout = socket.create_connection((device, 80), timeout=30)
+    request = (f"POST /api/logout HTTP/1.1\r\nHost: {device}\r\nCookie: {other.cookie}\r\n"
+               "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 0\r\n\r\n").encode()
+    slow = full_queue(device, cookie, taker, [(logout, request)])
+    check(slow.startswith(b"HTTP/1.1 400"), "the trickled request is answered (400, nothing changed)",
+          slow.split(b"\r\n", 1)[0].decode(errors="replace"))
+    answer = read_answer(logout)
+    logout.close()
+    check(answer.startswith(b"HTTP/1.1 200"), "a logout with a full queue is answered",
+          answer.split(b"\r\n", 1)[0].decode(errors="replace"))
+    closed = False
+    deadline = time.time() + 6
+    try:
+        while time.time() < deadline:
+            victim.receive(1, heartbeat=True)
+    except (ConnectionError, OSError):
+        closed = True
+    check(closed, "a logout with a full queue still closes its live socket (within 6 s)")
+    victim.close()
+    taker.close()
+
+    # A long response that starts with a full queue (on a task of its own, or on the server's task
+    # when no task can be made): the server keeps answering. The sessions are taken anew, so the
+    # live socket's slot comes before the download's (a session takes the first free slot).
+    time.sleep(1)
+    taker = LiveSocket(device, cookie)
+    taker.send("/api/status")
+    taker.receive(3)
+    zip_conn = socket.create_connection((device, 80), timeout=60)
+    request = (f"GET /api/fs/files.zip HTTP/1.1\r\nHost: {device}\r\nCookie: {cookie}\r\n"
+               "Accept-Encoding: identity\r\n\r\n").encode()
+    full_queue(device, cookie, taker, [(zip_conn, request)])
+    # sent in chunks: the standard library's reader takes them apart
+    try:
+        response = http.client.HTTPResponse(zip_conn)
+        response.begin()
+        status, body = response.status, response.read()
+    except OSError as e:
+        status, body = type(e).__name__, b""
+    zip_conn.close()
+    taker.close()
+    check(status == 200 and body[:2] == b"PK", "files.zip with a full queue is sent", f"{status}, {len(body)} bytes")
+    try:
+        status, _, _ = Client(device).request("GET", "/api/session", timeout=10)
+    except OSError as e:
+        status = type(e).__name__
+    check(status == 200, "the server answers after files.zip with a full queue", str(status))
+
+
 def long_response_test(c: Client, device: str, sd_mounted: bool) -> None:
     """A long download runs on a task of its own (hc/webserver/async.hpp): the API answers meanwhile.
     The answer shares the Wi-Fi with the download, so it is not instant (on the JC3248W535 the bench's
@@ -546,6 +633,7 @@ def main() -> None:
     idle_close_test(args.device)
     if s.get("live"):
         live_test(args.device, c.cookie, args.user, password)
+        full_queue_test(args.device, c.cookie, args.user, password)
     else:
         print("  (no live socket, the recovery app: the live test skipped)")
 

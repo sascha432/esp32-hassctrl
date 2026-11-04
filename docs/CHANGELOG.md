@@ -7,6 +7,23 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-03
+
+Fixed
+
+* Web server no longer hangs when a long response (`files.zip`, SD, camera) gets no task while
+  its work queue is full; the stack is checked first, else it is sent on the server's task.
+* A logout with the server's work queue full closes its live socket all the same (it stayed open).
+* Web UI: a page left while it still loads no longer draws over the next page or takes its live
+  updates (the next page showed no changes, or the dashboard editor appeared over it).
+* Modem sleep still works after 24.8 days without any activity (the tick difference turned negative).
+* `tools/build_fs.py -p` reads a file system the firmware formatted itself (it kept nothing).
+
+Added
+
+* `tools/test_web_ui.py`: the web app in headless Edge (every page, the races above);
+  `tools/test_web.py` checks a logout and `files.zip` with the server's work queue full.
+
 ### 2026-11-02
 
 Changed

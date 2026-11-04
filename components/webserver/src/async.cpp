@@ -61,6 +61,14 @@ bool run_async(httpd_req_t *req, void (*handler)(httpd_req_t *req), AsyncStack s
         g_running--;
         return false;
     }
+    // The stack is checked before the request is handed over: a task that cannot be made after
+    // that leaves the copy to be completed on the server's task, and the completion waits for a
+    // slot in the server's work queue that only the server's task frees (a full one hangs it).
+    const uint32_t caps = stack == AsyncStack::Internal ? MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT : MALLOC_CAP_SPIRAM;
+    if (heap_caps_get_largest_free_block(caps) < stack_size + 1024) {
+        g_running--;
+        return false;
+    }
     auto *job = static_cast<Job *>(std::malloc(sizeof(Job)));
     httpd_req_t *copy = nullptr;
     if (job == nullptr || httpd_req_async_handler_begin(req, &copy) != ESP_OK) {
@@ -72,7 +80,6 @@ bool run_async(httpd_req_t *req, void (*handler)(httpd_req_t *req), AsyncStack s
     if (auto *flag = busy_flag(job->fd)) {
         flag->store(true);
     }
-    const uint32_t caps = stack == AsyncStack::Internal ? MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT : MALLOC_CAP_SPIRAM;
     if (xTaskCreateWithCaps(task, "web_async", stack_size, job, kPriority, nullptr, caps) != pdPASS) {
         // the request's body, if any, belongs to the copy now: the copy answers
         ESP_LOGW(kTag, "no task for %s", copy->uri);

@@ -55,6 +55,8 @@ struct Topic {
 // all zero at first: the table lives in PSRAM's .bss
 struct Client {
     bool used = false;
+    // the close could not be queued (the server's work queue was full): tried again at the next tick
+    bool closing = false;
     int fd = 0;
     // into g_topics, -1: none
     int topic = 0;
@@ -119,10 +121,16 @@ void update_web_hold()
     }
 }
 
+// The close is queued work of the server's task; with its queue full the client stays, following
+// nothing, and the next tick tries again (tools/test_web.py, full_queue_test).
 void drop(Client &client)
 {
-    httpd_sess_trigger_close(g_server, client.fd);
-    client = Client{};
+    if (httpd_sess_trigger_close(g_server, client.fd) == ESP_OK) {
+        client = Client{};
+    } else {
+        client.closing = true;
+        client.topic = -1;
+    }
     update_web_hold();
 }
 
@@ -147,6 +155,10 @@ void tick(void *)
     memory::Vector<char> buffer;
     for (Client &client : g_clients) {
         if (!client.used) {
+            continue;
+        }
+        if (client.closing) {
+            drop(client);
             continue;
         }
         char user[auth::kUsernameSize];
@@ -218,7 +230,8 @@ esp_err_t handle_live(httpd_req_t *req)
         return ESP_FAIL;
     }
     Client *client = find(fd);
-    if (client == nullptr || frame.type != HTTPD_WS_TYPE_TEXT) {
+    // a failed handler closes the session: the way out for one whose close could not be queued
+    if (client == nullptr || client->closing || frame.type != HTTPD_WS_TYPE_TEXT) {
         return ESP_FAIL;
     }
     client->topic = -1;

@@ -63,9 +63,9 @@ async function busy(button, action) {
 }
 
 // The live socket (docs/ui/web/web-app.md, "Live updates"): one WebSocket for the app instead of
-// pages that ask every few seconds. live(path, onData) follows one GET: the device sends its answer
-// at once and again whenever it changes, `onData` gets it. A route change stops it (liveStop), a
-// hidden tab pauses it; a lost socket comes back by itself after 1, 2, 4 ... 10 s and asks again.
+// pages that ask every few seconds. A page's live(path, onData) (newPage) follows one GET: the device sends its answer at once and again whenever it changes, `onData`
+// gets it. A route change stops it (liveStop), a hidden tab pauses it; a lost socket comes back by
+// itself after 1, 2, 4 ... 10 s and asks again.
 // The recovery app has no live socket (`"live": false` in /api/status): when one does not open
 // and the device says so, live() asks with the GET every 3 s instead (a tick skipped while the
 // last waits or the tab is hidden). A device that restarts says nothing: the socket keeps trying.
@@ -156,6 +156,22 @@ document.addEventListener("visibilitychange", () => {
 function render(html) {
   $("#page").innerHTML = html;
   window.scrollTo(0, 0);
+}
+
+// Every route() is a page of its own; the view draws and follows through its page's handle:
+// `page.render(html)`, `page.live(path, onData)`. Both do nothing once the next route started: a
+// route or view left while it still waited (the session, its data) would otherwise draw over the
+// next page or take the live socket from it (tools/test_web_ui.py).
+let pageEpoch = 0;
+
+function newPage() {
+  const epoch = ++pageEpoch;
+  const current = () => epoch === pageEpoch;
+  return {
+    current,
+    render: (html) => { if (current()) render(html); },
+    live: (path, onData) => { if (current()) live(path, onData); },
+  };
 }
 
 const duration = (s) =>
@@ -257,6 +273,7 @@ async function route() {
     }
     window.hcEditor.unmount();
   }
+  const page = newPage();
   liveStop();
   // the dashboard editor uses the whole width, every other page one column
   $("#page").classList.toggle("app-wide", name === "dashboard");
@@ -264,25 +281,26 @@ async function route() {
   try {
     session = await api("/api/session");
   } catch (e) {
-    render(`<div class="alert alert-warning">The device does not answer. ${esc(e.message)}</div>`);
+    page.render(`<div class="alert alert-warning">The device does not answer. ${esc(e.message)}</div>`);
     return;
   }
-  if (session.setup) return setupRoute(name);
-  if (!session.logged_in) return loginPage();
-  if (name === "setup-done") return setupDone();
+  if (!page.current()) return;
+  if (session.setup) return setupRoute(name, page);
+  if (!session.logged_in) return loginPage(page);
+  if (name === "setup-done") return setupDone(page);
   frame(true);
   for (const link of document.querySelectorAll("#menu-pages a")) {
     link.classList.toggle("active", link.dataset.page === name);
   }
   updateHeader().catch(() => {});
-  await (views[name] || views.status)();
+  await (views[name] || views.status)(page);
 }
 
 // -------------------------------------------------------------------------------------- setup
 
-function setupRoute(name) {
+function setupRoute(name, page) {
   frame(false, name === "setup-login" ? "2 / 3" : "1 / 3");
-  return name === "setup-login" ? setupLogin() : setupWifi();
+  return name === "setup-login" ? setupLogin(page) : setupWifi(page);
 }
 
 function networkPicker(scan, saved) {
@@ -336,8 +354,8 @@ async function scanNetworks() {
   return api("/api/wifi");
 }
 
-async function setupWifi() {
-  render(`<h1>Choose your Wi-Fi</h1><div class="card"><div class="card-body" id="setup-wifi">
+async function setupWifi(page) {
+  page.render(`<h1>Choose your Wi-Fi</h1><div class="card"><div class="card-body" id="setup-wifi">
     <p class="text-body-secondary">Searching for networks ...</p></div></div>`);
   let w = await api("/api/wifi");
   if (w.scan.length === 0) w = await scanNetworks();
@@ -364,8 +382,8 @@ async function setupWifi() {
   draw();
 }
 
-function setupLogin() {
-  render(`<h1>Web UI login</h1><div class="card"><div class="card-body">
+function setupLogin(page) {
+  page.render(`<h1>Web UI login</h1><div class="card"><div class="card-body">
     <p class="text-body-secondary">The login protects these pages. It is kept on the device.</p>
     <label class="form-label" for="new-user">Username</label>
     <input id="new-user" class="form-control mb-3" value="admin" autocomplete="username" maxlength="32">
@@ -384,9 +402,9 @@ function setupLogin() {
   });
 }
 
-async function setupDone() {
+async function setupDone(page) {
   frame(false, "3 / 3");
-  render(`<h1>Done</h1><div class="card"><div class="card-body" id="done">Checking the Wi-Fi ...</div></div>`);
+  page.render(`<h1>Done</h1><div class="card"><div class="card-body" id="done">Checking the Wi-Fi ...</div></div>`);
   const draw = (s) => {
     const w = s.wifi;
     const box = $("#done");
@@ -410,14 +428,14 @@ async function setupDone() {
     });
   };
   draw(await api("/api/status"));
-  live("/api/status", draw);
+  page.live("/api/status", draw);
 }
 
 // -------------------------------------------------------------------------------------- login
 
-function loginPage() {
+function loginPage(page) {
   frame(false);
-  render(`<h1>Log in</h1><div class="card"><div class="card-body"><form id="login-form">
+  page.render(`<h1>Log in</h1><div class="card"><div class="card-body"><form id="login-form">
     <label class="form-label" for="user">Username</label>
     <input id="user" class="form-control mb-3" autocomplete="username" required>
     <label class="form-label" for="password">Password</label>
@@ -558,8 +576,8 @@ function fingerprint(hex) {
 }
 
 const views = {
-  async status() {
-    render(`<h1>Status</h1><div id="status-cards">Loading ...</div>`);
+  async status(page) {
+    page.render(`<h1>Status</h1><div id="status-cards">Loading ...</div>`);
     const draw = (s) => {
       showHeader(s);
       const w = s.wifi, h = s.hotspot, d = s.device;
@@ -586,11 +604,11 @@ const views = {
         ]));
     };
     draw(await api("/api/status"));
-    live("/api/status", draw);
+    page.live("/api/status", draw);
   },
 
-  async wifi() {
-    render(`<h1>Wi-Fi</h1><div id="wifi-saved">Loading ...</div>
+  async wifi(page) {
+    page.render(`<h1>Wi-Fi</h1><div id="wifi-saved">Loading ...</div>
       <div class="card"><div class="card-body"><h2 class="h6 card-title d-flex">Add a network
         <button id="rescan" class="btn btn-sm btn-outline-secondary ms-auto" type="button">Scan</button></h2>
         <div id="wifi-add"></div></div></div>`);
@@ -683,7 +701,7 @@ const views = {
     // A push draws what changed. Not the list while a password is typed into it, not the picker
     // while it has the focus or a password: a choice half made stays.
     let shown = JSON.stringify(w);
-    live("/api/wifi", (data) => {
+    page.live("/api/wifi", (data) => {
       const before = JSON.parse(shown);
       shown = JSON.stringify(data);
       w = data;
@@ -703,8 +721,8 @@ const views = {
     });
   },
 
-  async hotspot() {
-    render(`<h1>Hotspot</h1><div id="hotspot">Loading ...</div>`);
+  async hotspot(page) {
+    page.render(`<h1>Hotspot</h1><div id="hotspot">Loading ...</div>`);
     const draw = (h) => {
       const box = $("#hotspot");
       if (!box || box.contains(document.activeElement)) return;
@@ -731,7 +749,7 @@ const views = {
     // a push that came while a control had the focus is drawn when the focus leaves
     let latest = await api("/api/hotspot");
     draw(latest);
-    live("/api/hotspot", (h) => draw((latest = h)));
+    page.live("/api/hotspot", (h) => draw((latest = h)));
     $("#hotspot").addEventListener("focusout", (event) => {
       if (!$("#hotspot").contains(event.relatedTarget)) setTimeout(() => draw(latest));
     });
@@ -740,14 +758,14 @@ const views = {
   // #if CONFIG_HC_BOARD_HAS_CAMERA
   // The camera's web stream (docs/ui/web/web-app.md section 4). The picture itself (exposure, mirror, flip,
   // mains frequency) is set on the device, next to its preview.
-  async camera() {
-    render(`<h1>Camera</h1><div id="camera">Loading ...</div>`);
+  async camera(page) {
+    page.render(`<h1>Camera</h1><div id="camera">Loading ...</div>`);
     let c;
     try {
       c = await api("/api/camera");
     } catch (e) {
       if (e.status !== 404) throw e;
-      render(`<h1>Camera</h1>${card("Camera", '<p class="text-body-secondary mb-0">This device has no camera.</p>')}`);
+      page.render(`<h1>Camera</h1>${card("Camera", '<p class="text-body-secondary mb-0">This device has no camera.</p>')}`);
       return;
     }
     const base = `${location.origin}/api/camera`;
@@ -821,14 +839,14 @@ const views = {
   // #if CONFIG_HC_UI_PLAYER
   // The media player of the device, as its Player page on the screen shows it (docs/ui/web/web-app.md
   // section 4): what plays, the buttons, the volume and what comes next. The music starts on the device.
-  async player() {
-    render(`<h1>Player</h1><div id="player">Loading ...</div>`);
+  async player(page) {
+    page.render(`<h1>Player</h1><div id="player">Loading ...</div>`);
     let p;
     try {
       p = await api("/api/player");
     } catch (e) {
       if (e.status !== 404) throw e;
-      render(`<h1>Player</h1>${card("Player", '<p class="text-body-secondary mb-0">Not in the recovery app. Start the firmware (System).</p>')}`);
+      page.render(`<h1>Player</h1>${card("Player", '<p class="text-body-secondary mb-0">Not in the recovery app. Start the firmware (System).</p>')}`);
       return;
     }
     const svg = (path) => `<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="${path}"/></svg>`;
@@ -947,19 +965,19 @@ const views = {
       }
     };
     draw();
-    live("/api/player", (state) => { p = state; draw(); });
+    page.live("/api/player", (state) => { p = state; draw(); });
   },
   // #endif
 
   // the clock: time zone and SNTP servers (docs/ui/web/web-app.md section 4)
-  async time() {
-    render(`<h1>Time</h1><div id="time-status">Loading ...</div><div id="time-form"></div>`);
+  async time(page) {
+    page.render(`<h1>Time</h1><div id="time-status">Loading ...</div><div id="time-form"></div>`);
     let t, zones;
     try {
       [t, zones] = await Promise.all([api("/api/time"), api("/api/time/zones")]);
     } catch (e) {
       if (e.status !== 404) throw e;
-      render(`<h1>Time</h1>${card("Time", '<p class="text-body-secondary mb-0">Not in the recovery app. Start the firmware (System).</p>')}`);
+      page.render(`<h1>Time</h1>${card("Time", '<p class="text-body-secondary mb-0">Not in the recovery app. Start the firmware (System).</p>')}`);
       return;
     }
     const drawStatus = () => {
@@ -1024,17 +1042,17 @@ const views = {
         toast("saved", "success");
       });
     };
-    live("/api/time", (state) => { t = state; drawStatus(); });
+    page.live("/api/time", (state) => { t = state; drawStatus(); });
   },
 
-  async ha() {
-    render(`<h1>Home Assistant</h1><div id="ha-status">Loading ...</div><div id="ha-form"></div>`);
+  async ha(page) {
+    page.render(`<h1>Home Assistant</h1><div id="ha-status">Loading ...</div><div id="ha-form"></div>`);
     let h;
     try {
       h = await api("/api/hass");
     } catch (e) {
       if (e.status !== 404) throw e;
-      render(`<h1>Home Assistant</h1>${card("Home Assistant", '<p class="text-body-secondary mb-0">The recovery app has no Home Assistant connection. Start the firmware (System).</p>')}`);
+      page.render(`<h1>Home Assistant</h1>${card("Home Assistant", '<p class="text-body-secondary mb-0">The recovery app has no Home Assistant connection. Start the firmware (System).</p>')}`);
       return;
     }
     // https with a self-signed certificate: the user compares its fingerprint and trusts it
@@ -1130,19 +1148,22 @@ const views = {
     if (remove) remove.onclick = (e) => busy(e.target, async () => {
       if (!confirm("Remove the Home Assistant connection? Address and token are deleted.")) return;
       h = await api("/api/hass", { url: "", token: "" });
-      views.ha();
+      views.ha(page);
     });
     drawStatus();
-    live("/api/hass", (state) => { h = state; drawStatus(); });
+    page.live("/api/hass", (state) => { h = state; drawStatus(); });
   },
-  async dashboard() {
-    if ((await api("/api/update")).app === "recovery") {
-      render(`<h1>Dashboard</h1>${card("Dashboard", '<p class="text-body-secondary mb-0">The recovery app has no dashboard. Start the firmware (System).</p>')}`);
+  async dashboard(page) {
+    const app = (await api("/api/update")).app;
+    // left meanwhile: no editor over the next page
+    if (!page.current()) return;
+    if (app === "recovery") {
+      page.render(`<h1>Dashboard</h1>${card("Dashboard", '<p class="text-body-secondary mb-0">The recovery app has no dashboard. Start the firmware (System).</p>')}`);
       return;
     }
     let tab = "editor";
     try { tab = sessionStorage.getItem("dashboard-tab") || tab; } catch (e) {}
-    render(`<div class="d-flex flex-wrap align-items-center gap-3 mb-3"><h1 class="mb-0">Dashboard</h1>
+    page.render(`<div class="d-flex flex-wrap align-items-center gap-3 mb-3"><h1 class="mb-0">Dashboard</h1>
       <ul class="nav nav-pills">
         <li class="nav-item"><a class="nav-link" href="#/dashboard" data-tab="editor">Editor</a></li>
         <li class="nav-item"><a class="nav-link" href="#/dashboard" data-tab="io">Import &amp; export</a></li>
@@ -1162,8 +1183,8 @@ const views = {
     }
     await show(tab);
   },
-  async logs() {
-    render(`<h1>Logs</h1><div class="card"><div class="card-body">
+  async logs(page) {
+    page.render(`<h1>Logs</h1><div class="card"><div class="card-body">
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
         <span id="log-count" class="small text-body-secondary"></span>
         <select id="log-filter" class="form-select form-select-sm w-auto" aria-label="Show">
@@ -1224,16 +1245,16 @@ const views = {
     };
     // the border right of the box drags the page's width, kept in this browser; a double-click goes
     // back to the 800 px column. The page stays centered: it grows by twice the drag.
-    const page = $("#page"), grip = $("#log-grip");
-    const size = (w) => { page.style.maxWidth = w ? `${Math.max(480, w)}px` : ""; };
+    const column = $("#page"), grip = $("#log-grip");
+    const size = (w) => { column.style.maxWidth = w ? `${Math.max(480, w)}px` : ""; };
     size(Number(localStorage.getItem("logWidth")) || 0);
     grip.onpointerdown = (e) => {
-      const x0 = e.clientX, w0 = page.offsetWidth;
+      const x0 = e.clientX, w0 = column.offsetWidth;
       grip.setPointerCapture(e.pointerId);
       grip.onpointermove = (m) => size(w0 + 2 * (m.clientX - x0));
       grip.onpointerup = grip.onpointercancel = () => {
         grip.onpointermove = null;
-        localStorage.setItem("logWidth", page.offsetWidth);
+        localStorage.setItem("logWidth", column.offsetWidth);
       };
     };
     grip.ondblclick = () => { size(0); localStorage.removeItem("logWidth"); };
@@ -1263,11 +1284,11 @@ const views = {
   // #if CONFIG_HC_SDCARD
   // The SD card (docs/ui/web/web-app.md section 4, SD card): its files, upload, a download from a
   // URL, mount and format. Only with a card slot (/api/status has "sd").
-  async sd() {
+  async sd(page) {
     let dir = sessionStorage.getItem("sd-dir") || "";
     const join = (name) => (dir ? dir + "/" : "") + name;
     const fileUrl = (path) => "/api/sd/file?path=" + encodeURIComponent(path);
-    render(`<h1>SD card</h1>` +
+    page.render(`<h1>SD card</h1>` +
       card("Card", `<p class="mb-2" id="sd-state">...</p>
         <p class="small text-body-secondary mb-0">The slot has no card detection: put a card in or take it
           out with the device off, it is mounted when the device starts.</p>`) +
@@ -1409,15 +1430,15 @@ const views = {
     const c = await load();
     if (c.state === "mounted") await list();
     else $("#sd-list").innerHTML = '<div class="list-group-item text-body-secondary">no card mounted</div>';
-    live("/api/sd", showState);
+    page.live("/api/sd", showState);
   },
   // #endif
 
-  async system() {
+  async system(page) {
     const [s, u] = await Promise.all([api("/api/status"), api("/api/update")]);
     // the recovery app has no backup (its /api/backup answers 404)
     const recovery = u.app === "recovery";
-    render(`<h1>System</h1>` +
+    page.render(`<h1>System</h1>` +
       card("Device", facts([
         ["Firmware", esc(s.device.firmware)], ["Built", esc(s.device.built)], ["Uptime", duration(s.device.uptime_s)],
         ["Free memory", `${s.device.heap_internal_kb} KB internal, ${s.device.heap_psram_kb} KB PSRAM`],

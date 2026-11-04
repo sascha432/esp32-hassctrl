@@ -1,10 +1,11 @@
-// components/network/src/merge.cpp and selection.cpp: the saved networks after a settings
-// import, and which saved network is chosen.
+// components/network/src/merge.cpp, selection.cpp and idle.cpp: the saved networks after a settings
+// import, which saved network is chosen, and the time without activity for modem sleep.
 
 #include <cstdio>
 #include <cstring>
 
 #include "check.hpp"
+#include "idle.hpp"
 #include "merge.hpp"
 #include "selection.hpp"
 
@@ -154,4 +155,42 @@ TEST(choose_never_takes_a_network_that_needs_its_password)
     REQUIRE(choose(list, 2, seen, 2, Policy::EnteredOrder, 1u << 1, c));
     CHECK(c.index == 1);
     CHECK(!choose(list, 1, seen, 2, Policy::EnteredOrder, 0, c));
+}
+
+TEST(idle_ticks_counts_up_to_the_delay)
+{
+    std::atomic<uint32_t> at{1000};
+    CHECK(idle_ticks(at, 1000, 300000) == 0);
+    CHECK(idle_ticks(at, 61000, 300000) == 60000);
+    CHECK(idle_ticks(at, 301000, 300000) == 300000);
+    CHECK(at.load() == 1000);
+    // a stamp of another task a tick newer than `now`
+    CHECK(idle_ticks(at, 999, 300000) == 0);
+}
+
+// 60 days at 1 kHz without any activity, checked once a second as the network task does: the
+// device stays idle all the time, across 2^31 ticks (24.8 days) and the tick counter's wrap (49.7)
+TEST(idle_ticks_stays_idle_for_60_days_without_activity)
+{
+    const uint32_t delay = 300000;
+    std::atomic<uint32_t> at{0};
+    uint32_t now = 0;
+    bool always_idle = true;
+    for (uint64_t second = 300; second <= 60ull * 24 * 3600; second++) {
+        now = static_cast<uint32_t>(second * 1000);
+        always_idle = always_idle && idle_ticks(at, now, delay) >= delay;
+    }
+    CHECK(always_idle);
+    // an activity after that counts from its stamp again
+    at.store(now);
+    CHECK(idle_ticks(at, now + 5000, delay) == 5000);
+}
+
+// the stamp is not moved over an activity another task wrote: a stamp newer than the delay stays
+TEST(idle_ticks_keeps_a_newer_stamp)
+{
+    std::atomic<uint32_t> at{0xFFFFF000u};
+    // across the counter's wrap: 0x2000 ticks after the stamp
+    CHECK(idle_ticks(at, 0x1000, 300000) == 0x2000);
+    CHECK(at.load() == 0xFFFFF000u);
 }

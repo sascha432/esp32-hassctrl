@@ -116,11 +116,12 @@ Helpers of `app.js`:
 | --- | --- |
 | `api(path, form)` | GET, or POST with an object (form encoded) or a `FormData` (files); JSON answers; a 401 leads to the login; an error answer throws with the device's `error` text |
 | `render(html)` | puts the page into `#page` and scrolls to the top |
+| `page.render(html)`, `page.live(path, onData)` | what a view draws and follows: `route()` gives every view its page (`newPage`), and both do nothing once the next route started, so a view left while it still loads draws nothing over the next page |
 | `card(title, body)` | a Bootstrap card with a small title (`h2.h6`) |
 | `facts(rows)` | a two-column list of names and values (`dl.facts`) |
 | `busy(button, action)` | disables the button while `action` runs; an error becomes a red toast |
 | `toast(text, kind)` | a short message at the bottom center for 4 s (`success`, `danger`, `warning`, `secondary`) |
-| `live(path, onData)` | follows the GET `path` on the live socket (web-app.md section 4.3): `onData` gets the answer whenever it changes; paused while the tab is hidden, stopped on every route change (`liveStop`) |
+| `live(path, onData)` | (views use `page.live`) follows the GET `path` on the live socket (web-app.md section 4.3): `onData` gets the answer whenever it changes; paused while the tab is hidden, stopped on every route change (`liveStop`) |
 | `esc(value)` | escapes a text for HTML |
 | `go(name)` | goes to a page |
 | `loadScript(src)` | loads a script once, for a large page that only some users open (`dashboard.js`) |

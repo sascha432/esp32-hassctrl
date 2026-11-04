@@ -56,6 +56,9 @@ PACKAGES = ("littlefs-python==0.15.0", "rjsmin==1.3.0", "rcssmin==1.3.0")
 # CONFIG_LITTLEFS_OBJ_NAME_LEN and the flash sector size
 NAME_MAX = 64
 BLOCK_SIZE = 4096
+# reading the board's partition: one the firmware formatted has LittleFS's own limit in its
+# superblock (esp_littlefs sets none), and a mount with a smaller one fails (LFS_ERR_INVAL)
+READ_NAME_MAX = 255
 
 
 def fail(message: str) -> None:
@@ -173,7 +176,7 @@ def keep_device_files(port: str, out_dir: Path, root: Path) -> list[str]:
     if device_root.exists():
         shutil.rmtree(device_root)
     result = subprocess.run([str(littlefs_tool()), "extract", str(device_image), str(device_root),
-                             f"--name-max={NAME_MAX}", f"--block-size={BLOCK_SIZE}"],
+                             f"--name-max={READ_NAME_MAX}", f"--block-size={BLOCK_SIZE}"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
         print("build_fs.py: the board's file system could not be read (not formatted?), nothing kept")

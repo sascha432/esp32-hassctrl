@@ -21,6 +21,7 @@
 #include "freertos/task.h"
 #include "mdns.h"
 
+#include "idle.hpp"
 #include "task.hpp"
 
 namespace hc::network::detail {
@@ -262,13 +263,12 @@ void handle(const Msg &msg)
 // (docs/architecture.md section 9.2).
 void update_modem_sleep()
 {
+    static_assert(sizeof(TickType_t) == sizeof(uint32_t));
     const TickType_t delay = pdMS_TO_TICKS(kModemSleepDelayS * 1000);
-    const int32_t since = static_cast<int32_t>(now() - g_activity_at.load());
-    const bool idle = t.awake_holds == 0 && since >= static_cast<int32_t>(delay);
+    const uint32_t since = detail::idle_ticks(g_activity_at, now(), delay);
+    const bool idle = t.awake_holds == 0 && since >= delay;
     t.status.awake_holds = t.awake_holds;
-    t.status.modem_sleep_in_s = t.awake_holds != 0 || idle ? 0
-                                : static_cast<uint32_t>(static_cast<int32_t>(delay) - std::max<int32_t>(since, 0)) *
-                                      portTICK_PERIOD_MS / 1000;
+    t.status.modem_sleep_in_s = t.awake_holds != 0 || idle ? 0 : (delay - since) * portTICK_PERIOD_MS / 1000;
     if (idle == t.modem_sleep) {
         return;
     }

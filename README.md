@@ -279,3 +279,5 @@ The password is asked for, or taken from `HC_PASSWORD`.
 `python tools/test_web.py 192.168.0.206` checks the web server of a running device (login,
 refusals, load, a stalled client); it changes nothing on the device. `python tools/test_dashboard.py
 192.168.0.206` checks the dashboard API; it replaces the dashboard on the device with the sample.
+`python tools/test_web_ui.py 192.168.0.206` checks the web app in headless Edge (every page, pages
+left while they load); it changes nothing either.

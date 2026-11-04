@@ -785,7 +785,9 @@ different major version on the two chips is a mismatch.
   download (`hass::set_sound_coming`), and the end of a hold. So the screen going off starts the
   5 min, and a request in the night wakes the Wi-Fi for the next 5 min. Home Assistant's own
   traffic is no activity: with the screen off its updates are slower, nobody looks. Console
-  `wifi status` (line `modem:`) and `/api/status` (`wifi.modem_sleep`) show the state.
+  `wifi status` (line `modem:`) and `/api/status` (`wifi.modem_sleep`) show the state. The time
+  since the last activity is at most the delay (`idle.cpp`, host-tested): an older stamp is moved
+  up, so the tick difference never turns negative after 24.8 days without activity.
 
 ### 9.3 Storage
 
