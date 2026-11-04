@@ -1,9 +1,11 @@
 #include "hc/touch_input/touch_input.hpp"
 
 #include <atomic>
+#include <cassert>
 #include <cstdio>
 #include <mutex>
 
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -15,8 +17,9 @@ namespace {
 constexpr const char *kTag = "touch";
 // Changes waiting for LVGL: about a second of moving finger.
 constexpr size_t kQueueSize = 96;
-// about 1.5 KB used (JC3248W535, 2026-10-17)
-constexpr uint32_t kStackSize = 2048;
+// 1.6 KB used at most, 2 KB left only 480 bytes (JC3248W535, 2026-11-03; the margin:
+// docs/architecture.md section 4)
+constexpr uint32_t kStackSize = 2816;
 // above the LVGL task (4): it samples while LVGL renders
 constexpr UBaseType_t kPriority = 5;
 constexpr uint8_t kFingers = 2;
@@ -49,7 +52,10 @@ struct State {
     lv_indev_drv_t driver{};
 };
 
-State g;
+// In PSRAM (docs/architecture.md section 11): the sampling task and LVGL's read, no interrupt.
+// Its defaults (Config::sample_ms, the mutex) come from the constructor at startup, which the
+// mutex makes dynamic; start() checks that, because the PSRAM .bss is never loaded from the image.
+EXT_RAM_BSS_ATTR State g;
 std::atomic<bool> g_trace{false};
 
 void push(const Sample &sample)
@@ -211,6 +217,8 @@ lv_indev_t *add(const Config &config)
     if (g.touch != nullptr || config.touch == nullptr) {
         return nullptr;
     }
+    // g lives in the PSRAM .bss, which starts as zeros: its defaults must come from a constructor
+    assert(g.config.sample_ms != 0);
     g.config = config;
     g.touch = config.touch;
     if (xTaskCreate(sample_task, "touch", kStackSize, nullptr, kPriority, nullptr) != pdPASS) {

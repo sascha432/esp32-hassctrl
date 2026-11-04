@@ -15,15 +15,17 @@ constexpr lv_btnmatrix_ctrl_t kPopover = LV_BTNMATRIX_CTRL_POPOVER;
 constexpr lv_btnmatrix_ctrl_t kChecked = LV_BTNMATRIX_CTRL_CHECKED;
 constexpr lv_btnmatrix_ctrl_t kControl = LV_KEYBOARD_CTRL_BTN_FLAGS;
 
-const char *kLower[] = {"1#", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", LV_SYMBOL_BACKSPACE, "\n",
-                        "ABC", "a", "s", "d", "f", "g", "h", "j", "k", "l", LV_SYMBOL_NEW_LINE, "\n",
-                        "_", "-", "z", "x", "c", "v", "b", "n", "m", ".", ",", ":", "\n",
-                        LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""};
+// The maps are constants in flash; LVGL 8 takes them as `const char *map[]` but only reads them
+// (the const_cast in create()).
+const char *const kLower[] = {"1#", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", LV_SYMBOL_BACKSPACE, "\n",
+                              "ABC", "a", "s", "d", "f", "g", "h", "j", "k", "l", LV_SYMBOL_NEW_LINE, "\n",
+                              "_", "-", "z", "x", "c", "v", "b", "n", "m", ".", ",", ":", "\n",
+                              LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""};
 
-const char *kUpper[] = {"1#", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", LV_SYMBOL_BACKSPACE, "\n",
-                        "abc", "A", "S", "D", "F", "G", "H", "J", "K", "L", LV_SYMBOL_NEW_LINE, "\n",
-                        "_", "-", "Z", "X", "C", "V", "B", "N", "M", ".", ",", ":", "\n",
-                        LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""};
+const char *const kUpper[] = {"1#", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", LV_SYMBOL_BACKSPACE, "\n",
+                              "abc", "A", "S", "D", "F", "G", "H", "J", "K", "L", LV_SYMBOL_NEW_LINE, "\n",
+                              "_", "-", "Z", "X", "C", "V", "B", "N", "M", ".", ",", ":", "\n",
+                              LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""};
 
 const lv_btnmatrix_ctrl_t kTextControl[] = {
     kControl | 5, kPopover | 4, kPopover | 4, kPopover | 4, kPopover | 4, kPopover | 4, kPopover | 4,
@@ -36,10 +38,10 @@ const lv_btnmatrix_ctrl_t kTextControl[] = {
     kChecked | 3, 6, kChecked | 2, kControl | 2,
 };
 
-const char *kSpecial[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0", LV_SYMBOL_BACKSPACE, "\n",
-                          "abc", "+", "&", "/", "*", "=", "%", "!", "?", "#", "<", ">", "\n",
-                          "\\", "@", "$", "(", ")", "{", "}", "[", "]", ";", "\"", "'", "\n",
-                          LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""};
+const char *const kSpecial[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0", LV_SYMBOL_BACKSPACE, "\n",
+                                "abc", "+", "&", "/", "*", "=", "%", "!", "?", "#", "<", ">", "\n",
+                                "\\", "@", "$", "(", ")", "{", "}", "[", "]", ";", "\"", "'", "\n",
+                                LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""};
 
 const lv_btnmatrix_ctrl_t kSpecialControl[] = {
     kPopover | 1, kPopover | 1, kPopover | 1, kPopover | 1, kPopover | 1, kPopover | 1, kPopover | 1,
@@ -56,9 +58,9 @@ const lv_btnmatrix_ctrl_t kSpecialControl[] = {
 lv_obj_t *create(lv_obj_t *parent)
 {
     lv_obj_t *kb = lv_keyboard_create(parent);
-    lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_LOWER, kLower, kTextControl);
-    lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_UPPER, kUpper, kTextControl);
-    lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_SPECIAL, kSpecial, kSpecialControl);
+    lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_LOWER, const_cast<const char **>(kLower), kTextControl);
+    lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_UPPER, const_cast<const char **>(kUpper), kTextControl);
+    lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_SPECIAL, const_cast<const char **>(kSpecial), kSpecialControl);
 
     lv_obj_set_style_text_font(kb, &t::font_normal(), LV_PART_ITEMS);
     lv_obj_set_style_bg_color(kb, t::color(t::kBar), 0);

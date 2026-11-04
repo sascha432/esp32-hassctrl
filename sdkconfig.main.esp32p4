@@ -1,0 +1,5 @@
+# Main firmware on the ESP32-P4 (read by ESP-IDF after sdkconfig.main, docs/architecture.md section 2).
+
+# The mDNS task's 4 KB stack in PSRAM: it answers a query now and then and never writes the flash,
+# so it can run with the stack outside the internal RAM (docs/architecture.md section 11).
+CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y

@@ -99,8 +99,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
 **Development**
 
 - A Windows version of the UI with sample states and scripted screenshots, host tests on MSVC for
-  the pure components, a serial console with screenshots and virtual taps, one build script for
-  every board and app.
+  the pure components, a serial console with screenshots, virtual taps and (a build option) the
+  stack use of every task, one build script for every board and app.
 - Board variants: a folder per unit changes the options a board has (pins,
   sensor calibration, config); the board in the repository is the example.
 - A rendering benchmark on a fixed dashboard and sample data, run over the serial console, the

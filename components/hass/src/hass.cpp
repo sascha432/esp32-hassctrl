@@ -1,6 +1,7 @@
 #include "hc/hass/hass.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -9,6 +10,7 @@
 #include <mutex>
 
 #include "cJSON.h"
+#include "esp_attr.h"
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_heap_caps.h"
@@ -187,8 +189,10 @@ struct Connection {
 
 // state shared with other tasks, under g_mutex
 std::mutex g_mutex;
-Status g_status{};
-char g_token[kTokenSize] = {};
+// in PSRAM (docs/architecture.md section 11); the initializers stay {}: that section is zeroed,
+// not loaded
+EXT_RAM_BSS_ATTR Status g_status{};
+EXT_RAM_BSS_ATTR char g_token[kTokenSize] = {};
 // set before start(), read by the task
 SoundPlayer g_sound_player = nullptr;
 void (*g_sound_coming)() = nullptr;
@@ -535,7 +539,10 @@ struct Session {
     MediaState resolve;
 };
 
-Session s;
+// In PSRAM (docs/architecture.md section 11): only the hass task and start() use it. Its defaults
+// (retry_ms, next_id, the kNone indices) come from the constructor at startup, which the deques
+// make dynamic; start() checks that, because the PSRAM .bss is never loaded from the image.
+EXT_RAM_BSS_ATTR Session s;
 
 // the session's view of the motion helper into the status
 void update_motion_status()
@@ -903,7 +910,9 @@ void open_connection()
     // the API's own ping proves that Home Assistant answers, not only its web server
     config.disable_pingpong_discon = true;
     config.ping_interval_sec = 30;
-    // the TLS handshake runs in the client's task
+    // the TLS handshake runs in the client's task. Without it 1.8 KB used at most with Home
+    // Assistant reachable (JC3248W535, 2026-11-03); the client's path when it is not (connect
+    // errors, their logs) is not measured, so the default stays (docs/architecture.md section 4)
     config.task_stack = std::strncmp(s.ws_url, "wss:", 4) == 0 ? 6144 : 4096;
     config.crt_bundle_attach = detail::tls_attach;
     config.user_agent = "hassctrl";
@@ -1589,6 +1598,8 @@ const char *state_name(State state)
 
 esp_err_t start()
 {
+    // s lives in the PSRAM .bss, which starts as zeros: its defaults must come from a constructor
+    assert(s.retry_ms == kRetryMinMs && s.next_id == 1);
     {
         std::lock_guard lock(g_mutex);
         g_status.state = State::NotSetUp;
@@ -1602,7 +1613,11 @@ esp_err_t start()
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_LOST_IP, on_ip_event, nullptr), kTag,
                         "ip event");
     // the template of a page is built and its results are decoded on it
-    ESP_RETURN_ON_FALSE(xTaskCreate(task, "hass", 6144, nullptr, 4, nullptr) == pdPASS, ESP_ERR_NO_MEM, kTag, "task");
+    // 3 KB used at most, with histories, forecasts and the media library (JC3248W535 and WT32,
+    // 2026-11-03; the margin: docs/architecture.md section 4). The time zone's NVS write, on the
+    // first connection after Home Assistant's zone changed, is not measured: 512 bytes more (the
+    // same write on the network task stayed within its scan's peak).
+    ESP_RETURN_ON_FALSE(xTaskCreate(task, "hass", 4608, nullptr, 4, nullptr) == pdPASS, ESP_ERR_NO_MEM, kTag, "task");
     ESP_LOGI(kTag, "started, %s", g_status.url[0] != 0 ? g_status.url : "no address set");
     return ESP_OK;
 }

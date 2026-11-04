@@ -145,7 +145,8 @@ void task(void *)
 esp_err_t start_captive_dns(uint32_t address)
 {
     g_address = address;
-    return xTaskCreate(task, "captive_dns", 3072, nullptr, 3, nullptr) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
+    // 1.5 KB used at most (JC3248W535, 2026-11-03; the margin: docs/architecture.md section 4)
+    return xTaskCreate(task, "captive_dns", 2560, nullptr, 3, nullptr) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
 } // namespace hc::webserver::detail

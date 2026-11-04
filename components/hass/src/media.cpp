@@ -55,8 +55,15 @@ constexpr int kMaxWorkers = 3;
 constexpr int kMaxWorkers = 1;
 #endif
 // The task's stack: esp_http_client, and with https the TLS handshake (like the WebSocket
-// client's task). The decoder's work buffer is allocated per image.
+// client's task). The decoder's work buffer is allocated per image. Over http 2.6 KB used at
+// most, the deepest a stream that cannot be reached (the client's error logs); images and MJPEG
+// (JC3248W535 and WT32, 2026-11-03; the margin: docs/architecture.md section 4). https not
+// measured, nor the P4's hardware decoder and PPA: there the old size stays.
+#if CONFIG_IDF_TARGET_ESP32P4
 constexpr uint32_t kStackHttp = 6144;
+#else
+constexpr uint32_t kStackHttp = 3840;
+#endif
 constexpr uint32_t kStackHttps = 8192;
 // a stream's frame waits this long for the UI to take the one before
 constexpr int kTakeWaitMs = 100;

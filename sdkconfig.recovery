@@ -4,6 +4,9 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 # The recovery app must start even when the PSRAM fails, otherwise a hardware fault ends in a
 # boot loop with no way to update the device.
 CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+# Static buffers in PSRAM (EXT_RAM_BSS_ATTR, sdkconfig.defaults) would undo that: ESP-IDF aborts the
+# boot when the PSRAM they live in fails. Here they stay in internal RAM.
+# CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY is not set
 
 # Size: the factory partition is 1 MB and the recovery app has Wi-Fi, the web server and the
 # HTTPS download of update images. It downloads over TLS but never serves it (the web UI's HTTPS

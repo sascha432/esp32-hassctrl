@@ -28,6 +28,16 @@ Tested on the TTGO T4 on COM13 on 2026-10-06:
   (`CONFIG_SPIRAM_MEMTEST`).
 - The recovery app starts even when the PSRAM fails (`CONFIG_SPIRAM_IGNORE_NOTFOUND`), so a
   hardware fault does not end in a boot loop.
+- [x] Not true since static buffers moved to PSRAM (found 2026-11-02): with
+      `CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY` (in `sdkconfig.defaults`, so in the recovery app
+      too) ESP-IDF aborts the boot when the PSRAM fails; the JC3248W535's recovery app had 14.5 KB
+      there. Fixed 2026-11-03: the option is off in `sdkconfig.recovery`, the buffers are internal
+      there (static RAM left: S3 220 KB, WT32 131 KB, P4 560 KB). Tested on the JC3248W535 with a
+      PSRAM that fails to start (a test build in quad mode for its octal chip): "continuing without
+      it", 281 KB internal heap, Wi-Fi and the web page work. The same test without the fix:
+      "Failed to init external RAM!", abort, boot loop. WT32 the same way (the PSRAM's chip select on
+      the free GPIO 33): "PSRAM ID read error", continuing without it, 284 KB internal heap, Wi-Fi
+      and the web page work.
 
 Open:
 
@@ -94,6 +104,8 @@ cost 3-5 % per full frame, benchmark 2026-10-25). Dead ends: esp_lvgl_port's
 | full screen | 40-45 ms |
 | free internal RAM after boot | 56 KB (web API) |
 | free internal RAM, HA connected (2026-10-25) | 42 KB, DMA 34 KB (was 10 KB and 2 KB before the RAM changes of that day) |
+| free internal RAM, HA connected (2026-11-02) | 60 KB, DMA 52 KB (45 and 37 KB before the RAM changes of that day) |
+| free internal RAM, HA connected (2026-11-03) | 71 KB, DMA 63 KB, largest block 32 KB (task stacks sized from measurements) |
 
 - [x] Boots from erased flash: recovery app, main firmware in ota_0, web UI image, first setup
       screen (LVGL screenshot 320x480), no errors in the log (2026-10-08).
@@ -2325,3 +2337,37 @@ Not built yet (placeholders in the code or the documentation):
       options with a cost: Wi-Fi `IRAM_OPT`/`RX_IRAM_OPT` off (33 KB, Wi-Fi code from the flash cache
       next to a 16 KB instruction cache), fewer static Wi-Fi TX buffers (1.6 KB each, TX throughput),
       LVGL's task stack in PSRAM (7 KB, hot in the render path), the console's 10 KB stack.
+- [x] **Internal RAM without a cost** (2026-11-02, JC3248W535 with Home Assistant connected): 45 ->
+      60 KB free, DMA 37 -> 52 KB. Static data in PSRAM (`EXT_RAM_BSS_ATTR`, audited per object: only
+      tasks touch it): the network task's state, scan and saved copies and import tables, the hass
+      session, token and status, the touch queue, the Wi-Fi page's scan rows (10.7 KB). mDNS data in
+      PSRAM, its 4 KB task stack too on the S3 and the P4. The keyboard maps in flash (0.5 KB). Not
+      possible: the UI backend table (its sound entries are function pointers of another file) and
+      `kNoState` (strings with a destructor). Measured and dropped: LVGL's fast functions out of IRAM
+      (`LV_ATTRIBUTE_FAST_MEM_USE_IRAM` off): 17 KB more, but redraws 10 to 23 % slower in the
+      benchmark (main 50.5 -> 57.4 ms, dense 67.5 -> 83.3 ms). WT32 (2026-11-03, against a build of the
+      same commit without the changes, Home Assistant connected): data RAM 35 -> 56 KB free, largest
+      block 18 -> 31 KB, together with the task stacks.
+- [x] **Task stacks** (2026-11-02, `mem tasks` on the JC3248W535, trace facility on for the
+      measurement): page swipes, a Wi-Fi scan, the media library, a screenshot, a tone and two TTS
+      sentences, the web UI files and API, the camera folder and an MJPEG stream. Peak use of the
+      internal stacks (bytes): console 4689 of 10240 (the screenshot), httpd 4065 of 8192, LVGL 3681
+      of 7168, Wi-Fi 4593 of 6656, hass 3025 of 6144, media 2497 of 6144 (http), audio 1873 of 5120,
+      websocket 1793 of 4096, network 2673 of 4096, esp_timer 1761 of 4096, tcpip 2001 of 3584,
+      captive DNS 1473 of 3072 (runs with the hotspot off too), sys_evt 1681 of 2816, touch 1553 of
+      2048 (480 left, the tightest). Not measured: HTTPS (media, say, OTA), the backup import and a
+      dashboard save on httpd, the other audio formats, the OTA download (8 KB). Done 2026-11-03 (your
+      go): measured again with Home Assistant's history and forecast, a dashboard and a backup check
+      on httpd, an MP3 from LittleFS, a firmware upload (httpd 3.1 KB); sized as the peak plus 25 %
+      or 1 KB, rounded up to 256 bytes (docs/architecture.md section 4). Console 10240 -> 6144,
+      httpd 8192 -> 6144, LVGL 7168 -> 5120 (benchmark: 1344 bytes left, render times unchanged),
+      hass 6144 -> 4608 (512 beyond the rule: the time zone's NVS write is not measured), media and
+      speech over http 6144 -> 3840 (a stream that cannot be reached is the deepest, 2.6 KB), audio
+      5120 -> 3328 where there is no card, captive DNS 3072 -> 2560, touch 2048 -> 2816. Kept after
+      the review: network 4096 (the P4's esp_hosted calls), the WebSocket client 4096 (its error
+      path), audio 5120 with a card (FATFS reads), and on the P4 media 6144 and LVGL 7168 (its own
+      code paths), none of them measured. Every task keeps 1 KB or more after the load. 60 -> 71 KB
+      free. WT32 with
+      the same load (its own dashboard, no audio): every task 1.2 KB or more left (network 1224,
+      httpd 1328, media 1396 bytes), LVGL 1572 after the benchmark; its orientation and light
+      sensor tasks use 1468 and 744 of 3072.

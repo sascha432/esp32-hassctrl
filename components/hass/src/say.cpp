@@ -33,8 +33,10 @@ constexpr size_t kMaxAnswer = 2048;
 // a cloud engine speaks before tts_get_url answers
 constexpr int kTimeoutMs = 15000;
 constexpr int kMaxRedirects = 3;
-// esp_http_client, and with https the TLS handshake (as media.cpp's tasks)
-constexpr uint32_t kStackHttp = 6144;
+// esp_http_client, and with https the TLS handshake (as media.cpp's tasks). Over http as
+// media.cpp's: 2.3 KB used for a sentence, the client's error path took media 2.6 KB (JC3248W535,
+// 2026-11-03; the margin: docs/architecture.md section 4). https not measured.
+constexpr uint32_t kStackHttp = 3840;
 constexpr uint32_t kStackHttps = 8192;
 
 std::mutex g_mutex;

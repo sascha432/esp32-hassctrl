@@ -402,8 +402,9 @@ esp_err_t start(const Config &config)
     server_config.keep_alive_idle = 30;
     server_config.keep_alive_interval = 5;
     server_config.keep_alive_count = 3;
-    // the dashboard import parses on this stack
-    server_config.stack_size = 8192;
+    // the dashboard and backup imports parse on this stack: 4.9 KB used at most (JC3248W535,
+    // 2026-11-03; the margin: docs/architecture.md section 4)
+    server_config.stack_size = 6144;
     // A browser sends every cookie it holds for the address, also those of a device that had the
     // address before (seen: more than 1 KB, the default, ended in "431 header fields too long").
     // The buffer grows with the request, so the limit costs nothing for normal requests.

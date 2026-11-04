@@ -178,6 +178,16 @@ Two actors own all state. Everything between them is a message.
   A new pointer is a new dashboard (a save in the web UI, an import, an edit on the screen).
 * Other tasks that call the UI (the orientation sensor, the backup import) take the LVGL lock
   (`lvgl_port_lock`).
+* **Task stacks** are sized from a measurement: the most a task used under load (`mem tasks`,
+  section 11) plus 25 % or 1 KB, whichever is more, rounded up to 256 bytes. The load: page
+  swipes, panels with history and forecast, a Wi-Fi scan, the media library, a screenshot, sounds
+  and speech, the camera folder and a stream, the web UI with a dashboard and a backup check and
+  a firmware upload. Measured on the JC3248W535 and the WT32-SC01 (2026-11-03). A path that was
+  not measured keeps its old size: the TLS variants (`wss:`, https images, speech and downloads),
+  the WebSocket client's errors while Home Assistant is down, the card's reads on the audio task,
+  the OTA download, the web server's long responses, and on the P4 everything that runs other
+  code there (the network task's esp_hosted calls, the media task's hardware decoder, the LVGL
+  task's DSI path). Each size says its peak in a comment.
 
 ```cpp
 // ui -> hass (hass.cpp, private to the task)
@@ -1463,9 +1473,23 @@ esp32-hassctrl/
   Assistant connected, 42 KB with 512). On the S3 the IRAM code counts too: IRAM and DRAM are one
   SRAM, every byte of code in IRAM (Wi-Fi's `IRAM_OPT`, LVGL's fast functions) is a byte less of
   heap. Memory that must be internal (DMA, code that runs with the cache off) is asked for with
-  `heap_caps_malloc`. A static scratch buffer that is used now and then (an import, the Wi-Fi
-  page) is `EXT_RAM_BSS_ATTR`, in PSRAM (`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY`). The
-  console command `mem` shows what is free.
+  `heap_caps_malloc`. A static object that only tasks touch, never an interrupt or code that runs
+  with the cache off, is `EXT_RAM_BSS_ATTR`, in PSRAM (`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY`):
+  the scratch buffers of an import and the Wi-Fi page, and the state of the network task, the
+  hass session and the touch queue. In code the PC builds compile too it is `HC_PSRAM_BSS`
+  (`hc/memory/psram_bss.hpp`). The recovery app turns the option off (`sdkconfig.recovery`): with
+  it ESP-IDF aborts the boot when the PSRAM fails, and the recovery app has to start then. That
+  section is zeroed at start, never loaded from the image: an
+  object there starts as zeros or gets its values from a constructor at startup. The network
+  task's `t` and the hass `Session` have non-zero defaults that only their constructors write;
+  their `start()` asserts them, so an edit that lets the compiler fill them in at build time stops
+  the boot instead of starting with zeros. Constant tables are `const` all the way (the keyboard
+  maps are `const char *const`), so they stay in flash. mDNS keeps its data in PSRAM, and on the
+  S3 and the P4 its task stack too (`sdkconfig.main`, `.esp32s3`, `.esp32p4`; the ESP32 cannot run
+  a task on a PSRAM stack). The console command `mem` shows what is free. `mem tasks` lists every
+  task's stack, its peak use and where it lives; it needs `CONFIG_FREERTOS_USE_TRACE_FACILITY=y`
+  (off: it costs internal RAM in every task and queue), set for a measurement in `sdkconfig.main`
+  and removed again.
   A buffer that is only faster in internal RAM (a JPEG decoder's tables and lines) takes it only
   while 32 KB stay free (`hass::detail::hot_alloc`), else PSRAM: Wi-Fi, lwIP and TLS allocate at
   any moment and fail where nobody looks. The same goes for libraries that take internal RAM

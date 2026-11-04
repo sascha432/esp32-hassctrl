@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "hc/memory/psram_bss.hpp"
+
 #include "keyboard.hpp"
 #include "settings.hpp"
 #include "settings_pages.hpp"
@@ -158,9 +160,10 @@ namespace {
 
 constexpr size_t kMaxScanItems = 20;
 int g_scan_built = -1;
-// the rows of the page point into g_scan_items; the refresh compares into its own buffer
-ScanItem g_scan_items[kMaxScanItems];
-ScanItem g_scan_check[kMaxScanItems];
+// the rows of the page point into g_scan_items; the refresh compares into its own buffer. In
+// PSRAM, read once a second while the page is open.
+HC_PSRAM_BSS ScanItem g_scan_items[kMaxScanItems];
+HC_PSRAM_BSS ScanItem g_scan_check[kMaxScanItems];
 
 void scan_refresh()
 {

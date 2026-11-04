@@ -60,10 +60,14 @@ constexpr bool kFiles = false;
 #endif
 
 // The MP3 decoder runs on this task, and so do the file reads: its stack has to be internal RAM
-// (the flash cache is off while LittleFS reads). Decoding used 2.1 KB of it (2026-10-09, `sound`
-// shows what was never used).
-#if CONFIG_HC_AUDIO_MP3
+// (the flash cache is off while LittleFS reads). A file from LittleFS decoded used 2.1 KB of it
+// (2026-11-03, `sound` shows what was never used; the margin: docs/architecture.md section 4).
+// The card's files are read here too (FATFS, the SD driver) and were not measured: with a card
+// the old size stays.
+#if CONFIG_HC_AUDIO_MP3 && CONFIG_HC_SDCARD
 constexpr uint32_t kStackSize = 5 * 1024;
+#elif CONFIG_HC_AUDIO_MP3
+constexpr uint32_t kStackSize = 3328;
 #else
 constexpr uint32_t kStackSize = 3072;
 #endif

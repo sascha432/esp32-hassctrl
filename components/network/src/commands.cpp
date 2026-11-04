@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "esp_attr.h"
 #include "esp_log.h"
 
 #include "merge.hpp"
@@ -136,7 +137,8 @@ void cmd_move(uint8_t index, int8_t delta)
 void cmd_import(const ImportJob &job)
 {
     const bool in_use = t.status.state == StaState::Connected || t.status.state == StaState::Connecting;
-    static Merged merged;
+    // in PSRAM, an import is rare; zeroed by merge() first
+    static EXT_RAM_BSS_ATTR Merged merged;
     merge(t.stored.networks, t.stored.count, in_use ? t.current : -1, job.networks, job.count, merged, *job.result);
     if (!job.apply) {
         return;

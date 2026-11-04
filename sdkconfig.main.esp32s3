@@ -7,3 +7,7 @@
 # bytes, allocations go to PSRAM, as on the ESP32; DMA buffers, task stacks and the code that runs
 # with the cache off ask for internal RAM explicitly.
 CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512
+
+# The mDNS task's 4 KB stack in PSRAM: it answers a query now and then and never writes the flash,
+# so it can run with the stack outside the internal RAM (docs/architecture.md section 11).
+CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y

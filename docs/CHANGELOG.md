@@ -11,6 +11,8 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 Fixed
 
+* Recovery app: starts again when the PSRAM fails (static buffers in PSRAM had made ESP-IDF abort
+  the boot); they stay in internal RAM there.
 * Web server no longer hangs when a long response (`files.zip`, SD, camera) gets no task while
   its work queue is full; the stack is checked first, else it is sent on the server's task.
 * A logout with the server's work queue full closes its live socket all the same (it stayed open).
@@ -29,11 +31,21 @@ Changed
 * Web UI: the menu is an icon rail from 800 px and a tab bar with a More sheet on a phone, Wi-Fi's
   state as a dot; the recovery app hides Home Assistant, Dashboard and Time. "Log out everywhere"
   moved to System.
+* Task stacks sized from measurements with a margin (console, web server, LVGL, hass, camera,
+  speech, audio, captive DNS): 11 KB more internal RAM free on the JC3248W535; the touch task gets
+  0.75 KB more. WT32-SC01 with the changes of 2026-11-02: 35 -> 56 KB free.
 
 ### 2026-11-02
 
+Added
+
+* Console: `mem tasks` lists every task's stack and its peak use (needs
+  `CONFIG_FREERTOS_USE_TRACE_FACILITY`).
+
 Changed
 
+* JC3248W535: 15 KB more internal RAM free with Home Assistant connected (60 KB): static state of
+  the network, hass and touch tasks and mDNS in PSRAM, the keyboard maps in flash.
 * Clock tile: a tap opens the Alarm page (`<` back to the dashboard).
 * Media browser: `<` in a subfolder goes up a folder like "..", back to the dashboard only from
   the tile's folder.

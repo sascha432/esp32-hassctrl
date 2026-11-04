@@ -46,3 +46,8 @@ CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK=y
 # a camera tile's own stream with a login in its address (http://user:password@host/): the media
 # task sets Basic auth for it (hass/src/media.cpp)
 CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH=y
+
+# mDNS keeps its records, queues and packets in PSRAM (docs/architecture.md section 11): a few
+# hundred bytes a second at most, none of it touched with the cache off. Its task stack is in the
+# target layers: the ESP32 cannot run a task on a PSRAM stack.
+CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y

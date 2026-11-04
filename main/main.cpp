@@ -105,7 +105,13 @@ lv_disp_t *start_lvgl(const hc::board::Handles &handles)
     }
 #endif
 
-    const lvgl_port_cfg_t port_config = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_cfg_t port_config = ESP_LVGL_PORT_INIT_CONFIG();
+#if !CONFIG_IDF_TARGET_ESP32P4
+    // 3.8 KB used at most in the benchmark's scenes and the panels (JC3248W535 and WT32,
+    // 2026-11-03; the margin of docs/architecture.md section 4 and one step more, the depth
+    // depends on the dashboard). The P4's DSI path is not measured: esp_lvgl_port's 7 KB stay.
+    port_config.task_stack = 5120;
+#endif
     if (lvgl_port_init(&port_config) != ESP_OK) {
         ESP_LOGE(kTag, "esp_lvgl_port could not start");
         return nullptr;

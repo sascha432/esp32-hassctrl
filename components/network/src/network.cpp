@@ -5,9 +5,11 @@
 #include "hc/network/network.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cstdio>
 #include <cstring>
 
+#include "esp_attr.h"
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -32,7 +34,10 @@ constexpr uint8_t kHotspotMaxClients = 4;
 
 } // namespace
 
-Task t;
+// In PSRAM (docs/architecture.md section 11): only the network task and start() use it. Its
+// defaults (retry_delay_ms, current, prefer) come from the constructor at startup; start() checks
+// that, because the PSRAM .bss is never loaded from the image.
+EXT_RAM_BSS_ATTR Task t;
 
 QueueHandle_t g_queue = nullptr;
 // set by the shutdown handler: the disconnect of a restart is not a lost connection
@@ -45,9 +50,10 @@ std::atomic<bool> g_wake_posted{false};
 // copies for other tasks, guarded by g_lock
 Status g_status{};
 TickType_t g_setup_hotspot_until = 0;
-SavedNetworkInfo g_saved[kMaxNetworks] = {};
+// in PSRAM; the initializers stay {}: that section is zeroed, not loaded
+EXT_RAM_BSS_ATTR SavedNetworkInfo g_saved[kMaxNetworks] = {};
 size_t g_saved_count = 0;
-ScanEntry g_scan[kMaxScan] = {};
+EXT_RAM_BSS_ATTR ScanEntry g_scan[kMaxScan] = {};
 size_t g_scan_count = 0;
 
 namespace {
@@ -386,6 +392,8 @@ using namespace detail;
 esp_err_t start(const char *device_name, Listener listener, void *context)
 {
     ESP_RETURN_ON_FALSE(g_queue == nullptr, ESP_ERR_INVALID_STATE, kTag, "already started");
+    // t lives in the PSRAM .bss, which starts as zeros: its defaults must come from a constructor
+    assert(t.retry_delay_ms == kRetryMinMs && t.current == -1);
     g_lock = xSemaphoreCreateMutex();
     g_queue = xQueueCreate(16, sizeof(Msg));
     ESP_RETURN_ON_FALSE(g_lock != nullptr && g_queue != nullptr, ESP_ERR_NO_MEM, kTag, "queue");
@@ -431,6 +439,9 @@ esp_err_t start(const char *device_name, Listener listener, void *context)
 
     t.status.ready = true;
     publish();
+    // 2.8 KB used at most, with scans (JC3248W535 and WT32, 2026-11-03). The size stays: on the
+    // P4 the Wi-Fi calls are esp_hosted's RPC on this task, not measured (docs/architecture.md
+    // section 4)
     ESP_RETURN_ON_FALSE(xTaskCreate(task, "network", 4096, nullptr, 5, nullptr) == pdPASS, ESP_ERR_NO_MEM, kTag,
                         "task");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), kTag, "wifi start");
