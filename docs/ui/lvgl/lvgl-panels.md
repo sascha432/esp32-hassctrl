@@ -60,7 +60,9 @@ opaque in `theme::kDialog` (0x161d25, a step lighter than the page so it stands 
 page, a step darker than its cards), radius 12, 1 px border. The veil darkens at once; the dialog slides down from above the screen into
 the middle (250 ms, easing out) and back up when it closes (easing in). The full-screen panel of
 the other boards slides in from the right and out to the right like an area page. The veil does not fade (a
-fading veil redrew the whole screen every frame). A tap on the veil closes the dialog like the back tile. The camera image stays full
+fading veil redrew the whole screen every frame). A tap on the veil closes the dialog like the back tile, once the
+dialog is down: a press on the veil while it still slides in (a quick second tap after the one that opened it) does
+nothing, even when it is let go after the slide. The camera image stays full
 screen.
 
 ## 2. Light panel

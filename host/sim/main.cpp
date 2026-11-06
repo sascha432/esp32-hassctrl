@@ -322,16 +322,16 @@ void finger(lv_coord_t x, lv_coord_t y, bool pressed)
     lv_win32_pointer_override(true, x, y, pressed);
 }
 
-void tap(lv_coord_t x, lv_coord_t y)
+// `after`: the pause after the tap. A page change takes a cycle to build and 200 ms to slide in;
+// the next tap of a person usually comes later than that, a quick one earlier.
+void tap(lv_coord_t x, lv_coord_t y, uint32_t after = 350)
 {
     finger(x, y, false);
     pump(2 * LV_INDEV_DEF_READ_PERIOD);
     finger(x, y, true);
     pump(4 * LV_INDEV_DEF_READ_PERIOD);
     finger(x, y, false);
-    // a page change takes a cycle to build and 200 ms to slide in; the next tap of a person comes
-    // later than that
-    pump(350);
+    pump(after);
     lv_win32_pointer_override(false, 0, 0, false);
 }
 
@@ -555,13 +555,17 @@ bool run_step(const std::string &step)
         return screenshot(argument);
     } else if (verb == "tap") {
         lv_point_t at;
+        uint32_t after = 350;
         if (numbers(argument, 2, n) && std::strchr(argument.c_str(), ',') != nullptr) {
             at = {static_cast<lv_coord_t>(n[0]), static_cast<lv_coord_t>(n[1])};
+            if (split(argument, ',').size() > 2) {
+                after = static_cast<uint32_t>(n[2]);
+            }
         } else if (!find_text(argument.c_str(), at)) {
             std::fprintf(stderr, "tap: no label '%s' on the screen\n", argument.c_str());
             return false;
         }
-        tap(at.x, at.y);
+        tap(at.x, at.y, after);
     } else if (verb == "doubletap") {
         if (!numbers(argument, 2, n)) {
             std::fprintf(stderr, "doubletap needs x,y\n");
@@ -610,7 +614,8 @@ void usage()
         "                         stream down|up (the stream's server ends and refuses streams, or answers again)\n"
         "                         stream login (the stream's server answers 401, also for a tile's first frame)\n"
         "                         forecast ok|loading|error (how the next forecast subscription answers)\n"
-        "                         tap TEXT (a label on the screen) | tap X,Y | doubletap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
+        "                         tap TEXT (a label on the screen) | tap X,Y[,MS] (MS: the pause after it, default 350)\n"
+        "                         doubletap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"
         "  --time EPOCH         the clock starts at this time (seconds) instead of the computer's\n"

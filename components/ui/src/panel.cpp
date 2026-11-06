@@ -82,6 +82,7 @@ struct State {
     bool dialog = false;
     lv_obj_t *body = nullptr; // the dialog
     int32_t shown = kShown;   // the slide's progress
+    bool veil_closes = false; // the press on the veil came with the dialog down
     // as built: LVGL lays the objects out only before the next frame, the first step of a slide
     // read 0 from them
     lv_coord_t body_height = 0;
@@ -204,10 +205,18 @@ void slide(bool in)
     lv_anim_start(&anim);
 }
 
-// a tap on the veil beside the dialog closes it like the back tile
+// A tap on the veil beside the dialog closes it like the back tile, once the dialog is down. A
+// quick second tap after the one that opened it lands on the veil while the dialog still slides in
+// (your report 2026-11-06): that one does nothing. The press counts, its release may come after
+// the slide.
 void on_veil(lv_event_t *event)
 {
-    if (lv_event_get_target(event) == lv_event_get_current_target(event)) {
+    if (lv_event_get_target(event) != lv_event_get_current_target(event)) {
+        return;
+    }
+    if (lv_event_get_code(event) == LV_EVENT_PRESSED) {
+        g.veil_closes = g.shown == kShown;
+    } else if (g.veil_closes) {
         dashboard::close_panel();
     }
 }
@@ -550,6 +559,7 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     // the parts of the panel are placed in `body`: the whole screen, or the dialog
     lv_obj_t *body = g.root;
     if (dialog) {
+        lv_obj_add_event_cb(g.root, on_veil, LV_EVENT_PRESSED, nullptr);
         lv_obj_add_event_cb(g.root, on_veil, LV_EVENT_CLICKED, nullptr);
         const bool portrait = height > width;
         width = std::min<lv_coord_t>(portrait ? kDialogPortraitWidth : kDialogWidth, width);

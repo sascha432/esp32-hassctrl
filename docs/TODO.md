@@ -1700,6 +1700,10 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
 - [x] `app_main` overflowed its 3.5 KB stack into the heap (restart after "hass connected"):
       now 6 KB, freed after boot.
 - [x] A tap beside a sliding-in panel opened the tile under it: a clear cover until the slide ends.
+- [x] P4: a quick second tap after the one that opened a panel closed it again (your report
+      2026-11-06): it landed on the veil while the dialog still slid down. The veil closes only for a
+      press that comes after the slide. Reproduced and checked in the simulator (`--size p4`, the
+      new `tap X,Y,MS` step); a veil tap after the slide still closes.
 - [x] The light panel's history button took no taps at 320 px: the Settings pull-down zone lay
       over it; in a full-screen panel it now keeps between the header buttons.
 - [x] AXS15231B on its INT line (GPIO 3) instead of polling: measured 2026-10-17, not pursued (you:

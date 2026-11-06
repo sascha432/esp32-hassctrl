@@ -7,6 +7,17 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-06
+
+Fixed
+
+* P4 panels: a quick second tap after the one that opened a panel no longer closes it again (it
+  hit the veil while the dialog still slid down).
+
+Added
+
+* Simulator: `tap X,Y,MS` sets the pause after a tap (default 350 ms), for a quick next tap.
+
 ### 2026-11-03
 
 Fixed
