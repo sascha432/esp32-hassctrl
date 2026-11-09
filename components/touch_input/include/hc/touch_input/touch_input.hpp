@@ -6,7 +6,10 @@
 // LVGL renders: a quick tap that began and ended during a long render (a page being built) was
 // never seen (2026-10-09, quick taps on the boards). Here a task samples the controller every
 // 10 ms and queues every change; LVGL's read takes them in order, all of them in one read when
-// several are waiting (continue_reading), so a press and its release always arrive.
+// several are waiting (continue_reading), so a press and its release always arrive. Every read
+// with the finger down runs LVGL's layout first, so LVGL finds the object under the finger where
+// it stands now, not where the last frame had it (a panel built by the tap before, the end of its
+// slide).
 //
 // The coordinates are the controller's (the panel's own orientation), as with esp_lvgl_port:
 // LVGL turns them with the display's rotation.
@@ -48,5 +51,11 @@ uint8_t fingers(lv_point_t out[2]);
 // (console `touch log`), for finding out what a controller reports.
 void set_trace(bool on);
 bool trace();
+
+// Queues a press or a release at a point of the display (turned back into the controller's
+// coordinates) as if the controller had reported it (console `touch tap`, `touch down`/`up`): taps
+// queued faster than LVGL reads them, as a quick finger makes them while a long render runs, or a
+// press held through a slide.
+void inject(lv_point_t point, bool pressed);
 
 } // namespace hc::touch_input

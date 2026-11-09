@@ -150,10 +150,29 @@ void sample_task(void *)
     }
 }
 
+// LVGL finds the object under a touch by the objects' places, which its layout sets only before
+// the next frame. Tested against older places, a second tap opened the tile under a panel again
+// (your report and video, 2026-11-08): read right after the tap that built the panel, before its
+// first frame; or held through the end of the panel's slide, when the cover under the panel goes
+// and LVGL looks again under the finger, while the panel stood where the last frame (9 per second
+// on the JC3248W535) had it. Every read with the finger down gets the layout first (nothing to do
+// when nothing changed).
+void lay_out()
+{
+    lv_disp_t *disp = g.config.disp;
+    lv_obj_update_layout(lv_disp_get_scr_act(disp));
+    lv_obj_update_layout(lv_disp_get_layer_top(disp));
+    lv_obj_update_layout(lv_disp_get_layer_sys(disp));
+}
+
 void read(lv_indev_drv_t *, lv_indev_data_t *data)
 {
     Sample next{};
     if (pop(next)) {
+        if (g_trace) {
+            std::printf("lvgl %lu: %s %d,%d\n", static_cast<unsigned long>(xTaskGetTickCount()),
+                        next.pressed ? "down" : "up", next.x, next.y);
+        }
         if (next.pressed) {
             g.last = next;
         } else {
@@ -165,6 +184,9 @@ void read(lv_indev_drv_t *, lv_indev_data_t *data)
     data->point.x = g.last.x;
     data->point.y = g.last.y;
     data->state = g.last.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    if (g.last.pressed) {
+        lay_out();
+    }
 }
 
 // a point of the controller as LVGL's pointer gets it: turned with the display
@@ -210,6 +232,24 @@ void set_trace(bool on)
 bool trace()
 {
     return g_trace;
+}
+
+void inject(lv_point_t point, bool pressed)
+{
+    if (g.touch == nullptr) {
+        return;
+    }
+    // the inverse of LVGL's turn (turned())
+    const lv_disp_drv_t *driver = g.config.disp->driver;
+    lv_point_t raw = point;
+    if (driver->rotated == LV_DISP_ROT_90) {
+        raw = {point.y, static_cast<lv_coord_t>(driver->ver_res - point.x - 1)};
+    } else if (driver->rotated == LV_DISP_ROT_180) {
+        raw = {static_cast<lv_coord_t>(driver->hor_res - point.x - 1), static_cast<lv_coord_t>(driver->ver_res - point.y - 1)};
+    } else if (driver->rotated == LV_DISP_ROT_270) {
+        raw = {static_cast<lv_coord_t>(driver->hor_res - point.y - 1), point.x};
+    }
+    push({pressed, raw.x, raw.y});
 }
 
 lv_indev_t *add(const Config &config)

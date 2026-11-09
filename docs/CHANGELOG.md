@@ -9,10 +9,17 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ### 2026-11-08
 
+Fixed
+
+* A second tap on a tile while its panel slides in no longer opens the panel again (it vanished
+  and slid in twice): the touch is tested against where the panel stands now.
+
 Added
 
 * Weather panel: a tap on the forecast opens a forecast page: graphs in landscape, lists in
   portrait; with rain amount and wind, and 48 hours instead of 24.
+* Console `touch tap x y [x y ...]`, `touch down x y`, `touch up`: taps and a held press through
+  the touch controller's queue; `touch log` also shows what LVGL takes.
 
 ### 2026-11-06
 

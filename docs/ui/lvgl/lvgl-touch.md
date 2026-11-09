@@ -62,7 +62,9 @@ Rules that keep the gestures apart:
   between the back button and the two header buttons (`overlay::fit_zone()`, 94 px wide at 320 px):
   on the JC3248W535 it would cover most of the history button.
 * While a full-screen panel slides in, the page beside it takes no taps (a clear cover under the
-  panel until the slide ends).
+  panel until the slide ends). A second tap meets the cover or the panel also when it waited in
+  the touch queue while the panel was built, or is held through the end of the slide: the touch
+  read lays the screen out before LVGL looks under the finger.
 * While the dashboard is edited the pull-down is off; the alert strip shows only event messages
   and a drag on it does not open Settings.
 * The camera view's buttons move down with the alert strip (`overlay::on_strip_moved()`), so a

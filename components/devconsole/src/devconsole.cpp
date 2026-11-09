@@ -1352,7 +1352,37 @@ int cmd_touch(int argc, char **argv)
         std::printf("touch samples %s\n", hc::touch_input::trace() ? "on" : "off");
         return 0;
     }
-    return usage("touch log   (toggles printing the controller's samples)");
+    // a press held through the controller's queue (`touch down`, later `touch up`)
+    if (argc == 4 && std::strcmp(argv[1], "down") == 0) {
+        int16_t x = 0;
+        int16_t y = 0;
+        if (!point(argv + 2, x, y)) {
+            return usage("touch down <x> <y>");
+        }
+        hc::touch_input::inject({x, y}, true);
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "up") == 0) {
+        hc::touch_input::inject({0, 0}, false);
+        return 0;
+    }
+    // taps queued at once through the controller's queue, as a quick finger makes them while LVGL
+    // renders (the console's `tap` is a pointer of its own that LVGL reads as it is)
+    if (argc >= 4 && argc % 2 == 0 && std::strcmp(argv[1], "tap") == 0) {
+        for (int i = 2; i + 1 < argc; i += 2) {
+            int16_t x = 0;
+            int16_t y = 0;
+            if (!point(argv + i, x, y)) {
+                return usage("touch tap <x> <y> [<x> <y> ...]");
+            }
+            hc::touch_input::inject({x, y}, true);
+            hc::touch_input::inject({x, y}, false);
+        }
+        return 0;
+    }
+    return usage("touch log | tap <x> <y> [<x> <y> ...] | down <x> <y> | up   (log toggles printing the "
+                 "controller's samples; tap queues taps at once, as a quick finger during a render; down and up "
+                 "a press held between them)");
 }
 
 int print_hass_events()
@@ -1574,7 +1604,8 @@ void register_commands()
     add("setup", "show the first setup screens (they come by themselves while no network is saved)", nullptr,
         cmd_setup);
     add("orient", "orientation sensor: gravity, board measurement (developer)", "[raw|capture 0|90|180|270|flat|clear]", cmd_orient);
-    add("touch", "touch controller: print its samples", "log", cmd_touch);
+    add("touch", "touch controller: print its samples, or queue taps as a quick finger",
+        "log|tap <x> <y> [<x> <y> ...]|down <x> <y>|up", cmd_touch);
     add("light", "light sensor: values, calibration while adding a board", "[calibrate <lux>|reset|backlight|watch [s]|points]",
         cmd_light);
 #if CONFIG_HC_AUDIO

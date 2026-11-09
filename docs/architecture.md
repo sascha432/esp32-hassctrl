@@ -629,7 +629,15 @@ const Info &info();                    // the board's constants: size, pins, add
   22 ms and answers "no finger" to a read without one, so read every 10 ms a held finger was
   lifted and put down again and again (one tap became several). It is read every 20 ms, and its
   board file takes a single "no finger" during a touch for a misread. Console
-  `touch log` prints the samples.
+  `touch log` prints the samples and what LVGL takes, `touch tap x y [x y ...]` queues taps at
+  once (a quick finger during a render), `touch down x y` and `touch up` a press held between
+  them; the console's `tap` is a pointer of its own that LVGL reads as it is, as the Windows
+  version does. Every read with the finger down runs LVGL's layout first: LVGL finds the object
+  under a touch by the objects' places, which the layout sets only before the next frame. A
+  second tap was tested against older places and opened the tile under a panel again: read
+  before the panel's first frame, or held through the end of its slide, when the cover under the
+  panel goes and LVGL looks again under the finger while the panel stood where the last frame
+  had it (9 frames a second on the JC3248W535).
   Up to two fingers are read: LVGL's pointer follows the one that came down first (by the
   controller's track id), `touch_input::fingers()` gives both to a two-finger gesture (the camera's
   pinch to zoom). The JC3248W535's driver reads one finger only and takes misread answers as

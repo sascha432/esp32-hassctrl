@@ -1700,6 +1700,24 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
 - [x] `app_main` overflowed its 3.5 KB stack into the heap (restart after "hass connected"):
       now 6 KB, freed after boot.
 - [x] A tap beside a sliding-in panel opened the tile under it: a clear cover until the slide ends.
+- [x] It did not cover a quick second tap (your reports 2026-11-08: a climate tile tapped twice slid
+      its panel in twice; the weather tile the same, with a video). LVGL looks for the object under
+      the finger by the objects' places, which its layout sets only before the next frame. Two ways
+      the second tap met older places: (1) read before the new panel's first frame (taps queued while
+      it was built): it went to the tile under the panel; (2) your video: the thumb came down on
+      the cover during the slide and stayed down past its end; the cover went, LVGL looked again
+      under the finger while the panel stood where the last frame (9 per second) had it, the
+      thumb at the left edge was on the tile again, and its release opened the panel a second time
+      (the panel vanished, the dashboard showed for 0.2 s, the panel slid in again). Now every touch
+      read with the finger down runs the layout first. Reproduced and checked on the JC3248W535
+      over the console with taps through the real touch queue (new `touch tap`, `touch down`/`up`;
+      the console's `tap` and the simulator read the pointer directly and never showed it): (1)
+      `touch tap 56 237 30 30` opened the weather panel over the climate panel, fixed 3 of 3; (2)
+      a tap on the weather tile and a press at 12,60 held 700 ms from 60 to 300 ms later built the
+      panel twice in 3 of 4 runs, after the fix once in 8 of 8. A drag still scrolls the forecast.
+      The first fix (layout before a new touch only) covered (1) but not (2).
+- [ ] The same check on the WT32-SC01 and a P4 (the hallway and the kitchen run the fix since
+      2026-11-09); the P4's veil fix of 2026-11-06 was tested only in the simulator.
 - [x] P4: a quick second tap after the one that opened a panel closed it again (your report
       2026-11-06): it landed on the veil while the dialog still slid down. The veil closes only for a
       press that comes after the slide. Reproduced and checked in the simulator (`--size p4`, the
