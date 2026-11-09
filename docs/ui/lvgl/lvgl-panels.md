@@ -13,7 +13,7 @@ new layout closes it, turning the display builds it again. While it is open the 
 subscription carries the panel's fields as well (`hass_protocol::fields_of`). Code: `panel.cpp`
 (the frame), `light_panel.cpp` (color wheel and color temperature in `light_color.cpp`),
 `climate_panel.cpp` (the arc in `climate_arc.cpp`), `sensor_panel.cpp`, `lock_panel.cpp`,
-`picture_panel.cpp`, `weather_panel.cpp`, `timer_panel.cpp`, `automation_panel.cpp`; the history graph of
+`picture_panel.cpp`, `weather_panel.cpp` (its forecast page in `forecast_page.cpp`), `timer_panel.cpp`, `automation_panel.cpp`; the history graph of
 the sensor, the lock, the timer and the automation panel is `history_view.cpp`.
 
 ```
@@ -204,7 +204,7 @@ The panel works on the WT32-SC01 (480x320), the JC3248W535 (320x480) and the JC4
 | header | the condition's icon (48 px), the name (16 px) above the temperature (28 px, with its unit), the condition in words right of it |
 | rows | what the entity reports, in this order: feels like, humidity, pressure, wind (speed, unit and the point of the compass of `wind_bearing`), gusts, visibility, clouds, dew point, UV index. A value the entity does not have is left out (OpenWeatherMap has no UV index, and gusts only sometimes). One column when all fit, else two (in reading order) from 400 px width. As many rows as fit above the forecast, spread over the space (gap 4 px to 18 px), placed when the values arrive. A name gives way to its value ("..."). |
 | chips | `Daily` and `Hourly` like the range buttons of the sensor panel, the selected one white; only when the entity has both (`supported_features` bits 1 and 2, both offered until it arrived), else none. The one shown last is kept for the next panel. A tap subscribes the other forecast. |
-| strip | a card with the columns of the forecast, scrolling sideways (drag). Daily: weekday, condition glyph (24 px), the high, the low (8 days). Hourly: `HH:00` (the weekday in white at midnight), glyph, temperature, the chance of precipitation when above 0 (the next 24 hours). Times in the device's time zone (Home Assistant's). |
+| strip | a card with the columns of the forecast, scrolling sideways (drag). Daily: weekday, condition glyph (24 px), the high, the low (8 days). Hourly: `HH:00` (the weekday in white at midnight), glyph, temperature, the chance of precipitation when above 0 (the next 48 hours). Times in the device's time zone (Home Assistant's). A tap (not a drag) opens the forecast page (section 6.1), the hourly one at the hour tapped. |
 | message | in the card while there is nothing to draw: `Loading...`, `No forecast`, or the error (`No forecast of this kind`, `Not connected to Home Assistant`, Home Assistant's own words). An update that fails keeps what is drawn. |
 
 The rows and the forecast keep 12 px from the sides (24 px in the P4's dialog, also from the
@@ -219,10 +219,51 @@ An unavailable entity (Home Assistant restarting) has no `supported_features`: b
 the selected one stays selected. A forecast that fails is asked for again every 10 s while the
 panel is open (Home Assistant answers "not found" or "not supported" until the integration is
 set up again); what is drawn stays meanwhile.
-An unavailable entity (Home Assistant restarting) has no `supported_features`: both chips stay and
-the selected one stays selected. A forecast that fails is asked for again every 10 s while the
-panel is open (Home Assistant answers "not found" or "not supported" until the integration is
-set up again); what is drawn stays meanwhile.
+
+### 6.1 Forecast page
+
+The forecast over the panel's whole area below its header, opened by a tap on the panel's
+forecast (your design, 2026-11-08). The back tile returns to the panel, a second one closes it; a
+tap on the dialog's veil closes the panel. The page keeps the panel's subscription and what it
+brought (no second request), and stays open when the display turns. Landscape draws graphs,
+portrait lists, for the daily and the hourly forecast alike. Code: `forecast_page.cpp`; the
+switch between the two views is in `weather_panel.cpp`.
+
+```
+landscape (480x320), daily                portrait (320x480), hourly
++----+ Weather          [Daily][Hourly]   +----+ Weather  [Daily][Hourly]
+| <- |                                    | <- |
++----+                                    +----+
++-----+-----------------------------+    +-------------------------------+
+|     | Wed Today Fri  Sat  Sun ... |    | Today              mm   km/h  |  sticky
+|     | (24) (24) (24) (24) (24)    |    | Now   (24) 12.7°  100% 2.2 ^8  |
+|     | 15°  19.3°                  |    | 13:00 (24) 12.5°   83%     <10 |
+| °C  |  o----o----o   high          |    | ...                           |
+|     |  ////band////                |    | Tomorrow           mm   km/h  |
+|     |  o----o----o   low           |    | 00:00 (24)  8.1°               |
+|     | 8.5° 12.8°                  |    +-------------------------------+
+| %   |       ##   ##   bars        |
+| mm  | 0.4  0.6                    |    portrait, daily: a row per day
+| km/h| <10  >18  >25               |    Today (24)  100%  7.8° ==o== 12.7°
++-----+-----------------------------+    8 Nov       29 mm    ^13 km/h
+```
+
+| Part | Content |
+| --- | --- |
+| header | the back tile, the name (26/20 px; a long one takes the next smaller font, then ends in "..."), the chips `Daily` and `Hourly` at its end (as in the panel) |
+| graph (landscape) | a column per day or hour: the weekday (`Today` in white) or `HH:00` (`Now` and the weekday at midnight in white, a line where a day starts), the condition glyph, the temperature as a white curve with its value above each point (daily: the high in white, the low in `kTextLabel` below its point, the band between them), the chance of precipitation as a bar (`kRain`, 60 %) with its value above it, the amount, the wind (an arrow that points where the wind goes, the speed). Daily: 8 columns as wide as the card allows (48 px at least). Hourly: 44 px columns (57 on the P4) that scroll sideways with a scrollbar, the 48 hours. |
+| legend (landscape) | left of the columns, fixed: the entity's units (temperature, `%`, `precipitation_unit`, `wind_speed_unit`) beside their rows, a line between it and the columns |
+| daily list (portrait) | a row per day, as tall as the area allows: the weekday (`Today` in white) and the date, the glyph, the chance (`kRain`) and the amount with its unit, the low, the day's range as a bar on the scale of the whole week (today's with a white dot at the temperature now), the high; the wind (arrow, speed, unit) below the range. All 8 days without scrolling. |
+| hourly list (portrait) | a row per hour under the heading of its day (`Today`, `Tomorrow`, `Sat 14 Nov`) with the units of the amount and the wind; the heading of the day at the top stays while its rows scroll under it. The time (`Now` in white), glyph, temperature, chance, amount, wind. Scrolls down. |
+| message | as in the panel (`Loading...`, `No forecast`, the error) in the middle |
+
+A row of the graph whose values the integration does not send (no amount, no wind) is left out
+and its room goes to the curve. The rows and the curves are drawn by a draw callback each (one
+object for the graph or list, one for the legend, one for the heading at the top), not a label
+per value: the page costs no internal RAM (JC3248W535: 70 KB free with it open, 67 KB on the
+dashboard before). On the full-screen boards the page is a card; in the P4's dialog it has no card
+of its own: the background runs to the dialog's edges below a line under the header, the content
+lines up with the header's text.
 
 ## 7. Timer panel
 
@@ -311,7 +352,7 @@ ran; kept as an `int64_t`, 0 then).
 * The range of a climate (`heat_cool`) keeps the low setpoint at or below the high one; a
   minimum gap (`target_temp_low` + deadband) is left to the integration, which may refuse the call.
 * The weather panel: `twice_daily` forecasts are not read; the icon of `partlycloudy` is the day
-  one at night too (the entity's state has no sun position); a forecast has at most 8 days or 24
+  one at night too (the entity's state has no sun position); a forecast has at most 8 days or 48
   hours (`core::kMaxForecastEntries`); rows that do not fit are left out.
 * The light panel opens from a dimmer on a tap, from a light without `dimmer` that dims on a
   double tap (a light that only switches gets the sensor panel with its timeline).

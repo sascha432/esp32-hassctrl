@@ -227,6 +227,7 @@ EntityState make_sample(std::string_view id, size_t i)
         s.visibility_unit = "km";
         s.cloud_coverage = 90;
         s.dew_point = 8.6f;
+        s.precipitation_unit = "mm";
         s.features = hc::core::kForecastDaily | hc::core::kForecastHourly;
     } else if (domain == "timer") {
         // a 30 minute timer that ran for 37 seconds (as the clock of the PC has it)
@@ -635,6 +636,10 @@ void subscribe_forecast(std::string_view entity_id, hc::core::EntityIndex entity
                 entry.templow = entry.temperature - 6.5f;
             }
             entry.precipitation_probability = static_cast<int8_t>(i % 4 == 1 ? 0 : (i * 17) % 100);
+            // an amount with most chances of rain, more in a day than in an hour
+            entry.precipitation = static_cast<float>(std::round(entry.precipitation_probability * (daily ? 0.12 : 0.025)) / 10.0);
+            entry.wind_speed = static_cast<float>(std::round(10.0 + 25.0 * std::fabs(std::sin(static_cast<double>(i) * 0.31))));
+            entry.wind_bearing = static_cast<float>((225 + i * 25) % 360);
             forecast.entries.push_back(entry);
         }
     }

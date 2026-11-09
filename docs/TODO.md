@@ -2243,6 +2243,23 @@ Weather tile and panel (2026-10-13, your request: a tile and its details, no his
       with): `twice_daily` forecasts (needed by entities without daily), the night glyph of
       `partlycloudy` (HA has no night condition for it; `sun.sun` would tell).
 
+Forecast page (2026-11-08, your request: a full page of the forecast from a tap on the panel's
+strip; your choices from the design canvas: graphs in landscape, lists in portrait, the P4's
+dialog with its whole area and no card in it, wind kept, temperatures with one decimal):
+
+- [x] Built ([ui/lvgl/lvgl-panels.md](ui/lvgl/lvgl-panels.md) section 6.1, `forecast_page.cpp`):
+      the forecast entries carry the amount of precipitation and the wind, 48 hours are kept
+      (was 24), the entity's `precipitation_unit` is read; 141 host tests. Checked in the Windows
+      version at 480x320, 320x480 and the P4's two dialogs: both forecasts, the hour tapped
+      scrolled into view, back to the panel and closing, a turn keeps the page open.
+- [x] Flashed to the JC3248W535 (COM10) and driven over the console with your OpenWeatherMap:
+      panel, page daily and hourly, back, close. Internal RAM 70 KB free with the page open, 67 KB
+      on the dashboard before.
+- [x] The hallway and the kitchen P4 run it since 2026-11-09 (updated over Wi-Fi at your request,
+      both restarted into it).
+- [ ] Check the dialog's graphs and lists on a P4 and the graphs on the WT32-SC01 (the test P4
+      and the WT32 were not attached on 2026-11-08).
+
 Not built yet (placeholders in the code or the documentation):
 
 - [x] Climate `heat_cool` with two setpoints (climate panel, Step 6; 2026-10-17): `target_temp_low`/`_high`

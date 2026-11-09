@@ -29,7 +29,8 @@ new boards: [docs/adding-a-board.md](docs/adding-a-board.md), Home Assistant set
   timeline for on/off and other two-word states such as Detected/Clear), lock (lock, unlock, open,
   timeline), timer (countdown, duration on rollers, start, pause, cancel, finish, timeline), automation and
   script (enabled switch, last run, run or stop, timeline), weather (current values, daily and
-  hourly forecast). A double tap on a switch opens its timeline, on a light that dims the light
+  hourly forecast; a tap on it opens the forecast page, graphs in landscape, lists in portrait,
+  with rain and wind). A double tap on a switch opens its timeline, on a light that dims the light
   panel; a double tap on a lock locks or unlocks it, on a timer starts or cancels it, on an
   automation or a script runs it.
 - Camera tiles from Home Assistant's images; full screen plays an MJPEG stream live (go2rtc, Home

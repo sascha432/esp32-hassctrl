@@ -105,6 +105,9 @@ bool decode_forecast(const cJSON *event, memory::Vector<core::ForecastEntry> &ou
         }
         entry.temperature = number_of(cJSON_GetObjectItemCaseSensitive(item, "temperature"));
         entry.templow = number_of(cJSON_GetObjectItemCaseSensitive(item, "templow"));
+        entry.precipitation = number_of(cJSON_GetObjectItemCaseSensitive(item, "precipitation"));
+        entry.wind_speed = number_of(cJSON_GetObjectItemCaseSensitive(item, "wind_speed"));
+        entry.wind_bearing = number_of(cJSON_GetObjectItemCaseSensitive(item, "wind_bearing"));
         const float probability = number_of(cJSON_GetObjectItemCaseSensitive(item, "precipitation_probability"));
         if (!std::isnan(probability)) {
             entry.precipitation_probability = static_cast<int8_t>(std::clamp(probability, 0.0f, 100.0f));

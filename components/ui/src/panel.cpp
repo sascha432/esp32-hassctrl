@@ -146,6 +146,10 @@ Frame frame_of(lv_obj_t *root, lv_coord_t width, lv_coord_t height, bool with_ac
 
 void on_back(lv_event_t *)
 {
+    // the weather panel's forecast page goes back to the panel first
+    if (weather_panel::back()) {
+        return;
+    }
     dashboard::close_panel();
 }
 
@@ -618,7 +622,7 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     } else if (kind == core::TileKind::Automation) {
         automation_panel::build(frame, tile);
     } else if (kind == core::TileKind::Weather) {
-        weather_panel::build(frame, tile);
+        weather_panel::build(frame, tile, !appear);
     } else {
         sensor_panel::build(frame, tile);
     }

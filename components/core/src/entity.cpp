@@ -133,6 +133,8 @@ bool copy(EntityState &to, const EntityState &from, Field field)
         return assign(to.dew_point, from.dew_point);
     case Field::UvIndex:
         return assign(to.uv_index, from.uv_index);
+    case Field::PrecipitationUnit:
+        return assign(to.precipitation_unit, from.precipitation_unit);
     case Field::Duration:
         return assign(to.duration, from.duration);
     case Field::Remaining:

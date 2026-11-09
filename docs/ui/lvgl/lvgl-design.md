@@ -47,6 +47,7 @@ and the touch feedback in [lvgl-touch.md](lvgl-touch.md). Terms: [README](../REA
 | error | `kError` | `#ff0000` | errors, destructive buttons |
 | lock unlocked / locked / jammed | `kLockUnlocked`, `kLockLocked`, `kLockJammed` | `#4caf50`, `#ff8000`, `#ff0000` | the lock's tile, panel and timeline |
 | accent | `kAccent` | `#00ffff` | an action on its way (the runner, a pending setpoint), the sensor graph |
+| rain | `kRain` | `#4aa3e8` | precipitation on the weather panel's forecast page: the chance and its bars (60 %) |
 
 Colors with one owner, kept next to their code: the edit mode's "fits" outline `0x2ecc71`
 (`edit_mode.cpp`), the splash's logo colors (`splash.cpp`), the dialog veil black at 80 %

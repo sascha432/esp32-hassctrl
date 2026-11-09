@@ -3,14 +3,17 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
 #include <iterator>
 #include <string>
 
 #include "dashboard.hpp"
+#include "forecast_page.hpp"
 #include "hc/core/weather.hpp"
 #include "icons.hpp"
+#include "sound.hpp"
 #include "theme.hpp"
 #include "tiles.hpp"
 
@@ -72,11 +75,19 @@ struct State {
     core::TileIndex tile = core::kNone;
     core::EntityIndex entity = core::kNone;
     Sizes sizes{};
+    lv_area_t control{}; // the rows and the forecast below them, or the forecast page
+    // The view: the current values with the forecast below them, or the forecast page
+    // (forecast_page.hpp). Its objects are children of `content`; a switch deletes it and builds
+    // the other one.
+    lv_obj_t *content = nullptr;
     // the header
     lv_obj_t *icon = nullptr;
     lv_obj_t *value = nullptr;
     lv_obj_t *condition = nullptr;
     lv_coord_t text_x = 0;
+    // the name of the forecast page beside the chips (the frame's, placed above the temperature,
+    // is hidden there)
+    lv_obj_t *page_name = nullptr;
     // the rows that fit, placed by update() in `rows_area`
     Row rows[kMaxRows];
     int row_count = 0;
@@ -92,7 +103,11 @@ struct State {
     lv_obj_t *message = nullptr;
     ForecastType subscribed = ForecastType::None;
     uint32_t generation = 0; // of the subscription
+    // the last answer, drawn again when the view changes
+    ForecastType entries_type = ForecastType::None;
+    memory::Vector<core::ForecastEntry> entries;
     bool has_entries = false;
+    std::string message_text;    // in place of the forecast, shown again when the view changes
     lv_timer_t *retry = nullptr; // asks for the forecast again after an error
 };
 
@@ -100,6 +115,8 @@ State g;
 // kept between the panels: the forecast shown last, and the subscriptions' generations
 ForecastType g_type = ForecastType::Daily;
 uint32_t g_next_generation = 1;
+// the forecast page is open; kept when the panel is built again (the display turned)
+bool g_page = false;
 
 // ------------------------------------------------------------------------------- texts
 
@@ -194,6 +211,11 @@ const char *weekday(int day)
     return kDays[(day % 7 + 7) % 7];
 }
 
+forecast_page::Units units_of(const core::EntityState &s)
+{
+    return {s.temperature_unit.c_str(), s.precipitation_unit.c_str(), s.wind_speed_unit.c_str()};
+}
+
 // ------------------------------------------------------------------------------- the forecast
 
 bool supports(const core::EntityState &s, ForecastType type)
@@ -208,8 +230,13 @@ bool supports(const core::EntityState &s, ForecastType type)
 
 void show_message(const char *text)
 {
-    set_text(g.message, text);
-    set_hidden(g.message, text[0] == 0);
+    g.message_text = text;
+    if (g_page) {
+        forecast_page::message(text);
+    } else {
+        set_text(g.message, text);
+        set_hidden(g.message, text[0] == 0);
+    }
 }
 
 void subscribe(ForecastType type)
@@ -230,52 +257,6 @@ void subscribe(ForecastType type)
     backend.subscribe_forecast(layout.entity_id(layout.tiles[g.tile]), g.entity, type, g.generation);
 }
 
-// the forecast `type` from now on: the strip empty until it arrives
-// after an error the forecast is asked for again every this long while the panel is open: Home
-// Assistant answers "not supported" or "not found" for a weather entity that is not set up yet
-// after its restart
-constexpr uint32_t kRetryMs = 10000;
-
-void show(ForecastType type);
-
-void on_retry(lv_timer_t *)
-{
-    g.retry = nullptr; // a timer with a repeat count of 1 deletes itself
-    if (g.strip != nullptr && g.subscribed != ForecastType::None) {
-        const bool kept = g.has_entries;
-        const ForecastType type = g.subscribed;
-        // the strip keeps what it shows meanwhile
-        if (kept) {
-            subscribe(type);
-        } else {
-            show(type);
-        }
-    }
-}
-
-void show(ForecastType type)
-{
-    g_type = type;
-    lv_obj_clean(g.strip);
-    g.has_entries = false;
-    if (dashboard::backend().subscribe_forecast == nullptr || type == ForecastType::None) {
-        subscribe(ForecastType::None);
-        show_message("No forecast");
-        return;
-    }
-    show_message("Loading...");
-    subscribe(type);
-}
-
-void on_chip(lv_event_t *event)
-{
-    const auto type = static_cast<ForecastType>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(event)));
-    if (type != g.subscribed) {
-        show(type);
-        update();
-    }
-}
-
 lv_obj_t *line(lv_obj_t *parent, const char *text, const lv_font_t &font, uint32_t color)
 {
     lv_obj_t *label = t::label(parent, text, font, color);
@@ -284,6 +265,7 @@ lv_obj_t *line(lv_obj_t *parent, const char *text, const lv_font_t &font, uint32
     return label;
 }
 
+// a column of the panel's strip
 void add_column(const core::ForecastEntry &entry, ForecastType type)
 {
     lv_obj_t *col = t::plain(g.strip);
@@ -323,6 +305,133 @@ void add_column(const core::ForecastEntry &entry, ForecastType type)
     line(col, second.c_str(), t::font_small(), t::kTextLabel);
 }
 
+// draws the entries in the view: the panel's strip (an update keeps where it was scrolled to), or
+// the forecast page
+void draw_entries()
+{
+    if (g_page) {
+        forecast_page::show(g.entries_type, g.entries, units_of(dashboard::state(g.entity)));
+        return;
+    }
+    if (g.strip == nullptr) {
+        return;
+    }
+    const lv_coord_t scrolled = lv_obj_get_scroll_x(g.strip);
+    lv_obj_clean(g.strip);
+    for (const core::ForecastEntry &entry : g.entries) {
+        add_column(entry, g.entries_type);
+    }
+    lv_obj_update_layout(g.strip);
+    lv_obj_scroll_to_x(g.strip, scrolled, LV_ANIM_OFF);
+}
+
+void clear_entries()
+{
+    g.entries.clear();
+    g.has_entries = false;
+    if (g_page) {
+        forecast_page::clear();
+    } else if (g.strip != nullptr) {
+        lv_obj_clean(g.strip);
+    }
+}
+
+// the forecast `type` from now on: the view empty until it arrives
+// after an error the forecast is asked for again every this long while the panel is open: Home
+// Assistant answers "not supported" or "not found" for a weather entity that is not set up yet
+// after its restart
+constexpr uint32_t kRetryMs = 10000;
+
+void show(ForecastType type);
+
+void on_retry(lv_timer_t *)
+{
+    g.retry = nullptr; // a timer with a repeat count of 1 deletes itself
+    if (g.content != nullptr && g.subscribed != ForecastType::None) {
+        const ForecastType type = g.subscribed;
+        // the view keeps what it shows meanwhile
+        if (g.has_entries) {
+            subscribe(type);
+        } else {
+            show(type);
+        }
+    }
+}
+
+void show(ForecastType type)
+{
+    g_type = type;
+    clear_entries();
+    if (dashboard::backend().subscribe_forecast == nullptr || type == ForecastType::None) {
+        subscribe(ForecastType::None);
+        show_message("No forecast");
+        return;
+    }
+    show_message("Loading...");
+    subscribe(type);
+}
+
+void on_chip(lv_event_t *event)
+{
+    const auto type = static_cast<ForecastType>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(event)));
+    if (type != g.subscribed) {
+        show(type);
+        update();
+    }
+}
+
+// ------------------------------------------------------------------------------- the views
+
+void build_view(int focus);
+
+void drop_view()
+{
+    g.content = nullptr;
+    g.icon = g.value = g.condition = g.page_name = nullptr;
+    for (Row &row : g.rows) {
+        row = {};
+    }
+    g.row_count = 0;
+    g.chips[0] = g.chips[1] = nullptr;
+    g.card = g.strip = g.message = nullptr;
+}
+
+// the values or the forecast page; the subscription and what it brought stay
+void switch_view(bool page, int focus)
+{
+    if (g.content == nullptr || g_page == page) {
+        return;
+    }
+    g_page = page;
+    forecast_page::forget();
+    lv_obj_del(g.content);
+    drop_view();
+    build_view(focus);
+    update();
+}
+
+void open_page(void *focus)
+{
+    switch_view(true, static_cast<int>(reinterpret_cast<intptr_t>(focus)));
+}
+
+// A tap on the panel's forecast (a drag scrolls it) opens the page, at the hour tapped.
+void on_strip(lv_event_t *)
+{
+    int focus = -1;
+    lv_indev_t *indev = lv_indev_get_act();
+    if (indev != nullptr && g.strip != nullptr && g.sizes.column_width > 0) {
+        lv_point_t point{};
+        lv_indev_get_point(indev, &point);
+        lv_area_t coords;
+        lv_obj_get_coords(g.strip, &coords);
+        const int x = point.x - coords.x1 - lv_obj_get_style_pad_left(g.strip, LV_PART_MAIN) + lv_obj_get_scroll_x(g.strip);
+        focus = x >= 0 ? x / g.sizes.column_width : -1;
+    }
+    // the strip goes with the view: switched after its event
+    lv_async_call(open_page, reinterpret_cast<void *>(static_cast<intptr_t>(focus)));
+}
+
 // ------------------------------------------------------------------------------- building
 
 void build_header()
@@ -330,7 +439,7 @@ void build_header()
     const lv_area_t &header = g.frame.header;
     const lv_coord_t height = lv_area_get_height(&header);
     const lv_coord_t icon_h = lv_font_get_line_height(&icons::large());
-    g.icon = t::label(g.frame.root, "", icons::large(), t::kTextLabel);
+    g.icon = t::label(g.content, "", icons::large(), t::kTextLabel);
     lv_obj_set_pos(g.icon, header.x1, static_cast<lv_coord_t>(header.y1 + (height - icon_h) / 2));
     g.text_x = static_cast<lv_coord_t>(header.x1 + icon_h + 6);
     const lv_coord_t text_w = static_cast<lv_coord_t>(header.x2 + 1 - g.text_x);
@@ -342,9 +451,9 @@ void build_header()
     lv_obj_set_style_text_color(g.frame.name, t::color(t::kTextValue), 0);
     lv_obj_set_pos(g.frame.name, g.text_x, top);
     lv_obj_set_width(g.frame.name, text_w);
-    g.value = t::label(g.frame.root, "", t::font_huge(), t::kText);
+    g.value = t::label(g.content, "", t::font_huge(), t::kText);
     lv_obj_set_pos(g.value, g.text_x, static_cast<lv_coord_t>(top + name_h));
-    g.condition = t::label(g.frame.root, "", t::font_medium(), t::kTextValue);
+    g.condition = t::label(g.content, "", t::font_medium(), t::kTextValue);
     // on the baseline of the temperature
     const lv_coord_t condition_h = lv_font_get_line_height(&t::font_medium());
     lv_obj_set_y(g.condition, static_cast<lv_coord_t>(top + name_h + value_h - condition_h - 3));
@@ -365,10 +474,10 @@ void build_rows(const lv_area_t &area)
     g.row_count = std::min(kMaxRows, lines * g.columns);
     for (int i = 0; i < g.row_count; i++) {
         Row &row = g.rows[i];
-        row.glyph = t::label(g.frame.root, "", icons::small(), t::kTextLabel);
-        row.name = t::label(g.frame.root, "", t::font_normal(), t::kTextLabel);
+        row.glyph = t::label(g.content, "", icons::small(), t::kTextLabel);
+        row.name = t::label(g.content, "", t::font_normal(), t::kTextLabel);
         row.width = static_cast<lv_coord_t>(g.column_w - g.glyph_w - kGlyphGap);
-        row.value = t::label(g.frame.root, "", t::font_normal(), t::kText);
+        row.value = t::label(g.content, "", t::font_normal(), t::kText);
         lv_obj_set_style_text_align(row.value, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_width(row.value, row.width);
         set_hidden(row.glyph, true);
@@ -397,18 +506,14 @@ void place_rows(int count)
     }
 }
 
-void build_forecast(const lv_area_t &area)
+// `Daily` and `Hourly` from x on
+void build_chips(lv_coord_t x, lv_coord_t y)
 {
     const Sizes &s = g.sizes;
-    lv_obj_t *title = t::label(g.frame.root, "Forecast", t::font_large(), t::kText);
-    lv_obj_set_pos(title, area.x1,
-                   static_cast<lv_coord_t>(area.y1 + (s.title_height - lv_font_get_line_height(&t::font_large())) / 2));
     static constexpr const char *kNames[] = {"Daily", "Hourly"};
-    auto x = static_cast<lv_coord_t>(area.x2 + 1 - (2 * s.chip_width + kChipGap));
-    const auto y = static_cast<lv_coord_t>(area.y1 + (s.title_height - s.chip_height) / 2);
     for (int i = 0; i < 2; i++) {
-        lv_obj_t *chip = panel::card(g.frame.root, {x, y, static_cast<lv_coord_t>(x + s.chip_width - 1),
-                                                    static_cast<lv_coord_t>(y + s.chip_height - 1)});
+        lv_obj_t *chip = panel::card(g.content, {x, y, static_cast<lv_coord_t>(x + s.chip_width - 1),
+                                                 static_cast<lv_coord_t>(y + s.chip_height - 1)});
         lv_obj_set_style_radius(chip, s.chip_height / 2, 0);
         // a small target: the touch counts a little around it
         lv_obj_set_ext_click_area(chip, kChipGap / 2);
@@ -418,10 +523,20 @@ void build_forecast(const lv_area_t &area)
         g.chips[i] = chip;
         x = static_cast<lv_coord_t>(x + s.chip_width + kChipGap);
     }
+}
+
+void build_forecast(const lv_area_t &area)
+{
+    const Sizes &s = g.sizes;
+    lv_obj_t *title = t::label(g.content, "Forecast", t::font_large(), t::kText);
+    lv_obj_set_pos(title, area.x1,
+                   static_cast<lv_coord_t>(area.y1 + (s.title_height - lv_font_get_line_height(&t::font_large())) / 2));
+    build_chips(static_cast<lv_coord_t>(area.x2 + 1 - (2 * s.chip_width + kChipGap)),
+                static_cast<lv_coord_t>(area.y1 + (s.title_height - s.chip_height) / 2));
     const lv_area_t card = {area.x1, static_cast<lv_coord_t>(area.y1 + s.title_height + kCardGap), area.x2, area.y2};
-    g.card = panel::card(g.frame.root, card);
+    g.card = panel::card(g.content, card);
     lv_obj_clear_flag(g.card, LV_OBJ_FLAG_CLICKABLE);
-    // the columns scroll sideways inside the card's border
+    // the columns scroll sideways inside the card's border; a tap opens the forecast page
     g.strip = t::plain(g.card);
     lv_obj_set_size(g.strip, static_cast<lv_coord_t>(lv_area_get_width(&card) - 2),
                     static_cast<lv_coord_t>(lv_area_get_height(&card) - 2));
@@ -433,6 +548,9 @@ void build_forecast(const lv_area_t &area)
     lv_obj_add_flag(g.strip, LV_OBJ_FLAG_SCROLLABLE);
     // the drag scrolls the strip, it is not a gesture of the screen
     lv_obj_clear_flag(g.strip, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_flag(g.strip, LV_OBJ_FLAG_CLICKABLE);
+    sound::tappable(g.strip);
+    lv_obj_add_event_cb(g.strip, on_strip, LV_EVENT_CLICKED, nullptr);
     g.message = t::label(g.card, "", t::font_normal(), t::kTextLabel);
     lv_obj_center(g.message);
 }
@@ -445,44 +563,58 @@ lv_coord_t card_height()
                                    lv_font_get_line_height(&t::font_small()) + 3 * kLineGap);
 }
 
-} // namespace
-
-void build(const panel::Frame &frame, core::TileIndex tile)
+// the current values above the forecast
+void build_values()
 {
-    forget();
-    g.frame = frame;
-    g.tile = tile;
-    g.entity = dashboard::layout().tiles[tile].entity;
-    g.sizes = sizes_now();
-
     build_header();
-    const lv_coord_t inset = frame.large ? kInsetLarge : kInset;
-    const lv_area_t control = {static_cast<lv_coord_t>(frame.control.x1 + inset), frame.control.y1,
-                               static_cast<lv_coord_t>(frame.control.x2 - inset),
-                               static_cast<lv_coord_t>(frame.control.y2 - (frame.large ? inset : 0))};
+    const lv_area_t &control = g.control;
     const auto forecast_y = static_cast<lv_coord_t>(control.y2 + 1 - card_height() - kCardGap - g.sizes.title_height);
     build_rows({control.x1, control.y1, control.x2, static_cast<lv_coord_t>(forecast_y - kSectionGap - 1)});
     build_forecast({control.x1, forecast_y, control.x2, control.y2});
-
-    const core::EntityState &s = dashboard::state(g.entity);
-    ForecastType type = g_type;
-    if (!supports(s, type)) {
-        type = type == ForecastType::Daily ? ForecastType::Hourly : ForecastType::Daily;
-    }
-    show(supports(s, type) ? type : ForecastType::None);
 }
 
-void update()
+// The forecast page: the name and the chips in the header, the forecast in the whole area below.
+void build_page(int focus)
 {
-    if (g.value == nullptr) {
-        return;
+    const lv_area_t &header = g.frame.header;
+    const Sizes &s = g.sizes;
+    const lv_coord_t height = lv_area_get_height(&header);
+    const auto chips_x = static_cast<lv_coord_t>(header.x2 + 1 - (2 * s.chip_width + kChipGap));
+    build_chips(chips_x, static_cast<lv_coord_t>(header.y1 + (height - s.chip_height) / 2));
+    g.page_name = t::label(g.content, "", t::font_large(), t::kText);
+    lv_obj_set_width(g.page_name, std::max<lv_coord_t>(0, static_cast<lv_coord_t>(chips_x - 2 * kChipGap - header.x1)));
+    lv_obj_set_pos(g.page_name, header.x1,
+                   static_cast<lv_coord_t>(header.y1 + (height - lv_font_get_line_height(&t::font_large())) / 2));
+    if (g.frame.large) {
+        // the dialog's round corners cut the page's background at the bottom
+        lv_obj_set_style_clip_corner(g.frame.root, true, 0);
     }
-    const core::Layout &layout = dashboard::layout();
-    const core::Tile &tile = layout.tiles[g.tile];
-    const core::EntityState &s = dashboard::state(g.entity);
-    const bool known = s.known != 0;
-    const bool available = known && !s.unavailable();
+    forecast_page::build(g.content, g.control, g.frame.portrait, g.frame.large, focus);
+}
 
+void build_view(int focus)
+{
+    g.content = t::plain(g.frame.root);
+    lv_obj_set_size(g.content, LV_PCT(100), LV_PCT(100));
+    // the taps go to the parts, and between them to the panel (the back tile stays usable)
+    lv_obj_clear_flag(g.content, LV_OBJ_FLAG_CLICKABLE);
+    set_hidden(g.frame.name, g_page);
+    if (g_page) {
+        build_page(focus);
+    } else {
+        build_values();
+    }
+    // what arrived meanwhile
+    if (g.has_entries) {
+        draw_entries();
+    }
+    const std::string text = g.message_text;
+    show_message(text.c_str());
+}
+
+void update_values(const core::Layout &layout, const core::Tile &tile, const core::EntityState &s, bool known,
+                   bool available)
+{
     // the header
     const char *glyph = icons::for_tile(tile, layout.entity_id(tile), s, true);
     set_text(g.icon, glyph != nullptr ? glyph : "");
@@ -512,11 +644,57 @@ void update()
             set_text(row.value, items[i].value);
             // the value whole, the name ends in "..." when the two do not fit
             const std::string &text = items[i].value;
-            const lv_coord_t value_w = lv_txt_get_width(text.c_str(), static_cast<uint32_t>(text.size()), &t::font_normal(),
-                                                        0, LV_TEXT_FLAG_NONE);
-            lv_obj_set_width(row.name, std::max<lv_coord_t>(0, static_cast<lv_coord_t>(row.width - value_w - kGlyphGap)));
+            const lv_coord_t text_w = lv_txt_get_width(text.c_str(), static_cast<uint32_t>(text.size()), &t::font_normal(),
+                                                       0, LV_TEXT_FLAG_NONE);
+            lv_obj_set_width(row.name, std::max<lv_coord_t>(0, static_cast<lv_coord_t>(row.width - text_w - kGlyphGap)));
             t::line_text(row.name, items[i].name);
         }
+    }
+}
+
+} // namespace
+
+void build(const panel::Frame &frame, core::TileIndex tile, bool keep_page)
+{
+    forget();
+    if (!keep_page) {
+        g_page = false;
+    }
+    g.frame = frame;
+    g.tile = tile;
+    g.entity = dashboard::layout().tiles[tile].entity;
+    g.sizes = sizes_now();
+    const lv_coord_t inset = frame.large ? kInsetLarge : kInset;
+    g.control = {static_cast<lv_coord_t>(frame.control.x1 + inset), frame.control.y1,
+                 static_cast<lv_coord_t>(frame.control.x2 - inset),
+                 static_cast<lv_coord_t>(frame.control.y2 - (frame.large ? inset : 0))};
+    build_view(-1);
+
+    const core::EntityState &s = dashboard::state(g.entity);
+    ForecastType type = g_type;
+    if (!supports(s, type)) {
+        type = type == ForecastType::Daily ? ForecastType::Hourly : ForecastType::Daily;
+    }
+    show(supports(s, type) ? type : ForecastType::None);
+}
+
+void update()
+{
+    if (g.content == nullptr) {
+        return;
+    }
+    const core::Layout &layout = dashboard::layout();
+    const core::Tile &tile = layout.tiles[g.tile];
+    const core::EntityState &s = dashboard::state(g.entity);
+    const bool known = s.known != 0;
+    const bool available = known && !s.unavailable();
+    if (g_page) {
+        // beside the chips: a long name takes the next smaller font before it is cut
+        const std::string name(core::display_name(s, tile, layout.entity_id(tile)));
+        t::line_text(g.page_name, name.c_str(), &t::font_medium());
+        forecast_page::set_current(available ? s.temperature : core::kUnknown);
+    } else {
+        update_values(layout, tile, s, known, available);
     }
 
     // the chips: only the forecasts the entity has, none when there is one or none to choose
@@ -540,9 +718,18 @@ void update()
     }
 }
 
+bool back()
+{
+    if (g.content == nullptr || !g_page) {
+        return false;
+    }
+    switch_view(false, -1);
+    return true;
+}
+
 void on_forecast(core::Forecast forecast)
 {
-    if (g.strip == nullptr || forecast.generation != g.generation || forecast.entity != g.entity) {
+    if (g.content == nullptr || forecast.generation != g.generation || forecast.entity != g.entity) {
         return; // the answer of an older subscription (the other forecast)
     }
     if (!forecast.error.empty()) {
@@ -562,16 +749,11 @@ void on_forecast(core::Forecast forecast)
         lv_timer_del(g.retry);
         g.retry = nullptr;
     }
-    // an update keeps the place the strip was scrolled to
-    const lv_coord_t scrolled = lv_obj_get_scroll_x(g.strip);
-    lv_obj_clean(g.strip);
-    for (const core::ForecastEntry &entry : forecast.entries) {
-        add_column(entry, forecast.type);
-    }
-    g.has_entries = !forecast.entries.empty();
+    g.entries = std::move(forecast.entries);
+    g.entries_type = forecast.type;
+    g.has_entries = !g.entries.empty();
+    draw_entries();
     show_message(g.has_entries ? "" : "No forecast");
-    lv_obj_update_layout(g.strip);
-    lv_obj_scroll_to_x(g.strip, scrolled, LV_ANIM_OFF);
 }
 
 void forget()
@@ -579,9 +761,10 @@ void forget()
     if (g.retry != nullptr) {
         lv_timer_del(g.retry);
     }
-    if (g.strip != nullptr) {
+    if (g.content != nullptr) {
         subscribe(ForecastType::None);
     }
+    forecast_page::forget();
     // the objects go with the panel's root
     g = {};
 }

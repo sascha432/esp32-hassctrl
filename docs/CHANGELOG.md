@@ -7,6 +7,13 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-08
+
+Added
+
+* Weather panel: a tap on the forecast opens a forecast page: graphs in landscape, lists in
+  portrait; with rain amount and wind, and 48 hours instead of 24.
+
 ### 2026-11-06
 
 Fixed

@@ -243,10 +243,11 @@ struct FieldSpec {
   `state_attr(e,'<attribute>')|tojson`, and decodes a result back into `EntityUpdate`s, from the
   same table.
 * `ui` picks the tile view for the kind.
-* A weather entity (`TileKind::Weather`, `weather.*`) has 15 more fields: `temperature` (its own
+* A weather entity (`TileKind::Weather`, `weather.*`) has 16 more fields: `temperature` (its own
   field, not `Target`: on a climate it is the setpoint), `apparent_temperature`, `humidity`,
   `pressure`, `wind_speed`, `wind_gust_speed`, `wind_bearing`, `visibility`, `cloud_coverage`,
-  `dew_point`, `uv_index` and the units of four of them. The tile needs the temperature, its unit
+  `dew_point`, `uv_index`, the units of four of them and `precipitation_unit` (of the forecast's
+  amounts). The tile needs the temperature, its unit
   and the humidity, the panel the rest and `supported_features`. The condition is the state
   (`core/weather.hpp`: words, MDI names, compass).
 * A timer entity (`TileKind::Timer`, `timer.*`) has 3 more fields: `duration` and `remaining`
@@ -494,8 +495,9 @@ Orientation:
   hass task owns one such subscription (`SubscribeForecast` command, `ForecastState`): a new
   command ends the old one with `unsubscribe_events` and subscribes the wanted one, type `None`
   only ends it; it is subscribed again after a reconnect (after `auth_ok`, next to the page).
-  `hass_protocol::decode_forecast` keeps the first 24 entries (8 days or 24 hours) as
-  `core::Forecast` (time, condition, temperature, low, chance of precipitation), delivered to the
+  `hass_protocol::decode_forecast` keeps the first 48 entries (8 days or 48 hours) as
+  `core::Forecast` (time, condition, temperature, low, chance and amount of precipitation, wind
+  speed and bearing; 32 bytes an entry, PSRAM), delivered to the
   UI as a `HassEvent` stamped with the panel's generation. An error (`forecast_not_supported`
   when the entity lacks the type) comes as a `Forecast` with `error`.
 * Camera images use `esp_http_client` and a JPEG decoder (on the ESP32 `esp_jpeg`, the TJpgDec

@@ -82,6 +82,7 @@ constexpr FieldSpec kFields[] = {
     {Field::CloudCoverage, "wc", "cloud_coverage", Kind::Number},
     {Field::DewPoint, "wd", "dew_point", Kind::Number},
     {Field::UvIndex, "wi", "uv_index", Kind::Number},
+    {Field::PrecipitationUnit, "wru", "precipitation_unit", Kind::Text},
     {Field::Duration, "td", "duration", Kind::Duration},
     {Field::Remaining, "tr", "remaining", Kind::Duration},
     {Field::FinishesAt, "tf", "finishes_at", Kind::Timestamp},
@@ -116,7 +117,7 @@ constexpr FieldMask kWeatherPanel = bit(Field::ApparentTemperature) | bit(Field:
                                     bit(Field::WindSpeed) | bit(Field::WindSpeedUnit) | bit(Field::WindGust) |
                                     bit(Field::WindBearing) | bit(Field::Visibility) | bit(Field::VisibilityUnit) |
                                     bit(Field::CloudCoverage) | bit(Field::DewPoint) | bit(Field::UvIndex) |
-                                    bit(Field::Features);
+                                    bit(Field::PrecipitationUnit) | bit(Field::Features);
 
 void append(memory::String &out, std::string_view text)
 {
@@ -313,6 +314,9 @@ void decode_field(const FieldSpec &spec, const cJSON *item, core::EntityState &t
         break;
     case Field::UvIndex:
         to.uv_index = number_of(item);
+        break;
+    case Field::PrecipitationUnit:
+        to.precipitation_unit = text_of(item);
         break;
     case Field::Duration:
         to.duration = cJSON_IsString(item) ? core::duration_seconds(item->valuestring) : number_of(item);

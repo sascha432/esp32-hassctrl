@@ -69,6 +69,7 @@ enum class Field : uint8_t {
     CloudCoverage,
     DewPoint,
     UvIndex,
+    PrecipitationUnit, // of the forecast's precipitation ("mm")
     // a timer entity (the state is active, paused or idle)
     Duration,     // the duration it runs for, seconds ("0:30:00" in Home Assistant)
     Remaining,    // the seconds left when it was paused (or started: counts down from there)
@@ -140,6 +141,7 @@ struct EntityState {
     float cloud_coverage = kUnknown; // percent
     float dew_point = kUnknown;
     float uv_index = kUnknown;
+    memory::String precipitation_unit;
     // a timer entity: seconds (duration, remaining) and the epoch second it ends at while it
     // runs (0: not running or unknown; whole seconds, like Backend::clock)
     float duration = kUnknown;
@@ -239,11 +241,14 @@ struct ForecastEntry {
     Condition condition = Condition::Unknown;
     float temperature = kUnknown; // the day's high, or the hour's temperature
     float templow = kUnknown;     // the day's low
+    float precipitation = kUnknown; // the amount, in the entity's precipitation_unit
+    float wind_speed = kUnknown;    // in the entity's wind_speed_unit
+    float wind_bearing = kUnknown;  // degrees, where the wind comes from
     int8_t precipitation_probability = -1; // percent, -1 unknown
 };
 
-// the entries kept of an answer: 8 days, or the next 24 hours
-constexpr size_t kMaxForecastEntries = 24;
+// the entries kept of an answer: 8 days, or the next 48 hours (OpenWeatherMap's hourly forecast)
+constexpr size_t kMaxForecastEntries = 48;
 
 // The forecast of one entity, from its subscription: again with every update of the integration.
 // `generation` is the one of the subscription; the UI drops the answers of an older one.

@@ -210,7 +210,7 @@ TEST(protocol_decode_weather)
     // as OpenWeatherMap reports it: no uv_index
     Json result(cJSON_Parse(R"({"0":{"s":"cloudy","wt":11.8,"wtu":"°C","wh":81,"wa":10.2,"wp":1023,"wpu":"hPa",)"
                             R"("ws":25.74,"wsu":"km/h","wg":null,"wb":67,"wv":3.74,"wvu":"km","wc":90,"wd":8.6,)"
-                            R"("wi":null,"sf":3}})"));
+                            R"("wi":null,"wru":"mm","sf":3}})"));
     hc::memory::Vector<EntityUpdate> updates;
     hc::memory::String error;
     REQUIRE(decode_page(result.get(), sub, updates, error));
@@ -221,6 +221,7 @@ TEST(protocol_decode_weather)
     CHECK(w.wind_speed == 25.74f && w.wind_speed_unit == "km/h" && std::isnan(w.wind_gust) && w.wind_bearing == 67);
     CHECK(w.visibility == 3.74f && w.visibility_unit == "km" && w.cloud_coverage == 90 && w.dew_point == 8.6f);
     CHECK(std::isnan(w.uv_index) && w.features == (kForecastDaily | kForecastHourly));
+    CHECK(w.precipitation_unit == "mm");
     CHECK(std::isnan(w.target)); // not a climate's setpoint
 
     EntityStore store(layout.entities.size());
@@ -282,7 +283,8 @@ TEST(protocol_forecast)
     // OpenWeatherMap's daily answer: the high is `temperature`, the low `templow`
     Json event(cJSON_Parse(R"({"type":"daily","forecast":[)"
                            R"({"datetime":"2026-10-13T12:00:00+00:00","condition":"rainy","temperature":14.8,"templow":8.8,)"
-                           R"("precipitation_probability":60,"humidity":80},)"
+                           R"("precipitation_probability":60,"precipitation":4.2,"wind_speed":24.5,"wind_bearing":180,)"
+                           R"("humidity":80},)"
                            R"({"datetime":"2026-10-14T12:00:00+00:00","condition":"partlycloudy","temperature":17.7,"templow":12.5,)"
                            R"("precipitation_probability":null}]})"));
     hc::memory::Vector<ForecastEntry> entries;
@@ -291,11 +293,13 @@ TEST(protocol_forecast)
     REQUIRE(entries.size() == 2);
     CHECK(entries[0].condition == Condition::Rainy && entries[0].temperature == 14.8f && entries[0].templow == 8.8f);
     CHECK(entries[0].precipitation_probability == 60 && entries[0].time == 1791892800);
+    CHECK(entries[0].precipitation == 4.2f && entries[0].wind_speed == 24.5f && entries[0].wind_bearing == 180);
     CHECK(entries[1].condition == Condition::PartlyCloudy && entries[1].precipitation_probability == -1);
+    CHECK(std::isnan(entries[1].precipitation) && std::isnan(entries[1].wind_speed) && std::isnan(entries[1].wind_bearing));
 
-    // hourly: no templow; only the first 24 are kept
+    // hourly: no templow; only the first 48 are kept
     std::string hourly = R"({"type":"hourly","forecast":[)";
-    for (int i = 0; i < 48; i++) {
+    for (int i = 0; i < 60; i++) {
         char entry[128];
         std::snprintf(entry, sizeof(entry), R"(%s{"datetime":"2026-10-13T%02d:00:00+00:00","condition":"cloudy","temperature":%d})",
                       i > 0 ? "," : "", i % 24, 10 + i % 5);
@@ -304,7 +308,7 @@ TEST(protocol_forecast)
     hourly += "]}";
     Json many(cJSON_Parse(hourly.c_str()));
     REQUIRE(decode_forecast(many.get(), entries, error));
-    CHECK(entries.size() == kMaxForecastEntries && std::isnan(entries[0].templow));
+    CHECK(entries.size() == kMaxForecastEntries && kMaxForecastEntries == 48 && std::isnan(entries[0].templow));
 
     Json none(cJSON_Parse(R"({"type":"daily","forecast":null})"));
     REQUIRE(decode_forecast(none.get(), entries, error));
