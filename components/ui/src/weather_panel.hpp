@@ -3,9 +3,9 @@
 // The panel of a weather tile (docs/ui/lvgl/lvgl-panels.md section 6): the condition's icon, the
 // name and the temperature in the header, the current values below it (feels like, humidity,
 // pressure, wind, ...: as many rows as fit), and the forecast at the bottom, daily or hourly, a
-// row of columns that scrolls sideways. A tap on the forecast opens the forecast page
-// (forecast_page.hpp) in the panel's place; the back tile returns from it. The forecast is
-// subscribed while the panel is open (Backend::subscribe_forecast); no history.
+// row of columns that scrolls sideways (one drawn object). A tap on the forecast opens the
+// forecast page (forecast_page.hpp) in the panel's place; the back tile returns from it. The
+// forecast is subscribed while the panel is open (Backend::subscribe_forecast); no history.
 
 #include "hc/core/entity.hpp"
 #include "panel.hpp"

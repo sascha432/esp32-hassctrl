@@ -14,6 +14,8 @@ Fixed
 * A second tap lifted after 300 ms no longer opens a lock's, timer's, automation's or dimmer's
   panel twice or toggles a switch twice; it locks or runs nothing either. A panel that slides in
   takes no taps, also on its own steppers; only one panel opens at a time.
+* Weather panel: back from the forecast page and an hourly forecast that arrives no longer freeze
+  the JC3248W535 for 0.7 s (now 0.1 s); the panel's forecast is drawn by one object.
 
 Added
 

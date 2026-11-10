@@ -70,6 +70,15 @@ struct Row {
     lv_coord_t width = 0; // of the name and the value together
 };
 
+// the texts of a column of the strip, made once per answer
+struct Column {
+    char top[8];     // the weekday, "14:00"
+    char value[16];  // the high, the hour's temperature, "--"
+    char second[16]; // the low, the chance of precipitation; "" for none
+    const char *glyph;
+    bool strong;     // the weekday at midnight: white
+};
+
 struct State {
     panel::Frame frame;
     core::TileIndex tile = core::kNone;
@@ -99,7 +108,11 @@ struct State {
     // the forecast
     lv_obj_t *chips[2] = {}; // daily, hourly
     lv_obj_t *card = nullptr;
-    lv_obj_t *strip = nullptr;
+    lv_obj_t *strip = nullptr; // scrolls sideways
+    // In the strip: the columns, one object drawn by on_draw_columns() (an object per value took
+    // 0.6 s for the 48 hours on the JC3248W535 each time the view was built)
+    lv_obj_t *strip_columns = nullptr;
+    memory::Vector<Column> column_texts;
     lv_obj_t *message = nullptr;
     ForecastType subscribed = ForecastType::None;
     uint32_t generation = 0; // of the subscription
@@ -257,52 +270,73 @@ void subscribe(ForecastType type)
     backend.subscribe_forecast(layout.entity_id(layout.tiles[g.tile]), g.entity, type, g.generation);
 }
 
-lv_obj_t *line(lv_obj_t *parent, const char *text, const lv_font_t &font, uint32_t color)
+std::string degrees(float value)
 {
-    lv_obj_t *label = t::label(parent, text, font, color);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(label, LV_PCT(100));
-    return label;
+    return tiles::temperature(value) + "°";
 }
 
-// a column of the panel's strip
-void add_column(const core::ForecastEntry &entry, ForecastType type)
+// the texts of the strip's columns
+void prepare_columns()
 {
-    lv_obj_t *col = t::plain(g.strip);
-    lv_obj_set_size(col, g.sizes.column_width, LV_PCT(100));
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, kLineGap, 0);
-    lv_obj_clear_flag(col, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(col, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-    std::tm local{};
-    dashboard::backend().local_time(entry.time, local);
-    char top[16];
-    uint32_t top_color = t::kTextLabel;
-    if (type == ForecastType::Daily) {
-        std::snprintf(top, sizeof(top), "%s", weekday(local.tm_wday));
-    } else if (local.tm_hour == 0) {
-        // midnight: the new day's name
-        std::snprintf(top, sizeof(top), "%s", weekday(local.tm_wday));
-        top_color = t::kText;
-    } else {
-        std::snprintf(top, sizeof(top), "%02d:00", local.tm_hour);
-    }
-    line(col, top, t::font_normal(), top_color);
-    const char *glyph = icons::glyph(core::condition_icon(entry.condition));
-    line(col, glyph != nullptr ? glyph : "", icons::small(), t::kTextValue);
-    line(col, std::isnan(entry.temperature) ? "--" : (tiles::temperature(entry.temperature) + "°").c_str(),
-         t::font_medium(), t::kText);
-    std::string second;
-    if (type == ForecastType::Daily) {
-        if (!std::isnan(entry.templow)) {
-            second = tiles::temperature(entry.templow) + "°";
+    const bool daily = g.entries_type == ForecastType::Daily;
+    g.column_texts.clear();
+    g.column_texts.reserve(g.entries.size());
+    for (const core::ForecastEntry &entry : g.entries) {
+        Column c{};
+        std::tm local{};
+        dashboard::backend().local_time(entry.time, local);
+        if (daily || local.tm_hour == 0) {
+            // midnight: the new day's name
+            std::snprintf(c.top, sizeof(c.top), "%s", weekday(local.tm_wday));
+            c.strong = !daily;
+        } else {
+            std::snprintf(c.top, sizeof(c.top), "%02d:00", local.tm_hour);
         }
-    } else if (entry.precipitation_probability > 0) {
-        second = std::to_string(entry.precipitation_probability) + "%";
+        const char *glyph = icons::glyph(core::condition_icon(entry.condition));
+        c.glyph = glyph != nullptr ? glyph : "";
+        std::snprintf(c.value, sizeof(c.value), "%s", std::isnan(entry.temperature) ? "--" : degrees(entry.temperature).c_str());
+        if (daily) {
+            if (!std::isnan(entry.templow)) {
+                std::snprintf(c.second, sizeof(c.second), "%s", degrees(entry.templow).c_str());
+            }
+        } else if (entry.precipitation_probability > 0) {
+            std::snprintf(c.second, sizeof(c.second), "%d%%", entry.precipitation_probability);
+        }
+        g.column_texts.push_back(c);
     }
-    line(col, second.c_str(), t::font_small(), t::kTextLabel);
+}
+
+// The columns in the area to draw: the weekday or the hour, the glyph, the temperature, the low or
+// the chance, a line each, centered in the column; the lines centered in the strip's height.
+void on_draw_columns(lv_event_t *event)
+{
+    const int n = static_cast<int>(g.column_texts.size());
+    const int w = g.sizes.column_width;
+    if (n == 0 || w <= 0) {
+        return;
+    }
+    lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(event);
+    lv_area_t c;
+    lv_obj_get_coords(lv_event_get_target(event), &c);
+    const lv_area_t &clip = *ctx->clip_area;
+    const int first = std::max(0, (clip.x1 - c.x1) / w);
+    const int last = std::min(n - 1, (clip.x2 - c.x1) / w);
+    const lv_font_t *fonts[] = {&t::font_normal(), &icons::small(), &t::font_medium(), &t::font_small()};
+    int height = static_cast<int>(std::size(fonts) - 1) * kLineGap;
+    for (const lv_font_t *font : fonts) {
+        height += lv_font_get_line_height(font);
+    }
+    const int top = c.y1 + (lv_area_get_height(&c) - height) / 2;
+    for (int i = first; i <= last; i++) {
+        const Column &col = g.column_texts[static_cast<size_t>(i)];
+        const char *lines[] = {col.top, col.glyph, col.value, col.second};
+        const uint32_t colors[] = {col.strong ? t::kText : t::kTextLabel, t::kTextValue, t::kText, t::kTextLabel};
+        int y = top;
+        for (size_t k = 0; k < std::size(fonts); k++) {
+            t::draw_text(ctx, lines[k], *fonts[k], colors[k], c.x1 + i * w, y, w, LV_TEXT_ALIGN_CENTER);
+            y += lv_font_get_line_height(fonts[k]) + kLineGap;
+        }
+    }
 }
 
 // draws the entries in the view: the panel's strip (an update keeps where it was scrolled to), or
@@ -317,10 +351,9 @@ void draw_entries()
         return;
     }
     const lv_coord_t scrolled = lv_obj_get_scroll_x(g.strip);
-    lv_obj_clean(g.strip);
-    for (const core::ForecastEntry &entry : g.entries) {
-        add_column(entry, g.entries_type);
-    }
+    prepare_columns();
+    lv_obj_set_width(g.strip_columns, static_cast<lv_coord_t>(static_cast<int>(g.column_texts.size()) * g.sizes.column_width));
+    lv_obj_invalidate(g.strip_columns);
     lv_obj_update_layout(g.strip);
     lv_obj_scroll_to_x(g.strip, scrolled, LV_ANIM_OFF);
 }
@@ -332,7 +365,9 @@ void clear_entries()
     if (g_page) {
         forecast_page::clear();
     } else if (g.strip != nullptr) {
-        lv_obj_clean(g.strip);
+        g.column_texts.clear();
+        lv_obj_set_width(g.strip_columns, 0);
+        lv_obj_invalidate(g.strip);
     }
 }
 
@@ -393,7 +428,8 @@ void drop_view()
     }
     g.row_count = 0;
     g.chips[0] = g.chips[1] = nullptr;
-    g.card = g.strip = g.message = nullptr;
+    g.card = g.strip = g.strip_columns = g.message = nullptr;
+    g.column_texts.clear();
 }
 
 // the values or the forecast page; the subscription and what it brought stay
@@ -542,7 +578,6 @@ void build_forecast(const lv_area_t &area)
                     static_cast<lv_coord_t>(lv_area_get_height(&card) - 2));
     lv_obj_set_style_pad_ver(g.strip, kCardPad, 0);
     lv_obj_set_style_pad_hor(g.strip, 2, 0);
-    lv_obj_set_flex_flow(g.strip, LV_FLEX_FLOW_ROW);
     lv_obj_set_scroll_dir(g.strip, LV_DIR_HOR);
     lv_obj_set_scrollbar_mode(g.strip, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(g.strip, LV_OBJ_FLAG_SCROLLABLE);
@@ -551,6 +586,11 @@ void build_forecast(const lv_area_t &area)
     lv_obj_add_flag(g.strip, LV_OBJ_FLAG_CLICKABLE);
     sound::tappable(g.strip);
     lv_obj_add_event_cb(g.strip, on_strip, LV_EVENT_CLICKED, nullptr);
+    // as wide as the columns (draw_entries()); the touches go to the strip
+    g.strip_columns = t::plain(g.strip);
+    lv_obj_clear_flag(g.strip_columns, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(g.strip_columns, 0, LV_PCT(100));
+    lv_obj_add_event_cb(g.strip_columns, on_draw_columns, LV_EVENT_DRAW_MAIN, nullptr);
     g.message = t::label(g.card, "", t::font_normal(), t::kTextLabel);
     lv_obj_center(g.message);
 }

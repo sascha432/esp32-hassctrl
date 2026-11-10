@@ -174,20 +174,7 @@ void with_unit(char (&out)[24], const char *value, const std::string &unit)
 
 // ------------------------------------------------------------------------------- drawing
 
-void draw_text(lv_draw_ctx_t *ctx, const char *text, const lv_font_t &font, uint32_t color, int x, int y, int w,
-               lv_text_align_t align)
-{
-    if (text == nullptr || text[0] == 0 || w <= 0) {
-        return;
-    }
-    lv_draw_label_dsc_t dsc;
-    lv_draw_label_dsc_init(&dsc);
-    dsc.font = &font;
-    dsc.color = t::color(color);
-    dsc.align = align;
-    const lv_area_t area = {cv(x), cv(y), cv(x + w - 1), cv(y + line_h(font) - 1)};
-    lv_draw_label(ctx, &dsc, &area, text, nullptr);
-}
+using t::draw_text;
 
 void draw_rect(lv_draw_ctx_t *ctx, int x, int y, int w, int h, uint32_t color, lv_opa_t opa, int radius)
 {

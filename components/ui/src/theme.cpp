@@ -272,6 +272,22 @@ lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t &font, uint3
     return obj;
 }
 
+void draw_text(lv_draw_ctx_t *ctx, const char *text, const lv_font_t &font, uint32_t text_color, int x, int y, int width,
+               lv_text_align_t align)
+{
+    if (text == nullptr || text[0] == 0 || width <= 0) {
+        return;
+    }
+    lv_draw_label_dsc_t dsc;
+    lv_draw_label_dsc_init(&dsc);
+    dsc.font = &font;
+    dsc.color = color(text_color);
+    dsc.align = align;
+    const lv_area_t area = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + width - 1),
+                            static_cast<lv_coord_t>(y + lv_font_get_line_height(&font) - 1)};
+    lv_draw_label(ctx, &dsc, &area, text, nullptr);
+}
+
 void line_text(lv_obj_t *label, const char *text, const lv_font_t *smaller)
 {
     auto *old = static_cast<Line *>(lv_obj_get_user_data(label));

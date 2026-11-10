@@ -214,7 +214,10 @@ bottom).
 The forecast is not part of the entity's state: the panel subscribes it with
 `weather/subscribe_forecast` while it is open (`Backend::subscribe_forecast`, architecture.md
 section 6): the entries come about 300 ms later and again with every update of the integration
-(OpenWeatherMap polls every 10 minutes), the strip keeps its scroll position. Closing the panel or
+(OpenWeatherMap polls every 10 minutes), the strip keeps its scroll position. The columns are one
+object drawn by a draw callback, like the forecast page: a label per value took 0.6 s on the
+JC3248W535 for the 48 hours, each time the forecast arrived and on the way back from the page,
+with the screen frozen. Closing the panel or
 changing the chip ends the subscription; the old answers are dropped by their generation.
 An unavailable entity (Home Assistant restarting) has no `supported_features`: both chips stay and
 the selected one stays selected. A forecast that fails is asked for again every 10 s while the

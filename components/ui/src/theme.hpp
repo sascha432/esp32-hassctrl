@@ -84,6 +84,11 @@ void image_dsc(lv_img_dsc_t &dsc, const void *pixels, uint16_t width, uint16_t h
 
 lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t &font, uint32_t text_color);
 
+// One line of `text` in a draw callback (LV_EVENT_DRAW_MAIN), from x, y in `width`, aligned in it
+// as a label's text: for views of many values drawn by one object instead of a label per value.
+void draw_text(lv_draw_ctx_t *ctx, const char *text, const lv_font_t &font, uint32_t text_color, int x, int y, int width,
+               lv_text_align_t align);
+
 // Sets the text of a one-line label whose width comes from the layout (flex grow): a text that is
 // too wide ends in "...". LVGL's LV_LABEL_LONG_DOT wraps at spaces first, which leaves "1..." of
 // "1  My network". The text is kept and fitted again when the label's size changes. With

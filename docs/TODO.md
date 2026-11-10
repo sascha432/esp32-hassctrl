@@ -2310,6 +2310,12 @@ dialog with its whole area and no card in it, wind kept, temperatures with one d
       panel and the dashboard. The WT32 runs 7d0854b with its web image since.
 - [ ] Check the dialog's graphs and lists on a P4 (the test P4 was not attached on 2026-11-08
       and 2026-11-09).
+- [x] Back from the hourly page lagged (your report, 2026-11-10, the JC3248W535): the panel's
+      strip was rebuilt as 48 columns of 5 objects, 0.6 s with the screen frozen, also each time
+      an hourly forecast arrived. The strip is one drawn object now. Measured on the JC3248W535
+      over the console: back from the hourly page 0.69 s before, 0.10 s after (benchmark mode),
+      0.72 s before on your dashboard; the Windows version's strip is pixel for pixel the same
+      at the three boards' sizes (daily, hourly, scrolled, turned).
 
 Not built yet (placeholders in the code or the documentation):
 
