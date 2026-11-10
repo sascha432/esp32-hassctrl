@@ -7,6 +7,13 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-09
+
+Added
+
+* Benchmarks in `docs/benchmarks`: the JC3248W535's data cache at 64 and 32 KB, the WT32-SC01's
+  draw buffers at 40, 30 and 20 lines; neither setting changed (docs/TODO.md, the RAM review).
+
 ### 2026-11-08
 
 Fixed

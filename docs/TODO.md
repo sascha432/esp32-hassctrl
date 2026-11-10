@@ -74,6 +74,7 @@ working kfc_fw configuration. Main firmware 509 KB, recovery app 133 KB.
 | full screen redraw, 153,600 px | 35 to 45 ms (30.7 ms is the SPI wire time at 80 MHz) |
 | partial redraws | 76 to 92 per second, 4 to 9 ms each |
 | free internal RAM after boot | 334 KB before LVGL starts |
+| free data RAM, HA connected (2026-11-09) | 55 KB, largest block 31 KB (the 32 KB reserve pool; 8 KB in the main heap, 15 KB in a region not used yet); the two draw buffers take 77 KB |
 | orientation | MPU6050 found, reported 180 degrees after boot and the screen followed |
 | touch | four touches arrived in LVGL with plausible coordinates |
 
@@ -1716,8 +1717,14 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       a tap on the weather tile and a press at 12,60 held 700 ms from 60 to 300 ms later built the
       panel twice in 3 of 4 runs, after the fix once in 8 of 8. A drag still scrolls the forecast.
       The first fix (layout before a new touch only) covered (1) but not (2).
-- [ ] The same check on the WT32-SC01 and a P4 (the hallway and the kitchen run the fix since
-      2026-11-09); the P4's veil fix of 2026-11-06 was tested only in the simulator.
+- [x] The same check on the WT32-SC01 (2026-11-09, COM9, a test build of 7d0854b that prints
+      when a panel is built): two taps queued at once, `touch tap 100 55 238 55` (the weather tile,
+      then the thermostat tile's place) and `touch tap 238 55 30 30` (the other way round), built
+      one panel in 3 of 3 runs each; a tap on the weather tile and a press at 12,60 held 700 ms
+      from 60 to 300 ms later built it once in 8 of 8. No run without the fix on this board: its
+      firmware of 2026-11-03 had no `touch tap`.
+- [ ] The same check on a P4 (the hallway and the kitchen run the fix since 2026-11-09); the P4's
+      veil fix of 2026-11-06 was tested only in the simulator.
 - [x] P4: a quick second tap after the one that opened a panel closed it again (your report
       2026-11-06): it landed on the veil while the dialog still slid down. The veil closes only for a
       press that comes after the slide. Reproduced and checked in the simulator (`--size p4`, the
@@ -2275,8 +2282,12 @@ dialog with its whole area and no card in it, wind kept, temperatures with one d
       on the dashboard before.
 - [x] The hallway and the kitchen P4 run it since 2026-11-09 (updated over Wi-Fi at your request,
       both restarted into it).
-- [ ] Check the dialog's graphs and lists on a P4 and the graphs on the WT32-SC01 (the test P4
-      and the WT32 were not attached on 2026-11-08).
+- [x] The graphs on the WT32-SC01 (2026-11-09, COM9, your OpenWeatherMap, screenshots read by
+      me): the panel, the daily graph (both temperature lines with the band, the chance bars, the
+      rows of mm and wind) and the hourly graph (scrolled, the day line at midnight), back to the
+      panel and the dashboard. The WT32 runs 7d0854b with its web image since.
+- [ ] Check the dialog's graphs and lists on a P4 (the test P4 was not attached on 2026-11-08
+      and 2026-11-09).
 
 Not built yet (placeholders in the code or the documentation):
 
@@ -2410,3 +2421,50 @@ Not built yet (placeholders in the code or the documentation):
       the same load (its own dashboard, no audio): every task 1.2 KB or more left (network 1224,
       httpd 1328, media 1396 bytes), LVGL 1572 after the benchmark; its orientation and light
       sensor tasks use 1468 and 744 of 3072.
+- [ ] **Internal RAM, review of the changes since 2026-10-30** (2026-11-09, JC3248W535 on COM10 with
+      test builds of 7d0854b, its own firmware back on it afterwards). Nothing wrong in the code:
+      every object in `.ext_ram.bss` is all zeros in the object files of the S3, WT32 and P4 builds
+      (no start value that the zeroed section drops), no interrupt touches them, ESP-IDF 6.1 zeroes
+      the section before the constructors run. Of the 70 KB free on the JC3248W535, 32 KB are
+      ESP-IDF's reserve pool and 7.8 KB RTC memory (no DMA), 32.7 KB the main heap in one block
+      (by region, `heap_caps_print_heap_info` in a test build); `mem`'s "largest 31 KB" is the
+      untouched pool. Nothing is left that costs nothing. Measured:
+      - [ ] Your decision: the data cache at 32 KB instead of 64 KB (`CONFIG_ESP32S3_DATA_CACHE_32KB`
+            in `boards/jc3248w535/sdkconfig.defaults`): 70 -> 102 KB free with Home Assistant
+            connected (DMA 62 -> 94 KB); full redraws 1 to 4 % slower (main 50.5 -> 52.7 ms, dense
+            66.7 -> 68.1 ms, the flush unchanged), eight of the 16 panel slides draw one frame less.
+            `docs/benchmarks/jc3248w535-dcache64.json` and `jc3248w535-dcache32.json`.
+      - Wi-Fi's code out of IRAM (`IRAM_OPT` and `RX_IRAM_OPT` off, as on the ESP32) is 18.3 KB on
+        the S3 by the map file, not the 33 KB noted on 2026-10-25; its cost in throughput is not
+        measured.
+      - Stacks after the forecast page and the touch change (`mem tasks`: the forecast's lists and
+        graphs in both orientations, Settings, four rotations, screenshots): LVGL 3808 of 5120, hass
+        3072 of 4608, network 2548 of 4096, touch 1564 of 2816, captive DNS 1480 of 2560, esp_timer
+        1936 of 4096 (the delayed settings write runs there), console 5032 of 6144 (a screenshot of
+        the graphs: 1112 left, the rule of docs/architecture.md section 4 gives 6400).
+      - [ ] The stack sizes of 2026-11-03 were measured on Xtensa only. The P4 (RISC-V) runs the
+            same reduced sizes for the console, the web server, hass, speech, captive DNS and touch
+            without a measurement: `mem tasks` on the test P4 when it is attached.
+      - [ ] The hallway P4 still has the recovery app of 2026-10-26, built with the external .bss:
+            it aborts the boot when the PSRAM fails (build/jc4880p443c.hallway/recovery, the image
+            last flashed). The factory partition needs USB.
+      - The audio task's stack with a card (5120) stays unmeasured: nothing to play on the bench
+        board's card.
+      - WT32-SC01 (COM9, attached later that day, now on 7d0854b): 55 KB of data RAM free with Home
+        Assistant connected, as on 2026-11-03. By region: 8 KB in the main DRAM heap (down to
+        0.4 KB while the Cameras folder loads), the 32 KB reserve pool, 15 KB in a D/IRAM region
+        nothing has used yet and 2 KB beside the pool; what does not fit the DRAM heap takes the
+        pool first (ESP-IDF 6.1 puts a region added at run time before the others). The two draw
+        buffers are 38.4 KB each (480 x 40 lines x 2 bytes), 77 KB together, not the 51 KB noted on
+        2026-10-07.
+      - Measured, not taken: fewer draw buffer lines on the WT32 (three images that differ in
+        the constant alone, so the code lies in the same place): 30 lines give 18.5 KB, full redraws
+        9 to 23 % slower (main 64.4 -> 73.0 ms, dense 94.9 -> 116.3 ms); 20 lines give 39 KB (55 ->
+        94 KB free), 24 to 49 % slower (main 91.8 ms, dense 141.6 ms).
+        `docs/benchmarks/wt32_sc01-lines40.json`, `-lines30.json` and `-lines20.json`.
+      - Stacks on the WT32 (`mem tasks`: the forecast graphs, the Cameras folder with five pictures
+        and one HTTP 500, a thermostat's history of 24 and 48 h, Settings, screenshots): every task
+        but ESP-IDF's idle and IPC tasks keeps 1.26 KB or more. LVGL 3580 of 5120, console 4808 of
+        6144, hass 2848 of 4608, network 2616 of 4096, media 2232 of 3840, sys_evt 1556 of 2816,
+        touch 1240 of 2816. No turn of the screen there: its Display page reloads and has the two
+        light rows that act on a tap, and the turn was measured on the JC3248W535.
