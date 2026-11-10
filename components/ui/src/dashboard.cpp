@@ -477,6 +477,20 @@ void open_panel(core::TileIndex tile)
     if (!g.layout || tile >= g.layout->tiles.size() || !panel::has_panel(g.layout->tiles[tile])) {
         return;
     }
+    // One panel at a time: the page under an open panel opens no other. Whatever still reaches a
+    // tile there builds no second panel (a tap whose window ran out after another tile's panel
+    // opened; a touch LVGL sent to the page).
+    if (g.panel != core::kNone) {
+        return;
+    }
+    // A touch that is down now began before the panel (a tile's timer opens it at the end of the
+    // double tap's window, wherever the finger is by then): it is dead until it lifts, so its
+    // release taps neither the tile again nor what the panel puts under the finger.
+    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER && indev->proc.state == LV_INDEV_STATE_PRESSED) {
+            lv_indev_wait_release(indev);
+        }
+    }
     g.panel = tile;
     panel::build(g.root, tile, true);
     // the same page with the panel's fields

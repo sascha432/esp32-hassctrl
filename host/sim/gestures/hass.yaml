@@ -1,0 +1,20 @@
+# The dashboard of tools/test_gestures.py: one page with a tile of every kind of tap. The test
+# finds the tiles by these names, the entities are those of the sample data.
+tiles:
+  - entity: lock.stardust_gate
+    name: Gate
+  - entity: light.aurora_ceiling
+    name: Ceiling
+    dimmer: true
+  - entity: switch.crystal_lamp
+    name: Lamp
+  - entity: climate.hearth_thermostat
+    name: Hearth
+  - entity: timer.bathroom_fan_30min
+    name: Timer
+  - entity: automation.gate_alarm
+    name: Alarm
+  - entity: weather.openweathermap
+    name: Weather
+  - entity: sensor.moonbase_temperature
+    name: Moonbase

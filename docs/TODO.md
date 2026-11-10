@@ -1723,8 +1723,30 @@ setup in [home-assistant/motion-sensor.md](home-assistant/motion-sensor.md). The
       one panel in 3 of 3 runs each; a tap on the weather tile and a press at 12,60 held 700 ms
       from 60 to 300 ms later built it once in 8 of 8. No run without the fix on this board: its
       firmware of 2026-11-03 had no `touch tap`.
-- [ ] The same check on a P4 (the hallway and the kitchen run the fix since 2026-11-09); the P4's
-      veil fix of 2026-11-06 was tested only in the simulator.
+- [x] The lock panel opened twice on the hallway P4 (your report 2026-11-09), which ran the fix
+      above: a lock, timer, automation or dimmer tile opens its panel 300 ms after a tap (the
+      double tap's window). A second tap that came down within the window but was lifted after it
+      counted as a new single tap: the window opened the panel while the finger was down, the
+      release opened it again (a switch toggled twice). The layout rule moved from `touch_input`
+      into the UI (`hc::ui::start` wraps every pointer's read), so the Windows version behaves as
+      the boards. The first fix of 2026-11-09 (the press time decides the double tap, the window
+      waits while the tile is down) was wrong, found in review 2026-11-10 with the new
+      `tools/test_gestures.py` (27 cases at 3 sizes): a slow or impatient second tap now unlocked
+      the lock or ran the automation, one long tap with a 30 ms dropout of the controller too, and
+      it left other paths open. Now (81 of 81 pass; the commit before: 49, the first fix: 50):
+      a double tap ends within 300 ms as before; a finger still on the tile when the window ends
+      is dead until it lifts; one panel at a time (a lock's window that ended after the weather
+      panel opened built the lock panel over it); while any panel slides in, a cover over the
+      whole screen (a quick second tap set the climate dialog's setpoint as its stepper passed
+      under the finger), a finger on it at the end of the slide is dead; a drag on a dimmer
+      cancels a tap just before it (the panel opened after the level), a drag cut off by a panel
+      sends nothing. On the JC3248W535 in benchmark mode (sample data, no real device acted on;
+      new `bench trace`, taps over `touch down`/`up` with the same times): 13 of 13 cases pass,
+      the commit before fails 7 (the lock, timer and dimmer panel built twice, the switch toggled
+      twice, the lock panel over the thermostat's).
+- [ ] The same check on a P4: the hallway and the kitchen run this fix since 2026-11-10 (updated
+      over Wi-Fi, both connected again); the lock tile there, the P4's veil fix of 2026-11-06 and
+      the cover over the dialog were tested only in the simulator (`--size p4`).
 - [x] P4: a quick second tap after the one that opened a panel closed it again (your report
       2026-11-06): it landed on the veil while the dialog still slid down. The veil closes only for a
       press that comes after the slide. Reproduced and checked in the simulator (`--size p4`, the

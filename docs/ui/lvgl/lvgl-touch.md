@@ -25,7 +25,9 @@ wakes the screen. The screens are described in [lvgl-dashboard.md](lvgl-dashboar
 | --- | --- | --- | --- |
 | dashboard, top center | drag down from the pull-down zone | opens Settings | zone 160 x 40 px (`overlay::kZoneHeight`; in a full-screen panel only between its header buttons), 24 px of drag; the alert strip's area starts it too |
 | alert strip | tap | a state message opens Settings at the matching page; "⟳ Stream failed" tries again; another event message closes | |
-| switch, button, scene tile | tap | toggles, presses | |
+| switch, light tile | tap; double tap | toggles (after the double tap time); opens the panel with the timeline | 300 ms |
+| button, scene tile | tap | presses | |
+| lock, timer tile | double tap; single tap | locks or unlocks, starts or cancels; opens the panel (after the double tap time) | 300 ms |
 | automation, script tile | double tap; single tap | runs it (stops a running script); opens the automation panel (after the double tap time) | 300 ms |
 | dimmer tile | drag up or down | sets the level on release | starts after 10 px |
 | dimmer tile | double tap | toggles | 300 ms |
@@ -61,10 +63,25 @@ Rules that keep the gestures apart:
   buttons sit below it (`overlay::kZoneHeight`). While a full-screen panel is open the zone keeps
   between the back button and the two header buttons (`overlay::fit_zone()`, 94 px wide at 320 px):
   on the JC3248W535 it would cover most of the history button.
-* While a full-screen panel slides in, the page beside it takes no taps (a clear cover under the
-  panel until the slide ends). A second tap meets the cover or the panel also when it waited in
-  the touch queue while the panel was built, or is held through the end of the slide: the touch
-  read lays the screen out before LVGL looks under the finger.
+* **While a panel slides in, nothing takes taps**: a clear cover over the whole screen until the
+  slide ends, over the page beside a full-screen panel, the dialog's veil and the panel's own
+  parts (a quick second tap hit a stepper as it passed under the finger). A finger still on the
+  cover when the slide ends is dead until it lifts. The cover is found also by a tap that waited
+  in the touch queue while the panel was built: every read of a pointer with the finger down
+  lays the screen out before LVGL looks under the finger (`hc::ui::start` wraps the reads, the
+  Windows version's too).
+* **A double tap is two taps that both end within 300 ms** (the second release at most 300 ms
+  after the first). A second tap lifted later is no double tap: a slow or impatient second tap
+  never locks, unlocks or runs anything. The single tap's action (open the panel, toggle) runs
+  at the end of the 300 ms, and a finger that is down on the tile then is dead until it lifts:
+  its release toggles nothing and opens nothing again (`lv_indev_wait_release`).
+* **One panel at a time**: while a panel is open, no tile opens another (a tap on a lock tile
+  whose 300 ms run out after another tile's panel opened). Any touch that is down when a panel
+  opens is dead until it lifts.
+* A dimmer's drag that starts within 300 ms of a tap on it cancels the tap: the level is set, no
+  panel opens. A drag that a panel cuts off sends no level.
+* `python tools/test_gestures.py` replays these cases in the Windows version with exact times, at
+  the sizes of the three boards (README, "The UI on the PC").
 * While the dashboard is edited the pull-down is off; the alert strip shows only event messages
   and a drag on it does not open Settings.
 * The camera view's buttons move down with the alert strip (`overlay::on_strip_moved()`), so a

@@ -632,12 +632,13 @@ const Info &info();                    // the board's constants: size, pins, add
   `touch log` prints the samples and what LVGL takes, `touch tap x y [x y ...]` queues taps at
   once (a quick finger during a render), `touch down x y` and `touch up` a press held between
   them; the console's `tap` is a pointer of its own that LVGL reads as it is, as the Windows
-  version does. Every read with the finger down runs LVGL's layout first: LVGL finds the object
-  under a touch by the objects' places, which the layout sets only before the next frame. A
-  second tap was tested against older places and opened the tile under a panel again: read
-  before the panel's first frame, or held through the end of its slide, when the cover under the
-  panel goes and LVGL looks again under the finger while the panel stood where the last frame
-  had it (9 frames a second on the JC3248W535).
+  version does. The UI wraps the read of every pointer (`hc::ui::start`, the Windows version's
+  too): with the finger down it runs LVGL's layout first. LVGL finds the object under a touch by
+  the objects' places, which the layout sets only before the next frame; a second tap was tested
+  against older places and opened the tile under a panel again: read before the panel's first
+  frame, or held through the end of its slide, when the cover under the panel goes and LVGL looks
+  again under the finger while the panel stood where the last frame had it (9 frames a second on
+  the JC3248W535).
   Up to two fingers are read: LVGL's pointer follows the one that came down first (by the
   controller's track id), `touch_input::fingers()` gives both to a two-finger gesture (the camera's
   pinch to zoom). The JC3248W535's driver reads one finger only and takes misread answers as
@@ -1440,13 +1441,15 @@ esp32-hassctrl/
     tests/       unit tests for formats, core, config, hass_protocol, network's choice, the backup;
                  stubs/ of ESP-IDF headers
     sim/         the Windows version of the UI (section 1): its own CMake project (build/sim), the
-                 stub Backend with the scenarios, lv_conf.h, the Windows driver; python tools/sim.py
+                 stub Backend with the scenarios, lv_conf.h, the Windows driver; python tools/sim.py;
+                 gestures/ the dashboard of tools/test_gestures.py
   web/                           the web UI (index.html, app.js, dashboard.js, icons.svg)
   sounds/                        the alarm sounds (MP3, AOSP, Apache 2.0, NOTICE)
   tools/
     build.py, build_fs.py, update.py   firmware, file system image, update over the network
     build_web.py                       the web files for one firmware (board-only pages left out, Bootstrap purged, minified)
     host_test.py, sim.py, msvc.py      host tests, Windows version (msvc.py finds MSVC, cmake, ninja)
+    test_gestures.py                   timed taps on the tiles in the Windows version
     test_dashboard.py, test_web.py     tests against a device
     screenshot.py                      the screen over the serial console (uidebug)
     build_icons.py, build_logo.py, build_sounds.py, build_timezones.py, gen_recovery_font.py

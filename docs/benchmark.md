@@ -45,7 +45,10 @@ In that boot:
   nothing but the screens runs;
 * the **clock starts at a fixed time** (Mon 2 Feb 2026, 10:08:30 UTC) and runs on with LVGL's tick,
   so the clocks and the camera's sun look the same on every run;
-* the sample backend prints nothing, the backlight is the board's.
+* the sample backend prints nothing, the backlight is the board's. `bench trace` turns its lines
+  on (`bench trace off` off again): the page and panel the UI shows, the actions it sends, as in
+  the Windows version. With the console's `touch down`/`touch up` that tests taps on the board
+  without acting on a real device.
 
 `bench run` then runs the scenes. While they run the ESP-IDF log is down to errors and the
 performance monitor in the corner is hidden; the result lines are collected in PSRAM and printed

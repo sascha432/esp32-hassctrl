@@ -150,21 +150,6 @@ void sample_task(void *)
     }
 }
 
-// LVGL finds the object under a touch by the objects' places, which its layout sets only before
-// the next frame. Tested against older places, a second tap opened the tile under a panel again
-// (your report and video, 2026-11-08): read right after the tap that built the panel, before its
-// first frame; or held through the end of the panel's slide, when the cover under the panel goes
-// and LVGL looks again under the finger, while the panel stood where the last frame (9 per second
-// on the JC3248W535) had it. Every read with the finger down gets the layout first (nothing to do
-// when nothing changed).
-void lay_out()
-{
-    lv_disp_t *disp = g.config.disp;
-    lv_obj_update_layout(lv_disp_get_scr_act(disp));
-    lv_obj_update_layout(lv_disp_get_layer_top(disp));
-    lv_obj_update_layout(lv_disp_get_layer_sys(disp));
-}
-
 void read(lv_indev_drv_t *, lv_indev_data_t *data)
 {
     Sample next{};
@@ -184,9 +169,6 @@ void read(lv_indev_drv_t *, lv_indev_data_t *data)
     data->point.x = g.last.x;
     data->point.y = g.last.y;
     data->state = g.last.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-    if (g.last.pressed) {
-        lay_out();
-    }
 }
 
 // a point of the controller as LVGL's pointer gets it: turned with the display

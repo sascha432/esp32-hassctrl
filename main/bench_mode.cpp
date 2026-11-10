@@ -21,6 +21,7 @@
 #include "hc/platform/restart.hpp"
 #include "hc/sample/sample_hass.hpp"
 #include "hc/sample/stub_backend.hpp"
+#include "hc/sample/stub_backend.hpp"
 #include "hc/ui/bench.hpp"
 #include "hc/uidebug/uidebug.hpp"
 #include "sdkconfig.h"
@@ -113,10 +114,19 @@ int cmd_bench(int argc, char **argv)
         vTaskDelay(pdMS_TO_TICKS(100));
         hc::platform::restart();
     }
+    if (std::strcmp(verb, "trace") == 0 && g.active) {
+        // what the UI asks of the sample backend, one line each: the page and the panel it shows,
+        // the actions (the [sim] lines of the Windows version), for taps over `touch`
+        const bool on = argc < 3 || std::strcmp(argv[2], "off") != 0;
+        hc::sample::set_verbose(on);
+        std::printf("bench trace %s\n", on ? "on" : "off");
+        return 0;
+    }
     if (std::strcmp(verb, "run") != 0) {
         std::printf("benchmark mode %s, data version %.*s, scenes version %d\n", g.active ? "on" : "off",
                     static_cast<int>(data_version().size()), data_version().data(), hc::ui::bench::kScenesVersion);
-        std::printf("bench start: restart into benchmark mode; bench run: run the scenes (docs/benchmark.md)\n");
+        std::printf("bench start: restart into benchmark mode; bench run: run the scenes (docs/benchmark.md); "
+                    "bench trace [off]: print what the UI asks of the sample data\n");
         return 0;
     }
     if (!g.active || g.disp == nullptr) {
@@ -213,7 +223,7 @@ void register_console(lv_disp_t *disp)
     esp_console_cmd_t command{};
     command.command = "bench";
     command.help = "rendering benchmark: restart into benchmark mode, run the scenes (docs/benchmark.md)";
-    command.hint = "[start|run]";
+    command.hint = "[start|run|trace [off]]";
     command.func = cmd_bench;
     esp_console_cmd_register(&command);
 }

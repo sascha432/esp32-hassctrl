@@ -361,8 +361,11 @@ bool save_dashboard(const hc::core::Layout &layout, uint32_t revision, char *err
 }
 
 void subscribe_page(std::shared_ptr<const hc::core::Layout> layout, hc::core::PageIndex page, hc::core::Orientation,
-                    hc::core::TileIndex, uint32_t generation)
+                    hc::core::TileIndex panel, uint32_t generation)
 {
+    // one line per page and per panel that opens or closes (tools/test_gestures.py counts them)
+    say("[sim] subscribe page %d, panel %d\n", page == hc::core::kNone ? -1 : static_cast<int>(page),
+        panel == hc::core::kNone ? -1 : static_cast<int>(panel));
     // the copy of the edit mode has the same entities, and those of the tiles added to it at the end
     const bool known = layout && g.layout && layout->entities.size() >= g.layout->entities.size();
     if (known) {

@@ -366,6 +366,37 @@ void swipe(lv_coord_t x1, lv_coord_t y1, lv_coord_t x2, lv_coord_t y2, uint32_t 
     lv_win32_pointer_override(false, 0, 0, false);
 }
 
+// A finger that stays down between steps, for what tap and swipe cannot say: a second tap that
+// is lifted late, a press held while a panel opens (tools/test_gestures.py). `down`, then waits
+// and moves, then `up`; each of them lasts one read of the pointer.
+lv_point_t g_finger{};
+
+void finger_down(lv_coord_t x, lv_coord_t y)
+{
+    g_finger = {x, y};
+    finger(x, y, true);
+    pump(LV_INDEV_DEF_READ_PERIOD);
+}
+
+void finger_move(lv_coord_t x, lv_coord_t y, uint32_t ms)
+{
+    const lv_point_t from = g_finger;
+    const int steps = static_cast<int>(std::max<uint32_t>(ms / LV_INDEV_DEF_READ_PERIOD, 1));
+    for (int i = 1; i <= steps; i++) {
+        g_finger = {static_cast<lv_coord_t>(from.x + (x - from.x) * i / steps),
+                    static_cast<lv_coord_t>(from.y + (y - from.y) * i / steps)};
+        finger(g_finger.x, g_finger.y, true);
+        pump(LV_INDEV_DEF_READ_PERIOD);
+    }
+}
+
+void finger_up()
+{
+    finger(g_finger.x, g_finger.y, false);
+    pump(LV_INDEV_DEF_READ_PERIOD);
+    lv_win32_pointer_override(false, 0, 0, false);
+}
+
 // ------------------------------------------------------------------------------- screenshot
 
 bool screenshot(const std::string &path)
@@ -579,6 +610,35 @@ bool run_step(const std::string &step)
         }
         swipe(static_cast<lv_coord_t>(n[0]), static_cast<lv_coord_t>(n[1]), static_cast<lv_coord_t>(n[2]),
               static_cast<lv_coord_t>(n[3]), split(argument, ',').size() > 4 ? static_cast<uint32_t>(n[4]) : 300);
+    } else if (verb == "down" || verb == "move") {
+        lv_point_t at;
+        if (numbers(argument, 2, n) && std::strchr(argument.c_str(), ',') != nullptr) {
+            at = {static_cast<lv_coord_t>(n[0]), static_cast<lv_coord_t>(n[1])};
+        } else if (!find_text(argument.c_str(), at)) {
+            std::fprintf(stderr, "%s: no label '%s' on the screen\n", verb.c_str(), argument.c_str());
+            return false;
+        }
+        if (verb == "down") {
+            finger_down(at.x, at.y);
+        } else {
+            finger_move(at.x, at.y, split(argument, ',').size() > 2 ? static_cast<uint32_t>(n[2]) : 150);
+        }
+    } else if (verb == "up") {
+        finger_up();
+    } else if (verb == "back") {
+        // what the back button of a panel does
+        ui::dashboard::close_panel();
+        pump(2 * LV_INDEV_DEF_READ_PERIOD);
+    } else if (verb == "see" || verb == "where") {
+        // what a test checks or asks: a label with this text is on the screen; where its center is
+        lv_point_t at;
+        if (!find_text(argument.c_str(), at)) {
+            std::fprintf(stderr, "%s: no label '%s' on the screen\n", verb.c_str(), argument.c_str());
+            return false;
+        }
+        if (verb == "where") {
+            std::printf("[sim] where %s: %d,%d\n", argument.c_str(), static_cast<int>(at.x), static_cast<int>(at.y));
+        }
     } else {
         std::fprintf(stderr, "unknown step '%s' (--help lists them)\n", step.c_str());
         return false;
@@ -616,6 +676,10 @@ void usage()
         "                         forecast ok|loading|error (how the next forecast subscription answers)\n"
         "                         tap TEXT (a label on the screen) | tap X,Y[,MS] (MS: the pause after it, default 350)\n"
         "                         doubletap X,Y | swipe X1,Y1,X2,Y2[,MS]\n"
+        "                         down TEXT | down X,Y | move TEXT | move X,Y[,MS] | up (a finger that stays\n"
+        "                         down between the steps; each lasts one read of the pointer, 30 ms)\n"
+        "                         back (closes the panel) | see TEXT (fails without a label with this text)\n"
+        "                         where TEXT (prints the center of the label)\n"
         "  --screenshot FILE    run the steps, wait, write the frame as a PNG and exit, without a window\n"
         "  --wait MS            settle time before a screenshot (default 1200)\n"
         "  --time EPOCH         the clock starts at this time (seconds) instead of the computer's\n"

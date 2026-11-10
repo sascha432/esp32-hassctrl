@@ -28,6 +28,27 @@ core::EntityIndex entity_of(const View &view)
     return view.entity;
 }
 
+// A double tap is two taps of which the second one ends within the window. Lifted later it is no
+// double tap: a slow or impatient second tap never locks, unlocks or runs anything. The window's
+// action then runs at the window's end with the finger still down, and what that finger does
+// afterwards counts for nothing (dashboard::open_panel).
+bool second_tap(const View &view)
+{
+    return view.tap_timer != nullptr && lv_tick_get() - view.last_tap <= kDoubleTapMs;
+}
+
+// The finger of a second tap that is still down on the tile when the window ends: too late for a
+// double tap and no new tap either. It is dead until it lifts (no second toggle from its release).
+void drop_touch(const View &view)
+{
+    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER && view.card != nullptr &&
+            indev->proc.types.pointer.act_obj == view.card) {
+            lv_indev_wait_release(indev);
+        }
+    }
+}
+
 void send(const View &view, core::IntentKind kind, float value, core::Expectation expected)
 {
     core::Intent intent;
@@ -60,6 +81,7 @@ void on_single_tap_toggle(lv_timer_t *timer)
     auto &view = *static_cast<View *>(timer->user_data);
     view.tap_timer = nullptr;
     lv_timer_del(timer);
+    drop_touch(view);
     if (dashboard::state(view.entity).unavailable() && dashboard::pending(view.entity) == nullptr) {
         return;
     }
@@ -156,7 +178,7 @@ void on_click(lv_event_t *event)
         // a second tap within the window opens the panel with the timeline, a single one toggles
         // once the window has passed (docs/ui/lvgl/lvgl-dashboard.md section 3)
         const uint32_t now = lv_tick_get();
-        if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
+        if (second_tap(view)) {
             lv_timer_del(view.tap_timer);
             view.tap_timer = nullptr;
             dashboard::open_panel(view.tile);
@@ -182,7 +204,7 @@ void on_click(lv_event_t *event)
         // script), a single one opens the panel once the window has passed (as a dimmer;
         // docs/ui/lvgl/lvgl-dashboard.md section 3)
         const uint32_t now = lv_tick_get();
-        if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
+        if (second_tap(view)) {
             lv_timer_del(view.tap_timer);
             view.tap_timer = nullptr;
             if (view.kind == TileKind::Timer) {
@@ -226,6 +248,7 @@ void on_single_tap(lv_timer_t *timer)
     auto &view = *static_cast<View *>(timer->user_data);
     view.tap_timer = nullptr;
     lv_timer_del(timer);
+    drop_touch(view);
     dashboard::open_panel(view.tile);
 }
 
@@ -250,6 +273,11 @@ void on_dimmer(lv_event_t *event)
         if (!view.dragging && !swipe::active() && std::abs(point.y - view.press_y) >= kDragStart &&
             std::abs(point.y - view.press_y) > std::abs(point.x - view.press_x)) {
             view.dragging = true;
+            // a tap just before the drag opens no panel: the drag is what the finger does now
+            if (view.tap_timer != nullptr) {
+                lv_timer_del(view.tap_timer);
+                view.tap_timer = nullptr;
+            }
         }
         if (view.dragging) {
             view.drag_level = level_of(view, point.y);
@@ -269,7 +297,7 @@ void on_dimmer(lv_event_t *event)
         }
         // a tap: a second one within the window switches the light, a single one opens the panel
         const uint32_t now = lv_tick_get();
-        if (view.tap_timer != nullptr && now - view.last_tap <= kDoubleTapMs) {
+        if (second_tap(view)) {
             lv_timer_del(view.tap_timer);
             view.tap_timer = nullptr;
             toggle(view);
@@ -281,6 +309,14 @@ void on_dimmer(lv_event_t *event)
         }
         break;
     }
+    case LV_EVENT_PRESS_LOST:
+        // the touch was taken away (a panel opened under the finger): no level is sent, the tile
+        // shows the light's own again
+        if (view.dragging) {
+            view.dragging = false;
+            dashboard::redraw(view.entity);
+        }
+        break;
     default:
         break;
     }

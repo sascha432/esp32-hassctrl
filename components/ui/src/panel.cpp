@@ -75,9 +75,10 @@ constexpr int32_t kShown = 1000;
 
 struct State {
     lv_obj_t *root = nullptr; // the panel, or the veil the dialog lies on
-    // While the full-screen panel slides in, the page beside it still shows: this clear cover
-    // under the panel takes the taps there (your report 2026-10-17, a room opened under the
-    // weather panel). Gone at the end of the slide.
+    // While the panel slides in, this clear cover over the whole screen takes every touch: a
+    // quick second tap acts neither on the page that still shows beside the panel (your report
+    // 2026-10-17, a room opened under the weather panel) nor on the part of the panel that
+    // passes under the finger (a stepper, the lock's slider). Gone at the end of the slide.
     lv_obj_t *guard = nullptr;
     bool dialog = false;
     lv_obj_t *body = nullptr; // the dialog
@@ -169,9 +170,17 @@ void place(int32_t progress)
 
 void remove_guard()
 {
-    if (g.guard != nullptr) {
-        lv_obj_del(g.guard);
+    if (g.guard == nullptr) {
+        return;
     }
+    // A finger that is still down on the cover stays dead until it lifts: LVGL would look under
+    // it again once the cover is gone, and its release would tap the panel's part there.
+    for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER && indev->proc.types.pointer.act_obj == g.guard) {
+            lv_indev_wait_release(indev);
+        }
+    }
+    lv_obj_del(g.guard);
 }
 
 // The panel slides in or out, from where it is; at the end of a slide out the panel goes.
@@ -210,9 +219,9 @@ void slide(bool in)
 }
 
 // A tap on the veil beside the dialog closes it like the back tile, once the dialog is down. A
-// quick second tap after the one that opened it lands on the veil while the dialog still slides in
-// (your report 2026-11-06): that one does nothing. The press counts, its release may come after
-// the slide.
+// quick second tap after the one that opened it (your report 2026-11-06) meets the cover while the
+// dialog slides in; should a press reach the veil before the dialog is down, it still does
+// nothing. The press counts, its release may come after the slide.
 void on_veil(lv_event_t *event)
 {
     if (lv_event_get_target(event) != lv_event_get_current_target(event)) {
@@ -539,18 +548,17 @@ void build(lv_obj_t *parent, core::TileIndex tile, bool appear)
     lv_obj_add_flag(g.root, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g.root, on_root_delete, LV_EVENT_DELETE, nullptr);
     g.screen_width = width;
+    if (appear) {
+        // over the panel: the last child of the page
+        g.guard = t::plain(parent);
+        lv_obj_set_pos(g.guard, 0, 0);
+        lv_obj_set_size(g.guard, width, height);
+        lv_obj_add_flag(g.guard, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(g.guard, [](lv_event_t *) { g.guard = nullptr; }, LV_EVENT_DELETE, nullptr);
+    }
     if (!dialog) {
         // opened by a tap: from the right edge; built again after a turn: in place
         place(appear ? 0 : kShown);
-        if (appear) {
-            g.guard = t::plain(parent);
-            lv_obj_set_pos(g.guard, 0, 0);
-            lv_obj_set_size(g.guard, width, height);
-            lv_obj_add_flag(g.guard, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_event_cb(g.guard, [](lv_event_t *) { g.guard = nullptr; }, LV_EVENT_DELETE, nullptr);
-            // under the panel
-            lv_obj_move_to_index(g.guard, lv_obj_get_index(g.root));
-        }
     }
     if (kind == core::TileKind::Picture) {
         // the image full screen, without the frame

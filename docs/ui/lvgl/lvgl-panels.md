@@ -61,8 +61,9 @@ page, a step darker than its cards), radius 12, 1 px border. The veil darkens at
 the middle (250 ms, easing out) and back up when it closes (easing in). The full-screen panel of
 the other boards slides in from the right and out to the right like an area page. The veil does not fade (a
 fading veil redrew the whole screen every frame). A tap on the veil closes the dialog like the back tile, once the
-dialog is down: a press on the veil while it still slides in (a quick second tap after the one that opened it) does
-nothing, even when it is let go after the slide. The camera image stays full
+dialog is down. While a panel slides in, a clear cover over the whole screen takes every touch (a
+quick second tap after the one that opened it), and a finger still down when the slide ends does
+nothing until it lifts ([lvgl-touch.md](lvgl-touch.md) section 2). The camera image stays full
 screen.
 
 ## 2. Light panel

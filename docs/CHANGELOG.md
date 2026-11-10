@@ -7,6 +7,20 @@ gone under Removed. Updated in the same commit as the change ([CLAUDE.md](../CLA
 
 ## Unreleased (0.1.0)
 
+### 2026-11-10
+
+Fixed
+
+* A second tap lifted after 300 ms no longer opens a lock's, timer's, automation's or dimmer's
+  panel twice or toggles a switch twice; it locks or runs nothing either. A panel that slides in
+  takes no taps, also on its own steppers; only one panel opens at a time.
+
+Added
+
+* `tools/test_gestures.py`: timed taps on every kind of tile in the Windows version, at the three
+  boards' sizes; simulator steps `down`, `move`, `up`, `back`, `see`, `where`. Console
+  `bench trace`: in benchmark mode, prints the panels and actions the taps cause.
+
 ### 2026-11-09
 
 Added

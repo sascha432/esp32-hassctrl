@@ -6,10 +6,8 @@
 // LVGL renders: a quick tap that began and ended during a long render (a page being built) was
 // never seen (2026-10-09, quick taps on the boards). Here a task samples the controller every
 // 10 ms and queues every change; LVGL's read takes them in order, all of them in one read when
-// several are waiting (continue_reading), so a press and its release always arrive. Every read
-// with the finger down runs LVGL's layout first, so LVGL finds the object under the finger where
-// it stands now, not where the last frame had it (a panel built by the tap before, the end of its
-// slide).
+// several are waiting (continue_reading), so a press and its release always arrive. (The UI
+// lays the screen out before each read with the finger down: hc::ui::start wraps the read.)
 //
 // The coordinates are the controller's (the panel's own orientation), as with esp_lvgl_port:
 // LVGL turns them with the display's rotation.

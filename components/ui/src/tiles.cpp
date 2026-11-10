@@ -500,7 +500,7 @@ void create(View &view, lv_obj_t *parent, const core::Layout &layout, lv_area_t 
         lv_obj_add_flag(view.off, LV_OBJ_FLAG_HIDDEN);
         view.name = name_label(view, view.card);
         lv_obj_align(view.name, LV_ALIGN_BOTTOM_MID, 0, 0);
-        for (const lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED}) {
+        for (const lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST}) {
             lv_obj_add_event_cb(view.card, on_dimmer, code, &view);
         }
         // the drag does not bubble up as a gesture of the screen

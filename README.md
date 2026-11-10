@@ -211,9 +211,18 @@ python tools/sim.py --scenario token-rejected --wait 11500 --screenshot strip.pn
 ```
 
 Steps of `--do`: `page NAME`, `scenario NAME`, `rotate`, `tap TEXT` (a label on the screen) or
-`tap X,Y`, `swipe X1,Y1,X2,Y2`, `wait MS`, `shot FILE`. `python tools/sim.py --help` lists all
+`tap X,Y`, `swipe X1,Y1,X2,Y2`, `down X,Y` / `move X,Y` / `up` (a finger held between steps),
+`back`, `see TEXT`, `wait MS`, `shot FILE`. `python tools/sim.py --help` lists all
 options. The simulator checks `host/sim/lv_conf.h` against the firmware's sdkconfig on every run
 and says when a value differs.
+
+The taps on the tiles (single, double, a second tap lifted late, a tap while a panel slides in,
+a dimmer's drag) are a test with exact times, at the sizes of the three boards:
+
+```powershell
+python tools/test_gestures.py        # build the simulator and run every case
+python tools/test_gestures.py lock   # only the cases whose name contains "lock"
+```
 
 ## Flash
 
